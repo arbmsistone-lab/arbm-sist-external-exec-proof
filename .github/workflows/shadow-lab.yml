@@ -22,8 +22,11 @@ jobs:
         env:
           LLAMA_CLI: runtime/build/bin/llama-cli
           MODEL_PATH: model.gguf
-        run: node shadow-lab.mjs | tee shadow-evidence.json
+        run: |
+          set -o pipefail
+          node shadow-lab.mjs | tee shadow-evidence.json
       - uses: actions/upload-artifact@v7
+        if: always()
         with:
           name: armb-shadow-lab-evidence
           path: shadow-evidence.json
