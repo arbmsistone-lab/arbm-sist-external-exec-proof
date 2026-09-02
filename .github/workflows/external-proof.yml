@@ -1,0 +1,20 @@
+name: ARBM External Execution Proof
+on:
+  workflow_dispatch:
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run deterministic mission
+        run: node mission.mjs | tee evidence.json
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: armb-external-proof
+          path: evidence.json
