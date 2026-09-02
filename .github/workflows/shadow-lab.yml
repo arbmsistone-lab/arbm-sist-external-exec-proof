@@ -1,0 +1,29 @@
+name: ARBM Shadow Lab External
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  shadow-lab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build pinned llama.cpp
+        run: |
+          git clone https://github.com/ggml-org/llama.cpp.git runtime
+          git -C runtime checkout 159b741427337a2e9a58b08121001545d66b5825
+          cmake -S runtime -B runtime/build -DLLAMA_CURL=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake --build runtime/build -j2 --target llama-cli
+      - name: Download pinned official model
+        run: |
+          curl -L --fail --retry 3 -o model.gguf https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf
+          echo "cc324af070c2ecbfd324a30884d2f951a7ff756aba85cb811a6ec436933bb046  model.gguf" | sha256sum -c -
+      - name: Run shadow laboratory
+        env:
+          LLAMA_CLI: runtime/build/bin/llama-cli
+          MODEL_PATH: model.gguf
+        run: node shadow-lab.mjs | tee shadow-evidence.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: armb-shadow-lab-evidence
+          path: shadow-evidence.json
