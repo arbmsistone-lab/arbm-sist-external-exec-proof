@@ -17,11 +17,12 @@ jobs:
       - name: Download pinned official model
         run: |
           curl -L --fail --retry 3 -o model.gguf https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF/resolve/main/qwen2.5-coder-7b-instruct-q4_k_m.gguf
-          echo "f6f7d8e4a8dad3294ea7a6f850150ca1f4a2a4f847a6b61c78717b0682322ce7  model.gguf" | sha256sum -c -
+          echo "509287f78cb4d4cf6b3843734733b914b2c158e43e22a7f4bf5e963800894d3c  model.gguf" | sha256sum -c -
       - name: Run shadow laboratory
         env:
           LLAMA_CLI: runtime/build/bin/llama-cli
-          MODEL_PATH: model.gguf`n          MODEL_LABEL: Qwen2.5-Coder-7B-Instruct-GGUF-Q4_K_M
+          MODEL_PATH: model.gguf
+          MODEL_LABEL: Qwen2.5-Coder-7B-Instruct-GGUF-Q4_K_M
         run: |
           set -o pipefail
           node shadow-lab.mjs | tee shadow-evidence.json
@@ -30,4 +31,3 @@ jobs:
         with:
           name: armb-shadow-lab-evidence
           path: shadow-evidence.json
-
