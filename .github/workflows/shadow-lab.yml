@@ -1,4 +1,4 @@
-name: ARBM Shadow Lab External
+﻿name: ARBM Shadow Lab External
 on:
   workflow_dispatch:
     inputs:
@@ -22,11 +22,17 @@ jobs:
         run: |
           git clone https://github.com/ggml-org/llama.cpp.git runtime
           git -C runtime checkout 159b741427337a2e9a58b08121001545d66b5825
-          cmake -S runtime -B runtime/build -DLLAMA_CURL=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake -S runtime -B runtime/build -DLLAMA_CURL=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release
           cmake --build runtime/build -j2 --target llama-cli
           cp runtime/build/bin/llama-cli ./llama-cli
           rm -rf runtime
           test -x ./llama-cli
+          ./llama-cli --version
+          ./llama-cli --help > llama-cli-help.txt
+          grep -q -- "--simple-io" llama-cli-help.txt
+          grep -q -- "--no-conversation" llama-cli-help.txt
+          grep -q -- "--no-display-prompt" llama-cli-help.txt
+          grep -q -- "--no-show-timings" llama-cli-help.txt
       - name: Resolve audited candidate
         id: model
         shell: bash
