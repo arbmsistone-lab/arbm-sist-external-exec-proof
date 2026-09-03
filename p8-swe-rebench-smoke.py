@@ -19,6 +19,7 @@ def clean_diff(text):
 
 def select_context(repo, problem, limit=4, max_chars=16000):
     problem_low=problem.lower()
+    distinctive_names={t.lower() for t in re.findall(r'[A-Za-z][A-Za-z0-9_]{4,}',problem) if ('_' in t or any(c.isdigit() for c in t) or any(c.isupper() for c in t[1:]))}
     test_intent=bool(re.search(r'\b(test|tests|testing|testcase|testcases)\b',problem_low))
     plugin_intent=('plugin' in problem_low)
     tokens = [x for x in re.findall(r'[A-Za-z_][A-Za-z0-9_]{3,}', problem)
@@ -42,10 +43,10 @@ def select_context(repo, problem, limit=4, max_chars=16000):
             if '(' in snippet and ')' in snippet: score+=15
             if re.search(r'\b'+re.escape(symbol)+r'\s*\(', snippet): score+=20
             stem=Path(rel).stem.lower()
-            if len(stem)>=4 and stem in problem_low: score+=220
+            if stem in distinctive_names: score+=220
             if plugin_intent and re.search(r'(^|/)plugins?(/|$)',rel,re.I): score+=120
             if test_intent and is_test: score+=70
-            score += max(0, 30-symbol_rank*2)
+            score += 120 + max(0, 30-symbol_rank*2)
             try: ln=int(line_no)
             except Exception: ln=1
             candidates.append((score, rel, ln, symbol))
@@ -62,7 +63,7 @@ def select_context(repo, problem, limit=4, max_chars=16000):
         if not hits and not path_hits: continue
         score=60 + min(70,hits*3) + path_hits*18
         stem=Path(rel).stem.lower()
-        if len(stem)>=4 and stem in problem_low: score+=220
+        if stem in distinctive_names: score+=220
         if plugin_intent and re.search(r'(^|/)plugins?(/|$)',rel,re.I): score+=120
         if test_intent and is_test: score+=70
         if re.search(r'(^|/)(src|source|lib|libhdf5|core)(/|$)',rel,re.I): score+=25
