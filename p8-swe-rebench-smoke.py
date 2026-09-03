@@ -86,9 +86,9 @@ def infer(prompt, instance_id):
                     continue
                 return 0, str(data.get('patch','')), '', False
             except urllib.error.HTTPError as exc:
-                body=exc.read().decode('utf-8','ignore')[:2000]
-                last_err=f'HTTP {exc.code}: {body}'
-                transient=(exc.code in (502,503,504) and ('high demand' in body.lower() or 'provider_timeout' in body.lower() or 'provider_error' in body.lower()))
+                error_body=exc.read().decode('utf-8','ignore')[:2000]
+                last_err=f'HTTP {exc.code}: {error_body}'
+                transient=(exc.code in (502,503,504) and ('high demand' in error_body.lower() or 'provider_timeout' in error_body.lower() or 'provider_error' in error_body.lower()))
                 if transient and attempt < 3:
                     continue
                 return 125, '', last_err, False
@@ -121,11 +121,20 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
       '\n\nREPOSITORY CONTEXT:\n'+context)
     started=time.time(); code,out,err,timed_out=infer(prompt,iid); latency=round((time.time()-started)*1000)
     patch=clean_diff(out)
-    valid=(not timed_out) and patch.startswith('diff --git ') and len(patch)>40
+    structure_valid=(not timed_out) and patch.startswith('diff --git ') and len(patch)>40
+    apply_check=False
+    apply_error=''
+    if structure_valid:
+        patch_file=Path(td,'arbm.patch')
+        patch_file.write_text(patch,encoding='utf-8')
+        chk=run(['git','apply','--check',str(patch_file)],td,60)
+        apply_check=(chk.returncode==0)
+        apply_error=(chk.stderr or chk.stdout).strip()[:500]
+    valid=structure_valid and apply_check
     evidence={'schema':'arbm-p8-swe-smoke-v1','dataset':DATASET,'instance_id':iid,
       'repo':row['repo'],'base_commit':base,'model':os.environ.get('MODEL_LABEL','unknown'),'provider':os.environ.get('MODEL_PROVIDER','local-llama'),
       'latencyMs':latency,'exitCode':code,'validPatch':valid,'patchChars':len(patch),
-      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'goldPatchExposedToAgent':False}
+      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'goldPatchExposedToAgent':False}
     Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
     Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':patch}],indent=2)+'\n')
     Path(OUT,'instance.json').write_text(json.dumps({'instance_id':iid,'repo':row['repo'],'base_commit':base},indent=2)+'\n')
