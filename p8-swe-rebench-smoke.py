@@ -17,7 +17,7 @@ def clean_diff(text):
     i = text.find('diff --git ')
     return text[i:] if i >= 0 else text
 
-def select_context(repo, problem, limit=4, max_chars=12000):
+def select_context(repo, problem, limit=4, max_chars=24000):
     tokens = [x for x in re.findall(r'[A-Za-z_][A-Za-z0-9_]{3,}', problem.lower())
               if x not in {'this','that','with','from','when','have','should','into','there','which'}]
     files = run(['git','ls-files'], repo).stdout.splitlines()
@@ -39,8 +39,13 @@ def select_context(repo, problem, limit=4, max_chars=12000):
         hit=sum(text.lower().count(t) for t in tokens[:40])
         if hit==0 and picked:
             continue
-        chunk=text[:5000]
-        block=f'FILE: {rel}\n{chunk}\n'
+        low=text.lower()
+        positions=[low.find(t) for t in tokens[:60] if low.find(t)>=0]
+        center=min(positions) if positions else 0
+        start=max(0, center-3500)
+        end=min(len(text), center+6500)
+        chunk=text[start:end]
+        block=f'FILE: {rel} [chars {start}:{end}]\n{chunk}\n'
         if used+len(block)>max_chars:
             break
         picked.append(block); used+=len(block)
