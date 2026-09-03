@@ -37,7 +37,7 @@ jobs:
           ARBM_BENCHMARK_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-federated-v1
           MODEL_LABEL: ARBM-Federated-Free-Mesh-v1
           MODEL_PROVIDER: federated-zero-cost
-          WORKER_REV: federated-free-mesh-v1
+          WORKER_REV: federated-free-mesh-v2-semantic-review
         run: python p8-swe-rebench-smoke.py
       - name: Checkout frozen SWE-rebench V2 evaluator
         run: |
