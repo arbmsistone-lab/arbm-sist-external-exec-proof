@@ -48,40 +48,26 @@ def select_context(repo, problem, limit=4, max_chars=12000):
             break
     return '\n'.join(picked)
 
-def infer(prompt):
-    token=os.environ.get('GITHUB_TOKEN','')
-    if token:
-        body=json.dumps({
-            'model': os.environ.get('GITHUB_MODEL','openai/gpt-4.1'),
-            'messages':[{'role':'user','content':prompt}],
-            'temperature':0,
-            'max_tokens':900
-        }).encode('utf-8')
-        req=urllib.request.Request('https://models.github.ai/inference/chat/completions', data=body, method='POST')
+def infer(prompt, instance_id):
+    token=os.environ.get('ARBM_BENCHMARK_OIDC','')
+    endpoint=os.environ.get('ARBM_BENCHMARK_ENDPOINT','')
+    if token and endpoint:
+        body=json.dumps({'task':prompt,'task_class':'swe-rebench-v2','instance_id':instance_id}).encode('utf-8')
+        req=urllib.request.Request(endpoint, data=body, method='POST')
         req.add_header('Authorization', 'Bearer '+token)
         req.add_header('Content-Type', 'application/json')
-        req.add_header('Accept', 'application/vnd.github+json')
-        req.add_header('X-GitHub-Api-Version', '2026-03-10')
         try:
-            with urllib.request.urlopen(req, timeout=120) as r:
+            with urllib.request.urlopen(req, timeout=60) as r:
                 data=json.loads(r.read().decode('utf-8'))
-            return 0, data['choices'][0]['message']['content'], '', False
+            if not data.get('ok'):
+                return 125, '', 'REMOTE_STATUS:'+str(data.get('status')), False
+            return 0, str(data.get('patch','')), '', False
         except urllib.error.HTTPError as exc:
             body=exc.read().decode('utf-8','ignore')[:2000]
             return 125, '', f'HTTP {exc.code}: {body}', False
         except Exception as exc:
             return 125, '', type(exc).__name__+': '+str(exc), False
-    cmd=[LLAMA,'-m',MODEL,'-p',prompt,'-n','700','--temp','0','--single-turn',
-         '--simple-io','--no-display-prompt','--no-show-timings']
-    try:
-        proc=run(cmd, timeout=180)
-        return proc.returncode, proc.stdout, proc.stderr, False
-    except subprocess.TimeoutExpired as exc:
-        out=exc.stdout or ''
-        err=exc.stderr or ''
-        if isinstance(out,bytes): out=out.decode('utf-8','ignore')
-        if isinstance(err,bytes): err=err.decode('utf-8','ignore')
-        return 124, out, err, True
+    return 126, '', 'NO_REMOTE_PROVIDER', False
 
 ds=load_dataset(DATASET, split='train')
 row=dict(ds[0])
@@ -100,7 +86,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
       'Return ONLY a valid unified git diff beginning with diff --git. Do not explain. '
       'Do not modify tests unless the issue explicitly requires it.\n\nISSUE:\n'+problem+
       '\n\nREPOSITORY CONTEXT:\n'+context)
-    started=time.time(); code,out,err,timed_out=infer(prompt); latency=round((time.time()-started)*1000)
+    started=time.time(); code,out,err,timed_out=infer(prompt,iid); latency=round((time.time()-started)*1000)
     patch=clean_diff(out)
     valid=(not timed_out) and patch.startswith('diff --git ') and len(patch)>40
     evidence={'schema':'arbm-p8-swe-smoke-v1','dataset':DATASET,'instance_id':iid,
