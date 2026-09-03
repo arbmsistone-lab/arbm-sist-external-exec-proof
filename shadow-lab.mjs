@@ -14,7 +14,7 @@ const args = [
   '--no-display-prompt',
   '--no-show-timings',
   '--simple-io',
-  '--no-conversation',
+  '--single-turn',
   '--log-colors', 'off',
   '--no-log-prefix',
   '--no-log-timestamps',

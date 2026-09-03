@@ -25,7 +25,7 @@ jobs:
           git clone https://github.com/ggml-org/llama.cpp.git runtime
           git -C runtime checkout 159b741427337a2e9a58b08121001545d66b5825
           grep -Fq -- '"--simple-io"' runtime/common/arg.cpp
-          grep -Fq -- '"--no-conversation"' runtime/common/arg.cpp
+          grep -Fq -- '"--single-turn"' runtime/common/arg.cpp
           grep -Fq -- '"--no-display-prompt"' runtime/common/arg.cpp
           grep -Fq -- '"--no-show-timings"' runtime/common/arg.cpp
           cmake -S runtime -B runtime/build -DLLAMA_CURL=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release
