@@ -1,4 +1,4 @@
-import json, os, re, subprocess, sys, tempfile, time
+import json, os, re, subprocess, sys, tempfile, time, urllib.request, urllib.error
 from pathlib import Path
 from datasets import load_dataset
 
@@ -49,6 +49,25 @@ def select_context(repo, problem, limit=4, max_chars=12000):
     return '\n'.join(picked)
 
 def infer(prompt):
+    token=os.environ.get('GITHUB_TOKEN','')
+    if token:
+        body=json.dumps({
+            'model': os.environ.get('GITHUB_MODEL','openai/gpt-4.1'),
+            'messages':[{'role':'user','content':prompt}],
+            'temperature':0,
+            'max_tokens':900
+        }).encode('utf-8')
+        req=urllib.request.Request('https://models.github.ai/inference/chat/completions', data=body, method='POST')
+        req.add_header('Authorization', 'Bearer '+token)
+        req.add_header('Content-Type', 'application/json')
+        req.add_header('Accept', 'application/vnd.github+json')
+        req.add_header('X-GitHub-Api-Version', '2026-03-10')
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                data=json.loads(r.read().decode('utf-8'))
+            return 0, data['choices'][0]['message']['content'], '', False
+        except Exception as exc:
+            return 125, '', type(exc).__name__+': '+str(exc), False
     cmd=[LLAMA,'-m',MODEL,'-p',prompt,'-n','700','--temp','0','--single-turn',
          '--simple-io','--no-display-prompt','--no-show-timings']
     try:
@@ -82,7 +101,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     patch=clean_diff(out)
     valid=(not timed_out) and patch.startswith('diff --git ') and len(patch)>40
     evidence={'schema':'arbm-p8-swe-smoke-v1','dataset':DATASET,'instance_id':iid,
-      'repo':row['repo'],'base_commit':base,'model':os.environ.get('MODEL_LABEL','unknown'),
+      'repo':row['repo'],'base_commit':base,'model':os.environ.get('MODEL_LABEL','unknown'),'provider':os.environ.get('MODEL_PROVIDER','local-llama'),
       'latencyMs':latency,'exitCode':code,'validPatch':valid,'patchChars':len(patch),
       'stderrChars':len(err),'timedOut':timed_out,'goldPatchExposedToAgent':False}
     Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
