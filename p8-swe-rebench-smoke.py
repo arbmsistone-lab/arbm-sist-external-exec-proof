@@ -1,4 +1,4 @@
-import json, os, re, subprocess, sys, tempfile, time, urllib.request, urllib.error
+import json, os, re, subprocess, sys, tempfile, time, urllib.request, urllib.error, urllib.parse
 from pathlib import Path
 from datasets import load_dataset
 
@@ -53,19 +53,32 @@ def select_context(repo, problem, limit=4, max_chars=24000):
             break
     return '\n'.join(picked)
 
+def fresh_oidc():
+    url=os.environ.get('ACTIONS_ID_TOKEN_REQUEST_URL','')
+    bearer=os.environ.get('ACTIONS_ID_TOKEN_REQUEST_TOKEN','')
+    if url and bearer:
+        sep='&' if '?' in url else '?'
+        req=urllib.request.Request(url+sep+'audience='+urllib.parse.quote('arbm-sist-benchmark'))
+        req.add_header('Authorization','Bearer '+bearer)
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return str(json.loads(r.read().decode('utf-8'))['value'])
+    return os.environ.get('ARBM_BENCHMARK_OIDC','')
+
 def infer(prompt, instance_id):
-    token=os.environ.get('ARBM_BENCHMARK_OIDC','')
     endpoint=os.environ.get('ARBM_BENCHMARK_ENDPOINT','')
-    if token and endpoint:
+    if endpoint:
         body=json.dumps({'task':prompt,'task_class':'swe-rebench-v2','instance_id':instance_id}).encode('utf-8')
-        req=urllib.request.Request(endpoint, data=body, method='POST')
-        req.add_header('Authorization', 'Bearer '+token)
-        req.add_header('Content-Type', 'application/json')
         last_err=''
         for attempt, delay in enumerate((0, 20, 40), start=1):
             if delay:
                 time.sleep(delay)
             try:
+                token=fresh_oidc()
+                if not token:
+                    return 126, '', 'NO_OIDC_PROVIDER_TOKEN', False
+                req=urllib.request.Request(endpoint, data=body, method='POST')
+                req.add_header('Authorization', 'Bearer '+token)
+                req.add_header('Content-Type', 'application/json')
                 with urllib.request.urlopen(req, timeout=150) as r:
                     data=json.loads(r.read().decode('utf-8'))
                 if not data.get('ok'):
