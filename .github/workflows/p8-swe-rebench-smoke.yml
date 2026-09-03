@@ -1,4 +1,4 @@
-﻿name: P8 SWE-rebench V2 real smoke
+name: P8 SWE-rebench V2 real smoke
 on:
   workflow_dispatch:
   push:
