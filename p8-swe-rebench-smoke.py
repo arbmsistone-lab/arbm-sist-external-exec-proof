@@ -22,6 +22,7 @@ def select_context(repo, problem, limit=4, max_chars=16000):
     distinctive_names={t.lower() for t in re.findall(r'[A-Za-z][A-Za-z0-9_]{4,}',problem) if ('_' in t or any(c.isdigit() for c in t) or any(c.isupper() for c in t[1:]))}
     test_intent=bool(re.search(r'\b(test|tests|testing|testcase|testcases)\b',problem_low))
     plugin_intent=('plugin' in problem_low)
+    hdf5_intent=('hdf5' in problem_low)
     behavior_intent=bool(re.search(r'\b(fix|fixed|consistent|consistency|different|reverse|same|order|incorrect|wrong|bug)\b',problem_low))
     tokens = [x for x in re.findall(r'[A-Za-z_][A-Za-z0-9_]{3,}', problem)
               if x.lower() not in {'this','that','with','from','when','have','should','into','there','which'}]
@@ -51,6 +52,8 @@ def select_context(repo, problem, limit=4, max_chars=16000):
             if stem in distinctive_names: score+=220
             if stem_parts and all(x in problem_low for x in stem_parts): score+=280
             if plugin_intent and re.search(r'(^|/)plugins?(/|$)',rel,re.I): score+=120
+            if hdf5_intent and re.search(r'(^|/)libhdf5(/|$)',rel,re.I): score+=260
+            if hdf5_intent and 'hdf5open' in rel.lower(): score+=180
             if behavior_intent and not is_test: score += 220
             if is_test: score += 100 if test_intent else (30 if behavior_intent else -20)
             score += 120 + max(0, 30-symbol_rank*2)
@@ -73,6 +76,8 @@ def select_context(repo, problem, limit=4, max_chars=16000):
         if stem in distinctive_names: score+=220
         if stem_parts and all(x in problem_low for x in stem_parts): score+=280
         if plugin_intent and re.search(r'(^|/)plugins?(/|$)',rel,re.I): score+=120
+        if hdf5_intent and re.search(r'(^|/)libhdf5(/|$)',rel,re.I): score+=260
+        if hdf5_intent and 'hdf5open' in rel.lower(): score+=180
         if behavior_intent and not is_test: score+=140
         if test_intent and is_test: score+=60
         if re.search(r'(^|/)(src|source|lib[^/]*|core)(/|$)',rel,re.I): score+=25
@@ -80,6 +85,11 @@ def select_context(repo, problem, limit=4, max_chars=16000):
         if re.search(r'(notnc|noop|stub)',rel,re.I): score-=260
         if re.search(r'(^|/)(examples?)(/|$)',rel,re.I): score-=35
         focus=next((k for k in keywords if k in low), keywords[0] if keywords else '')
+        if hdf5_intent and 'hdf5open' in rel.lower():
+            for anchor in ('h5pget_nfilters','h5pget_filter2','nc4_hdf5_addfilter'):
+                if anchor in low:
+                    focus=anchor
+                    break
         pos=low.find(focus) if focus else 0
         ln=low[:max(0,pos)].count('\n')+1
         candidates.append((score,rel,ln,'lexical:'+focus))
@@ -92,7 +102,12 @@ def select_context(repo, problem, limit=4, max_chars=16000):
             if c[1] in prod_paths: continue
             prod.append(c); prod_paths.add(c[1])
             if len(prod) >= min(2, max(1, limit-1)): break
-        ordered=prod+[c for c in ordered if c not in prod]
+        tests=[]; test_paths=set()
+        for c in ordered:
+            if not re.search(r'(^|/)(test|tests|nc_test|nc_test4)(/|_)', c[1], re.I): continue
+            if c[1] in test_paths: continue
+            tests.append(c); test_paths.add(c[1]); break
+        ordered=prod+tests+[c for c in ordered if c not in prod and c not in tests]
     seen=set(); picked=[]; used=0
     for score, rel, ln, symbol in ordered:
         if rel in seen: continue
