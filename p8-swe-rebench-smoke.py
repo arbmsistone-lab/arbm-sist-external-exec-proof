@@ -150,7 +150,22 @@ def infer(prompt, instance_id):
         return 125, [], last_err or 'REMOTE_RETRY_EXHAUSTED', False
     return 126, [], 'NO_REMOTE_PROVIDER', False
 
-ds=load_dataset(DATASET, split='train')
+def load_public_sample_with_backoff():
+    last = None
+    for attempt, delay in enumerate((0, 8, 20, 45), start=1):
+        if delay:
+            time.sleep(delay)
+        try:
+            return load_dataset(DATASET, split='train')
+        except Exception as exc:
+            last = exc
+            msg = str(exc).lower()
+            transient = ('429' in msg or 'too many requests' in msg or 'maximum queue size' in msg or '503' in msg or '502' in msg or '504' in msg)
+            if not transient or attempt == 4:
+                raise
+    raise last
+
+ds=load_public_sample_with_backoff()
 row=dict(ds[0])
 for secret in ('patch','test_patch','PASS_TO_PASS','FAIL_TO_PASS'):
     row.pop(secret, None)
