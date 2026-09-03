@@ -1,4 +1,4 @@
-﻿name: ARBM Shadow Lab External
+name: ARBM Shadow Lab External
 on:
   workflow_dispatch:
     inputs:
@@ -18,6 +18,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
+      - name: Verify evaluator fail-closed logic
+        run: node shadow-evaluator-test.mjs
       - name: Build pinned llama.cpp
         run: |
           git clone https://github.com/ggml-org/llama.cpp.git runtime
