@@ -56,19 +56,32 @@ def infer(prompt, instance_id):
         req=urllib.request.Request(endpoint, data=body, method='POST')
         req.add_header('Authorization', 'Bearer '+token)
         req.add_header('Content-Type', 'application/json')
-        try:
-            with urllib.request.urlopen(req, timeout=150) as r:
-                data=json.loads(r.read().decode('utf-8'))
-            if not data.get('ok'):
-                return 125, '', 'REMOTE_STATUS:'+str(data.get('status')), False
-            return 0, str(data.get('patch','')), '', False
-        except urllib.error.HTTPError as exc:
-            body=exc.read().decode('utf-8','ignore')[:2000]
-            return 125, '', f'HTTP {exc.code}: {body}', False
-        except TimeoutError as exc:
-            return 124, '', type(exc).__name__+': '+str(exc), True
-        except Exception as exc:
-            return 125, '', type(exc).__name__+': '+str(exc), False
+        last_err=''
+        for attempt, delay in enumerate((0, 20, 40), start=1):
+            if delay:
+                time.sleep(delay)
+            try:
+                with urllib.request.urlopen(req, timeout=150) as r:
+                    data=json.loads(r.read().decode('utf-8'))
+                if not data.get('ok'):
+                    last_err='REMOTE_STATUS:'+str(data.get('status'))
+                    continue
+                return 0, str(data.get('patch','')), '', False
+            except urllib.error.HTTPError as exc:
+                body=exc.read().decode('utf-8','ignore')[:2000]
+                last_err=f'HTTP {exc.code}: {body}'
+                transient=(exc.code in (502,503,504) and ('high demand' in body.lower() or 'provider_timeout' in body.lower() or 'provider_error' in body.lower()))
+                if transient and attempt < 3:
+                    continue
+                return 125, '', last_err, False
+            except TimeoutError as exc:
+                last_err=type(exc).__name__+': '+str(exc)
+                if attempt < 3:
+                    continue
+                return 124, '', last_err, True
+            except Exception as exc:
+                return 125, '', type(exc).__name__+': '+str(exc), False
+        return 125, '', last_err or 'REMOTE_RETRY_EXHAUSTED', False
     return 126, '', 'NO_REMOTE_PROVIDER', False
 
 ds=load_dataset(DATASET, split='train')
