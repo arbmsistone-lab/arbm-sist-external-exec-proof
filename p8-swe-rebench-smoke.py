@@ -40,7 +40,9 @@ def select_context(repo, problem, limit=4, max_chars=24000):
         if hit==0 and picked:
             continue
         low=text.lower()
-        positions=[low.find(t) for t in tokens[:60] if low.find(t)>=0]
+        symbol_tokens=[t for t in tokens[:60] if ('_' in t or len(t)>=12) and low.find(t)>=0]
+        fallback_tokens=[t for t in tokens[:60] if low.find(t)>=0]
+        positions=[low.find(t) for t in (symbol_tokens or fallback_tokens)]
         center=min(positions) if positions else 0
         start=max(0, center-3500)
         end=min(len(text), center+6500)
