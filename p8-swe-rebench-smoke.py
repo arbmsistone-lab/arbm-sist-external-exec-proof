@@ -17,42 +17,37 @@ def clean_diff(text):
     i = text.find('diff --git ')
     return text[i:] if i >= 0 else text
 
-def select_context(repo, problem, limit=4, max_chars=24000):
+def select_context(repo, problem, limit=2, max_chars=10000):
     tokens = [x for x in re.findall(r'[A-Za-z_][A-Za-z0-9_]{3,}', problem.lower())
               if x not in {'this','that','with','from','when','have','should','into','there','which'}]
-    files = run(['git','ls-files'], repo).stdout.splitlines()
-    scored=[]
+    symbols = sorted({t for t in tokens if '_' in t and len(t) >= 7}, key=len, reverse=True)
+    for symbol in symbols[:12]:
+        g=run(['git','grep','-n','-F',symbol,'--','*.py','*.js','*.ts','*.tsx','*.jsx','*.c','*.cc','*.cpp','*.h','*.hpp','*.go','*.rs','*.java','*.rb'], repo, 60)
+        for line in g.stdout.splitlines():
+            parts=line.split(':',2)
+            if len(parts)<3: continue
+            rel, line_no, _ = parts
+            if re.search(r'(^|/)(test|tests|nc_test|nc_test4)(/|_)', rel, re.I): continue
+            try: text=Path(repo,rel).read_text(encoding='utf-8',errors='ignore')
+            except Exception: continue
+            pos=text.lower().find(symbol)
+            if pos < 0: continue
+            start=max(0,pos-3000); end=min(len(text),pos+6000)
+            return f'FILE: {rel} [symbol {symbol}; chars {start}:{end}]\n{text[start:end]}\n'
+    return _fallback_context(repo, tokens, limit, max_chars)
+
+def _fallback_context(repo, tokens, limit=2, max_chars=10000):
+    files=run(['git','ls-files'],repo).stdout.splitlines(); ranked=[]
     for rel in files:
-        if not re.search(r'\.(py|js|ts|tsx|jsx|c|cc|cpp|h|hpp|go|rs|java|rb)$', rel, re.I):
-            continue
-        if re.search(r'(^|/)(test|tests|nc_test|nc_test4)(/|_)', rel, re.I):
-            continue
-        score=sum(3 for t in tokens if t in rel.lower())
-        scored.append((score, rel))
-    scored.sort(reverse=True)
-    picked=[]; used=0
-    for _, rel in scored:
-        try:
-            text=Path(repo,rel).read_text(encoding='utf-8',errors='ignore')
-        except Exception:
-            continue
-        hit=sum(text.lower().count(t) for t in tokens[:40])
-        if hit==0 and picked:
-            continue
-        low=text.lower()
-        symbol_tokens=[t for t in tokens[:60] if ('_' in t or len(t)>=12) and low.find(t)>=0]
-        fallback_tokens=[t for t in tokens[:60] if low.find(t)>=0]
-        positions=[low.find(t) for t in (symbol_tokens or fallback_tokens)]
-        center=min(positions) if positions else 0
-        start=max(0, center-3500)
-        end=min(len(text), center+6500)
-        chunk=text[start:end]
-        block=f'FILE: {rel} [chars {start}:{end}]\n{chunk}\n'
-        if used+len(block)>max_chars:
-            break
-        picked.append(block); used+=len(block)
-        if len(picked)>=limit:
-            break
+        if not re.search(r'\.(py|js|ts|tsx|jsx|c|cc|cpp|h|hpp|go|rs|java|rb)$',rel,re.I): continue
+        if re.search(r'(^|/)(test|tests|nc_test|nc_test4)(/|_)',rel,re.I): continue
+        try: text=Path(repo,rel).read_text(encoding='utf-8',errors='ignore')
+        except Exception: continue
+        hits=sum(text.lower().count(t) for t in tokens[:30])
+        if hits: ranked.append((hits,rel,text))
+    ranked.sort(reverse=True); picked=[]; used=0
+    for _,rel,text in ranked[:limit]:
+        chunk=text[:min(5000,max_chars-used)]; picked.append(f'FILE: {rel}\n{chunk}\n'); used+=len(chunk)
     return '\n'.join(picked)
 
 def fresh_oidc():
@@ -71,7 +66,7 @@ def infer(prompt, instance_id):
     if endpoint:
         body=json.dumps({'task':prompt,'task_class':'swe-rebench-v2','instance_id':instance_id}).encode('utf-8')
         last_err=''
-        for attempt, delay in enumerate((0, 20, 40), start=1):
+        for attempt, delay in enumerate((0, 15), start=1):
             if delay:
                 time.sleep(delay)
             try:
@@ -91,12 +86,12 @@ def infer(prompt, instance_id):
                 error_body=exc.read().decode('utf-8','ignore')[:2000]
                 last_err=f'HTTP {exc.code}: {error_body}'
                 transient=(exc.code in (502,503,504) and ('high demand' in error_body.lower() or 'provider_timeout' in error_body.lower() or 'provider_error' in error_body.lower()))
-                if transient and attempt < 3:
+                if transient and attempt < 2:
                     continue
                 return 125, [], last_err, False
             except TimeoutError as exc:
                 last_err=type(exc).__name__+': '+str(exc)
-                if attempt < 3:
+                if attempt < 2:
                     continue
                 return 124, [], last_err, True
             except Exception as exc:

@@ -37,7 +37,7 @@ jobs:
           ARBM_BENCHMARK_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-edit-v1
           MODEL_LABEL: Gemini-3.5-Flash-Medium-via-Supabase-OIDC
           MODEL_PROVIDER: supabase-gemini-structured-edit
-          WORKER_REV: edit-v3
+          WORKER_REV: edit-v4-symbol-context
         run: python p8-swe-rebench-smoke.py
       - name: Checkout frozen SWE-rebench V2 evaluator
         run: |
