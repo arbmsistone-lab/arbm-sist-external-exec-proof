@@ -75,7 +75,7 @@ def infer(prompt, instance_id):
             try:
                 token=fresh_oidc()
                 if not token:
-                    return 126, '', 'NO_OIDC_PROVIDER_TOKEN', False
+                    return 126, [], 'NO_OIDC_PROVIDER_TOKEN', False
                 req=urllib.request.Request(endpoint, data=body, method='POST')
                 req.add_header('Authorization', 'Bearer '+token)
                 req.add_header('Content-Type', 'application/json')
@@ -84,23 +84,23 @@ def infer(prompt, instance_id):
                 if not data.get('ok'):
                     last_err='REMOTE_STATUS:'+str(data.get('status'))
                     continue
-                return 0, str(data.get('patch','')), '', False
+                return 0, data.get('edits',[]), '', False
             except urllib.error.HTTPError as exc:
                 error_body=exc.read().decode('utf-8','ignore')[:2000]
                 last_err=f'HTTP {exc.code}: {error_body}'
                 transient=(exc.code in (502,503,504) and ('high demand' in error_body.lower() or 'provider_timeout' in error_body.lower() or 'provider_error' in error_body.lower()))
                 if transient and attempt < 3:
                     continue
-                return 125, '', last_err, False
+                return 125, [], last_err, False
             except TimeoutError as exc:
                 last_err=type(exc).__name__+': '+str(exc)
                 if attempt < 3:
                     continue
-                return 124, '', last_err, True
+                return 124, [], last_err, True
             except Exception as exc:
-                return 125, '', type(exc).__name__+': '+str(exc), False
-        return 125, '', last_err or 'REMOTE_RETRY_EXHAUSTED', False
-    return 126, '', 'NO_REMOTE_PROVIDER', False
+                return 125, [], type(exc).__name__+': '+str(exc), False
+        return 125, [], last_err or 'REMOTE_RETRY_EXHAUSTED', False
+    return 126, [], 'NO_REMOTE_PROVIDER', False
 
 ds=load_dataset(DATASET, split='train')
 row=dict(ds[0])
@@ -119,22 +119,38 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
       'Return ONLY a valid unified git diff beginning with diff --git. Do not explain. '
       'Do not modify tests unless the issue explicitly requires it.\n\nISSUE:\n'+problem+
       '\n\nREPOSITORY CONTEXT:\n'+context)
-    started=time.time(); code,out,err,timed_out=infer(prompt,iid); latency=round((time.time()-started)*1000)
-    patch=clean_diff(out)
-    structure_valid=(not timed_out) and patch.startswith('diff --git ') and len(patch)>40
-    apply_check=False
-    apply_error=''
+    started=time.time(); code,edits,err,timed_out=infer(prompt,iid); latency=round((time.time()-started)*1000)
+    edit_errors=[]; applied_edits=0
+    if code==0 and isinstance(edits,list):
+        for edit in edits:
+            try:
+                rel=str(edit.get('path','')).replace('\\','/').lstrip('/')
+                old=str(edit.get('old','')); new=str(edit.get('new',''))
+                target=Path(td,rel).resolve()
+                if not str(target).startswith(str(Path(td).resolve())) or not target.is_file():
+                    edit_errors.append('invalid_path:'+rel); continue
+                text=target.read_text(encoding='utf-8',errors='strict')
+                count=text.count(old)
+                if count!=1:
+                    edit_errors.append(f'old_match_count:{rel}:{count}'); continue
+                target.write_text(text.replace(old,new,1),encoding='utf-8')
+                applied_edits+=1
+            except Exception as exc:
+                edit_errors.append(type(exc).__name__+':'+str(exc)[:200])
+    diff_run=run(['git','diff','--no-ext-diff','--binary'],td,60)
+    patch=diff_run.stdout
+    structure_valid=(code==0) and applied_edits>0 and patch.startswith('diff --git ') and len(patch)>40
+    apply_check=False; apply_error=''
     if structure_valid:
-        patch_file=Path(td,'arbm.patch')
-        patch_file.write_text(patch,encoding='utf-8')
+        run(['git','reset','--hard',base],td,60)
+        patch_file=Path(td,'arbm.patch'); patch_file.write_text(patch,encoding='utf-8')
         chk=run(['git','apply','--check',str(patch_file)],td,60)
-        apply_check=(chk.returncode==0)
-        apply_error=(chk.stderr or chk.stdout).strip()[:500]
-    valid=structure_valid and apply_check
+        apply_check=(chk.returncode==0); apply_error=(chk.stderr or chk.stdout).strip()[:500]
+    valid=structure_valid and apply_check and not edit_errors
     evidence={'schema':'arbm-p8-swe-smoke-v1','dataset':DATASET,'instance_id':iid,
       'repo':row['repo'],'base_commit':base,'model':os.environ.get('MODEL_LABEL','unknown'),'provider':os.environ.get('MODEL_PROVIDER','local-llama'),
       'latencyMs':latency,'exitCode':code,'validPatch':valid,'patchChars':len(patch),
-      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'goldPatchExposedToAgent':False}
+      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'goldPatchExposedToAgent':False}
     Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
     Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':patch}],indent=2)+'\n')
     Path(OUT,'instance.json').write_text(json.dumps({'instance_id':iid,'repo':row['repo'],'base_commit':base},indent=2)+'\n')

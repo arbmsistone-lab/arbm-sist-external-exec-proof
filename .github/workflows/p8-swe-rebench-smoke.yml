@@ -34,10 +34,10 @@ jobs:
       - name: Generate ARBM predicted patch via Supabase Gemini
         env:
           ARBM_BENCHMARK_OIDC: ${{ steps.oidc.outputs.token }}
-          ARBM_BENCHMARK_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-gemini-v1
+          ARBM_BENCHMARK_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-edit-v1
           MODEL_LABEL: Gemini-3.6-Flash-High-via-Supabase-OIDC
-          MODEL_PROVIDER: supabase-gemini-oidc
-          WORKER_REV: v8
+          MODEL_PROVIDER: supabase-gemini-structured-edit
+          WORKER_REV: edit-v1
         run: python p8-swe-rebench-smoke.py
       - name: Checkout frozen SWE-rebench V2 evaluator
         run: |
