@@ -66,6 +66,9 @@ def infer(prompt):
             with urllib.request.urlopen(req, timeout=120) as r:
                 data=json.loads(r.read().decode('utf-8'))
             return 0, data['choices'][0]['message']['content'], '', False
+        except urllib.error.HTTPError as exc:
+            body=exc.read().decode('utf-8','ignore')[:2000]
+            return 125, '', f'HTTP {exc.code}: {body}', False
         except Exception as exc:
             return 125, '', type(exc).__name__+': '+str(exc), False
     cmd=[LLAMA,'-m',MODEL,'-p',prompt,'-n','700','--temp','0','--single-turn',
@@ -103,7 +106,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     evidence={'schema':'arbm-p8-swe-smoke-v1','dataset':DATASET,'instance_id':iid,
       'repo':row['repo'],'base_commit':base,'model':os.environ.get('MODEL_LABEL','unknown'),'provider':os.environ.get('MODEL_PROVIDER','local-llama'),
       'latencyMs':latency,'exitCode':code,'validPatch':valid,'patchChars':len(patch),
-      'stderrChars':len(err),'timedOut':timed_out,'goldPatchExposedToAgent':False}
+      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'goldPatchExposedToAgent':False}
     Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
     Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':patch}],indent=2)+'\n')
     Path(OUT,'instance.json').write_text(json.dumps({'instance_id':iid,'repo':row['repo'],'base_commit':base},indent=2)+'\n')
