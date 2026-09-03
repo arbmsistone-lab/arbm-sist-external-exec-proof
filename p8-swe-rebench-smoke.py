@@ -150,7 +150,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     context=select_context(td,problem)
     prompt=(
       'You are ARBM SIST benchmark adapter. Solve the software issue using only the repository context. '
-      'Return the smallest semantic source edit. Copy OLD exactly from the repository context; the runner generates the Git diff. '
+      'Return the smallest semantic source edit. Copy OLD exactly from the repository context; the runner generates the Git diff. NEW MUST differ from OLD and make a real behavioral fix; never return a no-op edit. '
       'Do not modify tests unless the issue explicitly requires it.\n\nISSUE:\n'+problem+
       '\n\nREPOSITORY CONTEXT:\n'+context)
     allowed_paths=re.findall(r'(?m)^FILE:\s+([^\s]+)',context)
@@ -180,6 +180,8 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     count=candidate_text.count(candidate_old); match_mode='eol-trailing-ws-normalized'
                 if count!=1:
                     edit_errors.append(f'old_match_count:{rel}:{count}:len={len(old)}:sha={old_sha[:16]}'); continue
+                if candidate_new == candidate_old:
+                    edit_errors.append('no_op_edit:'+rel); continue
                 target.write_text(candidate_text.replace(candidate_old,candidate_new,1),encoding='utf-8',newline='\n')
                 applied_edits+=1
             except Exception as exc:
@@ -197,7 +199,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     evidence={'schema':'arbm-p8-swe-smoke-v1','dataset':DATASET,'instance_id':iid,
       'repo':row['repo'],'base_commit':base,'model':os.environ.get('MODEL_LABEL','unknown'),'provider':os.environ.get('MODEL_PROVIDER','local-llama'),
       'latencyMs':latency,'exitCode':code,'validPatch':valid,'patchChars':len(patch),
-      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'allowedPaths':allowed_paths,'pathNormalizations':path_normalizations,'editMeta':[{'path':str(e.get('path','')),'oldLen':len(str(e.get('old',''))),'oldSha256':__import__('hashlib').sha256(str(e.get('old','')).encode('utf-8')).hexdigest()} for e in edits[:4]] if isinstance(edits,list) else [],'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'goldPatchExposedToAgent':False}
+      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'allowedPaths':allowed_paths,'pathNormalizations':path_normalizations,'editMeta':[{'path':str(e.get('path','')),'oldLen':len(str(e.get('old',''))),'oldSha256':__import__('hashlib').sha256(str(e.get('old','')).encode('utf-8')).hexdigest(),'newLen':len(str(e.get('new',''))),'newSha256':__import__('hashlib').sha256(str(e.get('new','')).encode('utf-8')).hexdigest(),'changed':str(e.get('old',''))!=str(e.get('new',''))} for e in edits[:4]] if isinstance(edits,list) else [],'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'goldPatchExposedToAgent':False}
     Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
     Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':patch}],indent=2)+'\n')
     Path(OUT,'instance.json').write_text(json.dumps({'instance_id':iid,'repo':row['repo'],'base_commit':base},indent=2)+'\n')
