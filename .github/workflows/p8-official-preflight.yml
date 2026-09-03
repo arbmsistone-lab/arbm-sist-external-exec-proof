@@ -1,0 +1,29 @@
+name: P8 Official Benchmark Preflight
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'p8/**'
+    paths:
+      - 'p8-preflight.mjs'
+      - '.github/workflows/p8-official-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Runner identity
+        run: |
+          uname -a
+          nproc
+          free -m
+          df -h .
+          docker --version
+      - name: Verify frozen official pins and resource fit
+        run: node p8-preflight.mjs
