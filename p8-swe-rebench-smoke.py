@@ -98,7 +98,9 @@ def select_context(repo, problem, limit=4, max_chars=16000):
         prod=[]; prod_paths=set()
         symbol_prod=[c for c in ordered if not str(c[3]).startswith('lexical:') and not re.search(r'(^|/)(test|tests|nc_test|nc_test4)(/|_)', c[1], re.I)]
         lexical_prod=[c for c in ordered if str(c[3]).startswith('lexical:') and not re.search(r'(^|/)(test|tests|nc_test|nc_test4)(/|_)', c[1], re.I)]
-        for c in symbol_prod + lexical_prod:
+        causal_prod=[c for c in lexical_prod if hdf5_intent and 'hdf5open' in c[1].lower()]
+        prod_order=causal_prod + symbol_prod + [c for c in lexical_prod if c not in causal_prod]
+        for c in prod_order:
             if c[1] in prod_paths: continue
             prod.append(c); prod_paths.add(c[1])
             if len(prod) >= min(2, max(1, limit-1)): break
