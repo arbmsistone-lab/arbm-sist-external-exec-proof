@@ -18,23 +18,43 @@ def clean_diff(text):
     return text[i:] if i >= 0 else text
 
 def select_context(repo, problem, limit=2, max_chars=10000):
-    tokens = [x for x in re.findall(r'[A-Za-z_][A-Za-z0-9_]{3,}', problem.lower())
-              if x not in {'this','that','with','from','when','have','should','into','there','which'}]
-    symbols = sorted({t for t in tokens if '_' in t and len(t) >= 7}, key=len, reverse=True)
-    for symbol in symbols[:12]:
-        g=run(['git','grep','-n','-F',symbol,'--','*.py','*.js','*.ts','*.tsx','*.jsx','*.c','*.cc','*.cpp','*.h','*.hpp','*.go','*.rs','*.java','*.rb'], repo, 60)
+    tokens = [x for x in re.findall(r'[A-Za-z_][A-Za-z0-9_]{3,}', problem)
+              if x.lower() not in {'this','that','with','from','when','have','should','into','there','which'}]
+    symbols = sorted({t for t in tokens if '_' in t and len(t) >= 7}, key=lambda x: (-problem.count(x), -len(x), x))
+    candidates=[]
+    source_ext={'.c','.cc','.cpp','.cxx','.py','.js','.ts','.tsx','.jsx','.go','.rs','.java','.rb'}
+    header_ext={'.h','.hpp','.hh','.hxx'}
+    for symbol_rank, symbol in enumerate(symbols[:16]):
+        g=run(['git','grep','-n','-F',symbol,'--','*.py','*.js','*.ts','*.tsx','*.jsx','*.c','*.cc','*.cpp','*.cxx','*.h','*.hpp','*.hh','*.hxx','*.go','*.rs','*.java','*.rb'], repo, 60)
         for line in g.stdout.splitlines():
             parts=line.split(':',2)
             if len(parts)<3: continue
-            rel, line_no, _ = parts
+            rel, line_no, snippet = parts
             if re.search(r'(^|/)(test|tests|nc_test|nc_test4)(/|_)', rel, re.I): continue
-            try: text=Path(repo,rel).read_text(encoding='utf-8',errors='ignore')
-            except Exception: continue
-            pos=text.lower().find(symbol)
-            if pos < 0: continue
-            start=max(0,pos-3000); end=min(len(text),pos+6000)
-            return f'FILE: {rel} [symbol {symbol}; chars {start}:{end}]\n{text[start:end]}\n'
-    return _fallback_context(repo, tokens, limit, max_chars)
+            ext=Path(rel).suffix.lower()
+            score=100 if ext in source_ext else 10 if ext in header_ext else 0
+            if re.search(r'(^|/)(src|source|lib|libhdf5|core)(/|$)', rel, re.I): score+=25
+            if re.search(r'(^|/)(include|inc)(/|$)', rel, re.I): score-=20
+            if '(' in snippet and ')' in snippet: score+=15
+            if re.search(r'\b'+re.escape(symbol)+r'\s*\(', snippet): score+=20
+            score += max(0, 30-symbol_rank*2)
+            try: ln=int(line_no)
+            except Exception: ln=1
+            candidates.append((score, rel, ln, symbol))
+    seen=set(); picked=[]; used=0
+    for score, rel, ln, symbol in sorted(candidates, key=lambda x:(-x[0], x[1], x[2])):
+        if rel in seen: continue
+        seen.add(rel)
+        try: text=Path(repo,rel).read_text(encoding='utf-8',errors='ignore')
+        except Exception: continue
+        lines=text.splitlines(True); start_line=max(0,ln-90); end_line=min(len(lines),ln+140)
+        chunk=''.join(lines[start_line:end_line])
+        if len(chunk)>max_chars-used: chunk=chunk[:max_chars-used]
+        if not chunk: continue
+        picked.append(f'FILE: {rel} [symbol {symbol}; score {score}; lines {start_line+1}:{end_line}]\n{chunk}\n')
+        used+=len(chunk)
+        if len(picked)>=limit or used>=max_chars: break
+    return '\n'.join(picked) if picked else _fallback_context(repo, [t.lower() for t in tokens], limit, max_chars)
 
 def _fallback_context(repo, tokens, limit=2, max_chars=10000):
     files=run(['git','ls-files'],repo).stdout.splitlines(); ranked=[]
@@ -124,9 +144,8 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
             try:
                 rel=str(edit.get('path','')).replace('\\','/').lstrip('/')
                 model_rel=rel
-                if rel not in allowed_paths and len(allowed_paths)==1:
-                    rel=allowed_paths[0]
-                    path_normalizations.append({'from':model_rel,'to':rel,'reason':'sole-context-file'})
+                if rel not in allowed_paths:
+                    edit_errors.append('unauthorized_path:'+rel); continue
                 old=str(edit.get('old','')); new=str(edit.get('new',''))
                 target=Path(td,rel).resolve()
                 if not str(target).startswith(str(Path(td).resolve())) or not target.is_file():
