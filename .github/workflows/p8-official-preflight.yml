@@ -27,3 +27,11 @@ jobs:
           docker --version
       - name: Verify frozen official pins and resource fit
         run: node p8-preflight.mjs
+      - name: Upload P8 preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: p8-official-preflight-evidence
+          path: p8-artifact/
+          if-no-files-found: error
+          retention-days: 90
