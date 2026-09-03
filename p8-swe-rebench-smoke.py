@@ -246,6 +246,10 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 if old.endswith('\n') and not new.endswith('\n'): new += '\n'
                 if new == old:
                     edit_errors.append('no_op_edit:'+rel); continue
+                norm_old=re.sub(r'\\s+','',old)
+                norm_new=re.sub(r'\\s+','',new)
+                if norm_old == norm_new:
+                    edit_errors.append('semantic_no_op_edit:'+rel); continue
                 replacement=''.join(lines[:start_line-1])+new+''.join(lines[end_line:])
                 target.write_text(replacement,encoding='utf-8',newline='\n')
                 applied_edits+=1
