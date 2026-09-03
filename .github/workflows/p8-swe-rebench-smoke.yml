@@ -34,10 +34,10 @@ jobs:
       - name: Generate ARBM predicted patch via federated zero-cost mesh
         env:
           ARBM_BENCHMARK_OIDC: ${{ steps.oidc.outputs.token }}
-          ARBM_BENCHMARK_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-federated-v4
+          ARBM_BENCHMARK_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-federated-v5
           MODEL_LABEL: ARBM-Federated-Free-Mesh-v1
           MODEL_PROVIDER: federated-zero-cost
-          WORKER_REV: gemini-free-ladder-v4-multifile-review
+          WORKER_REV: gemma4-first-free-mesh-v5
         run: python p8-swe-rebench-smoke.py
       - name: Checkout frozen SWE-rebench V2 evaluator
         run: |
