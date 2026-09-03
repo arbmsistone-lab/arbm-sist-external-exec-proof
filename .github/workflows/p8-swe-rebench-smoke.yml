@@ -13,6 +13,8 @@ jobs:
   real-smoke:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    env:
+      HF_OFFSET: '1'
     steps:
       - uses: actions/checkout@v7
       - name: Runner identity
@@ -44,9 +46,9 @@ jobs:
           git clone https://github.com/SWE-rebench/SWE-rebench-V2.git swe-rebench-v2
           git -C swe-rebench-v2 checkout c71902a8cf8d2b725f63d51f199f4d3e56f68d2d
           python -m pip install -r swe-rebench-v2/requirements.txt
-      - name: Run official evaluator on first public sample task
+      - name: Run official evaluator on clean public sample task
         run: |
-          python swe-rebench-v2/scripts/eval.py --hf-dataset ibragim-bad/SWE-rebench-V2-sample --hf-config default --hf-split train --hf-offset 0 --hf-length 1 --patches p8-swe-artifact/patches.json --max-workers 1 --report-json p8-swe-artifact/eval-report.json
+          python swe-rebench-v2/scripts/eval.py --hf-dataset ibragim-bad/SWE-rebench-V2-sample --hf-config default --hf-split train --hf-offset "$HF_OFFSET" --hf-length 1 --patches p8-swe-artifact/patches.json --max-workers 1 --report-json p8-swe-artifact/eval-report.json
       - name: Freeze hashes
         if: always()
         run: |

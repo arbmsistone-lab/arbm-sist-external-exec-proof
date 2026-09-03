@@ -3,6 +3,7 @@ from pathlib import Path
 from datasets import load_dataset
 
 DATASET = 'ibragim-bad/SWE-rebench-V2-sample'
+HF_OFFSET = int(os.environ.get('HF_OFFSET', '0'))
 MODEL = os.environ.get('MODEL_PATH', 'model.gguf')
 LLAMA = os.environ.get('LLAMA_CLI', './llama-cli')
 OUT = Path('p8-swe-artifact')
@@ -244,7 +245,9 @@ def load_public_sample_with_backoff():
     raise last
 
 ds=load_public_sample_with_backoff()
-row=dict(ds[0])
+if HF_OFFSET < 0 or HF_OFFSET >= len(ds):
+    raise SystemExit(f'HF_OFFSET_OUT_OF_RANGE:{HF_OFFSET}:{len(ds)}')
+row=dict(ds[HF_OFFSET])
 for secret in ('patch','test_patch','PASS_TO_PASS','FAIL_TO_PASS'):
     row.pop(secret, None)
 repo_url='https://github.com/'+row['repo']+'.git'
@@ -307,7 +310,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
         apply_check=(chk.returncode==0); apply_error=(chk.stderr or chk.stdout).strip()[:500]
     valid=structure_valid and apply_check and not edit_errors
     evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit','dataset':DATASET,'instance_id':iid,
-      'repo':row['repo'],'base_commit':base,'model':os.environ.get('MODEL_LABEL','unknown'),'provider':os.environ.get('MODEL_PROVIDER','local-llama'),
+      'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'model':os.environ.get('MODEL_LABEL','unknown'),'provider':os.environ.get('MODEL_PROVIDER','local-llama'),
       'latencyMs':latency,'exitCode':code,'validPatch':valid,'patchChars':len(patch),
       'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'allowedPaths':allowed_paths,'pathNormalizations':path_normalizations,'editMeta':applied_meta,'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'goldPatchExposedToAgent':False}
     Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
