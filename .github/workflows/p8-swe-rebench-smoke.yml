@@ -31,13 +31,13 @@ jobs:
           TOKEN=$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')
           echo "::add-mask::$TOKEN"
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
-      - name: Generate ARBM predicted patch via Supabase Gemini
+      - name: Generate ARBM predicted patch via federated zero-cost mesh
         env:
           ARBM_BENCHMARK_OIDC: ${{ steps.oidc.outputs.token }}
-          ARBM_BENCHMARK_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-edit-v1
-          MODEL_LABEL: Gemini-3.5-Flash-Medium-via-Supabase-OIDC
-          MODEL_PROVIDER: supabase-gemini-structured-edit
-          WORKER_REV: ranked-line-edit-v7
+          ARBM_BENCHMARK_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-federated-v1
+          MODEL_LABEL: ARBM-Federated-Free-Mesh-v1
+          MODEL_PROVIDER: federated-zero-cost
+          WORKER_REV: federated-free-mesh-v1
         run: python p8-swe-rebench-smoke.py
       - name: Checkout frozen SWE-rebench V2 evaluator
         run: |
