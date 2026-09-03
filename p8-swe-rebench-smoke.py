@@ -22,6 +22,7 @@ def select_context(repo, problem, limit=4, max_chars=16000):
     distinctive_names={t.lower() for t in re.findall(r'[A-Za-z][A-Za-z0-9_]{4,}',problem) if ('_' in t or any(c.isdigit() for c in t) or any(c.isupper() for c in t[1:]))}
     test_intent=bool(re.search(r'\b(test|tests|testing|testcase|testcases)\b',problem_low))
     plugin_intent=('plugin' in problem_low)
+    behavior_intent=bool(re.search(r'\b(fix|fixed|consistent|consistency|different|reverse|same|order|incorrect|wrong|bug)\b',problem_low))
     tokens = [x for x in re.findall(r'[A-Za-z_][A-Za-z0-9_]{3,}', problem)
               if x.lower() not in {'this','that','with','from','when','have','should','into','there','which'}]
     symbols = sorted({t for t in tokens if '_' in t and len(t) >= 7}, key=lambda x: (-problem.count(x), -len(x), x))
@@ -36,16 +37,17 @@ def select_context(repo, problem, limit=4, max_chars=16000):
             if len(parts)<3: continue
             rel, line_no, snippet = parts
             is_test=bool(re.search(r'(^|/)(test|tests|nc_test|nc_test4)(/|_)', rel, re.I))
-            if is_test and not test_intent: continue
             ext=Path(rel).suffix.lower(); score=100 if ext in source_ext else 10 if ext in header_ext else 0
             if re.search(r'(^|/)(src|source|lib|libhdf5|core)(/|$)', rel, re.I): score+=25
             if re.search(r'(^|/)(include|inc|examples?)(/|$)', rel, re.I): score-=25
             if '(' in snippet and ')' in snippet: score+=15
             if re.search(r'\b'+re.escape(symbol)+r'\s*\(', snippet): score+=20
             stem=Path(rel).stem.lower()
+            stem_parts=[x for x in re.split(r'[-_.]+',stem) if len(x)>=4 and x not in {'test','tests','tst'}]
             if stem in distinctive_names: score+=220
+            if stem_parts and all(x in problem_low for x in stem_parts): score+=280
             if plugin_intent and re.search(r'(^|/)plugins?(/|$)',rel,re.I): score+=120
-            if test_intent and is_test: score+=70
+            if is_test: score += 260 if test_intent else (180 if behavior_intent else -20)
             score += 120 + max(0, 30-symbol_rank*2)
             try: ln=int(line_no)
             except Exception: ln=1
@@ -55,7 +57,6 @@ def select_context(repo, problem, limit=4, max_chars=16000):
         ext=Path(rel).suffix.lower()
         if ext not in source_ext: continue
         is_test=bool(re.search(r'(^|/)(test|tests|nc_test|nc_test4)(/|_)',rel,re.I))
-        if is_test and not test_intent: continue
         try: text=Path(repo,rel).read_text(encoding='utf-8',errors='ignore')
         except Exception: continue
         low=text.lower(); pathlow=rel.lower(); hits=sum(min(5,low.count(k)) for k in keywords)
@@ -63,7 +64,9 @@ def select_context(repo, problem, limit=4, max_chars=16000):
         if not hits and not path_hits: continue
         score=60 + min(70,hits*3) + path_hits*18
         stem=Path(rel).stem.lower()
+        stem_parts=[x for x in re.split(r'[-_.]+',stem) if len(x)>=4 and x not in {'test','tests','tst'}]
         if stem in distinctive_names: score+=220
+        if stem_parts and all(x in problem_low for x in stem_parts): score+=280
         if plugin_intent and re.search(r'(^|/)plugins?(/|$)',rel,re.I): score+=120
         if test_intent and is_test: score+=70
         if re.search(r'(^|/)(src|source|lib|libhdf5|core)(/|$)',rel,re.I): score+=25
