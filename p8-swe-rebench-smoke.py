@@ -116,12 +116,17 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
       'Return the smallest semantic source edit. Copy OLD exactly from the repository context; the runner generates the Git diff. '
       'Do not modify tests unless the issue explicitly requires it.\n\nISSUE:\n'+problem+
       '\n\nREPOSITORY CONTEXT:\n'+context)
+    allowed_paths=re.findall(r'(?m)^FILE:\s+([^\s]+)',context)
     started=time.time(); code,edits,err,timed_out=infer(prompt,iid); latency=round((time.time()-started)*1000)
-    edit_errors=[]; applied_edits=0
+    edit_errors=[]; applied_edits=0; path_normalizations=[]
     if code==0 and isinstance(edits,list):
         for edit in edits:
             try:
                 rel=str(edit.get('path','')).replace('\\','/').lstrip('/')
+                model_rel=rel
+                if rel not in allowed_paths and len(allowed_paths)==1:
+                    rel=allowed_paths[0]
+                    path_normalizations.append({'from':model_rel,'to':rel,'reason':'sole-context-file'})
                 old=str(edit.get('old','')); new=str(edit.get('new',''))
                 target=Path(td,rel).resolve()
                 if not str(target).startswith(str(Path(td).resolve())) or not target.is_file():
@@ -156,7 +161,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     evidence={'schema':'arbm-p8-swe-smoke-v1','dataset':DATASET,'instance_id':iid,
       'repo':row['repo'],'base_commit':base,'model':os.environ.get('MODEL_LABEL','unknown'),'provider':os.environ.get('MODEL_PROVIDER','local-llama'),
       'latencyMs':latency,'exitCode':code,'validPatch':valid,'patchChars':len(patch),
-      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'editMeta':[{'path':str(e.get('path','')),'oldLen':len(str(e.get('old',''))),'oldSha256':__import__('hashlib').sha256(str(e.get('old','')).encode('utf-8')).hexdigest()} for e in edits[:4]] if isinstance(edits,list) else [],'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'goldPatchExposedToAgent':False}
+      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'allowedPaths':allowed_paths,'pathNormalizations':path_normalizations,'editMeta':[{'path':str(e.get('path','')),'oldLen':len(str(e.get('old',''))),'oldSha256':__import__('hashlib').sha256(str(e.get('old','')).encode('utf-8')).hexdigest()} for e in edits[:4]] if isinstance(edits,list) else [],'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'goldPatchExposedToAgent':False}
     Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
     Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':patch}],indent=2)+'\n')
     Path(OUT,'instance.json').write_text(json.dumps({'instance_id':iid,'repo':row['repo'],'base_commit':base},indent=2)+'\n')
