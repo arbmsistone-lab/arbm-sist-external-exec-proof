@@ -30,7 +30,7 @@ jobs:
           rm -rf runtime
           test -x ./llama-cli
           ./llama-cli --version
-          ./llama-cli --help > llama-cli-help.txt
+          ./llama-cli --help > llama-cli-help.txt 2>&1 || true
           grep -q -- "--simple-io" llama-cli-help.txt
           grep -q -- "--no-conversation" llama-cli-help.txt
           grep -q -- "--no-display-prompt" llama-cli-help.txt
