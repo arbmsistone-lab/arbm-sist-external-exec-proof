@@ -17,10 +17,11 @@ def clean_diff(text):
     i = text.find('diff --git ')
     return text[i:] if i >= 0 else text
 
-def select_context(repo, problem, limit=2, max_chars=10000):
+def select_context(repo, problem, limit=4, max_chars=14000):
     tokens = [x for x in re.findall(r'[A-Za-z_][A-Za-z0-9_]{3,}', problem)
               if x.lower() not in {'this','that','with','from','when','have','should','into','there','which'}]
     symbols = sorted({t for t in tokens if '_' in t and len(t) >= 7}, key=lambda x: (-problem.count(x), -len(x), x))
+    keywords = sorted({t.lower() for t in tokens if len(t) >= 5}, key=lambda x: (-problem.lower().count(x), -len(x), x))[:30]
     candidates=[]
     source_ext={'.c','.cc','.cpp','.cxx','.py','.js','.ts','.tsx','.jsx','.go','.rs','.java','.rb'}
     header_ext={'.h','.hpp','.hh','.hxx'}
@@ -31,27 +32,43 @@ def select_context(repo, problem, limit=2, max_chars=10000):
             if len(parts)<3: continue
             rel, line_no, snippet = parts
             if re.search(r'(^|/)(test|tests|nc_test|nc_test4)(/|_)', rel, re.I): continue
-            ext=Path(rel).suffix.lower()
-            score=100 if ext in source_ext else 10 if ext in header_ext else 0
+            ext=Path(rel).suffix.lower(); score=100 if ext in source_ext else 10 if ext in header_ext else 0
             if re.search(r'(^|/)(src|source|lib|libhdf5|core)(/|$)', rel, re.I): score+=25
-            if re.search(r'(^|/)(include|inc)(/|$)', rel, re.I): score-=20
+            if re.search(r'(^|/)(include|inc|examples?)(/|$)', rel, re.I): score-=25
             if '(' in snippet and ')' in snippet: score+=15
             if re.search(r'\b'+re.escape(symbol)+r'\s*\(', snippet): score+=20
             score += max(0, 30-symbol_rank*2)
             try: ln=int(line_no)
             except Exception: ln=1
             candidates.append((score, rel, ln, symbol))
+    files=run(['git','ls-files'],repo).stdout.splitlines()
+    for rel in files:
+        ext=Path(rel).suffix.lower()
+        if ext not in source_ext: continue
+        if re.search(r'(^|/)(test|tests|nc_test|nc_test4)(/|_)',rel,re.I): continue
+        try: text=Path(repo,rel).read_text(encoding='utf-8',errors='ignore')
+        except Exception: continue
+        low=text.lower(); pathlow=rel.lower(); hits=sum(min(5,low.count(k)) for k in keywords)
+        path_hits=sum(1 for k in keywords if k in pathlow)
+        if not hits and not path_hits: continue
+        score=60 + min(70,hits*3) + path_hits*18
+        if re.search(r'(^|/)(src|source|lib|libhdf5|core)(/|$)',rel,re.I): score+=25
+        if re.search(r'(^|/)(examples?)(/|$)',rel,re.I): score-=35
+        focus=next((k for k in keywords if k in low), keywords[0] if keywords else '')
+        pos=low.find(focus) if focus else 0
+        ln=low[:max(0,pos)].count('\n')+1
+        candidates.append((score,rel,ln,'lexical:'+focus))
     seen=set(); picked=[]; used=0
     for score, rel, ln, symbol in sorted(candidates, key=lambda x:(-x[0], x[1], x[2])):
         if rel in seen: continue
         seen.add(rel)
         try: text=Path(repo,rel).read_text(encoding='utf-8',errors='ignore')
         except Exception: continue
-        lines=text.splitlines(True); start_line=max(0,ln-90); end_line=min(len(lines),ln+140)
+        lines=text.splitlines(True); start_line=max(0,ln-70); end_line=min(len(lines),ln+110)
         chunk=''.join(lines[start_line:end_line])
         if len(chunk)>max_chars-used: chunk=chunk[:max_chars-used]
         if not chunk: continue
-        picked.append(f'FILE: {rel} [symbol {symbol}; score {score}; lines {start_line+1}:{end_line}]\n{chunk}\n')
+        picked.append(f'FILE: {rel} [signal {symbol}; score {score}; lines {start_line+1}:{end_line}]\n{chunk}\n')
         used+=len(chunk)
         if len(picked)>=limit or used>=max_chars: break
     return '\n'.join(picked) if picked else _fallback_context(repo, [t.lower() for t in tokens], limit, max_chars)
