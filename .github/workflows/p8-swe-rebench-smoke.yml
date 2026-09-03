@@ -1,4 +1,4 @@
-name: P8 SWE-rebench V2 real smoke
+﻿name: P8 SWE-rebench V2 real smoke
 on:
   workflow_dispatch:
   push:
@@ -34,10 +34,10 @@ jobs:
       - name: Generate ARBM predicted patch via federated zero-cost mesh
         env:
           ARBM_BENCHMARK_OIDC: ${{ steps.oidc.outputs.token }}
-          ARBM_BENCHMARK_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-federated-v8
+          ARBM_BENCHMARK_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-federated-v9
           MODEL_LABEL: ARBM-Federated-Free-Mesh-v1
           MODEL_PROVIDER: federated-zero-cost
-          WORKER_REV: bounded-active-repair-v8
+          WORKER_REV: hypothesis-review-repair-v9
         run: python p8-swe-rebench-smoke.py
       - name: Checkout frozen SWE-rebench V2 evaluator
         run: |
@@ -59,3 +59,4 @@ jobs:
           name: p8-swe-rebench-v2-real-smoke
           path: p8-swe-artifact
           retention-days: 90
+
