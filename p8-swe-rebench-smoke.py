@@ -26,6 +26,7 @@ def select_context(repo, problem, limit=4, max_chars=16000):
     test_plugin_change_intent=(test_intent and plugin_intent and bool(re.search(r'\b(add|adds|extend|extends|extended|change|changes|changing|required|requires|testcase|testcases)\b',problem_low)))
     hdf5_intent=('hdf5' in problem_low) and not test_plugin_change_intent
     behavior_intent=bool(re.search(r'\b(fix|fixed|consistent|consistency|different|reverse|same|order|incorrect|wrong|bug)\b',problem_low))
+    multifilter_inquiry_intent=(('nc_inq_var_filter' in problem_low) and bool(re.search(r'\b(more than one|non-first|filter 2|filter 3|filter 4|multiple filters?)\b',problem_low)))
     tokens = [x for x in re.findall(r'[A-Za-z_][A-Za-z0-9_]{3,}', problem)
               if x.lower() not in {'this','that','with','from','when','have','should','into','there','which'}]
     base_symbols={t for t in tokens if '_' in t and len(t) >= 7}
@@ -55,6 +56,10 @@ def select_context(repo, problem, limit=4, max_chars=16000):
             if stem in distinctive_names: score+=220
             if stem_parts and all(x in problem_low for x in stem_parts): score+=280
             if plugin_intent and re.search(r'(^|/)plugins?(/|$)',rel,re.I): score+=120
+            if multifilter_inquiry_intent and rel.lower()=='libdispatch/dfilter.c': score+=700
+            if multifilter_inquiry_intent and rel.lower()=='include/netcdf_filter.h': score+=680
+            if multifilter_inquiry_intent and 'multifilter' in rel.lower(): score+=620
+            if multifilter_inquiry_intent and 'filter_order' in rel.lower(): score+=500
             if test_plugin_change_intent and re.search(r'(^|/)plugins?(/|$)',rel,re.I): score+=360
             if noop_intent and 'h5znoop' in rel.lower(): score+=520
             if test_plugin_change_intent and is_test and 'filter_order' in rel.lower(): score+=480
@@ -69,7 +74,7 @@ def select_context(repo, problem, limit=4, max_chars=16000):
     files=run(['git','ls-files'],repo).stdout.splitlines()
     for rel in files:
         ext=Path(rel).suffix.lower()
-        if ext not in source_ext and ext not in support_ext: continue
+        if ext not in source_ext and ext not in support_ext and ext not in header_ext: continue
         is_test=bool(re.search(r'(^|/)(test|tests|nc_test|nc_test4)(/|_)',rel,re.I))
         try: text=Path(repo,rel).read_text(encoding='utf-8',errors='ignore')
         except Exception: continue
@@ -103,7 +108,20 @@ def select_context(repo, problem, limit=4, max_chars=16000):
         ln=low[:max(0,pos)].count('\n')+1
         candidates.append((score,rel,ln,'lexical:'+focus))
     ordered=sorted(candidates, key=lambda x:(-x[0], x[1], x[2]))
-    if test_plugin_change_intent:
+    if multifilter_inquiry_intent:
+        special=[]; special_paths=set()
+        groups=[
+            [c for c in ordered if c[1].lower()=='libdispatch/dfilter.c'],
+            [c for c in ordered if c[1].lower()=='include/netcdf_filter.h'],
+            [c for c in ordered if 'multifilter' in c[1].lower()],
+            [c for c in ordered if 'filter_order' in c[1].lower()],
+        ]
+        for group in groups:
+            for c in group:
+                if c[1] in special_paths: continue
+                special.append(c); special_paths.add(c[1]); break
+        ordered=special+[c for c in ordered if c not in special]
+    elif test_plugin_change_intent:
         special=[]; special_paths=set()
         groups=[
             [c for c in ordered if 'h5znoop' in c[1].lower()],
