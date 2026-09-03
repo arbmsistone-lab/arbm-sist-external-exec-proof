@@ -25,7 +25,9 @@ def select_context(repo, problem, limit=4, max_chars=16000):
     behavior_intent=bool(re.search(r'\b(fix|fixed|consistent|consistency|different|reverse|same|order|incorrect|wrong|bug)\b',problem_low))
     tokens = [x for x in re.findall(r'[A-Za-z_][A-Za-z0-9_]{3,}', problem)
               if x.lower() not in {'this','that','with','from','when','have','should','into','there','which'}]
-    symbols = sorted({t for t in tokens if '_' in t and len(t) >= 7}, key=lambda x: (-problem.count(x), -len(x), x))
+    base_symbols={t for t in tokens if '_' in t and len(t) >= 7}
+    symbol_aliases={t[3:] for t in base_symbols if t.lower().startswith('nc_') and t.count('_') >= 2 and len(t[3:]) >= 7}
+    symbols = sorted(base_symbols | symbol_aliases, key=lambda x: (-problem.count(x), -len(x), x))
     keywords = sorted({t.lower() for t in tokens if len(t) >= 5}, key=lambda x: (-problem.lower().count(x), -len(x), x))[:30]
     candidates=[]
     source_ext={'.c','.cc','.cpp','.cxx','.py','.js','.ts','.tsx','.jsx','.go','.rs','.java','.rb'}
@@ -38,7 +40,9 @@ def select_context(repo, problem, limit=4, max_chars=16000):
             rel, line_no, snippet = parts
             is_test=bool(re.search(r'(^|/)(test|tests|nc_test|nc_test4)(/|_)', rel, re.I))
             ext=Path(rel).suffix.lower(); score=100 if ext in source_ext else 10 if ext in header_ext else 0
-            if re.search(r'(^|/)(src|source|lib|libhdf5|core)(/|$)', rel, re.I): score+=25
+            if re.search(r'(^|/)(src|source|lib[^/]*|core)(/|$)', rel, re.I): score+=25
+            if re.search(r'(^|/)(libhdf5|libnczarr)(/|$)', rel, re.I): score+=80
+            if re.search(r'(notnc|noop|stub)', rel, re.I) or re.search(r'\b(NC_NOTNC4|NC_NOOP)_', snippet): score-=260
             if re.search(r'(^|/)(include|inc|examples?)(/|$)', rel, re.I): score-=25
             if '(' in snippet and ')' in snippet: score+=15
             if re.search(r'\b'+re.escape(symbol)+r'\s*\(', snippet): score+=20
@@ -47,7 +51,8 @@ def select_context(repo, problem, limit=4, max_chars=16000):
             if stem in distinctive_names: score+=220
             if stem_parts and all(x in problem_low for x in stem_parts): score+=280
             if plugin_intent and re.search(r'(^|/)plugins?(/|$)',rel,re.I): score+=120
-            if is_test: score += 260 if test_intent else (180 if behavior_intent else -20)
+            if behavior_intent and not is_test: score += 220
+            if is_test: score += 100 if test_intent else (30 if behavior_intent else -20)
             score += 120 + max(0, 30-symbol_rank*2)
             try: ln=int(line_no)
             except Exception: ln=1
@@ -68,15 +73,28 @@ def select_context(repo, problem, limit=4, max_chars=16000):
         if stem in distinctive_names: score+=220
         if stem_parts and all(x in problem_low for x in stem_parts): score+=280
         if plugin_intent and re.search(r'(^|/)plugins?(/|$)',rel,re.I): score+=120
-        if test_intent and is_test: score+=70
-        if re.search(r'(^|/)(src|source|lib|libhdf5|core)(/|$)',rel,re.I): score+=25
+        if behavior_intent and not is_test: score+=140
+        if test_intent and is_test: score+=60
+        if re.search(r'(^|/)(src|source|lib[^/]*|core)(/|$)',rel,re.I): score+=25
+        if re.search(r'(^|/)(libhdf5|libnczarr)(/|$)',rel,re.I): score+=80
+        if re.search(r'(notnc|noop|stub)',rel,re.I): score-=260
         if re.search(r'(^|/)(examples?)(/|$)',rel,re.I): score-=35
         focus=next((k for k in keywords if k in low), keywords[0] if keywords else '')
         pos=low.find(focus) if focus else 0
         ln=low[:max(0,pos)].count('\n')+1
         candidates.append((score,rel,ln,'lexical:'+focus))
+    ordered=sorted(candidates, key=lambda x:(-x[0], x[1], x[2]))
+    if behavior_intent:
+        prod=[]; prod_paths=set()
+        symbol_prod=[c for c in ordered if not str(c[3]).startswith('lexical:') and not re.search(r'(^|/)(test|tests|nc_test|nc_test4)(/|_)', c[1], re.I)]
+        lexical_prod=[c for c in ordered if str(c[3]).startswith('lexical:') and not re.search(r'(^|/)(test|tests|nc_test|nc_test4)(/|_)', c[1], re.I)]
+        for c in symbol_prod + lexical_prod:
+            if c[1] in prod_paths: continue
+            prod.append(c); prod_paths.add(c[1])
+            if len(prod) >= min(2, max(1, limit-1)): break
+        ordered=prod+[c for c in ordered if c not in prod]
     seen=set(); picked=[]; used=0
-    for score, rel, ln, symbol in sorted(candidates, key=lambda x:(-x[0], x[1], x[2])):
+    for score, rel, ln, symbol in ordered:
         if rel in seen: continue
         seen.add(rel)
         try: text=Path(repo,rel).read_text(encoding='utf-8',errors='ignore')
