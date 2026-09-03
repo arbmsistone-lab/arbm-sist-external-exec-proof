@@ -65,7 +65,7 @@ def select_context(repo, problem, limit=4, max_chars=14000):
         try: text=Path(repo,rel).read_text(encoding='utf-8',errors='ignore')
         except Exception: continue
         lines=text.splitlines(True); start_line=max(0,ln-70); end_line=min(len(lines),ln+110)
-        chunk=''.join(lines[start_line:end_line])
+        chunk=''.join(f'{i+1:06d}|{lines[i]}' for i in range(start_line,end_line))
         if len(chunk)>max_chars-used: chunk=chunk[:max_chars-used]
         if not chunk: continue
         picked.append(f'FILE: {rel} [signal {symbol}; score {score}; lines {start_line+1}:{end_line}]\n{chunk}\n')
@@ -150,40 +150,39 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     context=select_context(td,problem)
     prompt=(
       'You are ARBM SIST benchmark adapter. Solve the software issue using only the repository context. '
-      'Return the smallest semantic source edit. Copy OLD exactly from the repository context; the runner generates the Git diff. NEW MUST differ from OLD and make a real behavioral fix; never return a no-op edit. '
+      'Return the smallest semantic line edit using path, start_line, end_line, new. Context lines are prefixed as NNNNNN|. The runner extracts OLD itself and generates the Git diff. NEW must make a real behavioral fix; never return a no-op edit. '
       'Do not modify tests unless the issue explicitly requires it.\n\nISSUE:\n'+problem+
       '\n\nREPOSITORY CONTEXT:\n'+context)
     allowed_paths=re.findall(r'(?m)^FILE:\s+([^\s]+)',context)
     started=time.time(); code,edits,err,timed_out=infer(prompt,iid); latency=round((time.time()-started)*1000)
     edit_errors=[]; applied_edits=0; path_normalizations=[]
+    applied_meta=[]
     if code==0 and isinstance(edits,list):
         for edit in edits:
             try:
                 rel=str(edit.get('path','')).replace('\\','/').lstrip('/')
-                model_rel=rel
                 if rel not in allowed_paths:
                     edit_errors.append('unauthorized_path:'+rel); continue
-                old=str(edit.get('old','')); new=str(edit.get('new',''))
                 target=Path(td,rel).resolve()
                 if not str(target).startswith(str(Path(td).resolve())) or not target.is_file():
                     edit_errors.append('invalid_path:'+rel); continue
                 text=target.read_text(encoding='utf-8',errors='strict')
-                old_sha=__import__('hashlib').sha256(old.encode('utf-8')).hexdigest()
-                candidate_text=text; candidate_old=old; candidate_new=new; match_mode='exact'
-                count=candidate_text.count(candidate_old)
-                if count!=1:
-                    candidate_text=text.replace('\r\n','\n'); candidate_old=old.replace('\r\n','\n'); candidate_new=new.replace('\r\n','\n')
-                    count=candidate_text.count(candidate_old); match_mode='eol-normalized'
-                if count!=1:
-                    def strip_trailing(v): return '\n'.join(line.rstrip() for line in v.replace('\r\n','\n').split('\n'))
-                    candidate_text=strip_trailing(text); candidate_old=strip_trailing(old); candidate_new=strip_trailing(new)
-                    count=candidate_text.count(candidate_old); match_mode='eol-trailing-ws-normalized'
-                if count!=1:
-                    edit_errors.append(f'old_match_count:{rel}:{count}:len={len(old)}:sha={old_sha[:16]}'); continue
-                if candidate_new == candidate_old:
+                lines=text.splitlines(True)
+                try: start_line=int(edit.get('start_line')); end_line=int(edit.get('end_line'))
+                except Exception:
+                    edit_errors.append('invalid_line_range:'+rel); continue
+                if start_line < 1 or end_line < start_line or end_line > len(lines) or (end_line-start_line+1) > 160:
+                    edit_errors.append(f'line_range_out_of_bounds:{rel}:{start_line}:{end_line}:{len(lines)}'); continue
+                old=''.join(lines[start_line-1:end_line]); new=str(edit.get('new',''))
+                if not new.strip() or new.strip() in {'...','TODO','FIXME'}:
+                    edit_errors.append('invalid_new:'+rel); continue
+                if old.endswith('\n') and not new.endswith('\n'): new += '\n'
+                if new == old:
                     edit_errors.append('no_op_edit:'+rel); continue
-                target.write_text(candidate_text.replace(candidate_old,candidate_new,1),encoding='utf-8',newline='\n')
+                replacement=''.join(lines[:start_line-1])+new+''.join(lines[end_line:])
+                target.write_text(replacement,encoding='utf-8',newline='\n')
                 applied_edits+=1
+                applied_meta.append({'path':rel,'startLine':start_line,'endLine':end_line,'oldLen':len(old),'newLen':len(new),'oldSha256':__import__('hashlib').sha256(old.encode()).hexdigest(),'newSha256':__import__('hashlib').sha256(new.encode()).hexdigest()})
             except Exception as exc:
                 edit_errors.append(type(exc).__name__+':'+str(exc)[:200])
     diff_run=run(['git','diff','--no-ext-diff','--binary'],td,60)
@@ -196,10 +195,10 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
         chk=run(['git','apply','--check',str(patch_file)],td,60)
         apply_check=(chk.returncode==0); apply_error=(chk.stderr or chk.stdout).strip()[:500]
     valid=structure_valid and apply_check and not edit_errors
-    evidence={'schema':'arbm-p8-swe-smoke-v1','dataset':DATASET,'instance_id':iid,
+    evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit','dataset':DATASET,'instance_id':iid,
       'repo':row['repo'],'base_commit':base,'model':os.environ.get('MODEL_LABEL','unknown'),'provider':os.environ.get('MODEL_PROVIDER','local-llama'),
       'latencyMs':latency,'exitCode':code,'validPatch':valid,'patchChars':len(patch),
-      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'allowedPaths':allowed_paths,'pathNormalizations':path_normalizations,'editMeta':[{'path':str(e.get('path','')),'oldLen':len(str(e.get('old',''))),'oldSha256':__import__('hashlib').sha256(str(e.get('old','')).encode('utf-8')).hexdigest(),'newLen':len(str(e.get('new',''))),'newSha256':__import__('hashlib').sha256(str(e.get('new','')).encode('utf-8')).hexdigest(),'changed':str(e.get('old',''))!=str(e.get('new',''))} for e in edits[:4]] if isinstance(edits,list) else [],'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'goldPatchExposedToAgent':False}
+      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'allowedPaths':allowed_paths,'pathNormalizations':path_normalizations,'editMeta':applied_meta,'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'goldPatchExposedToAgent':False}
     Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
     Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':patch}],indent=2)+'\n')
     Path(OUT,'instance.json').write_text(json.dumps({'instance_id':iid,'repo':row['repo'],'base_commit':base},indent=2)+'\n')
