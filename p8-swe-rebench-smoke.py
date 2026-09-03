@@ -22,7 +22,9 @@ def select_context(repo, problem, limit=4, max_chars=16000):
     distinctive_names={t.lower() for t in re.findall(r'[A-Za-z][A-Za-z0-9_]{4,}',problem) if ('_' in t or any(c.isdigit() for c in t) or any(c.isupper() for c in t[1:]))}
     test_intent=bool(re.search(r'\b(test|tests|testing|testcase|testcases)\b',problem_low))
     plugin_intent=('plugin' in problem_low)
-    hdf5_intent=('hdf5' in problem_low)
+    noop_intent=bool(re.search(r'\bh5znoop\b|\bnoop(?:1)?\b',problem_low))
+    test_plugin_change_intent=(test_intent and plugin_intent and bool(re.search(r'\b(add|adds|extend|extends|extended|change|changes|changing|required|requires|testcase|testcases)\b',problem_low)))
+    hdf5_intent=('hdf5' in problem_low) and not test_plugin_change_intent
     behavior_intent=bool(re.search(r'\b(fix|fixed|consistent|consistency|different|reverse|same|order|incorrect|wrong|bug)\b',problem_low))
     tokens = [x for x in re.findall(r'[A-Za-z_][A-Za-z0-9_]{3,}', problem)
               if x.lower() not in {'this','that','with','from','when','have','should','into','there','which'}]
@@ -32,6 +34,7 @@ def select_context(repo, problem, limit=4, max_chars=16000):
     keywords = sorted({t.lower() for t in tokens if len(t) >= 5}, key=lambda x: (-problem.lower().count(x), -len(x), x))[:30]
     candidates=[]
     source_ext={'.c','.cc','.cpp','.cxx','.py','.js','.ts','.tsx','.jsx','.go','.rs','.java','.rb'}
+    support_ext={'.am','.sh','.txt','.cmake'}
     header_ext={'.h','.hpp','.hh','.hxx'}
     for symbol_rank, symbol in enumerate(symbols[:16]):
         g=run(['git','grep','-n','-F',symbol,'--','*.py','*.js','*.ts','*.tsx','*.jsx','*.c','*.cc','*.cpp','*.cxx','*.h','*.hpp','*.hh','*.hxx','*.go','*.rs','*.java','*.rb'], repo, 60)
@@ -43,7 +46,7 @@ def select_context(repo, problem, limit=4, max_chars=16000):
             ext=Path(rel).suffix.lower(); score=100 if ext in source_ext else 10 if ext in header_ext else 0
             if re.search(r'(^|/)(src|source|lib[^/]*|core)(/|$)', rel, re.I): score+=25
             if re.search(r'(^|/)(libhdf5|libnczarr)(/|$)', rel, re.I): score+=80
-            if re.search(r'(notnc|noop|stub)', rel, re.I) or re.search(r'\b(NC_NOTNC4|NC_NOOP)_', snippet): score-=260
+            if (not noop_intent) and (re.search(r'(notnc|noop|stub)', rel, re.I) or re.search(r'\b(NC_NOTNC4|NC_NOOP)_', snippet)): score-=260
             if re.search(r'(^|/)(include|inc|examples?)(/|$)', rel, re.I): score-=25
             if '(' in snippet and ')' in snippet: score+=15
             if re.search(r'\b'+re.escape(symbol)+r'\s*\(', snippet): score+=20
@@ -52,9 +55,12 @@ def select_context(repo, problem, limit=4, max_chars=16000):
             if stem in distinctive_names: score+=220
             if stem_parts and all(x in problem_low for x in stem_parts): score+=280
             if plugin_intent and re.search(r'(^|/)plugins?(/|$)',rel,re.I): score+=120
+            if test_plugin_change_intent and re.search(r'(^|/)plugins?(/|$)',rel,re.I): score+=360
+            if noop_intent and 'h5znoop' in rel.lower(): score+=520
+            if test_plugin_change_intent and is_test and 'filter_order' in rel.lower(): score+=480
             if hdf5_intent and re.search(r'(^|/)libhdf5(/|$)',rel,re.I): score+=260
             if hdf5_intent and 'hdf5open' in rel.lower(): score+=180
-            if behavior_intent and not is_test: score += 220
+            if behavior_intent and not is_test and not test_plugin_change_intent: score += 220
             if is_test: score += 100 if test_intent else (30 if behavior_intent else -20)
             score += 120 + max(0, 30-symbol_rank*2)
             try: ln=int(line_no)
@@ -63,7 +69,7 @@ def select_context(repo, problem, limit=4, max_chars=16000):
     files=run(['git','ls-files'],repo).stdout.splitlines()
     for rel in files:
         ext=Path(rel).suffix.lower()
-        if ext not in source_ext: continue
+        if ext not in source_ext and ext not in support_ext: continue
         is_test=bool(re.search(r'(^|/)(test|tests|nc_test|nc_test4)(/|_)',rel,re.I))
         try: text=Path(repo,rel).read_text(encoding='utf-8',errors='ignore')
         except Exception: continue
@@ -76,13 +82,16 @@ def select_context(repo, problem, limit=4, max_chars=16000):
         if stem in distinctive_names: score+=220
         if stem_parts and all(x in problem_low for x in stem_parts): score+=280
         if plugin_intent and re.search(r'(^|/)plugins?(/|$)',rel,re.I): score+=120
+        if test_plugin_change_intent and re.search(r'(^|/)plugins?(/|$)',rel,re.I): score+=360
+        if noop_intent and 'h5znoop' in rel.lower(): score+=520
+        if test_plugin_change_intent and is_test and 'filter_order' in rel.lower(): score+=480
         if hdf5_intent and re.search(r'(^|/)libhdf5(/|$)',rel,re.I): score+=260
         if hdf5_intent and 'hdf5open' in rel.lower(): score+=180
-        if behavior_intent and not is_test: score+=140
+        if behavior_intent and not is_test and not test_plugin_change_intent: score+=140
         if test_intent and is_test: score+=60
         if re.search(r'(^|/)(src|source|lib[^/]*|core)(/|$)',rel,re.I): score+=25
         if re.search(r'(^|/)(libhdf5|libnczarr)(/|$)',rel,re.I): score+=80
-        if re.search(r'(notnc|noop|stub)',rel,re.I): score-=260
+        if (not noop_intent) and re.search(r'(notnc|noop|stub)',rel,re.I): score-=260
         if re.search(r'(^|/)(examples?)(/|$)',rel,re.I): score-=35
         focus=next((k for k in keywords if k in low), keywords[0] if keywords else '')
         if hdf5_intent and 'hdf5open' in rel.lower():
@@ -94,7 +103,20 @@ def select_context(repo, problem, limit=4, max_chars=16000):
         ln=low[:max(0,pos)].count('\n')+1
         candidates.append((score,rel,ln,'lexical:'+focus))
     ordered=sorted(candidates, key=lambda x:(-x[0], x[1], x[2]))
-    if behavior_intent:
+    if test_plugin_change_intent:
+        special=[]; special_paths=set()
+        groups=[
+            [c for c in ordered if 'h5znoop' in c[1].lower()],
+            [c for c in ordered if re.search(r'(^|/)(test|tests|nc_test|nc_test4)(/|_)',c[1],re.I) and 'filter_order' in c[1].lower()],
+            [c for c in ordered if re.search(r'(^|/)plugins?(/|$)',c[1],re.I)],
+            [c for c in ordered if re.search(r'(^|/)(test|tests|nc_test|nc_test4)(/|_)',c[1],re.I)],
+        ]
+        for group in groups:
+            for c in group:
+                if c[1] in special_paths: continue
+                special.append(c); special_paths.add(c[1]); break
+        ordered=special+[c for c in ordered if c not in special]
+    elif behavior_intent:
         prod=[]; prod_paths=set()
         symbol_prod=[c for c in ordered if not str(c[3]).startswith('lexical:') and not re.search(r'(^|/)(test|tests|nc_test|nc_test4)(/|_)', c[1], re.I)]
         lexical_prod=[c for c in ordered if str(c[3]).startswith('lexical:') and not re.search(r'(^|/)(test|tests|nc_test|nc_test4)(/|_)', c[1], re.I)]
