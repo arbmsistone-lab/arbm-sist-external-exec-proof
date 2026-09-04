@@ -50,9 +50,9 @@ jobs:
           ARBM_BENCHMARK_FALLBACK_ENDPOINT: https://arbm-sist-p8-fallback.girolocal-rb.workers.dev
           ARBM_BENCHMARK_JUDGE_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-judge-v15
           ARBM_BENCHMARK_JUDGE_FALLBACK_ENDPOINT: https://arbm-sist-p8-fallback.girolocal-rb.workers.dev
-          MODEL_LABEL: ARBM-Federated-Free-Mesh-v21
+          MODEL_LABEL: ARBM-Federated-Free-Mesh-v22
           MODEL_PROVIDER: federated-zero-cost-multicloud
-          WORKER_REV: public-invariant-gated-sovereign-v21
+          WORKER_REV: public-feedback-preserving-sovereign-v22
         run: python p8-swe-rebench-smoke.py
       - name: Detect sovereign fallback requirement
         id: fallback
@@ -105,9 +105,9 @@ jobs:
         if: steps.fallback.outputs.needed == 'true'
         env:
           ARBM_SOVEREIGN_ONLY: '1'
-          MODEL_LABEL: ARBM-Sovereign-Qwen14B-v21
+          MODEL_LABEL: ARBM-Sovereign-Qwen14B-v22
           MODEL_PROVIDER: github-public-runner-open-weight
-          WORKER_REV: public-invariant-gated-sovereign-v21
+          WORKER_REV: public-feedback-preserving-sovereign-v22
         run: python p8-swe-rebench-smoke.py
       - name: Stop sovereign backstop server
         if: always() && steps.fallback.outputs.needed == 'true'

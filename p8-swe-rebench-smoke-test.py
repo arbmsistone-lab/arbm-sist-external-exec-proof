@@ -22,6 +22,17 @@ def load_function(name, namespace):
 
 
 class SmokePolicyTests(unittest.TestCase):
+    def test_context_compaction_deduplicates_files(self):
+        compact = load_function('_compact_public_context', {'re': re})
+        context = (
+            'FILE: src/writer.py\nPUBLIC_STATIC_HOTSPOT: affinity=100\n000001|write int\n\n'
+            'FILE: src/writer.py\n000001|write int again\n\n'
+            'FILE: test/writer_test.py\n000001|test write overflow\n'
+        )
+        result = compact(context, 'overflow while writing output', 2000)
+        self.assertEqual(result.count('FILE: src/writer.py'), 1)
+        self.assertIn('FILE: test/writer_test.py', result)
+
     def test_writer_hotspot_outranks_reader_for_public_write_issue(self):
         hotspot = load_function('public_static_hotspots', {'Path': Path, 're': re})
         with tempfile.TemporaryDirectory() as repo:
@@ -55,6 +66,23 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertTrue(result.startswith('PUBLIC ISSUE:'))
         self.assertIn('PUBLIC INVARIANT REJECTION', result)
         self.assertIn('FINAL_PUBLIC_DIAGNOSTIC', result)
+
+    def test_repair_compaction_keeps_mandatory_revision_directives(self):
+        compact = load_function('_compact_public_issue', {})
+        raw = (
+            'PUBLIC ISSUE: huge QUAL values fail while writing VCF'
+            + (' public contract' * 300)
+            + '\n\nPUBLIC INVARIANT REJECTION: '
+            + 'public_invariant_control_flow_removed:if. '
+            + 'MANDATORY REVISION: retain the named original control-flow form. '
+            + ('public reasoning ' * 200)
+            + 'Rejected edits: candidate-A'
+        )
+        result = compact(raw, 1800)
+        self.assertTrue(result.startswith('PUBLIC ISSUE:'))
+        self.assertIn('PUBLIC INVARIANT REJECTION', result)
+        self.assertIn('MANDATORY REVISION', result)
+        self.assertIn('Rejected edits: candidate-A', result)
 
     def test_overflow_guard_rejects_removed_control_flow_and_retained_cast(self):
         guard = load_function('public_invariant_guard', {'Path': Path, 're': re})

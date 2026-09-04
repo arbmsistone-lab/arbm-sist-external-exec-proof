@@ -9,6 +9,22 @@ LLAMA = os.environ.get('LLAMA_CLI', './llama-cli')
 OUT = Path('p8-swe-artifact')
 OUT.mkdir(exist_ok=True)
 
+def runtime_identity():
+    return {
+        'sourceCommit':os.environ.get('GITHUB_SHA','unknown'),
+        'generatorBuild':os.environ.get('WORKER_REV','unknown'),
+        'runner':{
+            'name':os.environ.get('RUNNER_NAME','unknown'),
+            'os':os.environ.get('RUNNER_OS',sys.platform),
+            'arch':os.environ.get('RUNNER_ARCH','unknown'),
+        },
+        'modelArtifactSha256':os.environ.get('MODEL_SHA256','unknown'),
+        'inferenceRuntime':{
+            'llamaTag':os.environ.get('LLAMA_TAG','unknown'),
+            'sha256':os.environ.get('LLAMA_SHA256','unknown'),
+        },
+    }
+
 def run(cmd, cwd=None, timeout=600):
     return subprocess.run(cmd, cwd=cwd, text=True, capture_output=True, timeout=timeout)
 
@@ -264,7 +280,7 @@ def _compact_public_context(raw, issue, max_chars=2600):
     for t in re.findall(r'[A-Za-z_][A-Za-z0-9_./:-]{2,}',str(issue)):
         x=t.strip('.,:;()[]{}').lower()
         if len(x)>=4 and x not in stop and x not in terms: terms.append(x)
-    ranked=[]
+    ranked_by_file={}
     for block in blocks:
         if not block.startswith('FILE:'): continue
         lines=block.splitlines(); best_i=1; best=-1
@@ -278,7 +294,11 @@ def _compact_public_context(raw, issue, max_chars=2600):
             if score>best: best=score; best_i=i
         a=max(1,best_i-8); b=min(len(lines),best_i+10)
         excerpt='\n'.join([lines[0]]+lines[a:b])
-        ranked.append((affinity+best,excerpt))
+        rel=lines[0][len('FILE:'):].strip()
+        candidate=(affinity+best,excerpt)
+        if rel not in ranked_by_file or candidate[0]>ranked_by_file[rel][0]:
+            ranked_by_file[rel]=candidate
+    ranked=list(ranked_by_file.values())
     ranked.sort(key=lambda x:-x[0])
     out='\n\n'.join(x[1] for x in ranked[:3])
     return out[:max_chars]
@@ -310,8 +330,8 @@ def _sovereign_json(payload):
     if phase=='plan':
         return 0,{'plan':{'paths':[],'queries':[]},'model':'deterministic-public-lexical-planner','pipeline':'sovereign-lexical'},'',False
     if phase=='solve':
-        issue=_compact_public_issue(payload.get('issue',''),2800)
-        ctx=_compact_public_context(payload.get('tool_context',''),issue,3200)
+        issue=_compact_public_issue(payload.get('issue',''),1800)
+        ctx=_compact_public_context(payload.get('tool_context',''),issue,2200)
         prompt=('PUBLIC REPOSITORY CONTEXT:\n'+ctx+'\n\nPUBLIC ISSUE AND CONTRACT:\n'+issue+
                 '\n\nReturn ONLY a JSON object with key "edits". edits is a list of objects with path, start_line, end_line, new. '
                 'Use only supplied public context. start_line and end_line MUST be exact line numbers printed before each source line; never guess or renumber them. Preserve existing ordinary output formatting unless the public issue requires changing it. No markdown, hidden tests, gold patches, evaluator output, or solution PRs.')
@@ -681,7 +701,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     for rel in lex_paths[:4]+planner_paths+lex_paths[4:]:
         if rel not in candidate_paths: candidate_paths.append(rel)
     if not candidate_paths:
-        evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit','dataset':DATASET,'instance_id':iid,'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'exitCode':127,'validPatch':False,'status':'NO_CONTEXT','plannerCode':pcode,'plannerError':perr[:500],'goldPatchExposedToAgent':False}
+        evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit',**runtime_identity(),'dataset':DATASET,'instance_id':iid,'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'exitCode':127,'validPatch':False,'status':'NO_CONTEXT','plannerCode':pcode,'plannerError':perr[:500],'goldPatchExposedToAgent':False}
         Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
         Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':''}],indent=2)+'\n')
         Path(OUT,'instance.json').write_text(json.dumps({'instance_id':iid,'repo':row['repo'],'base_commit':base},indent=2)+'\n')
@@ -753,7 +773,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     if not cand_a and not cand_b and (code!=0 or bcode!=0):
         sovereign_only=(os.environ.get('ARBM_SOVEREIGN_ONLY')=='1')
         fail_status='SOVEREIGN_GENERATION_FAILED' if sovereign_only else 'WAITING_FREE_CAPACITY'
-        evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit','dataset':DATASET,'instance_id':iid,'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'exitCode':125,'validPatch':False,'status':fail_status,'providerUnavailable':not sovereign_only,'candidateACode':code,'candidateBCode':bcode,'providerError':(err+' | '+berr)[:1200],'allowedPaths':allowed_paths,'goldPatchExposedToAgent':False}
+        evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit',**runtime_identity(),'dataset':DATASET,'instance_id':iid,'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'exitCode':125,'validPatch':False,'status':fail_status,'providerUnavailable':not sovereign_only,'candidateACode':code,'candidateBCode':bcode,'providerError':(err+' | '+berr)[:1200],'allowedPaths':allowed_paths,'goldPatchExposedToAgent':False}
         Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
         Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':''}],indent=2)+'\n')
         Path(OUT,'instance.json').write_text(json.dumps({'instance_id':iid,'repo':row['repo'],'base_commit':base},indent=2)+'\n')
@@ -777,7 +797,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
         validation_failed=cr['applied']>0 and not cr['errors'] and cr['validationAttempted'] and cr['validationCode']!=0
         if guard_failed or validation_failed:
             if guard_failed:
-                repair_issue=solver_problem+'\n\nPUBLIC INVARIANT REJECTION for candidate '+label+': '+json.dumps(cr['errors'])[:1200]+'. Re-locate the exact public source hotspot that causes the issue and produce a representation-preserving fix using only the supplied public issue and repository context. start_line/end_line must match the printed source line numbers exactly. Do not use hidden tests, gold patches, solution PRs, or evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]
+                repair_issue=solver_problem+'\n\nPUBLIC INVARIANT REJECTION for candidate '+label+': '+json.dumps(cr['errors'])[:1200]+'. Re-locate the exact public source hotspot that causes the issue and produce a representation-preserving fix using only the supplied public issue and repository context. MANDATORY REVISION: do not return the rejected edit unchanged. For each control_flow_removed error, retain the named original public control-flow form and its behavior. For fixed_width_conversion_retained, remove the fixed-width conversion rather than placing it behind a range check. Prefer changing only the causal conversion expression while leaving surrounding public guards and branches intact. start_line/end_line must match the printed source line numbers exactly. Do not use hidden tests, gold patches, solution PRs, or evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]
             else:
                 repair_issue=solver_problem+'\n\nPUBLIC REPOSITORY VALIDATION FAILED for candidate '+label+'. Repair the candidate using only the supplied public validation output and repository context. Do not use hidden tests or benchmark evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]+'\nPUBLIC VALIDATION OUTPUT:\n'+cr['validationPreview'][-6000:]
             repair_offset=2 if label=='A' else 3
@@ -835,7 +855,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
         chk=run(['git','apply','--check',str(patch_file)],td,60)
         apply_check=(chk.returncode==0); apply_error=(chk.stderr or chk.stdout).strip()[:500]
     valid=structure_valid and apply_check and not edit_errors
-    evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit','dataset':DATASET,'instance_id':iid,
+    evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit',**runtime_identity(),'dataset':DATASET,'instance_id':iid,
       'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'model':os.environ.get('MODEL_LABEL','unknown'),'provider':os.environ.get('MODEL_PROVIDER','local-llama'),
       'latencyMs':latency,'exitCode':code,'validPatch':valid,'patchChars':len(patch),
       'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'allowedPaths':allowed_paths,'pathNormalizations':path_normalizations,'editMeta':applied_meta,'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'publicValidationAttempted':validation_attempted,'publicValidationCode':validation_code,'publicValidationPreview':validation_output[-6000:],'repairAttempted':bool(repair_records),'repairRecords':repair_records,'candidateA':candidate_results.get('A'),'candidateB':candidate_results.get('B'),'semanticJudgeChoice':choice,'semanticJudgeReason':judge_reason,'semanticJudgeCode':jcode,'goldPatchExposedToAgent':False}
