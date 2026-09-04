@@ -257,7 +257,7 @@ def _capacity_error(err):
     low=str(err).lower()
     return ('http 429' in low or 'waiting_free_capacity' in low or 'quota' in low or 'high demand' in low)
 
-def _compact_public_context(raw, issue, max_chars=2200):
+def _compact_public_context(raw, issue, max_chars=2600):
     blocks=re.split(r'(?m)(?=^FILE:\s+)',str(raw))
     stop={'this','that','with','from','when','have','will','should','there','which','into','about','more','than','only','also','using','used','public','issue','contract','before','after'}
     terms=[]
@@ -268,8 +268,9 @@ def _compact_public_context(raw, issue, max_chars=2200):
     for block in blocks:
         if not block.startswith('FILE:'): continue
         lines=block.splitlines(); best_i=1; best=-1
+        hotspot_bonus=40 if any('PUBLIC_STATIC_HOTSPOT:' in x for x in lines[:4]) else 0
         for i,line in enumerate(lines[1:],1):
-            low=line.lower(); score=sum(5 for t in terms[:24] if t in low)
+            low=line.lower(); score=hotspot_bonus+sum(5 for t in terms[:24] if t in low)
             score+=2 if re.search(r'\b(defn?|class|function|write|format|serialize|parse|int|long|float|double)\b',low) else 0
             if score>best: best=score; best_i=i
         a=max(1,best_i-8); b=min(len(lines),best_i+10)
@@ -455,6 +456,39 @@ def lexical_fallback(repo, problem, limit=8):
         if best is not None: centers[rel]=best[1]
     return ranked[:limit],centers
 
+def public_static_hotspots(repo, paths, issue_text, limit=10, radius=6):
+    low=str(issue_text).lower()
+    overflow=bool(re.search(r'overflow|out of (?:the )?integer range|out of integer range',low))
+    if not overflow: return ''
+    issue_terms=[]
+    for t in re.findall(r'[A-Za-z_][A-Za-z0-9_]{2,}',str(issue_text)):
+        x=t.lower()
+        if len(x)>=4 and x not in issue_terms: issue_terms.append(x)
+    hits=[]
+    for rel in paths[:12]:
+        f=Path(repo,rel)
+        if not f.is_file(): continue
+        try: lines=f.read_text(encoding='utf-8',errors='ignore').splitlines(True)
+        except Exception: continue
+        for i,line in enumerate(lines):
+            if not re.search(r'\b(?:int|integer|int32|uint32)\b|\(int\s',line,re.I): continue
+            a=max(0,i-radius); b=min(len(lines),i+radius+1)
+            window=''.join(lines[a:b]).lower()
+            score=50+sum(5 for t in issue_terms[:30] if t in window)
+            if re.search(r'write|writer|serialize|format|string',window,re.I): score+=20
+            if re.search(r'(^|/)(src|lib|app|core)(/|$)',rel,re.I): score+=15
+            hits.append((score,rel,i,a,b,lines))
+    hits.sort(key=lambda x:(-x[0],x[1],x[2]))
+    blocks=[]; seen=set()
+    for _,rel,i,a,b,lines in hits:
+        key=(rel,i)
+        if key in seen: continue
+        seen.add(key)
+        body=''.join(f'{j+1:06d}|{lines[j]}' for j in range(a,b))
+        blocks.append(f'FILE: {rel}\nPUBLIC_STATIC_HOTSPOT: bounded numeric conversion derived only from public overflow issue + source\n'+body)
+        if len(blocks)>=limit: break
+    return '\n\n'.join(blocks)
+
 def numbered_file(repo, rel, center=None, radius=120):
     f=Path(repo,rel)
     if not f.is_file(): return ''
@@ -611,8 +645,13 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
         Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':''}],indent=2)+'\n')
         Path(OUT,'instance.json').write_text(json.dumps({'instance_id':iid,'repo':row['repo'],'base_commit':base},indent=2)+'\n')
         print(json.dumps(evidence)); raise SystemExit(2)
-    context='\n\n'.join(numbered_file(td,r,centers.get(r)) for r in candidate_paths[:8])[:32000]
-    allowed_paths=re.findall(r'(?m)^FILE:\s+([^\s]+)',context)
+    base_context='\n\n'.join(numbered_file(td,r,centers.get(r)) for r in candidate_paths[:8])
+    hotspots=public_static_hotspots(td,candidate_paths,problem)
+    context=((hotspots+'\n\n') if hotspots else '')+base_context
+    context=context[:32000]
+    allowed_paths=[]
+    for rel in re.findall(r'(?m)^FILE:\s+([^\s]+)',context):
+        if rel not in allowed_paths: allowed_paths.append(rel)
     code,data,err,timed_out=remote_json({'phase':'solve','issue':solver_problem,'tool_context':context,'instance_id':iid,'model_offset':0,'review_model_offset':0})
     cand_a=(data or {}).get('edits',[]) if code==0 else []
     alt_issue=solver_problem+'\n\nGenerate an INDEPENDENT ALTERNATIVE solution. The first candidate was: '+json.dumps(cand_a)[:4000]+' Do not repeat it; test a different plausible root cause or more complete behavioral invariant using only supplied public context.'
@@ -689,11 +728,11 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     repair_records={}
     for label in ('A','B'):
         cr=candidate_results[label]
-        guard_failed=any(str(x).startswith('public_invariant_fixed_width_widening:') for x in cr['errors'])
+        guard_failed=any(str(x).startswith('public_invariant_') for x in cr['errors'])
         validation_failed=cr['applied']>0 and not cr['errors'] and cr['validationAttempted'] and cr['validationCode']!=0
         if guard_failed or validation_failed:
             if guard_failed:
-                repair_issue=solver_problem+'\n\nPUBLIC INVARIANT REJECTION for candidate '+label+': replacing one bounded integer conversion with another bounded integer conversion does not remove a range-overflow ceiling in serialization. Produce a representation-preserving fix using only the public issue and repository context. Do not use hidden tests, gold patches, solution PRs, or evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]
+                repair_issue=solver_problem+'\n\nPUBLIC INVARIANT REJECTION for candidate '+label+': '+json.dumps(cr['errors'])[:1200]+'. Re-locate the exact public source hotspot that causes the issue and produce a representation-preserving fix using only the supplied public issue and repository context. start_line/end_line must match the printed source line numbers exactly. Do not use hidden tests, gold patches, solution PRs, or evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]
             else:
                 repair_issue=solver_problem+'\n\nPUBLIC REPOSITORY VALIDATION FAILED for candidate '+label+'. Repair the candidate using only the supplied public validation output and repository context. Do not use hidden tests or benchmark evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]+'\nPUBLIC VALIDATION OUTPUT:\n'+cr['validationPreview'][-3000:]
             repair_offset=2 if label=='A' else 3
