@@ -84,6 +84,19 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertIn('MANDATORY REVISION', result)
         self.assertIn('Rejected edits: candidate-A', result)
 
+    def test_issue_compaction_prioritizes_public_causal_line_hint(self):
+        compact = load_function('_compact_public_issue', {})
+        raw = ('PUBLIC ISSUE: QUAL overflow while writing VCF ' + ('public contract ' * 200)
+               + '\n\nPUBLIC INVARIANT REJECTION: preserve control flow ' + ('detail ' * 150)
+               + '\nPUBLIC CAUSAL LINE HINT derived only from the public repository: '
+               + '{"path":"src/cljam/io/vcf/writer.clj","line":192,"source":"(str (int x))"}. '
+               + 'MANDATORY: prefer start_line=end_line and preserve surrounding when/if.')
+        result = compact(raw, 900)
+        self.assertIn('PUBLIC CAUSAL LINE HINT', result)
+        self.assertIn('writer.clj', result)
+        self.assertIn('(str (int x))', result)
+        self.assertIn('start_line=end_line', result)
+
     def test_overflow_guard_rejects_removed_control_flow_and_retained_cast(self):
         guard = load_function('public_invariant_guard', {'Path': Path, 're': re})
         with tempfile.TemporaryDirectory() as repo:

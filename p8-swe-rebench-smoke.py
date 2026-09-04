@@ -311,6 +311,7 @@ def _compact_public_issue(raw, max_chars=2800):
         '\n\nPUBLIC INVARIANT REJECTION',
         '\n\nPUBLIC REPOSITORY VALIDATION FAILED',
         '\n\nGenerate an INDEPENDENT ALTERNATIVE solution.',
+        '\nPUBLIC CAUSAL LINE HINT',
     )]
     marker=max(marker_positions)
     if marker>0:
