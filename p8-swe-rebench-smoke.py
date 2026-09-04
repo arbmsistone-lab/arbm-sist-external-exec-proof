@@ -529,7 +529,17 @@ def public_validation(repo, changed_paths):
                 if a.returncode: return True,a.returncode,(a.stderr or a.stdout)[-3000:]
                 b=run(['sudo','apt-get','install','-y','leiningen'],repo,180)
                 if b.returncode: return True,b.returncode,(b.stderr or b.stdout)[-3000:]
-            r=run(['lein','test'],repo,300); return True,r.returncode,((r.stdout or '')+'\n'+(r.stderr or ''))[-6000:]
+            namespaces=[]
+            for rel in changed_paths:
+                rel=str(rel).replace('\\','/')
+                if not rel.startswith('src/') or not rel.endswith('.clj'): continue
+                stem=rel[4:-4]
+                test_rel='test/'+stem+'_test.clj'
+                if not Path(repo,test_rel).is_file(): continue
+                ns=stem.replace('/','.')+'-test'
+                if ns not in namespaces: namespaces.append(ns)
+            cmd=['lein','test',*namespaces] if namespaces else ['lein','test']
+            r=run(cmd,repo,300); return True,r.returncode,((r.stdout or '')+'\n'+(r.stderr or ''))[-12000:]
         if Path(repo,'go.mod').is_file() and shutil.which('go'):
             r=run(['go','test','./...'],repo,300); return True,r.returncode,((r.stdout or '')+'\n'+(r.stderr or ''))[-6000:]
         if Path(repo,'Cargo.toml').is_file() and shutil.which('cargo'):
