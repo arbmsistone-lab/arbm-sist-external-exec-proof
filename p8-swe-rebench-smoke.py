@@ -331,12 +331,12 @@ def _sovereign_json(payload):
     if phase=='plan':
         return 0,{'plan':{'paths':[],'queries':[]},'model':'deterministic-public-lexical-planner','pipeline':'sovereign-lexical'},'',False
     if phase=='solve':
-        issue=_compact_public_issue(payload.get('issue',''),2200)
-        ctx=_compact_public_context(payload.get('tool_context',''),issue,3000)
+        issue=_compact_public_issue(payload.get('issue',''),1400)
+        ctx=_compact_public_context(payload.get('tool_context',''),issue,1800)
         prompt=('PUBLIC REPOSITORY CONTEXT:\n'+ctx+'\n\nPUBLIC ISSUE AND CONTRACT:\n'+issue+
                 '\n\nReturn ONLY a JSON object with key "edits". edits is a list of objects with path, start_line, end_line, new. '
                 'Use only supplied public context. start_line and end_line MUST be exact line numbers printed before each source line; never guess or renumber them. Preserve existing ordinary output formatting unless the public issue requires changing it. No markdown, hidden tests, gold patches, evaluator output, or solution PRs.')
-        max_tokens=180
+        max_tokens=144
     elif phase=='judge':
         ctx=str(payload.get('tool_context',''))[:3500]
         issue=str(payload.get('issue',''))[:2200]
@@ -355,7 +355,8 @@ def _sovereign_json(payload):
                      'temperature':0,'max_tokens':max_tokens,'stream':False,'cache_prompt':True,'response_format':{'type':'json_object','schema':schema}}).encode('utf-8')
     try:
         req=urllib.request.Request(endpoint,data=body,method='POST'); req.add_header('Content-Type','application/json')
-        with urllib.request.urlopen(req,timeout=300) as r: outer=json.loads(r.read().decode('utf-8'))
+        sovereign_timeout=max(180,min(600,int(os.environ.get('ARBM_SOVEREIGN_TIMEOUT_SECONDS','420'))))
+        with urllib.request.urlopen(req,timeout=sovereign_timeout) as r: outer=json.loads(r.read().decode('utf-8'))
         content=outer['choices'][0]['message'].get('content','')
         if isinstance(content,list): content=''.join(str(x.get('text','')) if isinstance(x,dict) else str(x) for x in content)
         text=str(content).strip()

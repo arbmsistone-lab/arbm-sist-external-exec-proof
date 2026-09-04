@@ -103,8 +103,10 @@ jobs:
           test "$READY" = 1
       - name: Generate patch via sovereign backstop
         if: steps.fallback.outputs.needed == 'true'
+        timeout-minutes: 9
         env:
           ARBM_SOVEREIGN_ONLY: '1'
+          ARBM_SOVEREIGN_TIMEOUT_SECONDS: '420'
           MODEL_LABEL: ARBM-Sovereign-Qwen14B-v22
           MODEL_PROVIDER: github-public-runner-open-weight
           WORKER_REV: public-feedback-preserving-sovereign-v22
