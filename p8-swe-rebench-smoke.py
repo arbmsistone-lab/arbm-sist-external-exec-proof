@@ -268,14 +268,17 @@ def _compact_public_context(raw, issue, max_chars=2600):
     for block in blocks:
         if not block.startswith('FILE:'): continue
         lines=block.splitlines(); best_i=1; best=-1
-        hotspot_bonus=40 if any('PUBLIC_STATIC_HOTSPOT:' in x for x in lines[:4]) else 0
+        affinity=0
+        for header in lines[:4]:
+            m=re.search(r'PUBLIC_STATIC_HOTSPOT:\s*affinity=(-?\d+)',header)
+            if m: affinity=max(-2000,min(5000,int(m.group(1))))
         for i,line in enumerate(lines[1:],1):
-            low=line.lower(); score=hotspot_bonus+sum(5 for t in terms[:24] if t in low)
+            low=line.lower(); score=sum(5 for t in terms[:24] if t in low)
             score+=2 if re.search(r'\b(defn?|class|function|write|format|serialize|parse|int|long|float|double)\b',low) else 0
             if score>best: best=score; best_i=i
         a=max(1,best_i-8); b=min(len(lines),best_i+10)
         excerpt='\n'.join([lines[0]]+lines[a:b])
-        ranked.append((best,excerpt))
+        ranked.append((affinity+best,excerpt))
     ranked.sort(key=lambda x:-x[0])
     out='\n\n'.join(x[1] for x in ranked[:3])
     return out[:max_chars]
@@ -308,7 +311,7 @@ def _sovereign_json(payload):
         return 0,{'plan':{'paths':[],'queries':[]},'model':'deterministic-public-lexical-planner','pipeline':'sovereign-lexical'},'',False
     if phase=='solve':
         issue=_compact_public_issue(payload.get('issue',''),2800)
-        ctx=_compact_public_context(payload.get('tool_context',''),issue,2200)
+        ctx=_compact_public_context(payload.get('tool_context',''),issue,3200)
         prompt=('PUBLIC REPOSITORY CONTEXT:\n'+ctx+'\n\nPUBLIC ISSUE AND CONTRACT:\n'+issue+
                 '\n\nReturn ONLY a JSON object with key "edits". edits is a list of objects with path, start_line, end_line, new. '
                 'Use only supplied public context. start_line and end_line MUST be exact line numbers printed before each source line; never guess or renumber them. Preserve existing ordinary output formatting unless the public issue requires changing it. No markdown, hidden tests, gold patches, evaluator output, or solution PRs.')
@@ -484,36 +487,45 @@ def public_static_hotspots(repo, paths, issue_text, limit=10, radius=6):
     for t in re.findall(r'[A-Za-z_][A-Za-z0-9_]{2,}',str(issue_text)):
         x=t.lower()
         if len(x)>=4 and x not in issue_terms: issue_terms.append(x)
+    public_field_terms=[]
+    for t in re.findall(r'\b[A-Z][A-Z0-9_]{2,}\b',str(issue_text)):
+        x=t.lower()
+        if x not in public_field_terms: public_field_terms.append(x)
+    write_intent=bool(re.search(r'\b(write|writes|writing|writer|serialize|serialization|output)\b',low))
+    read_intent=bool(re.search(r'\b(read|reads|reading|reader|parse|parsing|input)\b',low))
     hits=[]
     for rel in paths[:12]:
         f=Path(repo,rel)
         if not f.is_file(): continue
         try: lines=f.read_text(encoding='utf-8',errors='ignore').splitlines(True)
         except Exception: continue
+        rel_low=rel.lower()
+        writer_path=bool(re.search(r'(^|[._/-])(writer|write|serializer|serialize)([._/-]|$)',rel_low))
+        reader_path=bool(re.search(r'(^|[._/-])(reader|read|parser|parse)([._/-]|$)',rel_low))
+        path_terms=[t for t in issue_terms[:30] if t in rel_low]
         for i,line in enumerate(lines):
             if not re.search(r'\b(?:int|integer|int32|uint32)\b|\(int\s',line,re.I): continue
             a=max(0,i-radius); b=min(len(lines),i+radius+1)
             window=''.join(lines[a:b]).lower()
-            score=50+sum(5 for t in issue_terms[:30] if t in window)
-            rel_low=rel.lower()
-            write_intent=bool(re.search(r'\b(write|writes|writing|writer|serialize|serialization|output)\b',low))
-            read_intent=bool(re.search(r'\b(read|reads|reading|reader|parse|parsing|input)\b',low))
+            source_terms=[t for t in issue_terms[:30] if t in window]
+            field_terms=[t for t in public_field_terms[:12] if t in window]
+            score=50+5*len(source_terms)+80*len(path_terms)+700*len(field_terms)
             if re.search(r'write|writer|serialize|format|string',window,re.I): score+=20
-            if write_intent and re.search(r'(^|[._/-])(writer|write|serializer|serialize)([._/-]|$)',rel_low): score+=500
-            if write_intent and re.search(r'(^|[._/-])(reader|read|parser|parse)([._/-]|$)',rel_low): score-=500
-            if read_intent and re.search(r'(^|[._/-])(reader|read|parser|parse)([._/-]|$)',rel_low): score+=500
-            for term in issue_terms[:30]:
-                if term in rel_low: score+=80
+            if write_intent and writer_path: score+=500
+            if write_intent and reader_path: score-=900
+            if read_intent and reader_path: score+=500
+            if read_intent and writer_path: score-=900
+            if field_terms and ((write_intent and writer_path) or (read_intent and reader_path)): score+=1200
             if re.search(r'(^|/)(src|lib|app|core)(/|$)',rel,re.I): score+=15
-            hits.append((score,rel,i,a,b,lines))
+            matches=sorted(set(path_terms+field_terms))
+            hits.append((score,rel,i,a,b,lines,','.join(matches[:12]) or 'none'))
     hits.sort(key=lambda x:(-x[0],x[1],x[2]))
-    blocks=[]; seen=set()
-    for _,rel,i,a,b,lines in hits:
-        key=(rel,i)
-        if key in seen: continue
-        seen.add(key)
+    blocks=[]; seen_files=set()
+    for score,rel,i,a,b,lines,matches in hits:
+        if rel in seen_files: continue
+        seen_files.add(rel)
         body=''.join(f'{j+1:06d}|{lines[j]}' for j in range(a,b))
-        blocks.append(f'FILE: {rel}\nPUBLIC_STATIC_HOTSPOT: bounded numeric conversion derived only from public overflow issue + source\n'+body)
+        blocks.append(f'FILE: {rel}\nPUBLIC_STATIC_HOTSPOT: affinity={score}; public_matches={matches}; derived only from public issue + source\n'+body)
         if len(blocks)>=limit: break
     return '\n\n'.join(blocks)
 
