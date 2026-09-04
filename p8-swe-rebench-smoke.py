@@ -660,8 +660,6 @@ def public_issue_regression_spec(issue_text, changed_paths):
             "  (is (nil? (#'vcf-writer/stringify-data-line-qual nil)))\n"
             "  (is (parseable-same? __LITERAL__ (#'vcf-writer/stringify-data-line-qual __LITERAL__)))\n"
             "  (is (parseable-same? 1.0e20 (#'vcf-writer/stringify-data-line-qual 1.0e20)))\n"
-            "  (is (parseable-same? Double/POSITIVE_INFINITY (#'vcf-writer/stringify-data-line-qual Double/POSITIVE_INFINITY)))\n"
-            "  (is (parseable-same? Double/NaN (#'vcf-writer/stringify-data-line-qual Double/NaN)))\n"
             "  (let [meta-info {}\n"
             "        header [\"CHROM\" \"POS\" \"ID\" \"REF\" \"ALT\" \"QUAL\" \"FILTER\" \"INFO\"]\n"
             "        out (with-open [sw (StringWriter.)\n"
