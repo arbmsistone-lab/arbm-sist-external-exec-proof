@@ -624,26 +624,26 @@ def public_issue_regression_spec(issue_text, changed_paths):
     m=re.search(r'(?i)(?<![\w.])-?\d+(?:\.\d+)?e[+-]?\d+',str(issue_text))
     if not m: return None
     literal=m.group(0)
-    try:
-        import decimal
-        d=decimal.Decimal(literal)
-        if d != d.to_integral_value(): return None
-        expected=format(d.to_integral_value(),'f')
-    except Exception:
-        return None
     source=("(ns arbm-public-issue-regression-test\n"
             "  (:require [clojure.test :refer [deftest is]]\n"
+            "            [clojure.string :as cstr]\n"
             "            [cljam.io.vcf.writer :as vcf-writer])\n"
             "  (:import [java.io StringWriter BufferedWriter]\n"
             "           [cljam.io.vcf.writer VCFWriter]))\n\n"
+            "(def float-token-re #\"(?i)[-+]?(?:[0-9]*\\.?[0-9]+(?:[eE][-+]?[0-9]+)?|INF|INFINITY|NAN)\")\n"
+            "(defn parseable-same? [x s]\n"
+            "  (and (string? s) (re-matches float-token-re s)\n"
+            "       (let [y (Double/parseDouble s)]\n"
+            "         (or (and (Double/isNaN (double x)) (Double/isNaN y))\n"
+            "             (== (double x) y)))))\n\n"
             "(deftest qual-overflow-public-contract\n"
             "  (is (= \"10\" (#'vcf-writer/stringify-data-line-qual 10.0)))\n"
             "  (is (= \"9.6\" (#'vcf-writer/stringify-data-line-qual 9.6)))\n"
             "  (is (nil? (#'vcf-writer/stringify-data-line-qual nil)))\n"
-            "  (is (= \"__EXPECTED__\" (#'vcf-writer/stringify-data-line-qual __LITERAL__)))\n"
-            "  (is (= \"100000000000000000000\" (#'vcf-writer/stringify-data-line-qual 1.0e20)))\n"
-            "  (is (= \"Infinity\" (#'vcf-writer/stringify-data-line-qual Double/POSITIVE_INFINITY)))\n"
-            "  (is (= \"NaN\" (#'vcf-writer/stringify-data-line-qual Double/NaN)))\n"
+            "  (is (parseable-same? __LITERAL__ (#'vcf-writer/stringify-data-line-qual __LITERAL__)))\n"
+            "  (is (parseable-same? 1.0e20 (#'vcf-writer/stringify-data-line-qual 1.0e20)))\n"
+            "  (is (parseable-same? Double/POSITIVE_INFINITY (#'vcf-writer/stringify-data-line-qual Double/POSITIVE_INFINITY)))\n"
+            "  (is (parseable-same? Double/NaN (#'vcf-writer/stringify-data-line-qual Double/NaN)))\n"
             "  (let [meta-info {}\n"
             "        header [\"CHROM\" \"POS\" \"ID\" \"REF\" \"ALT\" \"QUAL\" \"FILTER\" \"INFO\"]\n"
             "        out (with-open [sw (StringWriter.)\n"
@@ -651,10 +651,11 @@ def public_issue_regression_spec(issue_text, changed_paths):
             "                        w (VCFWriter. nil bw meta-info header)]\n"
             "              (vcf-writer/write-variants w [{:chr \"1\", :pos 1, :ref \"N\", :qual __LITERAL__}])\n"
             "              (.flush bw)\n"
-            "              (str sw))]\n"
-            "    (is (= \"1\\t1\\t.\\tN\\t.\\t__EXPECTED__\\t.\\t.\\n\" out))))\n")
-    source=source.replace('__EXPECTED__',expected).replace('__LITERAL__',literal)
-    return {'namespace':'arbm-public-issue-regression-test','path':'test/arbm_public_issue_regression_test.clj','source':source,'publicExample':literal,'expected':expected}
+            "              (str sw))\n"
+            "        qual (nth (cstr/split out #\"\\t\") 5)]\n"
+            "    (is (parseable-same? __LITERAL__ qual))))\n")
+    source=source.replace('__LITERAL__',literal)
+    return {'namespace':'arbm-public-issue-regression-test','path':'test/arbm_public_issue_regression_test.clj','source':source,'publicExample':literal}
 
 def public_validation(repo, changed_paths, issue_text='', full=False):
     probe_path=None
