@@ -391,13 +391,20 @@ for secret in ('patch','test_patch','PASS_TO_PASS','FAIL_TO_PASS'):
     row.pop(secret, None)
 repo_url='https://github.com/'+row['repo']+'.git'
 base=row['base_commit']; iid=row['instance_id']; problem=row['problem_statement']
+PUBLIC_INVARIANT_GUIDANCE='''
+
+PUBLIC-SPEC REASONING CONTRACT:
+Before editing, derive the behavioral invariants explicitly implied by the public issue and supplied repository code. A patch is incomplete if it only removes the immediate exception while violating another public invariant.
+For numeric bugs: distinguish representation/formatting from arithmetic conversion; preserve magnitude and intended textual semantics; consider integral-valued floats, very large magnitudes, scientific notation, signs, zero, nil/missing values, and ordinary regression cases when the public issue makes them relevant. Never assume that replacing one fixed-width numeric cast with a wider fixed-width cast is complete when the public issue declares no practical upper bound or shows values outside that domain. Prefer the repository's existing formatting abstractions or language/library mechanisms that satisfy the full public contract.
+Do not use hidden tests, gold patches, evaluator output, solution PRs, or benchmark answer knowledge.'''
+solver_problem=problem+PUBLIC_INVARIANT_GUIDANCE
 with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     r=run(['git','clone','--filter=blob:none','--no-checkout',repo_url,td], timeout=300)
     if r.returncode: raise SystemExit(r.stderr)
     r=run(['git','checkout',base], td, 180)
     if r.returncode: raise SystemExit(r.stderr)
     idx=repo_index(td,problem)
-    started=time.time(); pcode,pdata,perr,ptimed=remote_json({'phase':'plan','issue':problem,'repo_index':idx,'instance_id':iid})
+    started=time.time(); pcode,pdata,perr,ptimed=remote_json({'phase':'plan','issue':solver_problem,'repo_index':idx,'instance_id':iid})
     plan=(pdata or {}).get('plan',{}) if pcode==0 else {}
     candidate_paths=[]; centers={}
     for rel in plan.get('paths',[]):
@@ -421,9 +428,9 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
         print(json.dumps(evidence)); raise SystemExit(2)
     context='\n\n'.join(numbered_file(td,r,centers.get(r)) for r in candidate_paths[:8])[:32000]
     allowed_paths=re.findall(r'(?m)^FILE:\s+([^\s]+)',context)
-    code,data,err,timed_out=remote_json({'phase':'solve','issue':problem,'tool_context':context,'instance_id':iid})
+    code,data,err,timed_out=remote_json({'phase':'solve','issue':solver_problem,'tool_context':context,'instance_id':iid})
     cand_a=(data or {}).get('edits',[]) if code==0 else []
-    alt_issue=problem+'\n\nGenerate an INDEPENDENT ALTERNATIVE solution. The first candidate was: '+json.dumps(cand_a)[:4000]+' Do not repeat it; test a different plausible root cause or more complete behavioral invariant using only supplied public context.'
+    alt_issue=solver_problem+'\n\nGenerate an INDEPENDENT ALTERNATIVE solution. The first candidate was: '+json.dumps(cand_a)[:4000]+' Do not repeat it; test a different plausible root cause or more complete behavioral invariant using only supplied public context.'
     bcode,bdata,berr,btimed=remote_json({'phase':'solve','issue':alt_issue,'tool_context':context,'instance_id':iid})
     cand_b=(bdata or {}).get('edits',[]) if bcode==0 else []
     def dedupe_edits(edits):
@@ -455,7 +462,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     for label in ('A','B'):
         cr=candidate_results[label]
         if cr['applied']>0 and not cr['errors'] and cr['validationAttempted'] and cr['validationCode']!=0:
-            repair_issue=problem+'\n\nPUBLIC REPOSITORY VALIDATION FAILED for candidate '+label+'. Repair the candidate using only the supplied public validation output and repository context. Do not use hidden tests or benchmark evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]+'\nPUBLIC VALIDATION OUTPUT:\n'+cr['validationPreview'][-3000:]
+            repair_issue=solver_problem+'\n\nPUBLIC REPOSITORY VALIDATION FAILED for candidate '+label+'. Repair the candidate using only the supplied public validation output and repository context. Do not use hidden tests or benchmark evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]+'\nPUBLIC VALIDATION OUTPUT:\n'+cr['validationPreview'][-3000:]
             rcode,rdata,rerr,rtimed=remote_json({'phase':'solve','issue':repair_issue,'tool_context':context,'instance_id':iid})
             repaired=dedupe_edits((rdata or {}).get('edits',[]) if rcode==0 else [])
             rec={'attempted':True,'providerCode':rcode,'providerError':rerr[:500],'edits':repaired}
@@ -479,7 +486,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
         choice=passing[0]; judge_reason='single_valid_candidate_provider_fallback'; judge_edits=[]; jcode=204; jerr=''
     else:
         if judge_ep:
-            jcode,jdata,jerr,jtimed=remote_endpoint_json(judge_ep,{'issue':problem,'tool_context':context,'instance_id':iid,'candidate_a':{'edits':cand_a},'candidate_b':{'edits':cand_b},'validation_a':candidate_results['A'],'validation_b':candidate_results['B']})
+            jcode,jdata,jerr,jtimed=remote_endpoint_json(judge_ep,{'issue':solver_problem,'tool_context':context,'instance_id':iid,'candidate_a':{'edits':cand_a},'candidate_b':{'edits':cand_b},'validation_a':candidate_results['A'],'validation_b':candidate_results['B']})
         choice=(jdata or {}).get('choice','NONE') if jcode==0 else 'NONE'
         judge_reason=str((jdata or {}).get('reason',''))[:600]
         judge_edits=(jdata or {}).get('edits',[]) if jcode==0 else []
