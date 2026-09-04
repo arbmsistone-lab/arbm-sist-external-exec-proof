@@ -239,7 +239,7 @@ def _remote_json_one(endpoint, payload, retries=(0,12)):
             if not token: return 126,None,'NO_OIDC_PROVIDER_TOKEN',False
             req=urllib.request.Request(endpoint,data=body,method='POST')
             req.add_header('Authorization','Bearer '+token); req.add_header('Content-Type','application/json')
-            req.add_header('User-Agent','arbm-sist-benchmark/17'); req.add_header('Accept','application/json')
+            req.add_header('User-Agent','arbm-sist-benchmark/19'); req.add_header('Accept','application/json')
             with urllib.request.urlopen(req,timeout=150) as r: data=json.loads(r.read().decode('utf-8'))
             if data.get('ok'): return 0,data,'',False
             last_err='REMOTE_STATUS:'+str(data.get('status'))
@@ -527,11 +527,15 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
         print(json.dumps(evidence)); raise SystemExit(2)
     context='\n\n'.join(numbered_file(td,r,centers.get(r)) for r in candidate_paths[:8])[:32000]
     allowed_paths=re.findall(r'(?m)^FILE:\s+([^\s]+)',context)
-    code,data,err,timed_out=remote_json({'phase':'solve','issue':solver_problem,'tool_context':context,'instance_id':iid})
+    code,data,err,timed_out=remote_json({'phase':'solve','issue':solver_problem,'tool_context':context,'instance_id':iid,'model_offset':0,'review_model_offset':0})
     cand_a=(data or {}).get('edits',[]) if code==0 else []
     alt_issue=solver_problem+'\n\nGenerate an INDEPENDENT ALTERNATIVE solution. The first candidate was: '+json.dumps(cand_a)[:4000]+' Do not repeat it; test a different plausible root cause or more complete behavioral invariant using only supplied public context.'
-    bcode,bdata,berr,btimed=remote_json({'phase':'solve','issue':alt_issue,'tool_context':context,'instance_id':iid})
+    bcode,bdata,berr,btimed=remote_json({'phase':'solve','issue':alt_issue,'tool_context':context,'instance_id':iid,'model_offset':1,'review_model_offset':1})
     cand_b=(bdata or {}).get('edits',[]) if bcode==0 else []
+    def provider_meta(d):
+        d=d or {}
+        return {'model':d.get('model'),'pipeline':d.get('pipeline'),'attempts':(d.get('attempts') or [])[:16]}
+    candidate_provider_meta={'A':provider_meta(data),'B':provider_meta(bdata)}
     def dedupe_edits(edits):
         out=[]; seen=set()
         for e in edits if isinstance(edits,list) else []:
@@ -576,7 +580,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
         attempted=False; vcode=125; vout='NOT_RUN'
         if applied>0 and not errs:
             attempted,vcode,vout=public_validation(td,[m['path'] for m in meta])
-        candidate_results[label]={'edits':cand,'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-1500:]}
+        candidate_results[label]={'edits':cand,'providerMeta':candidate_provider_meta.get(label,{}),'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-1500:]}
     repair_records={}
     for label in ('A','B'):
         cr=candidate_results[label]
@@ -587,9 +591,10 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 repair_issue=solver_problem+'\n\nPUBLIC INVARIANT REJECTION for candidate '+label+': replacing one bounded integer conversion with another bounded integer conversion does not remove a range-overflow ceiling in serialization. Produce a representation-preserving fix using only the public issue and repository context. Do not use hidden tests, gold patches, solution PRs, or evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]
             else:
                 repair_issue=solver_problem+'\n\nPUBLIC REPOSITORY VALIDATION FAILED for candidate '+label+'. Repair the candidate using only the supplied public validation output and repository context. Do not use hidden tests or benchmark evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]+'\nPUBLIC VALIDATION OUTPUT:\n'+cr['validationPreview'][-3000:]
-            rcode,rdata,rerr,rtimed=remote_json({'phase':'solve','issue':repair_issue,'tool_context':context,'instance_id':iid})
+            repair_offset=2 if label=='A' else 3
+            rcode,rdata,rerr,rtimed=remote_json({'phase':'solve','issue':repair_issue,'tool_context':context,'instance_id':iid,'model_offset':repair_offset,'review_model_offset':repair_offset})
             repaired=dedupe_edits((rdata or {}).get('edits',[]) if rcode==0 else [])
-            rec={'attempted':True,'providerCode':rcode,'providerError':rerr[:500],'edits':repaired}
+            rec={'attempted':True,'modelOffset':repair_offset,'providerCode':rcode,'providerError':rerr[:500],'providerMeta':provider_meta(rdata),'edits':repaired}
             if repaired:
                 run(['git','reset','--hard',base],td,60)
                 repair_guard_errors=public_invariant_guard(td,repaired,problem)
@@ -601,7 +606,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     attempted,vcode,vout=public_validation(td,[m['path'] for m in meta])
                 rec.update({'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-1500:]})
                 if applied>0 and not errs and (not attempted or vcode==0):
-                    candidate_results[label]={'edits':repaired,'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-1500:]}
+                    candidate_results[label]={'edits':repaired,'providerMeta':provider_meta(rdata),'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-1500:]}
                     if label=='A': cand_a=repaired
                     else: cand_b=repaired
             repair_records[label]=rec
