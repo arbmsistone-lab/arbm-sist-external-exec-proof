@@ -335,7 +335,7 @@ def _sovereign_json(payload):
         ctx=_compact_public_context(payload.get('tool_context',''),issue,1200)
         prompt=('PUBLIC REPOSITORY CONTEXT:\n'+ctx+'\n\nPUBLIC ISSUE AND CONTRACT:\n'+issue+
                 '\n\nReturn ONLY a JSON object with key "edits". edits is a list of objects with path, start_line, end_line, new. '
-                'Use only supplied public context. start_line and end_line MUST be exact line numbers printed before each source line; never guess or renumber them. Preserve existing ordinary output formatting unless the public issue requires changing it. No markdown, hidden tests, gold patches, evaluator output, or solution PRs.')
+                'Use only supplied public context. start_line and end_line MUST be exact line numbers printed before each source line; never guess or renumber them. Make the smallest causally sufficient edit: when a fixed-width conversion inside existing guards/branches causes serialization overflow, prefer editing only that causal expression and preserve enclosing control flow verbatim. Preserve existing ordinary output formatting unless the public issue requires changing it. No markdown, hidden tests, gold patches, evaluator output, or solution PRs.')
         max_tokens=112
     elif phase=='judge':
         ctx=str(payload.get('tool_context',''))[:3500]
