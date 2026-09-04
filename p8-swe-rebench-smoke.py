@@ -861,7 +861,8 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     candidate_results[label]={'edits':repaired,'providerMeta':provider_meta(rdata),'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-6000:]}
                     if label=='A': cand_a=repaired
                     else: cand_b=repaired
-            if repaired and rec.get('errors'):
+            repair_unusable=(not repaired) or bool(rec.get('errors'))
+            if repair_unusable:
                 deterministic=public_deterministic_overflow_repair(td,allowed_paths,problem)
                 if deterministic:
                     run(['git','reset','--hard',base],td,60)
