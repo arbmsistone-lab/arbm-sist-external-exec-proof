@@ -981,9 +981,10 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
         chk=run(['git','apply','--check',str(patch_file)],td,60)
         apply_check=(chk.returncode==0); apply_error=(chk.stderr or chk.stdout).strip()[:500]
     valid=structure_valid and apply_check and not edit_errors
+    terminal_status='' if valid else ('SOVEREIGN_GENERATION_FAILED' if os.environ.get('ARBM_SOVEREIGN_ONLY')=='1' else 'NEEDS_SOVEREIGN_FALLBACK')
     evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit',**runtime_identity(),'dataset':DATASET,'instance_id':iid,
       'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'model':os.environ.get('MODEL_LABEL','unknown'),'provider':os.environ.get('MODEL_PROVIDER','local-llama'),
-      'latencyMs':latency,'exitCode':code,'validPatch':valid,'patchChars':len(patch),
+      'latencyMs':latency,'exitCode':code,'validPatch':valid,'status':terminal_status,'patchChars':len(patch),
       'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'allowedPaths':allowed_paths,'pathNormalizations':path_normalizations,'editMeta':applied_meta,'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'publicValidationAttempted':validation_attempted,'publicValidationCode':validation_code,'publicValidationPreview':validation_output[-6000:],'repairAttempted':bool(repair_records),'repairRecords':repair_records,'candidateA':candidate_results.get('A'),'candidateB':candidate_results.get('B'),'semanticJudgeChoice':choice,'semanticJudgeReason':judge_reason,'semanticJudgeCode':jcode,'goldPatchExposedToAgent':False}
     Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
     Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':patch}],indent=2)+'\n')

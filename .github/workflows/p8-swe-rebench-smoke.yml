@@ -62,7 +62,7 @@ jobs:
           import json, os
           p='p8-swe-artifact/agent-evidence.json'; status='MISSING_EVIDENCE'
           if os.path.exists(p): status=str(json.load(open(p,encoding='utf-8')).get('status',''))
-          need=(status=='WAITING_FREE_CAPACITY')
+          need=(status in ('WAITING_FREE_CAPACITY','NEEDS_SOVEREIGN_FALLBACK'))
           with open(os.environ['GITHUB_OUTPUT'],'a') as f:
               f.write('needed='+str(need).lower()+'\n'); f.write('status='+status+'\n')
           print({'status':status,'sovereign_needed':need})
