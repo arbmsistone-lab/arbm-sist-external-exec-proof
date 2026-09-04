@@ -1,0 +1,63 @@
+name: P8 SWE-rebench V2 evidence matrix
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        hf_offset: [1, 2, 3, 4, 5]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      HF_OFFSET: ${{ matrix.hf_offset }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Runner identity
+        run: |
+          uname -a
+          free -m
+          df -h .
+          docker --version
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install datasets
+      - name: Acquire benchmark OIDC token
+        id: oidc
+        run: |
+          TOKEN=$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+      - name: Generate ARBM patch
+        env:
+          ARBM_BENCHMARK_OIDC: ${{ steps.oidc.outputs.token }}
+          ARBM_BENCHMARK_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-agent-v15
+          ARBM_BENCHMARK_JUDGE_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-judge-v15
+          MODEL_LABEL: ARBM-Federated-Free-Mesh-v15
+          MODEL_PROVIDER: federated-zero-cost
+          WORKER_REV: provider-mesh-auto-discovery-v15
+        run: python p8-swe-rebench-smoke.py
+      - name: Checkout frozen evaluator
+        run: |
+          git clone https://github.com/SWE-rebench/SWE-rebench-V2.git swe-rebench-v2
+          git -C swe-rebench-v2 checkout c71902a8cf8d2b725f63d51f199f4d3e56f68d2d
+          python -m pip install -r swe-rebench-v2/requirements.txt
+      - name: Official evaluation
+        run: |
+          python swe-rebench-v2/scripts/eval.py --hf-dataset ibragim-bad/SWE-rebench-V2-sample --hf-config default --hf-split train --hf-offset "$HF_OFFSET" --hf-length 1 --patches p8-swe-artifact/patches.json --max-workers 1 --report-json p8-swe-artifact/eval-report.json
+      - name: Freeze evidence hashes
+        if: always()
+        run: |
+          sha256sum p8-swe-artifact/* > p8-swe-artifact/SHA256SUMS.txt || true
+          cat p8-swe-artifact/SHA256SUMS.txt || true
+      - name: Upload immutable evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: p8-swe-rebench-v2-offset-${{ matrix.hf_offset }}
+          path: p8-swe-artifact
+          retention-days: 90
