@@ -37,7 +37,8 @@ jobs:
           print(json.dumps(out))
           open('p8-sovereign-artifact/capacity.json','w').write(json.dumps(out,indent=2)+'\n')
           if out['mem_total_mb'] < 15000 or out['disk_free_mb'] < 14000: raise SystemExit(42)
-          PY      - name: Restore sovereign model cache
+          PY
+      - name: Restore sovereign model cache
         id: model-cache
         uses: actions/cache@v4
         with:
@@ -66,7 +67,8 @@ jobs:
           test -n "$LLAMA_CLI"
           chmod +x "$LLAMA_CLI"
           echo "$LLAMA_CLI" | tee p8-sovereign-artifact/llama-cli-path.txt
-          "$LLAMA_CLI" --version | tee p8-sovereign-artifact/llama-version.txt      - name: Run bounded sovereign inference
+          "$LLAMA_CLI" --version | tee p8-sovereign-artifact/llama-version.txt
+      - name: Run bounded sovereign inference
         run: |
           set -euo pipefail
           MODEL="$MODEL_DIR/$MODEL_FILE"
