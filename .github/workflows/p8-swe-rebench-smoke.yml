@@ -12,9 +12,14 @@ permissions:
 jobs:
   real-smoke:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 75
     env:
       HF_OFFSET: '1'
+      MODEL_DIR: ${{ github.workspace }}/.cache/arbm-models
+      MODEL_FILE: qwen2.5-coder-14b-instruct-q4_k_m.gguf
+      MODEL_SHA256: c1e659736d89ac1065fb495330fb824d94001974a4bfa78e7270e43476a8d940
+      LLAMA_TAG: b10516
+      LLAMA_SHA256: f263a91280471b4c33c4999d7c76259c0f3a0a53a0b3e692b2c0b84380137a35
     steps:
       - uses: actions/checkout@v7
       - name: Runner identity
@@ -33,17 +38,91 @@ jobs:
           TOKEN=$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')
           echo "::add-mask::$TOKEN"
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
-      - name: Generate ARBM predicted patch via federated zero-cost mesh
+      - name: Generate patch via remote zero-cost mesh first
+        id: cloudgen
+        continue-on-error: true
         env:
           ARBM_BENCHMARK_OIDC: ${{ steps.oidc.outputs.token }}
           ARBM_BENCHMARK_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-agent-v17
           ARBM_BENCHMARK_FALLBACK_ENDPOINT: https://arbm-sist-p8-fallback.girolocal-rb.workers.dev
           ARBM_BENCHMARK_JUDGE_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-judge-v15
           ARBM_BENCHMARK_JUDGE_FALLBACK_ENDPOINT: https://arbm-sist-p8-fallback.girolocal-rb.workers.dev
-          MODEL_LABEL: ARBM-Federated-Free-Mesh-v20
+          MODEL_LABEL: ARBM-Federated-Free-Mesh-v21
           MODEL_PROVIDER: federated-zero-cost-multicloud
-          WORKER_REV: public-invariant-gated-multicloud-v20
+          WORKER_REV: public-invariant-gated-sovereign-v21
         run: python p8-swe-rebench-smoke.py
+      - name: Detect sovereign fallback requirement
+        id: fallback
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, os
+          p='p8-swe-artifact/agent-evidence.json'; status='MISSING_EVIDENCE'
+          if os.path.exists(p): status=str(json.load(open(p,encoding='utf-8')).get('status',''))
+          need=(status=='WAITING_FREE_CAPACITY')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:
+              f.write('needed='+str(need).lower()+'\n'); f.write('status='+status+'\n')
+          print({'status':status,'sovereign_needed':need})
+          PY
+      - name: Restore sovereign model cache
+        if: steps.fallback.outputs.needed == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.MODEL_DIR }}/${{ env.MODEL_FILE }}
+          key: qwen25-coder-14b-q4km-${{ env.MODEL_SHA256 }}
+          save-always: true
+      - name: Prepare verified sovereign model
+        if: steps.fallback.outputs.needed == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$MODEL_DIR"
+          MODEL="$MODEL_DIR/$MODEL_FILE"
+          if [ ! -f "$MODEL" ]; then
+            curl -fL --retry 5 --retry-delay 5 -o "$MODEL" "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/resolve/main/$MODEL_FILE?download=true"
+          fi
+          echo "$MODEL_SHA256  $MODEL" | sha256sum -c -
+          URL="https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA_TAG/llama-$LLAMA_TAG-bin-ubuntu-x64.tar.gz"
+          curl -fL --retry 4 -o /tmp/llama.tgz "$URL"
+          echo "$LLAMA_SHA256  /tmp/llama.tgz" | sha256sum -c -
+          mkdir -p /tmp/llama && tar -xzf /tmp/llama.tgz -C /tmp/llama
+      - name: Start sovereign backstop server
+        if: steps.fallback.outputs.needed == 'true'
+        run: |
+          set -euo pipefail
+          LLAMA_SERVER=$(find /tmp/llama -type f -name llama-server -print -quit)
+          test -n "$LLAMA_SERVER"
+          chmod +x "$LLAMA_SERVER"
+          "$LLAMA_SERVER" -m "$MODEL_DIR/$MODEL_FILE" --host 127.0.0.1 --port 8088 -c 4096 -np 1 -t 4 -ctk q8_0 -ctv q8_0 --no-warmup --no-webui -a arbm-qwen-sovereign > sovereign-server.log 2>&1 &
+          echo "ARBM_SOVEREIGN_SERVER_PID=$!" >> "$GITHUB_ENV"
+          echo "ARBM_SOVEREIGN_ENDPOINT=http://127.0.0.1:8088/v1/chat/completions" >> "$GITHUB_ENV"
+          READY=0
+          for i in $(seq 1 90); do if curl -fsS http://127.0.0.1:8088/health >/dev/null 2>&1; then READY=1; break; fi; sleep 2; done
+          test "$READY" = 1
+      - name: Generate patch via sovereign backstop
+        if: steps.fallback.outputs.needed == 'true'
+        env:
+          ARBM_SOVEREIGN_ONLY: '1'
+          MODEL_LABEL: ARBM-Sovereign-Qwen14B-v21
+          MODEL_PROVIDER: github-public-runner-open-weight
+          WORKER_REV: public-invariant-gated-sovereign-v21
+        run: python p8-swe-rebench-smoke.py
+      - name: Stop sovereign backstop server
+        if: always() && steps.fallback.outputs.needed == 'true'
+        run: |
+          kill "$ARBM_SOVEREIGN_SERVER_PID" 2>/dev/null || true
+          sleep 2
+          tail -80 sovereign-server.log || true
+      - name: Generation evidence gate
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, os, sys
+          p='p8-swe-artifact/agent-evidence.json'
+          if not os.path.exists(p): raise SystemExit('NO_AGENT_EVIDENCE')
+          d=json.load(open(p,encoding='utf-8'))
+          print({'validPatch':d.get('validPatch'),'exitCode':d.get('exitCode'),'model':d.get('model'),'provider':d.get('provider')})
+          if not d.get('validPatch') or int(d.get('exitCode',1)) != 0: raise SystemExit(45)
+          PY
       - name: Checkout frozen SWE-rebench V2 evaluator
         run: |
           git clone https://github.com/SWE-rebench/SWE-rebench-V2.git swe-rebench-v2

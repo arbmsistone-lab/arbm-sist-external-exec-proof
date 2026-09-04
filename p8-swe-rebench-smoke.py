@@ -257,8 +257,44 @@ def _capacity_error(err):
     low=str(err).lower()
     return ('http 429' in low or 'waiting_free_capacity' in low or 'quota' in low or 'high demand' in low)
 
+def _sovereign_json(payload):
+    endpoint=os.environ.get('ARBM_SOVEREIGN_ENDPOINT','')
+    if not endpoint: return 126,None,'NO_SOVEREIGN_ENDPOINT',False
+    phase=str(payload.get('phase',''))
+    if phase=='plan':
+        return 0,{'plan':{'paths':[],'queries':[]},'model':'deterministic-public-lexical-planner','pipeline':'sovereign-lexical'},'',False
+    if phase=='solve':
+        ctx=str(payload.get('tool_context',''))[:7000]
+        issue=str(payload.get('issue',''))[:3200]
+        prompt=('PUBLIC REPOSITORY CONTEXT:\n'+ctx+'\n\nPUBLIC ISSUE AND CONTRACT:\n'+issue+
+                '\n\nReturn ONLY a JSON object with key "edits". edits is a list of objects with path, start_line, end_line, new. '
+                'Use only supplied public context. No markdown, hidden tests, gold patches, evaluator output, or solution PRs.')
+        max_tokens=520
+    elif phase=='judge':
+        ctx=str(payload.get('tool_context',''))[:3500]
+        issue=str(payload.get('issue',''))[:2200]
+        ca=json.dumps(payload.get('candidate_a',{}),ensure_ascii=False)[:2200]
+        cb=json.dumps(payload.get('candidate_b',{}),ensure_ascii=False)[:2200]
+        prompt=('PUBLIC CONTEXT:\n'+ctx+'\n\nISSUE:\n'+issue+'\n\nCANDIDATE A:\n'+ca+'\n\nCANDIDATE B:\n'+cb+
+                '\n\nReturn ONLY JSON with choice as A, B, or NONE and reason. Choose only from public evidence.')
+        max_tokens=220
+    else:
+        return 126,None,'SOVEREIGN_UNSUPPORTED_PHASE:'+phase,False
+    body=json.dumps({'model':'arbm-qwen-sovereign','messages':[{'role':'system','content':'You are a precise software repair agent. Output valid JSON only.'},{'role':'user','content':prompt}],
+                     'temperature':0,'max_tokens':max_tokens,'stream':False,'cache_prompt':True,'response_format':{'type':'json_object'}}).encode('utf-8')
+    try:
+        req=urllib.request.Request(endpoint,data=body,method='POST'); req.add_header('Content-Type','application/json')
+        with urllib.request.urlopen(req,timeout=300) as r: outer=json.loads(r.read().decode('utf-8'))
+        content=outer['choices'][0]['message']['content']; data=json.loads(content)
+        data['model']='Qwen2.5-Coder-14B-Instruct-Q4_K_M'; data['pipeline']='sovereign-github-public-runner'
+        data['attempts']=[{'provider':'local-llama-server','status':'ok'}]
+        return 0,data,'',False
+    except Exception as exc:
+        return 125,None,'SOVEREIGN_ERROR:'+type(exc).__name__+': '+str(exc)[:800],False
+
 def remote_json(payload):
     global PRIMARY_CIRCUIT_OPEN
+    if os.environ.get('ARBM_SOVEREIGN_ONLY')=='1': return _sovereign_json(payload)
     primary=os.environ.get('ARBM_BENCHMARK_ENDPOINT','')
     fallback=os.environ.get('ARBM_BENCHMARK_FALLBACK_ENDPOINT','')
     errors=[]
@@ -271,10 +307,16 @@ def remote_json(payload):
         c,d,e,t=_remote_json_one(fallback,payload,(0,))
         if c==0: return c,d,e,t
         errors.append('fallback='+e[:800])
+    if os.environ.get('ARBM_SOVEREIGN_ENDPOINT'):
+        c,d,e,t=_sovereign_json(payload)
+        if c==0: return c,d,e,t
+        errors.append('sovereign='+e[:800])
     return 125,None,' | '.join(errors) or 'NO_REMOTE_PROVIDER',False
 
 def remote_endpoint_json(endpoint, payload):
     global PRIMARY_CIRCUIT_OPEN
+    if os.environ.get('ARBM_SOVEREIGN_ONLY')=='1':
+        q=dict(payload); q['phase']='judge'; return _sovereign_json(q)
     fallback=os.environ.get('ARBM_BENCHMARK_JUDGE_FALLBACK_ENDPOINT','')
     errors=[]
     if endpoint and not PRIMARY_CIRCUIT_OPEN:
@@ -564,7 +606,9 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
         return errs
     latency=round((time.time()-started)*1000)
     if not cand_a and not cand_b and (code!=0 or bcode!=0):
-        evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit','dataset':DATASET,'instance_id':iid,'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'exitCode':125,'validPatch':False,'status':'WAITING_FREE_CAPACITY','providerUnavailable':True,'candidateACode':code,'candidateBCode':bcode,'providerError':(err+' | '+berr)[:1200],'allowedPaths':allowed_paths,'goldPatchExposedToAgent':False}
+        sovereign_only=(os.environ.get('ARBM_SOVEREIGN_ONLY')=='1')
+        fail_status='SOVEREIGN_GENERATION_FAILED' if sovereign_only else 'WAITING_FREE_CAPACITY'
+        evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit','dataset':DATASET,'instance_id':iid,'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'exitCode':125,'validPatch':False,'status':fail_status,'providerUnavailable':not sovereign_only,'candidateACode':code,'candidateBCode':bcode,'providerError':(err+' | '+berr)[:1200],'allowedPaths':allowed_paths,'goldPatchExposedToAgent':False}
         Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
         Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':''}],indent=2)+'\n')
         Path(OUT,'instance.json').write_text(json.dumps({'instance_id':iid,'repo':row['repo'],'base_commit':base},indent=2)+'\n')
