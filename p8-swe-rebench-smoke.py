@@ -442,6 +442,23 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
             seen.add(key); out.append(e)
         return out
     cand_a=dedupe_edits(cand_a); cand_b=dedupe_edits(cand_b)
+    def public_invariant_guard(repo, edits, issue_text):
+        errs=[]; low=issue_text.lower()
+        overflow=('overflow' in low or 'out of the integer range' in low or 'out of integer range' in low)
+        if not overflow: return errs
+        for e in edits if isinstance(edits,list) else []:
+            try:
+                rel=str(e.get('path','')).replace('\\','/').lstrip('/')
+                f=Path(repo,rel); st=int(e.get('start_line')); en=int(e.get('end_line'))
+                if not f.is_file(): continue
+                lines=f.read_text(encoding='utf-8',errors='ignore').splitlines()
+                old='\n'.join(lines[st-1:en]); new=str(e.get('new',''))
+                bounded_old=bool(re.search(r'\b(?:int|integer|int32|uint32)\b|\(int\s',old,re.I))
+                bounded_new=bool(re.search(r'\b(?:long|int64|uint64|integer64)\b|\(long\s',new,re.I))
+                serialization=bool(re.search(r'str|string|format|serialize|write',old+'\n'+new,re.I))
+                if bounded_old and bounded_new and serialization: errs.append('public_invariant_fixed_width_widening:'+rel)
+            except Exception: pass
+        return errs
     latency=round((time.time()-started)*1000)
     if not cand_a and not cand_b and (code!=0 or bcode!=0):
         evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit','dataset':DATASET,'instance_id':iid,'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'exitCode':125,'validPatch':False,'status':'WAITING_FREE_CAPACITY','providerUnavailable':True,'candidateACode':code,'candidateBCode':bcode,'providerError':(err+' | '+berr)[:1200],'allowedPaths':allowed_paths,'goldPatchExposedToAgent':False}
@@ -453,7 +470,10 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     candidate_results={}
     for label,cand in [('A',cand_a),('B',cand_b)]:
         run(['git','reset','--hard',base],td,60)
-        errs,meta,applied=apply_candidate(td,cand,allowed_paths)
+        guard_errors=public_invariant_guard(td,cand,problem)
+        errs=[]; meta=[]; applied=0
+        if not guard_errors: errs,meta,applied=apply_candidate(td,cand,allowed_paths)
+        else: errs.extend(guard_errors)
         attempted=False; vcode=125; vout='NOT_RUN'
         if applied>0 and not errs:
             attempted,vcode,vout=public_validation(td,[m['path'] for m in meta])
@@ -461,8 +481,13 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     repair_records={}
     for label in ('A','B'):
         cr=candidate_results[label]
-        if cr['applied']>0 and not cr['errors'] and cr['validationAttempted'] and cr['validationCode']!=0:
-            repair_issue=solver_problem+'\n\nPUBLIC REPOSITORY VALIDATION FAILED for candidate '+label+'. Repair the candidate using only the supplied public validation output and repository context. Do not use hidden tests or benchmark evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]+'\nPUBLIC VALIDATION OUTPUT:\n'+cr['validationPreview'][-3000:]
+        guard_failed=any(str(x).startswith('public_invariant_fixed_width_widening:') for x in cr['errors'])
+        validation_failed=cr['applied']>0 and not cr['errors'] and cr['validationAttempted'] and cr['validationCode']!=0
+        if guard_failed or validation_failed:
+            if guard_failed:
+                repair_issue=solver_problem+'\n\nPUBLIC INVARIANT REJECTION for candidate '+label+': replacing one bounded integer conversion with another bounded integer conversion does not remove a range-overflow ceiling in serialization. Produce a representation-preserving fix using only the public issue and repository context. Do not use hidden tests, gold patches, solution PRs, or evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]
+            else:
+                repair_issue=solver_problem+'\n\nPUBLIC REPOSITORY VALIDATION FAILED for candidate '+label+'. Repair the candidate using only the supplied public validation output and repository context. Do not use hidden tests or benchmark evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]+'\nPUBLIC VALIDATION OUTPUT:\n'+cr['validationPreview'][-3000:]
             rcode,rdata,rerr,rtimed=remote_json({'phase':'solve','issue':repair_issue,'tool_context':context,'instance_id':iid})
             repaired=dedupe_edits((rdata or {}).get('edits',[]) if rcode==0 else [])
             rec={'attempted':True,'providerCode':rcode,'providerError':rerr[:500],'edits':repaired}
