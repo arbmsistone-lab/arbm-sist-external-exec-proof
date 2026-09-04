@@ -382,6 +382,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     bcode,bdata,berr,btimed=remote_json({'phase':'solve','issue':alt_issue,'tool_context':context,'instance_id':iid})
     cand_b=(bdata or {}).get('edits',[]) if bcode==0 else []
     latency=round((time.time()-started)*1000)
+    path_normalizations=[]
     candidate_results={}
     for label,cand in [('A',cand_a),('B',cand_b)]:
         run(['git','reset','--hard',base],td,60)
