@@ -1,0 +1,46 @@
+name: P8 Terminal-Bench 4 Readiness
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Runner identity
+        run: |
+          uname -a
+          free -m
+          df -h .
+          docker --version
+      - name: Verify frozen Terminal-Bench 4 source
+        run: |
+          git clone --filter=blob:none https://github.com/harbor-framework/terminal-bench.git terminal-bench
+          cd terminal-bench
+          git checkout 452bf305c6daa62fc59061d22133a7cbc7c1572e
+          test "$(git rev-parse HEAD)" = "452bf305c6daa62fc59061d22133a7cbc7c1572e"
+      - name: Verify TB4 task/resource contract
+        run: |
+          python - <<'PY'
+          import glob,json,tomllib
+          files=sorted(glob.glob('terminal-bench/tasks/*/task.toml'))
+          rows=[]
+          for f in files:
+              with open(f,'rb') as h: c=tomllib.load(h)
+              rows.append({'path':f,'timeout':c.get('agent',{}).get('timeout_sec'),'gpus':c.get('environment',{}).get('gpus',0)})
+          report={'schema':'arbm-p8-tb4-readiness-v1','commit':'452bf305c6daa62fc59061d22133a7cbc7c1572e','taskCount':len(rows),'uniformTimeout28800':all(r['timeout']==28800 or r['timeout']==28800.0 for r in rows),'gpuTaskCount':sum(1 for r in rows if (r['gpus'] or 0)>=1),'status':'READY_SOURCE_ONLY'}
+          assert report['taskCount']==66, report
+          assert report['uniformTimeout28800'], report
+          open('tb4-readiness.json','w').write(json.dumps(report,indent=2)+'\n')
+          print(json.dumps(report,indent=2))
+          PY
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: p8-terminal-bench-4-readiness
+          path: tb4-readiness.json
+          retention-days: 90

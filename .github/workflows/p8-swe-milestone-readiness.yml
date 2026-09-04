@@ -1,0 +1,44 @@
+name: P8 SWE-Milestone Readiness
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Runner identity
+        run: |
+          uname -a
+          free -m
+          df -h .
+          docker --version
+      - name: Verify frozen SWE-Milestone source
+        run: |
+          git clone --filter=blob:none https://github.com/DeepCommit-ai/SWE-Milestone.git swe-milestone
+          cd swe-milestone
+          git checkout 6d8b31168fd0e2ad57c0d1daa3df1556df014320
+          test "$(git rev-parse HEAD)" = "6d8b31168fd0e2ad57c0d1daa3df1556df014320"
+      - name: Verify benchmark manifest and quarantine coverage
+        run: |
+          python - <<'PY'
+          import glob,json,pathlib
+          root=pathlib.Path('swe-milestone')
+          version=(root/'manifests/BENCHMARK_VERSION').read_text().strip()
+          quarantine=sorted(glob.glob('swe-milestone/quarantine_configs/*.yaml'))
+          report={'schema':'arbm-p8-swe-milestone-readiness-v1','commit':'6d8b31168fd0e2ad57c0d1daa3df1556df014320','benchmarkVersion':version,'quarantineConfigCount':len(quarantine),'dockerAvailable':True,'status':'READY_SOURCE_DATA_IMAGES_PENDING'}
+          assert version in {'v1.0.2','1.0.2'}, report
+          assert len(quarantine)>=7, report
+          open('swe-milestone-readiness.json','w').write(json.dumps(report,indent=2)+'\n')
+          print(json.dumps(report,indent=2))
+          PY
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: p8-swe-milestone-readiness
+          path: swe-milestone-readiness.json
+          retention-days: 90

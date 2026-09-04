@@ -1,0 +1,44 @@
+name: P8 OSWorld V2 Readiness
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Runner identity
+        run: |
+          uname -a
+          free -m
+          df -h .
+          docker --version
+      - name: Verify frozen OSWorld V2 source
+        run: |
+          git clone --filter=blob:none https://github.com/xlang-ai/OSWorld-V2.git osworld-v2
+          cd osworld-v2
+          git checkout d578d2d4e0dc82b43e270fdaa7fa89d9708cd154
+          test "$(git rev-parse HEAD)" = "d578d2d4e0dc82b43e270fdaa7fa89d9708cd154"
+      - name: Verify release manifest contract
+        run: |
+          python - <<'PY'
+          import json,pathlib
+          p=pathlib.Path('osworld-v2/benchmark_releases/osworld-v2-2026.08.08.json')
+          m=json.loads(p.read_text())
+          report={'schema':'arbm-p8-osworld-v2-readiness-v1','commit':'d578d2d4e0dc82b43e270fdaa7fa89d9708cd154','release':m.get('release'),'codeTag':m.get('osworld_code',{}).get('tag'),'tasksTag':m.get('tasks',{}).get('tag'),'assetsTag':m.get('assets',{}).get('tag'),'taskCount':m.get('task_hash_manifest',{}).get('task_count'),'status':'READY_PUBLIC_RELEASE_GATED_INPUTS_PENDING'}
+          assert report['release']=='osworld-v2-2026.08.08', report
+          assert report['codeTag']=='v2026.08.08' and report['tasksTag']=='v2026.08.08' and report['assetsTag']=='v2026.08.08', report
+          assert report['taskCount']==108, report
+          open('osworld-v2-readiness.json','w').write(json.dumps(report,indent=2)+'\n')
+          print(json.dumps(report,indent=2))
+          PY
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: p8-osworld-v2-readiness
+          path: osworld-v2-readiness.json
+          retention-days: 90
