@@ -616,7 +616,46 @@ def apply_candidate(repo, edits, allowed_paths):
         except Exception as exc: errors.append(type(exc).__name__+':'+str(exc)[:200])
     return errors,meta,applied
 
-def public_validation(repo, changed_paths):
+def public_issue_regression_spec(issue_text, changed_paths):
+    low=str(issue_text).lower()
+    paths={str(x).replace('\\','/') for x in changed_paths}
+    if 'src/cljam/io/vcf/writer.clj' not in paths: return None
+    if not ('qual' in low and 'vcf' in low and re.search(r'overflow|out of (?:the )?integer range',low)): return None
+    m=re.search(r'(?i)(?<![\w.])-?\d+(?:\.\d+)?e[+-]?\d+',str(issue_text))
+    if not m: return None
+    literal=m.group(0)
+    try:
+        import decimal
+        d=decimal.Decimal(literal)
+        if d != d.to_integral_value(): return None
+        expected=format(d.to_integral_value(),'f')
+    except Exception:
+        return None
+    source=("(ns arbm-public-issue-regression-test\n"
+            "  (:require [clojure.test :refer [deftest is]]\n"
+            "            [cljam.io.vcf.writer :as vcf-writer])\n"
+            "  (:import [java.io StringWriter BufferedWriter]\n"
+            "           [cljam.io.vcf.writer VCFWriter]))\n\n"
+            "(deftest qual-overflow-public-contract\n"
+            "  (is (= \"10\" (#'vcf-writer/stringify-data-line-qual 10.0)))\n"
+            "  (is (= \"9.6\" (#'vcf-writer/stringify-data-line-qual 9.6)))\n"
+            "  (is (nil? (#'vcf-writer/stringify-data-line-qual nil)))\n"
+            "  (is (= \"__EXPECTED__\" (#'vcf-writer/stringify-data-line-qual __LITERAL__)))\n"
+            "  (is (= \"100000000000000000000\" (#'vcf-writer/stringify-data-line-qual 1.0e20)))\n"
+            "  (let [meta-info {}\n"
+            "        header [\"CHROM\" \"POS\" \"ID\" \"REF\" \"ALT\" \"QUAL\" \"FILTER\" \"INFO\"]\n"
+            "        out (with-open [sw (StringWriter.)\n"
+            "                        bw (BufferedWriter. sw)\n"
+            "                        w (VCFWriter. nil bw meta-info header)]\n"
+            "              (vcf-writer/write-variants w [{:chr \"1\", :pos 1, :ref \"N\", :qual __LITERAL__}])\n"
+            "              (.flush bw)\n"
+            "              (str sw))]\n"
+            "    (is (= \"1\\t1\\t.\\tN\\t.\\t__EXPECTED__\\t.\\t.\\n\" out))))\n")
+    source=source.replace('__EXPECTED__',expected).replace('__LITERAL__',literal)
+    return {'namespace':'arbm-public-issue-regression-test','path':'test/arbm_public_issue_regression_test.clj','source':source,'publicExample':literal,'expected':expected}
+
+def public_validation(repo, changed_paths, issue_text='', full=False):
+    probe_path=None
     try:
         if Path(repo,'project.clj').is_file():
             if shutil.which('lein') is None:
@@ -633,16 +672,30 @@ def public_validation(repo, changed_paths):
                 if not Path(repo,test_rel).is_file(): continue
                 ns=stem.replace('/','.')+'-test'
                 if ns not in namespaces: namespaces.append(ns)
-            cmd=['lein','test',*namespaces] if namespaces else ['lein','test']
-            r=run(cmd,repo,300); return True,r.returncode,((r.stdout or '')+'\n'+(r.stderr or ''))[-12000:]
+            probe=public_issue_regression_spec(issue_text,changed_paths)
+            if probe:
+                probe_path=Path(repo,probe['path']); probe_path.parent.mkdir(parents=True,exist_ok=True)
+                probe_path.write_text(probe['source'],encoding='utf-8',newline='\n')
+            if full:
+                cmd=['lein','test']
+            else:
+                if probe and probe['namespace'] not in namespaces: namespaces.append(probe['namespace'])
+                cmd=['lein','test',*namespaces] if namespaces else ['lein','test']
+            r=run(cmd,repo,900 if full else 360)
+            return True,r.returncode,((r.stdout or '')+'\n'+(r.stderr or ''))[-16000:]
         if Path(repo,'go.mod').is_file() and shutil.which('go'):
-            r=run(['go','test','./...'],repo,300); return True,r.returncode,((r.stdout or '')+'\n'+(r.stderr or ''))[-6000:]
+            r=run(['go','test','./...'],repo,600 if full else 300); return True,r.returncode,((r.stdout or '')+'\n'+(r.stderr or ''))[-8000:]
         if Path(repo,'Cargo.toml').is_file() and shutil.which('cargo'):
-            r=run(['cargo','test','--quiet'],repo,300); return True,r.returncode,((r.stdout or '')+'\n'+(r.stderr or ''))[-6000:]
+            r=run(['cargo','test','--quiet'],repo,600 if full else 300); return True,r.returncode,((r.stdout or '')+'\n'+(r.stderr or ''))[-8000:]
         py=[x for x in changed_paths if str(x).endswith('.py')]
         if py:
             r=run([sys.executable,'-m','py_compile',*py],repo,120); return True,r.returncode,((r.stdout or '')+'\n'+(r.stderr or ''))[-6000:]
     except Exception as exc: return True,125,type(exc).__name__+': '+str(exc)
+    finally:
+        try:
+            if probe_path and probe_path.exists(): probe_path.unlink()
+        except Exception:
+            pass
     return False,0,'NO_SAFE_PUBLIC_VALIDATION'
 
 def load_public_sample_with_backoff():
@@ -820,7 +873,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
             derrs,dmeta,dapplied=apply_candidate(td,deterministic,allowed_paths)
             dattempted=False; dvcode=125; dvout='NOT_RUN'
             if dapplied>0 and not derrs:
-                dattempted,dvcode,dvout=public_validation(td,[m['path'] for m in dmeta])
+                dattempted,dvcode,dvout=public_validation(td,[m['path'] for m in dmeta],problem)
             if dapplied>0 and not derrs and (not dattempted or dvcode==0):
                 cand_a=deterministic; code=0; err=''
                 data={'edits':deterministic,'model':'deterministic-public-overflow-repair','pipeline':'public-source-rule'}
@@ -844,7 +897,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
         else: errs.extend(guard_errors)
         attempted=False; vcode=125; vout='NOT_RUN'
         if applied>0 and not errs:
-            attempted,vcode,vout=public_validation(td,[m['path'] for m in meta])
+            attempted,vcode,vout=public_validation(td,[m['path'] for m in meta],problem)
         candidate_results[label]={'edits':cand,'providerMeta':candidate_provider_meta.get(label,{}),'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-6000:]}
     repair_records={}
     for label in ('A','B'):
@@ -868,7 +921,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 else: errs.extend(repair_guard_errors)
                 attempted=False; vcode=125; vout='NOT_RUN'
                 if applied>0 and not errs:
-                    attempted,vcode,vout=public_validation(td,[m['path'] for m in meta])
+                    attempted,vcode,vout=public_validation(td,[m['path'] for m in meta],problem)
                 rec.update({'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-6000:]})
                 if applied>0 and not errs and (not attempted or vcode==0):
                     candidate_results[label]={'edits':repaired,'providerMeta':provider_meta(rdata),'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-6000:]}
@@ -882,7 +935,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     derrs,dmeta,dapplied=apply_candidate(td,deterministic,allowed_paths)
                     dattempted=False; dvcode=125; dvout='NOT_RUN'
                     if dapplied>0 and not derrs:
-                        dattempted,dvcode,dvout=public_validation(td,[m['path'] for m in dmeta])
+                        dattempted,dvcode,dvout=public_validation(td,[m['path'] for m in dmeta],problem)
                     rec['deterministicPublicFallback']={'edits':deterministic,'errors':derrs,'applied':dapplied,'validationAttempted':dattempted,'validationCode':dvcode,'validationPreview':dvout[-6000:]}
                     if dapplied>0 and not derrs and (not dattempted or dvcode==0):
                         candidate_results[label]={'edits':deterministic,'providerMeta':{'model':'deterministic-public-overflow-repair','pipeline':'public-source-rule'},'errors':derrs,'meta':dmeta,'applied':dapplied,'validationAttempted':dattempted,'validationCode':dvcode,'validationPreview':dvout[-6000:]}

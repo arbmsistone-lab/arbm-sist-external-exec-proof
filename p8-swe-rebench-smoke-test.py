@@ -137,6 +137,19 @@ class SmokePolicyTests(unittest.TestCase):
             '    (let [i (bigint x)]\n      (if (== x i)\n        (str i)\n        (str x)))))',
         )
 
+    def test_public_issue_regression_spec_uses_only_public_example(self):
+        spec_fn = load_function('public_issue_regression_spec', {'re': re})
+        issue = ('QUAL value overflows when writing VCF; values can exceed Integer range. '
+                 'Example QUAL: 5.60878e+09')
+        spec = spec_fn(issue, ['src/cljam/io/vcf/writer.clj'])
+        self.assertIsNotNone(spec)
+        self.assertEqual(spec['publicExample'], '5.60878e+09')
+        self.assertEqual(spec['expected'], '5608780000')
+        self.assertIn('1.0e20', spec['source'])
+        self.assertIn('write-variants', spec['source'])
+        self.assertNotIn('PASS_TO_PASS', spec['source'])
+        self.assertNotIn('FAIL_TO_PASS', spec['source'])
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
