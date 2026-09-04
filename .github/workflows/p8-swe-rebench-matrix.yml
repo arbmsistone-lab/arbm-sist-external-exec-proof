@@ -96,14 +96,31 @@ jobs:
         run: |
           find p8-matrix-artifacts -type f ! -name GENERATION-SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > p8-matrix-artifacts/GENERATION-SHA256SUMS.txt || true
           cat p8-matrix-artifacts/GENERATION-SHA256SUMS.txt || true
-      - name: Checkout frozen evaluator after all generation
+      - name: Generation evidence gate for all five offsets
         if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          failures=[]
+          for offset in (1,2,3,4,5):
+              d=Path('p8-matrix-artifacts')/f'offset-{offset}'
+              try:
+                  ev=json.loads((d/'agent-evidence.json').read_text(encoding='utf-8'))
+                  rc=int((d/'generation-exit-code.txt').read_text())
+                  if rc != 0 or ev.get('validPatch') is not True or ev.get('exitCode') != 0 or ev.get('hfOffset') != offset:
+                      failures.append(f'generation:{offset}')
+              except Exception:
+                  failures.append(f'generation_evidence:{offset}')
+          print({'offsets':5,'failures':failures,'pass':not failures})
+          if failures: raise SystemExit(45)
+          PY
+      - name: Checkout frozen evaluator after all generation
         run: |
           git clone https://github.com/SWE-rebench/SWE-rebench-V2.git swe-rebench-v2
           git -C swe-rebench-v2 checkout c71902a8cf8d2b725f63d51f199f4d3e56f68d2d
           python -m pip install -r swe-rebench-v2/requirements.txt
       - name: Evaluate generated offsets independently
-        if: always()
         run: |
           set +e
           EVAL_FAILS=0
