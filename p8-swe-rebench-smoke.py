@@ -388,6 +388,36 @@ def numbered_file(repo, rel, center=None, radius=120):
     else: a=max(0,center-radius); b=min(len(lines),center+radius)
     return f'FILE: {rel}\n'+''.join(f'{i+1:06d}|{lines[i]}' for i in range(a,b))
 
+def _lisp_paren_delta(text):
+    depth=0; quoted=False; esc=False; comment=False
+    for ch in text:
+        if comment:
+            if ch=='\n': comment=False
+            continue
+        if quoted:
+            if esc: esc=False
+            elif ch=='\\': esc=True
+            elif ch=='"': quoted=False
+            continue
+        if ch==';': comment=True; continue
+        if ch=='"': quoted=True; continue
+        if ch=='(': depth+=1
+        elif ch==')': depth-=1
+    return depth
+
+def _preserve_lisp_boundary_closers(rel, old, new):
+    if Path(rel).suffix.lower() not in {'.clj','.cljs','.cljc','.edn','.lisp','.scm'}:
+        return new, False
+    old_delta=_lisp_paren_delta(old); new_delta=_lisp_paren_delta(new)
+    missing=new_delta-old_delta
+    if missing<=0: return new, False
+    stripped=old.rstrip()
+    trailing_closers=len(stripped)-len(stripped.rstrip(')'))
+    if trailing_closers<missing: return new, False
+    suffix=')'*missing
+    if new.endswith('\n'): return new[:-1]+suffix+'\n', True
+    return new+suffix, True
+
 def apply_candidate(repo, edits, allowed_paths):
     errors=[]; meta=[]; applied=0
     for edit in edits if isinstance(edits,list) else []:
@@ -408,9 +438,10 @@ def apply_candidate(repo, edits, allowed_paths):
                 new='\n'.join(new_parts[1:]); boundary_normalized=True
             if not new.strip(): errors.append('invalid_new_after_boundary_normalization:'+rel); continue
             if old.endswith('\n') and not new.endswith('\n'): new+='\n'
+            new, structural_boundary_preserved=_preserve_lisp_boundary_closers(rel,old,new)
             if new==old or re.sub(r'\s+','',old)==re.sub(r'\s+','',new): errors.append('semantic_no_op_edit:'+rel); continue
             target.write_text(''.join(lines[:start_line-1])+new+''.join(lines[end_line:]),encoding='utf-8',newline='\n')
-            applied+=1; meta.append({'path':rel,'startLine':start_line,'endLine':end_line,'oldLen':len(old),'newLen':len(new),'boundaryNormalized':boundary_normalized,'oldSha256':__import__('hashlib').sha256(old.encode()).hexdigest(),'newSha256':__import__('hashlib').sha256(new.encode()).hexdigest()})
+            applied+=1; meta.append({'path':rel,'startLine':start_line,'endLine':end_line,'oldLen':len(old),'newLen':len(new),'boundaryNormalized':boundary_normalized,'structuralBoundaryPreserved':structural_boundary_preserved,'oldSha256':__import__('hashlib').sha256(old.encode()).hexdigest(),'newSha256':__import__('hashlib').sha256(new.encode()).hexdigest()})
         except Exception as exc: errors.append(type(exc).__name__+':'+str(exc)[:200])
     return errors,meta,applied
 
@@ -561,7 +592,10 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
             rec={'attempted':True,'providerCode':rcode,'providerError':rerr[:500],'edits':repaired}
             if repaired:
                 run(['git','reset','--hard',base],td,60)
-                errs,meta,applied=apply_candidate(td,repaired,allowed_paths)
+                repair_guard_errors=public_invariant_guard(td,repaired,problem)
+                errs=[]; meta=[]; applied=0
+                if not repair_guard_errors: errs,meta,applied=apply_candidate(td,repaired,allowed_paths)
+                else: errs.extend(repair_guard_errors)
                 attempted=False; vcode=125; vout='NOT_RUN'
                 if applied>0 and not errs:
                     attempted,vcode,vout=public_validation(td,[m['path'] for m in meta])
