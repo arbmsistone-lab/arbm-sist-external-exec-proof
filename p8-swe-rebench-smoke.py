@@ -475,7 +475,15 @@ def public_static_hotspots(repo, paths, issue_text, limit=10, radius=6):
             a=max(0,i-radius); b=min(len(lines),i+radius+1)
             window=''.join(lines[a:b]).lower()
             score=50+sum(5 for t in issue_terms[:30] if t in window)
+            rel_low=rel.lower()
+            write_intent=bool(re.search(r'\b(write|writes|writing|writer|serialize|serialization|output)\b',low))
+            read_intent=bool(re.search(r'\b(read|reads|reading|reader|parse|parsing|input)\b',low))
             if re.search(r'write|writer|serialize|format|string',window,re.I): score+=20
+            if write_intent and re.search(r'(^|[._/-])(writer|write|serializer|serialize)([._/-]|$)',rel_low): score+=500
+            if write_intent and re.search(r'(^|[._/-])(reader|read|parser|parse)([._/-]|$)',rel_low): score-=500
+            if read_intent and re.search(r'(^|[._/-])(reader|read|parser|parse)([._/-]|$)',rel_low): score+=500
+            for term in issue_terms[:30]:
+                if term in rel_low: score+=80
             if re.search(r'(^|/)(src|lib|app|core)(/|$)',rel,re.I): score+=15
             hits.append((score,rel,i,a,b,lines))
     hits.sort(key=lambda x:(-x[0],x[1],x[2]))
