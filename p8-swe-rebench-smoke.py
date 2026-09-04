@@ -331,12 +331,12 @@ def _sovereign_json(payload):
     if phase=='plan':
         return 0,{'plan':{'paths':[],'queries':[]},'model':'deterministic-public-lexical-planner','pipeline':'sovereign-lexical'},'',False
     if phase=='solve':
-        issue=_compact_public_issue(payload.get('issue',''),1400)
-        ctx=_compact_public_context(payload.get('tool_context',''),issue,1800)
+        issue=_compact_public_issue(payload.get('issue',''),900)
+        ctx=_compact_public_context(payload.get('tool_context',''),issue,1200)
         prompt=('PUBLIC REPOSITORY CONTEXT:\n'+ctx+'\n\nPUBLIC ISSUE AND CONTRACT:\n'+issue+
                 '\n\nReturn ONLY a JSON object with key "edits". edits is a list of objects with path, start_line, end_line, new. '
                 'Use only supplied public context. start_line and end_line MUST be exact line numbers printed before each source line; never guess or renumber them. Preserve existing ordinary output formatting unless the public issue requires changing it. No markdown, hidden tests, gold patches, evaluator output, or solution PRs.')
-        max_tokens=128
+        max_tokens=112
     elif phase=='judge':
         ctx=str(payload.get('tool_context',''))[:3500]
         issue=str(payload.get('issue',''))[:2200]
