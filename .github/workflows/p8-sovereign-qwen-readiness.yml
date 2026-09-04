@@ -1,0 +1,97 @@
+name: P8 Sovereign Qwen Readiness
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'p8/**'
+    paths:
+      - '.github/workflows/p8-sovereign-qwen-readiness.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qwen-readiness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      MODEL_DIR: ${{ github.workspace }}/.cache/arbm-models
+      MODEL_FILE: qwen2.5-coder-14b-instruct-q4_k_m.gguf
+      MODEL_SHA256: c1e659736d89ac1065fb495330fb824d94001974a4bfa78e7270e43476a8d940
+      LLAMA_TAG: b10516
+      LLAMA_SHA256: f263a91280471b4c33c4999d7c76259c0f3a0a53a0b3e692b2c0b84380137a35
+    steps:
+      - uses: actions/checkout@v7
+      - name: Runner capacity gate
+        run: |
+          set -euo pipefail
+          mkdir -p p8-sovereign-artifact "$MODEL_DIR"
+          free -m | tee p8-sovereign-artifact/free-before.txt
+          df -h . | tee p8-sovereign-artifact/disk-before.txt
+          python - <<'PY'
+          import json
+          mem_kb=int(open('/proc/meminfo').read().split('MemTotal:')[1].split()[0])
+          disk_kb=__import__('shutil').disk_usage('.').free//1024
+          out={'mem_total_mb':mem_kb//1024,'disk_free_mb':disk_kb//1024}
+          print(json.dumps(out))
+          open('p8-sovereign-artifact/capacity.json','w').write(json.dumps(out,indent=2)+'\n')
+          if out['mem_total_mb'] < 15000 or out['disk_free_mb'] < 14000: raise SystemExit(42)
+          PY      - name: Restore sovereign model cache
+        id: model-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.MODEL_DIR }}/${{ env.MODEL_FILE }}
+          key: qwen25-coder-14b-q4km-${{ env.MODEL_SHA256 }}
+      - name: Download and verify official model
+        run: |
+          set -euo pipefail
+          MODEL="$MODEL_DIR/$MODEL_FILE"
+          if [ ! -f "$MODEL" ]; then
+            curl -fL --retry 5 --retry-delay 5 \
+              -o "$MODEL" \
+              "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/resolve/main/$MODEL_FILE?download=true"
+          fi
+          echo "$MODEL_SHA256  $MODEL" | sha256sum -c -
+          stat -c '%n %s bytes' "$MODEL" | tee p8-sovereign-artifact/model-size.txt
+      - name: Install pinned llama.cpp
+        run: |
+          set -euo pipefail
+          URL="https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA_TAG/llama-$LLAMA_TAG-bin-ubuntu-x64.tar.gz"
+          curl -fL --retry 4 -o /tmp/llama.tgz "$URL"
+          echo "$LLAMA_SHA256  /tmp/llama.tgz" | sha256sum -c -
+          mkdir -p /tmp/llama
+          tar -xzf /tmp/llama.tgz -C /tmp/llama
+          LLAMA_CLI=$(find /tmp/llama -type f -name llama-cli -print -quit)
+          test -n "$LLAMA_CLI"
+          chmod +x "$LLAMA_CLI"
+          echo "$LLAMA_CLI" | tee p8-sovereign-artifact/llama-cli-path.txt
+          "$LLAMA_CLI" --version | tee p8-sovereign-artifact/llama-version.txt      - name: Run bounded sovereign inference
+        run: |
+          set -euo pipefail
+          MODEL="$MODEL_DIR/$MODEL_FILE"
+          LLAMA_CLI=$(find /tmp/llama -type f -name llama-cli -print -quit)
+          /usr/bin/time -v -o p8-sovereign-artifact/time.txt \
+            "$LLAMA_CLI" -m "$MODEL" -c 2048 -n 32 -t 4 \
+            --temp 0 -p 'Reply with exactly READY.' \
+            > p8-sovereign-artifact/output.txt \
+            2> p8-sovereign-artifact/stderr.txt
+          test -s p8-sovereign-artifact/output.txt
+          grep -E 'Maximum resident set size|Elapsed|User time|System time' \
+            p8-sovereign-artifact/time.txt || true
+          free -m | tee p8-sovereign-artifact/free-after.txt
+      - name: Freeze sovereign evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          sha256sum "$MODEL_DIR/$MODEL_FILE" > p8-sovereign-artifact/model-sha256.txt || true
+          find p8-sovereign-artifact -type f ! -name SHA256SUMS.txt -print0 \
+            | sort -z | xargs -0 sha256sum > p8-sovereign-artifact/SHA256SUMS.txt || true
+          cat p8-sovereign-artifact/SHA256SUMS.txt || true
+      - name: Upload sovereign readiness evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: p8-sovereign-qwen-readiness
+          path: p8-sovereign-artifact
+          retention-days: 90
