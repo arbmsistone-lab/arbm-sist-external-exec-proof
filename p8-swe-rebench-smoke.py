@@ -251,13 +251,21 @@ def _remote_json_one(endpoint, payload, retries=(0,12)):
             last_err=type(exc).__name__+': '+str(exc)
     return 125,None,last_err or 'REMOTE_RETRY_EXHAUSTED',False
 
+PRIMARY_CIRCUIT_OPEN=False
+
+def _capacity_error(err):
+    low=str(err).lower()
+    return ('http 429' in low or 'waiting_free_capacity' in low or 'quota' in low or 'high demand' in low)
+
 def remote_json(payload):
+    global PRIMARY_CIRCUIT_OPEN
     primary=os.environ.get('ARBM_BENCHMARK_ENDPOINT','')
     fallback=os.environ.get('ARBM_BENCHMARK_FALLBACK_ENDPOINT','')
     errors=[]
-    if primary:
+    if primary and not PRIMARY_CIRCUIT_OPEN:
         c,d,e,t=_remote_json_one(primary,payload,(0,12))
         if c==0: return c,d,e,t
+        if _capacity_error(e): PRIMARY_CIRCUIT_OPEN=True
         errors.append('primary='+e[:800])
     if fallback:
         c,d,e,t=_remote_json_one(fallback,payload,(0,))
@@ -266,11 +274,13 @@ def remote_json(payload):
     return 125,None,' | '.join(errors) or 'NO_REMOTE_PROVIDER',False
 
 def remote_endpoint_json(endpoint, payload):
+    global PRIMARY_CIRCUIT_OPEN
     fallback=os.environ.get('ARBM_BENCHMARK_JUDGE_FALLBACK_ENDPOINT','')
     errors=[]
-    if endpoint:
+    if endpoint and not PRIMARY_CIRCUIT_OPEN:
         c,d,e,t=_remote_json_one(endpoint,payload,(0,12))
         if c==0: return c,d,e,t
+        if _capacity_error(e): PRIMARY_CIRCUIT_OPEN=True
         errors.append('primary='+e[:800])
     if fallback:
         c,d,e,t=_remote_json_one(fallback,payload,(0,))
