@@ -36,10 +36,10 @@ jobs:
       - name: Generate ARBM predicted patch via federated zero-cost mesh
         env:
           ARBM_BENCHMARK_OIDC: ${{ steps.oidc.outputs.token }}
-          ARBM_BENCHMARK_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-federated-v10
+          ARBM_BENCHMARK_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-agent-v11
           MODEL_LABEL: ARBM-Federated-Free-Mesh-v1
           MODEL_PROVIDER: federated-zero-cost
-          WORKER_REV: resilient-hypothesis-v10
+          WORKER_REV: repo-tool-loop-v11
         run: python p8-swe-rebench-smoke.py
       - name: Checkout frozen SWE-rebench V2 evaluator
         run: |

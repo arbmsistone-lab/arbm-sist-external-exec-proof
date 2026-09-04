@@ -229,6 +229,49 @@ def infer(prompt, instance_id):
         return 125, [], last_err or 'REMOTE_RETRY_EXHAUSTED', False
     return 126, [], 'NO_REMOTE_PROVIDER', False
 
+
+def remote_json(payload):
+    endpoint=os.environ.get('ARBM_BENCHMARK_ENDPOINT','')
+    if not endpoint: return 126, None, 'NO_REMOTE_PROVIDER', False
+    body=json.dumps(payload).encode('utf-8'); last_err=''
+    for attempt,delay in enumerate((0,12),start=1):
+        if delay: time.sleep(delay)
+        try:
+            token=fresh_oidc()
+            if not token: return 126,None,'NO_OIDC_PROVIDER_TOKEN',False
+            req=urllib.request.Request(endpoint,data=body,method='POST')
+            req.add_header('Authorization','Bearer '+token); req.add_header('Content-Type','application/json')
+            with urllib.request.urlopen(req,timeout=150) as r: data=json.loads(r.read().decode('utf-8'))
+            if data.get('ok'): return 0,data,'',False
+            last_err='REMOTE_STATUS:'+str(data.get('status'))
+        except urllib.error.HTTPError as exc:
+            b=exc.read().decode('utf-8','ignore')[:2000]; last_err=f'HTTP {exc.code}: {b}'
+        except TimeoutError as exc:
+            last_err=type(exc).__name__+': '+str(exc)
+        except Exception as exc: return 125,None,type(exc).__name__+': '+str(exc),False
+    return 125,None,last_err or 'REMOTE_RETRY_EXHAUSTED',False
+
+def repo_index(repo, problem):
+    files=run(['git','ls-files'],repo,60).stdout.splitlines()
+    shown='\n'.join(files[:4000])
+    toks=[x for x in re.findall(r'[A-Za-z_][A-Za-z0-9_./:-]{3,}',problem) if len(x)>=4][:18]
+    sig=[]
+    for q in toks:
+        g=run(['git','grep','-n','-I','-F',q,'--'],repo,25)
+        if g.returncode in (0,1) and g.stdout:
+            sig.extend(g.stdout.splitlines()[:12])
+        if len(sig)>=120: break
+    return ('TRACKED FILES:\n'+shown+'\nINITIAL GREP SIGNALS:\n'+'\n'.join(sig))[:20000]
+
+def numbered_file(repo, rel, center=None, radius=120):
+    f=Path(repo,rel)
+    if not f.is_file(): return ''
+    try: lines=f.read_text(encoding='utf-8',errors='ignore').splitlines(True)
+    except Exception: return ''
+    if center is None: a,b=0,min(len(lines),240)
+    else: a=max(0,center-radius); b=min(len(lines),center+radius)
+    return f'FILE: {rel}\n'+''.join(f'{i+1:06d}|{lines[i]}' for i in range(a,b))
+
 def load_public_sample_with_backoff():
     last = None
     for attempt, delay in enumerate((0, 8, 20, 45), start=1):
@@ -257,14 +300,27 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     if r.returncode: raise SystemExit(r.stderr)
     r=run(['git','checkout',base], td, 180)
     if r.returncode: raise SystemExit(r.stderr)
-    context=select_context(td,problem)
-    prompt=(
-      'You are ARBM SIST benchmark adapter. Solve the software issue using only the repository context. '
-      'Return the smallest semantic line edit using path, start_line, end_line, new. Context lines are prefixed as NNNNNN|. The runner extracts OLD itself and generates the Git diff. NEW must make a real behavioral fix; never return a no-op edit. '
-      'Do not modify tests unless the issue explicitly requires it.\n\nISSUE:\n'+problem+
-      '\n\nREPOSITORY CONTEXT:\n'+context)
+    idx=repo_index(td,problem)
+    started=time.time(); pcode,pdata,perr,ptimed=remote_json({'phase':'plan','issue':problem,'repo_index':idx,'instance_id':iid})
+    plan=(pdata or {}).get('plan',{}) if pcode==0 else {}
+    candidate_paths=[]; centers={}
+    for rel in plan.get('paths',[]):
+        rel=str(rel).replace('\\','/').lstrip('/')
+        if rel in run(['git','ls-files'],td,60).stdout.splitlines() and rel not in candidate_paths: candidate_paths.append(rel)
+    for q in plan.get('queries',[]):
+        g=run(['git','grep','-n','-I','-F',str(q),'--'],td,30)
+        for ln in g.stdout.splitlines()[:30]:
+            parts=ln.split(':',2)
+            if len(parts)>=2 and parts[1].isdigit():
+                rel=parts[0]; centers.setdefault(rel,int(parts[1]))
+                if rel not in candidate_paths: candidate_paths.append(rel)
+    if not candidate_paths:
+        candidate_paths=run(['git','ls-files'],td,60).stdout.splitlines()[:6]
+    context='\n\n'.join(numbered_file(td,r,centers.get(r)) for r in candidate_paths[:8])[:32000]
     allowed_paths=re.findall(r'(?m)^FILE:\s+([^\s]+)',context)
-    started=time.time(); code,edits,err,timed_out=infer(prompt,iid); latency=round((time.time()-started)*1000)
+    code,data,err,timed_out=remote_json({'phase':'solve','issue':problem,'tool_context':context,'instance_id':iid})
+    edits=(data or {}).get('edits',[]) if code==0 else []
+    latency=round((time.time()-started)*1000)
     edit_errors=[]; applied_edits=0; path_normalizations=[]
     applied_meta=[]
     if code==0 and isinstance(edits,list):
