@@ -1,0 +1,20 @@
+{
+  "schema": "arbm-codex-parity-evidence-v1",
+  "status": "BLOCKED_UNVERIFIED",
+  "reference": {
+    "product": "OpenAI Codex",
+    "capturedAt": "2026-09-04T00:00:00Z",
+    "publicSources": [
+      "https://openai.com/codex/",
+      "https://openai.com/index/running-codex-safely/",
+      "https://help.openai.com/en/articles/20001107-codex-security"
+    ]
+  },
+  "zeroSpendHard": true,
+  "p8Complete": false,
+  "p9IndependentAudit": false,
+  "failedRunsDisclosed": true,
+  "rawArtifactsHashed": false,
+  "noHiddenEvaluatorFeedback": true,
+  "dimensions": []
+}

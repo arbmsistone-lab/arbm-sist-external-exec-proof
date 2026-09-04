@@ -1,0 +1,21 @@
+name: P9 Codex parity release gate
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'codex-parity-gate.mjs'
+      - 'codex-parity-gate-test.mjs'
+      - 'codex-parity-evidence.json'
+      - '.github/workflows/p9-codex-parity-gate.yml'
+permissions:
+  contents: read
+jobs:
+  parity-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Gate unit tests
+        run: node codex-parity-gate-test.mjs
+      - name: Evaluate release evidence
+        run: node codex-parity-gate.mjs codex-parity-evidence.json

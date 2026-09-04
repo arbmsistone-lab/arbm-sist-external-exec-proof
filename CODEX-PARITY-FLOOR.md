@@ -32,3 +32,7 @@ After parity is evidenced, leadership claims still require a separate contempora
 
 ## Continuous parity rule
 Codex parity expires when the reference materially changes. The benchmark/reference snapshot must be refreshed and rerun before a later release can continue to claim parity.
+## Machine enforcement
+The executable gate is `codex-parity-gate.mjs` and its evidence input is `codex-parity-evidence.json`.
+The GitHub Actions release gate is `.github/workflows/p9-codex-parity-gate.yml`.
+The committed evidence file defaults to `BLOCKED_UNVERIFIED`; it must remain blocked until every critical dimension is populated with comparable Codex and ARBM evidence, P8 is complete, and P9 independent audit passes.

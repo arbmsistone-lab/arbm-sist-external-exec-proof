@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { pathToFileURL } from 'node:url';
 
 export const REQUIRED_DIMENSIONS = [
   'task_correctness',
@@ -51,7 +52,7 @@ export function evaluateCodexParity(evidence) {
     reasons,
   };
 }
-if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g,'/')}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const file = process.argv[2];
   if (!file) {
     console.error('usage: node codex-parity-gate.mjs <evidence.json>');
