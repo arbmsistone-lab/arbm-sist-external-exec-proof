@@ -446,17 +446,41 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
         if applied>0 and not errs:
             attempted,vcode,vout=public_validation(td,[m['path'] for m in meta])
         candidate_results[label]={'edits':cand,'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-1500:]}
+    repair_records={}
+    for label in ('A','B'):
+        cr=candidate_results[label]
+        if cr['applied']>0 and not cr['errors'] and cr['validationAttempted'] and cr['validationCode']!=0:
+            repair_issue=problem+'\n\nPUBLIC REPOSITORY VALIDATION FAILED for candidate '+label+'. Repair the candidate using only the supplied public validation output and repository context. Do not use hidden tests or benchmark evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]+'\nPUBLIC VALIDATION OUTPUT:\n'+cr['validationPreview'][-3000:]
+            rcode,rdata,rerr,rtimed=remote_json({'phase':'solve','issue':repair_issue,'tool_context':context,'instance_id':iid})
+            repaired=dedupe_edits((rdata or {}).get('edits',[]) if rcode==0 else [])
+            rec={'attempted':True,'providerCode':rcode,'providerError':rerr[:500],'edits':repaired}
+            if repaired:
+                run(['git','reset','--hard',base],td,60)
+                errs,meta,applied=apply_candidate(td,repaired,allowed_paths)
+                attempted=False; vcode=125; vout='NOT_RUN'
+                if applied>0 and not errs:
+                    attempted,vcode,vout=public_validation(td,[m['path'] for m in meta])
+                rec.update({'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-1500:]})
+                if applied>0 and not errs and (not attempted or vcode==0):
+                    candidate_results[label]={'edits':repaired,'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-1500:]}
+                    if label=='A': cand_a=repaired
+                    else: cand_b=repaired
+            repair_records[label]=rec
+    passing=[x for x in ('A','B') if candidate_results[x]['applied']>0 and not candidate_results[x]['errors'] and (not candidate_results[x]['validationAttempted'] or candidate_results[x]['validationCode']==0)]
     judge_ep=os.environ.get('ARBM_BENCHMARK_JUDGE_ENDPOINT','')
     jcode,jdata,jerr,jtimed=(125,None,'NO_JUDGE_ENDPOINT',False)
-    if judge_ep:
-        jcode,jdata,jerr,jtimed=remote_endpoint_json(judge_ep,{'issue':problem,'tool_context':context,'instance_id':iid,'candidate_a':{'edits':cand_a},'candidate_b':{'edits':cand_b},'validation_a':candidate_results['A'],'validation_b':candidate_results['B']})
-    choice=(jdata or {}).get('choice','NONE') if jcode==0 else 'NONE'
-    judge_reason=str((jdata or {}).get('reason',''))[:600]
-    judge_edits=(jdata or {}).get('edits',[]) if jcode==0 else []
+    single_provider_fallback=(bool(cand_a) ^ bool(cand_b)) and len(passing)==1
+    if single_provider_fallback:
+        choice=passing[0]; judge_reason='single_valid_candidate_provider_fallback'; judge_edits=[]; jcode=204; jerr=''
+    else:
+        if judge_ep:
+            jcode,jdata,jerr,jtimed=remote_endpoint_json(judge_ep,{'issue':problem,'tool_context':context,'instance_id':iid,'candidate_a':{'edits':cand_a},'candidate_b':{'edits':cand_b},'validation_a':candidate_results['A'],'validation_b':candidate_results['B']})
+        choice=(jdata or {}).get('choice','NONE') if jcode==0 else 'NONE'
+        judge_reason=str((jdata or {}).get('reason',''))[:600]
+        judge_edits=(jdata or {}).get('edits',[]) if jcode==0 else []
     if choice in ('A','B'):
         edits=judge_edits if judge_edits else candidate_results[choice]['edits']
     else:
-        passing=[x for x in ('A','B') if candidate_results[x]['applied']>0 and not candidate_results[x]['errors'] and (not candidate_results[x]['validationAttempted'] or candidate_results[x]['validationCode']==0)]
         edits=candidate_results[passing[0]]['edits'] if len(passing)==1 else []
     run(['git','reset','--hard',base],td,60)
     edit_errors,applied_meta,applied_edits=apply_candidate(td,edits,allowed_paths) if edits else (['semantic_arbiter_no_choice'],[],0)
@@ -481,7 +505,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit','dataset':DATASET,'instance_id':iid,
       'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'model':os.environ.get('MODEL_LABEL','unknown'),'provider':os.environ.get('MODEL_PROVIDER','local-llama'),
       'latencyMs':latency,'exitCode':code,'validPatch':valid,'patchChars':len(patch),
-      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'allowedPaths':allowed_paths,'pathNormalizations':path_normalizations,'editMeta':applied_meta,'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'publicValidationAttempted':validation_attempted,'publicValidationCode':validation_code,'publicValidationPreview':validation_output[-1200:],'repairAttempted':repair_attempted,'candidateA':candidate_results.get('A'),'candidateB':candidate_results.get('B'),'semanticJudgeChoice':choice,'semanticJudgeReason':judge_reason,'semanticJudgeCode':jcode,'goldPatchExposedToAgent':False}
+      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'allowedPaths':allowed_paths,'pathNormalizations':path_normalizations,'editMeta':applied_meta,'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'publicValidationAttempted':validation_attempted,'publicValidationCode':validation_code,'publicValidationPreview':validation_output[-1200:],'repairAttempted':bool(repair_records),'repairRecords':repair_records,'candidateA':candidate_results.get('A'),'candidateB':candidate_results.get('B'),'semanticJudgeChoice':choice,'semanticJudgeReason':judge_reason,'semanticJudgeCode':jcode,'goldPatchExposedToAgent':False}
     Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
     Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':patch}],indent=2)+'\n')
     Path(OUT,'instance.json').write_text(json.dumps({'instance_id':iid,'repo':row['repo'],'base_commit':base},indent=2)+'\n')
