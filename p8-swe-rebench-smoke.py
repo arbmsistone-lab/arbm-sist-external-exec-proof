@@ -791,8 +791,8 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 window='\n'.join(lines[max(0,i-4):min(len(lines),i+5)])
                 if not re.search(r'str|string|format|serialize|write',window,re.I): continue
                 unbounded_required=bool(re.search(r'\b(unbounded|arbitrary precision|beyond long|long range|64[- ]?bit range)\b',low,re.I))
-                replacement='bigint' if unbounded_required else 'long'
-                new=re.sub(r'\(int\s+([^)]+)\)',lambda m:'('+replacement+' '+m.group(1)+')',line,count=1)
+                replacement='(.toBigInteger (bigdec {expr}))' if unbounded_required else '(.toBigInteger (bigdec {expr}))'
+                new=re.sub(r'\(int\s+([^)]+)\)',lambda m:replacement.format(expr=m.group(1)),line,count=1)
                 if new==line: continue
                 ranked.append((score,rel,i+1,new))
         if not ranked: return []
