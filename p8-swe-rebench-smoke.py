@@ -337,10 +337,15 @@ def apply_candidate(repo, edits, allowed_paths):
             if start_line<1 or end_line<start_line or end_line>len(lines) or (end_line-start_line+1)>160: errors.append(f'line_range_out_of_bounds:{rel}:{start_line}:{end_line}:{len(lines)}'); continue
             old=''.join(lines[start_line-1:end_line]); new=str(edit.get('new',''))
             if not new.strip() or new.strip() in {'...','TODO','FIXME'}: errors.append('invalid_new:'+rel); continue
+            boundary_normalized=False
+            new_parts=new.splitlines()
+            if start_line>1 and new_parts and new_parts[0].strip()==lines[start_line-2].rstrip('\r\n').strip():
+                new='\n'.join(new_parts[1:]); boundary_normalized=True
+            if not new.strip(): errors.append('invalid_new_after_boundary_normalization:'+rel); continue
             if old.endswith('\n') and not new.endswith('\n'): new+='\n'
             if new==old or re.sub(r'\s+','',old)==re.sub(r'\s+','',new): errors.append('semantic_no_op_edit:'+rel); continue
             target.write_text(''.join(lines[:start_line-1])+new+''.join(lines[end_line:]),encoding='utf-8',newline='\n')
-            applied+=1; meta.append({'path':rel,'startLine':start_line,'endLine':end_line,'oldLen':len(old),'newLen':len(new),'oldSha256':__import__('hashlib').sha256(old.encode()).hexdigest(),'newSha256':__import__('hashlib').sha256(new.encode()).hexdigest()})
+            applied+=1; meta.append({'path':rel,'startLine':start_line,'endLine':end_line,'oldLen':len(old),'newLen':len(new),'boundaryNormalized':boundary_normalized,'oldSha256':__import__('hashlib').sha256(old.encode()).hexdigest(),'newSha256':__import__('hashlib').sha256(new.encode()).hexdigest()})
         except Exception as exc: errors.append(type(exc).__name__+':'+str(exc)[:200])
     return errors,meta,applied
 
