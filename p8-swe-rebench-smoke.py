@@ -859,7 +859,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                          +indent+'  (let [i (bigint '+expr+')]\n'
                          +indent+'    (if (== '+expr+' i)\n'
                          +indent+'      (str i)\n'
-                         +indent+'      '+fallback+')))')
+                         +indent+'      '+fallback+'))')
                     ranked.append((score,rel,i,i+2,new))
                     continue
                 new=re.sub(r'\(str\s+\(int\s+[^)]+\)\)',lambda m:'(str (bigint '+expr+'))',line,count=1)

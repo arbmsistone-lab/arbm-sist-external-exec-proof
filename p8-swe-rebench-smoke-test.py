@@ -134,7 +134,7 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertNotIn('(int x)', edits[0]['new'])
         self.assertEqual(
             edits[0]['new'],
-            '    (if (or (Double/isNaN (double x)) (Double/isInfinite (double x)))\n      (str x)\n      (let [i (bigint x)]\n        (if (== x i)\n          (str i)\n          (str x)))))))',
+            '    (if (or (Double/isNaN (double x)) (Double/isInfinite (double x)))\n      (str x)\n      (let [i (bigint x)]\n        (if (== x i)\n          (str i)\n          (str x))))))',
         )
 
     def test_public_issue_regression_spec_uses_only_public_example(self):
