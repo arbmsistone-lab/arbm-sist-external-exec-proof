@@ -126,12 +126,16 @@ class SmokePolicyTests(unittest.TestCase):
             edits = repair(repo, ['src/cljam/io/vcf/writer.clj'], 'QUAL value overflows when writing VCF')
         self.assertEqual(len(edits), 1)
         self.assertEqual(edits[0]['start_line'], 2)
-        self.assertEqual(edits[0]['end_line'], 3)
+        self.assertEqual(edits[0]['end_line'], 4)
         self.assertIn('(let [i (bigint x)]', edits[0]['new'])
         self.assertIn('(if (== x i)', edits[0]['new'])
         self.assertIn('(str i)', edits[0]['new'])
         self.assertNotIn('(mod x 1)', edits[0]['new'])
         self.assertNotIn('(int x)', edits[0]['new'])
+        self.assertEqual(
+            edits[0]['new'],
+            '    (let [i (bigint x)]\n      (if (== x i)\n        (str i)\n        (str x)))))',
+        )
 
 
 if __name__ == '__main__':

@@ -795,11 +795,15 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 prev=lines[i-1] if i>0 else ''
                 if '(if ' in prev and 'mod ' in prev:
                     m=re.match(r'^(\s*)\(if\s+.+$',prev)
-                    if not m: continue
+                    if not m or i+1>=len(lines): continue
                     indent=m.group(1)
-                    new_if=indent+'(let [i (bigint '+expr+')]\n'+indent+'  (if (== '+expr+' i)'
-                    new_line=re.sub(r'\(str\s+\(int\s+[^)]+\)\)','(str i)',line,count=1)
-                    ranked.append((score,rel,i,i+1,new_if+'\n'+new_line))
+                    fallback=lines[i+1].strip()
+                    if not re.match(r'^\(str\s+'+re.escape(expr)+r'\)\)+$',fallback): continue
+                    new=(indent+'(let [i (bigint '+expr+')]\n'
+                         +indent+'  (if (== '+expr+' i)\n'
+                         +indent+'    (str i)\n'
+                         +indent+'    '+fallback+')')
+                    ranked.append((score,rel,i,i+2,new))
                     continue
                 new=re.sub(r'\(str\s+\(int\s+[^)]+\)\)',lambda m:'(str (bigint '+expr+'))',line,count=1)
                 if new==line: continue
