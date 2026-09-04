@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   preflight:
@@ -27,6 +28,30 @@ jobs:
           docker --version
       - name: Verify frozen official pins and resource fit
         run: node p8-preflight.mjs
+      - name: Acquire benchmark OIDC token
+        id: oidc
+        run: |
+          TOKEN=$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+      - name: Probe zero-cost provider mesh v15
+        env:
+          TOKEN: ${{ steps.oidc.outputs.token }}
+        run: |
+          mkdir -p p8-artifact
+          python - <<'PY'
+          import json, os, urllib.request, urllib.error
+          endpoint='https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-agent-v15'
+          body={"phase":"plan","instance_id":"provider-preflight","issue":"Public availability probe. Locate example_handler. Do not propose edits.","repo_index":"TRACKED FILES:\nsrc/example.py\nINITIAL GREP SIGNALS:\nsrc/example.py:1:def example_handler():"}
+          req=urllib.request.Request(endpoint,data=json.dumps(body).encode(),method='POST',headers={'Authorization':'Bearer '+os.environ['TOKEN'],'Content-Type':'application/json'})
+          try:
+              with urllib.request.urlopen(req,timeout=45) as r: code=r.status; text=r.read().decode()
+          except urllib.error.HTTPError as e: code=e.code; text=e.read().decode()
+          open('p8-artifact/provider-probe.json','w').write(text+'\n')
+          print('HTTP',code); print(text[:4000])
+          data=json.loads(text)
+          if code!=200 or not data.get('ok') or data.get('mandatory_cost_usd')!=0: raise SystemExit(2)
+          PY
       - name: Upload P8 preflight evidence
         if: always()
         uses: actions/upload-artifact@v7
