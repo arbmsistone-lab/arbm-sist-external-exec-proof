@@ -92,7 +92,7 @@ jobs:
           LLAMA_SERVER=$(find /tmp/llama -type f -name llama-server -print -quit)
           test -n "$LLAMA_SERVER"
           chmod +x "$LLAMA_SERVER"
-          "$LLAMA_SERVER" -m "$MODEL_DIR/$MODEL_FILE" --host 127.0.0.1 --port 8088 -c 4096 -np 1 -t 4 -ctk q8_0 -ctv q8_0 --no-warmup --no-webui -a arbm-qwen-sovereign > sovereign-server.log 2>&1 &
+          "$LLAMA_SERVER" -m "$MODEL_DIR/$MODEL_FILE" --host 127.0.0.1 --port 8088 -c 2048 -np 1 -t 4 -ctk q8_0 -ctv q8_0 --no-warmup --no-webui -a arbm-qwen-sovereign > sovereign-server.log 2>&1 &
           echo "ARBM_SOVEREIGN_SERVER_PID=$!" >> "$GITHUB_ENV"
           echo "ARBM_SOVEREIGN_ENDPOINT=http://127.0.0.1:8088/v1/chat/completions" >> "$GITHUB_ENV"
           READY=0

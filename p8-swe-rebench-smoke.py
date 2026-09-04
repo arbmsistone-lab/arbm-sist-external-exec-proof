@@ -257,6 +257,28 @@ def _capacity_error(err):
     low=str(err).lower()
     return ('http 429' in low or 'waiting_free_capacity' in low or 'quota' in low or 'high demand' in low)
 
+def _compact_public_context(raw, issue, max_chars=2200):
+    blocks=re.split(r'(?m)(?=^FILE:\s+)',str(raw))
+    stop={'this','that','with','from','when','have','will','should','there','which','into','about','more','than','only','also','using','used','public','issue','contract','before','after'}
+    terms=[]
+    for t in re.findall(r'[A-Za-z_][A-Za-z0-9_./:-]{2,}',str(issue)):
+        x=t.strip('.,:;()[]{}').lower()
+        if len(x)>=4 and x not in stop and x not in terms: terms.append(x)
+    ranked=[]
+    for block in blocks:
+        if not block.startswith('FILE:'): continue
+        lines=block.splitlines(); best_i=1; best=-1
+        for i,line in enumerate(lines[1:],1):
+            low=line.lower(); score=sum(5 for t in terms[:24] if t in low)
+            score+=2 if re.search(r'\b(defn?|class|function|write|format|serialize|parse|int|long|float|double)\b',low) else 0
+            if score>best: best=score; best_i=i
+        a=max(1,best_i-8); b=min(len(lines),best_i+10)
+        excerpt='\n'.join([lines[0]]+lines[a:b])
+        ranked.append((best,excerpt))
+    ranked.sort(key=lambda x:-x[0])
+    out='\n\n'.join(x[1] for x in ranked[:3])
+    return out[:max_chars]
+
 def _sovereign_json(payload):
     endpoint=os.environ.get('ARBM_SOVEREIGN_ENDPOINT','')
     if not endpoint: return 126,None,'NO_SOVEREIGN_ENDPOINT',False
@@ -264,12 +286,12 @@ def _sovereign_json(payload):
     if phase=='plan':
         return 0,{'plan':{'paths':[],'queries':[]},'model':'deterministic-public-lexical-planner','pipeline':'sovereign-lexical'},'',False
     if phase=='solve':
-        ctx=str(payload.get('tool_context',''))[:3600]
-        issue=str(payload.get('issue',''))[:1400]
+        issue=str(payload.get('issue',''))[:950]
+        ctx=_compact_public_context(payload.get('tool_context',''),issue,2200)
         prompt=('PUBLIC REPOSITORY CONTEXT:\n'+ctx+'\n\nPUBLIC ISSUE AND CONTRACT:\n'+issue+
                 '\n\nReturn ONLY a JSON object with key "edits". edits is a list of objects with path, start_line, end_line, new. '
                 'Use only supplied public context. No markdown, hidden tests, gold patches, evaluator output, or solution PRs.')
-        max_tokens=220
+        max_tokens=180
     elif phase=='judge':
         ctx=str(payload.get('tool_context',''))[:3500]
         issue=str(payload.get('issue',''))[:2200]
