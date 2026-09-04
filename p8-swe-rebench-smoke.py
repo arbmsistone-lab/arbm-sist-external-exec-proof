@@ -421,6 +421,15 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     alt_issue=problem+'\n\nGenerate an INDEPENDENT ALTERNATIVE solution. The first candidate was: '+json.dumps(cand_a)[:4000]+' Do not repeat it; test a different plausible root cause or more complete behavioral invariant using only supplied public context.'
     bcode,bdata,berr,btimed=remote_json({'phase':'solve','issue':alt_issue,'tool_context':context,'instance_id':iid})
     cand_b=(bdata or {}).get('edits',[]) if bcode==0 else []
+    def dedupe_edits(edits):
+        out=[]; seen=set()
+        for e in edits if isinstance(edits,list) else []:
+            if not isinstance(e,dict): continue
+            key=(str(e.get('path','')).replace('\\','/'),e.get('start_line'),e.get('end_line'),str(e.get('new','')).strip())
+            if key in seen: continue
+            seen.add(key); out.append(e)
+        return out
+    cand_a=dedupe_edits(cand_a); cand_b=dedupe_edits(cand_b)
     latency=round((time.time()-started)*1000)
     if not cand_a and not cand_b and (code!=0 or bcode!=0):
         evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit','dataset':DATASET,'instance_id':iid,'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'exitCode':125,'validPatch':False,'status':'WAITING_FREE_CAPACITY','providerUnavailable':True,'candidateACode':code,'candidateBCode':bcode,'providerError':(err+' | '+berr)[:1200],'allowedPaths':allowed_paths,'goldPatchExposedToAgent':False}
