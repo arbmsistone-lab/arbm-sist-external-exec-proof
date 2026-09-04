@@ -50,10 +50,16 @@ jobs:
       - name: Run official evaluator on clean public sample task
         run: |
           python swe-rebench-v2/scripts/eval.py --hf-dataset ibragim-bad/SWE-rebench-V2-sample --hf-config default --hf-split train --hf-offset "$HF_OFFSET" --hf-length 1 --patches p8-swe-artifact/patches.json --max-workers 1 --report-json p8-swe-artifact/eval-report.json
+      - name: Collect official evaluator diagnostics
+        if: always()
+        run: |
+          mkdir -p p8-swe-artifact/evaluator-logs
+          find . -type f -path '*logs*' -name '*_log.txt' -exec cp -f {} p8-swe-artifact/evaluator-logs/ \; || true
+          find p8-swe-artifact/evaluator-logs -type f -maxdepth 1 -print || true
       - name: Freeze hashes
         if: always()
         run: |
-          sha256sum p8-swe-artifact/* > p8-swe-artifact/SHA256SUMS.txt || true
+          find p8-swe-artifact -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > p8-swe-artifact/SHA256SUMS.txt || true
           cat p8-swe-artifact/SHA256SUMS.txt || true
       - name: Upload immutable smoke evidence
         if: always()
