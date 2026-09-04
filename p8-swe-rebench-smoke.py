@@ -290,7 +290,7 @@ def _sovereign_json(payload):
         ctx=_compact_public_context(payload.get('tool_context',''),issue,2200)
         prompt=('PUBLIC REPOSITORY CONTEXT:\n'+ctx+'\n\nPUBLIC ISSUE AND CONTRACT:\n'+issue+
                 '\n\nReturn ONLY a JSON object with key "edits". edits is a list of objects with path, start_line, end_line, new. '
-                'Use only supplied public context. No markdown, hidden tests, gold patches, evaluator output, or solution PRs.')
+                'Use only supplied public context. start_line and end_line MUST be exact line numbers printed before each source line; never guess or renumber them. Preserve existing ordinary output formatting unless the public issue requires changing it. No markdown, hidden tests, gold patches, evaluator output, or solution PRs.')
         max_tokens=180
     elif phase=='judge':
         ctx=str(payload.get('tool_context',''))[:3500]
@@ -651,6 +651,19 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 serialization=bool(re.search(r'str|string|format|serialize|write',old+'\n'+new,re.I))
                 if bounded_old and bounded_new and serialization: errs.append('public_invariant_fixed_width_widening:'+rel)
             except Exception: pass
+        if overflow and edits:
+            touches_overflow_site=False
+            for e in edits if isinstance(edits,list) else []:
+                try:
+                    rel=str(e.get('path','')).replace('\\','/').lstrip('/')
+                    f=Path(repo,rel); st=int(e.get('start_line')); en=int(e.get('end_line'))
+                    if not f.is_file(): continue
+                    lines=f.read_text(encoding='utf-8',errors='ignore').splitlines()
+                    old='\n'.join(lines[st-1:en])
+                    if re.search(r'\b(?:int|integer|int32|uint32)\b|\(int\s',old,re.I):
+                        touches_overflow_site=True; break
+                except Exception: pass
+            if not touches_overflow_site: errs.append('public_invariant_no_overflow_site_touched')
         return errs
     latency=round((time.time()-started)*1000)
     if not cand_a and not cand_b and (code!=0 or bcode!=0):
