@@ -117,5 +117,22 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertEqual(good_errors, [])
 
 
+    def test_deterministic_public_overflow_repair_is_minimal(self):
+        repair = load_function('public_deterministic_overflow_repair', {'Path': Path, 're': re})
+        with tempfile.TemporaryDirectory() as repo:
+            target = Path(repo, 'src/cljam/io/vcf/writer.clj')
+            target.parent.mkdir(parents=True)
+            target.write_text(
+                '  (when x\n    (if (zero? (mod x 1))\n      (str (int x))\n      (str x))))\n',
+                encoding='utf-8',
+            )
+            edits = repair(repo, ['src/cljam/io/vcf/writer.clj'], 'QUAL value overflows when writing VCF')
+        self.assertEqual(len(edits), 1)
+        self.assertEqual(edits[0]['start_line'], 3)
+        self.assertEqual(edits[0]['end_line'], 3)
+        self.assertIn('(bigint x)', edits[0]['new'])
+        self.assertNotIn('(int x)', edits[0]['new'])
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

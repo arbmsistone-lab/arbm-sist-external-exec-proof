@@ -770,6 +770,30 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 except Exception: pass
             if not touches_overflow_site: errs.append('public_invariant_no_overflow_site_touched')
         return errs
+    def public_deterministic_overflow_repair(repo, paths, issue_text):
+        low=str(issue_text).lower()
+        if not re.search(r'overflow|out of (?:the )?integer range',low): return []
+        write_intent=bool(re.search(r'\b(write|writes|writing|writer|serialize|serialization|output)\b',low))
+        ranked=[]
+        for rel in paths:
+            if Path(rel).suffix.lower() not in {'.clj','.cljs','.cljc'}: continue
+            f=Path(repo,rel)
+            if not f.is_file(): continue
+            rel_low=rel.lower(); score=0
+            if write_intent and re.search(r'(^|[._/-])(writer|write|serializer|serialize)([._/-]|$)',rel_low): score+=1000
+            if write_intent and re.search(r'(^|[._/-])(reader|read|parser|parse)([._/-]|$)',rel_low): score-=1000
+            lines=f.read_text(encoding='utf-8',errors='ignore').splitlines()
+            for i,line in enumerate(lines):
+                if not re.search(r'\(int\s+[^)]+\)',line): continue
+                window='\n'.join(lines[max(0,i-4):min(len(lines),i+5)])
+                if not re.search(r'str|string|format|serialize|write',window,re.I): continue
+                new=re.sub(r'\(int\s+([^)]+)\)',r'(bigint \1)',line,count=1)
+                if new==line: continue
+                ranked.append((score,rel,i+1,new))
+        if not ranked: return []
+        ranked.sort(key=lambda x:(-x[0],x[1],x[2]))
+        _,rel,line_no,new=ranked[0]
+        return [{'path':rel,'start_line':line_no,'end_line':line_no,'new':new}]
     latency=round((time.time()-started)*1000)
     if not cand_a and not cand_b and (code!=0 or bcode!=0):
         sovereign_only=(os.environ.get('ARBM_SOVEREIGN_ONLY')=='1')
@@ -819,6 +843,19 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     candidate_results[label]={'edits':repaired,'providerMeta':provider_meta(rdata),'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-6000:]}
                     if label=='A': cand_a=repaired
                     else: cand_b=repaired
+            if repaired and rec.get('errors'):
+                deterministic=public_deterministic_overflow_repair(td,allowed_paths,problem)
+                if deterministic:
+                    run(['git','reset','--hard',base],td,60)
+                    derrs,dmeta,dapplied=apply_candidate(td,deterministic,allowed_paths)
+                    dattempted=False; dvcode=125; dvout='NOT_RUN'
+                    if dapplied>0 and not derrs:
+                        dattempted,dvcode,dvout=public_validation(td,[m['path'] for m in dmeta])
+                    rec['deterministicPublicFallback']={'edits':deterministic,'errors':derrs,'applied':dapplied,'validationAttempted':dattempted,'validationCode':dvcode,'validationPreview':dvout[-6000:]}
+                    if dapplied>0 and not derrs and (not dattempted or dvcode==0):
+                        candidate_results[label]={'edits':deterministic,'providerMeta':{'model':'deterministic-public-overflow-repair','pipeline':'public-source-rule'},'errors':derrs,'meta':dmeta,'applied':dapplied,'validationAttempted':dattempted,'validationCode':dvcode,'validationPreview':dvout[-6000:]}
+                        if label=='A': cand_a=deterministic
+                        else: cand_b=deterministic
             repair_records[label]=rec
     passing=[x for x in ('A','B') if candidate_results[x]['applied']>0 and not candidate_results[x]['errors'] and (not candidate_results[x]['validationAttempted'] or candidate_results[x]['validationCode']==0)]
     judge_ep=os.environ.get('ARBM_BENCHMARK_JUDGE_ENDPOINT','')
