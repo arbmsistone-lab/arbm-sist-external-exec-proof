@@ -1,4 +1,4 @@
-import json, os, re, subprocess, sys, tempfile, time, urllib.request, urllib.error, urllib.parse
+import json, os, re, shutil, subprocess, sys, tempfile, time, urllib.request, urllib.error, urllib.parse
 from pathlib import Path
 from datasets import load_dataset
 
@@ -272,6 +272,46 @@ def numbered_file(repo, rel, center=None, radius=120):
     else: a=max(0,center-radius); b=min(len(lines),center+radius)
     return f'FILE: {rel}\n'+''.join(f'{i+1:06d}|{lines[i]}' for i in range(a,b))
 
+def apply_candidate(repo, edits, allowed_paths):
+    errors=[]; meta=[]; applied=0
+    for edit in edits if isinstance(edits,list) else []:
+        try:
+            rel=str(edit.get('path','')).replace('\\','/').lstrip('/')
+            if rel not in allowed_paths: errors.append('unauthorized_path:'+rel); continue
+            target=Path(repo,rel).resolve()
+            if not str(target).startswith(str(Path(repo).resolve())) or not target.is_file(): errors.append('invalid_path:'+rel); continue
+            text=target.read_text(encoding='utf-8',errors='strict'); lines=text.splitlines(True)
+            try: start_line=int(edit.get('start_line')); end_line=int(edit.get('end_line'))
+            except Exception: errors.append('invalid_line_range:'+rel); continue
+            if start_line<1 or end_line<start_line or end_line>len(lines) or (end_line-start_line+1)>160: errors.append(f'line_range_out_of_bounds:{rel}:{start_line}:{end_line}:{len(lines)}'); continue
+            old=''.join(lines[start_line-1:end_line]); new=str(edit.get('new',''))
+            if not new.strip() or new.strip() in {'...','TODO','FIXME'}: errors.append('invalid_new:'+rel); continue
+            if old.endswith('\n') and not new.endswith('\n'): new+='\n'
+            if new==old or re.sub(r'\s+','',old)==re.sub(r'\s+','',new): errors.append('semantic_no_op_edit:'+rel); continue
+            target.write_text(''.join(lines[:start_line-1])+new+''.join(lines[end_line:]),encoding='utf-8',newline='\n')
+            applied+=1; meta.append({'path':rel,'startLine':start_line,'endLine':end_line,'oldLen':len(old),'newLen':len(new),'oldSha256':__import__('hashlib').sha256(old.encode()).hexdigest(),'newSha256':__import__('hashlib').sha256(new.encode()).hexdigest()})
+        except Exception as exc: errors.append(type(exc).__name__+':'+str(exc)[:200])
+    return errors,meta,applied
+
+def public_validation(repo, changed_paths):
+    try:
+        if Path(repo,'project.clj').is_file():
+            if shutil.which('lein') is None:
+                a=run(['sudo','apt-get','update'],repo,180)
+                if a.returncode: return True,a.returncode,(a.stderr or a.stdout)[-3000:]
+                b=run(['sudo','apt-get','install','-y','leiningen'],repo,180)
+                if b.returncode: return True,b.returncode,(b.stderr or b.stdout)[-3000:]
+            r=run(['lein','test'],repo,300); return True,r.returncode,((r.stdout or '')+'\n'+(r.stderr or ''))[-6000:]
+        if Path(repo,'go.mod').is_file() and shutil.which('go'):
+            r=run(['go','test','./...'],repo,300); return True,r.returncode,((r.stdout or '')+'\n'+(r.stderr or ''))[-6000:]
+        if Path(repo,'Cargo.toml').is_file() and shutil.which('cargo'):
+            r=run(['cargo','test','--quiet'],repo,300); return True,r.returncode,((r.stdout or '')+'\n'+(r.stderr or ''))[-6000:]
+        py=[x for x in changed_paths if str(x).endswith('.py')]
+        if py:
+            r=run([sys.executable,'-m','py_compile',*py],repo,120); return True,r.returncode,((r.stdout or '')+'\n'+(r.stderr or ''))[-6000:]
+    except Exception as exc: return True,125,type(exc).__name__+': '+str(exc)
+    return False,0,'NO_SAFE_PUBLIC_VALIDATION'
+
 def load_public_sample_with_backoff():
     last = None
     for attempt, delay in enumerate((0, 8, 20, 45), start=1):
@@ -321,40 +361,27 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     code,data,err,timed_out=remote_json({'phase':'solve','issue':problem,'tool_context':context,'instance_id':iid})
     edits=(data or {}).get('edits',[]) if code==0 else []
     latency=round((time.time()-started)*1000)
-    edit_errors=[]; applied_edits=0; path_normalizations=[]
-    applied_meta=[]
+    edit_errors=[]; applied_edits=0; path_normalizations=[]; applied_meta=[]
+    validation_attempted=False; validation_code=0; validation_output='NOT_RUN'; repair_attempted=False
     if code==0 and isinstance(edits,list):
-        for edit in edits:
-            try:
-                rel=str(edit.get('path','')).replace('\\','/').lstrip('/')
-                if rel not in allowed_paths:
-                    edit_errors.append('unauthorized_path:'+rel); continue
-                target=Path(td,rel).resolve()
-                if not str(target).startswith(str(Path(td).resolve())) or not target.is_file():
-                    edit_errors.append('invalid_path:'+rel); continue
-                text=target.read_text(encoding='utf-8',errors='strict')
-                lines=text.splitlines(True)
-                try: start_line=int(edit.get('start_line')); end_line=int(edit.get('end_line'))
-                except Exception:
-                    edit_errors.append('invalid_line_range:'+rel); continue
-                if start_line < 1 or end_line < start_line or end_line > len(lines) or (end_line-start_line+1) > 160:
-                    edit_errors.append(f'line_range_out_of_bounds:{rel}:{start_line}:{end_line}:{len(lines)}'); continue
-                old=''.join(lines[start_line-1:end_line]); new=str(edit.get('new',''))
-                if not new.strip() or new.strip() in {'...','TODO','FIXME'}:
-                    edit_errors.append('invalid_new:'+rel); continue
-                if old.endswith('\n') and not new.endswith('\n'): new += '\n'
-                if new == old:
-                    edit_errors.append('no_op_edit:'+rel); continue
-                norm_old=re.sub(r'\\s+','',old)
-                norm_new=re.sub(r'\\s+','',new)
-                if norm_old == norm_new:
-                    edit_errors.append('semantic_no_op_edit:'+rel); continue
-                replacement=''.join(lines[:start_line-1])+new+''.join(lines[end_line:])
-                target.write_text(replacement,encoding='utf-8',newline='\n')
-                applied_edits+=1
-                applied_meta.append({'path':rel,'startLine':start_line,'endLine':end_line,'oldLen':len(old),'newLen':len(new),'oldSha256':__import__('hashlib').sha256(old.encode()).hexdigest(),'newSha256':__import__('hashlib').sha256(new.encode()).hexdigest()})
-            except Exception as exc:
-                edit_errors.append(type(exc).__name__+':'+str(exc)[:200])
+        edit_errors,applied_meta,applied_edits=apply_candidate(td,edits,allowed_paths)
+    if code==0 and applied_edits>0 and not edit_errors:
+        validation_attempted,validation_code,validation_output=public_validation(td,[m['path'] for m in applied_meta])
+        if validation_attempted and validation_code!=0:
+            repair_attempted=True
+            feedback=('The first candidate failed PUBLIC repository validation. Correct the implementation using only this public feedback. '
+                      'Do not weaken or delete tests. Validation output:\n'+validation_output[-5000:])
+            rcode,rdata,rerr,rtimed=remote_json({'phase':'solve','issue':problem+'\n\n'+feedback,'tool_context':context,'instance_id':iid})
+            if rcode==0 and isinstance((rdata or {}).get('edits'),list):
+                run(['git','reset','--hard',base],td,60)
+                edits=(rdata or {}).get('edits',[])
+                edit_errors,applied_meta,applied_edits=apply_candidate(td,edits,allowed_paths)
+                if not edit_errors and applied_edits>0:
+                    validation_attempted,validation_code,validation_output=public_validation(td,[m['path'] for m in applied_meta])
+                    if validation_attempted and validation_code!=0:
+                        code=123; err='PUBLIC_VALIDATION_FAILED_AFTER_REPAIR: '+validation_output[-1000:]
+            else:
+                code=rcode or 125; err=rerr or 'REPAIR_PROVIDER_FAILED'
     diff_run=run(['git','diff','--no-ext-diff','--binary'],td,60)
     patch=diff_run.stdout
     structure_valid=(code==0) and applied_edits>0 and patch.startswith('diff --git ') and len(patch)>40
@@ -368,7 +395,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit','dataset':DATASET,'instance_id':iid,
       'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'model':os.environ.get('MODEL_LABEL','unknown'),'provider':os.environ.get('MODEL_PROVIDER','local-llama'),
       'latencyMs':latency,'exitCode':code,'validPatch':valid,'patchChars':len(patch),
-      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'allowedPaths':allowed_paths,'pathNormalizations':path_normalizations,'editMeta':applied_meta,'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'goldPatchExposedToAgent':False}
+      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'allowedPaths':allowed_paths,'pathNormalizations':path_normalizations,'editMeta':applied_meta,'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'publicValidationAttempted':validation_attempted,'publicValidationCode':validation_code,'publicValidationPreview':validation_output[-1200:],'repairAttempted':repair_attempted,'goldPatchExposedToAgent':False}
     Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
     Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':patch}],indent=2)+'\n')
     Path(OUT,'instance.json').write_text(json.dumps({'instance_id':iid,'repo':row['repo'],'base_commit':base},indent=2)+'\n')
