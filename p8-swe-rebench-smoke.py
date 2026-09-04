@@ -325,6 +325,22 @@ def _compact_public_issue(raw, max_chars=2800):
     half=(max_chars-5)//2
     return text[:half]+'\n...\n'+text[-(max_chars-half-5):]
 
+def _compact_public_validation_output(raw, max_chars=2200):
+    text=str(raw)
+    if len(text)<=max_chars: return text
+    important=[]
+    seen=set()
+    for line in text.splitlines():
+        if re.search(r'ERROR|FAIL|expected:|actual:|Exception|NaN|Infinite|overflow|qual-overflow',line,re.I):
+            clean=line.strip()
+            if clean and clean not in seen:
+                seen.add(clean); important.append(clean)
+    summary='\n'.join(important)
+    if summary:
+        return summary[:max_chars]
+    half=(max_chars-5)//2
+    return text[:half]+'\n...\n'+text[-(max_chars-half-5):]
+
 def _sovereign_json(payload):
     endpoint=os.environ.get('ARBM_SOVEREIGN_ENDPOINT','')
     if not endpoint: return 126,None,'NO_SOVEREIGN_ENDPOINT',False
@@ -946,6 +962,31 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 if applied>0 and not errs:
                     attempted,vcode,vout=public_validation(td,[m['path'] for m in meta],problem)
                 rec.update({'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-6000:]})
+                if applied>0 and not errs and attempted and vcode!=0:
+                    follow_issue=(solver_problem+'\n\nPUBLIC REPOSITORY VALIDATION FAILED AFTER FIRST PUBLIC REPAIR for candidate '+label+
+                                  '. Produce one bounded follow-up repair using only this public validation output and public repository context. '
+                                  'Do not use hidden tests, benchmark evaluator output, gold patches, or solution PRs. Preserve already-correct control flow and fix the newly exposed public edge case with the smallest causally sufficient edit. '
+                                  'Rejected first repair: '+json.dumps(repaired)[:5000])
+                    if causal_hints:
+                        follow_issue+='\nPUBLIC CAUSAL LINE HINT derived only from the public repository: '+json.dumps(causal_hints)+'. Preserve surrounding when/if/branch structure; do not reintroduce fixed-width integer conversion.'
+                    follow_issue+='\nPUBLIC VALIDATION OUTPUT SUMMARY (public tests only):\n'+_compact_public_validation_output(vout,2200)
+                    fcode,fdata,ferr,ftimed=remote_json({'phase':'solve','issue':follow_issue,'tool_context':context,'instance_id':iid,'model_offset':repair_offset+2,'review_model_offset':repair_offset+2})
+                    follow=dedupe_edits((fdata or {}).get('edits',[]) if fcode==0 else [])
+                    frec={'attempted':True,'modelOffset':repair_offset+2,'providerCode':fcode,'providerError':ferr[:500],'providerMeta':provider_meta(fdata),'edits':follow}
+                    if follow:
+                        run(['git','reset','--hard',base],td,60)
+                        fguard=public_invariant_guard(td,follow,problem)
+                        ferrs=[]; fmeta=[]; fapplied=0
+                        if not fguard: ferrs,fmeta,fapplied=apply_candidate(td,follow,allowed_paths)
+                        else: ferrs.extend(fguard)
+                        fattempted=False; fvcode=125; fvout='NOT_RUN'
+                        if fapplied>0 and not ferrs:
+                            fattempted,fvcode,fvout=public_validation(td,[m['path'] for m in fmeta],problem)
+                        frec.update({'errors':ferrs,'meta':fmeta,'applied':fapplied,'validationAttempted':fattempted,'validationCode':fvcode,'validationPreview':fvout[-6000:]})
+                        if fapplied>0 and not ferrs and (not fattempted or fvcode==0):
+                            repaired=follow; rdata=fdata; errs=ferrs; meta=fmeta; applied=fapplied; attempted=fattempted; vcode=fvcode; vout=fvout
+                            rec.update({'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-6000:]})
+                    rec['publicValidationRepair']=frec
                 if applied>0 and not errs and (not attempted or vcode==0):
                     candidate_results[label]={'edits':repaired,'providerMeta':provider_meta(rdata),'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-6000:]}
                     if label=='A': cand_a=repaired

@@ -161,6 +161,27 @@ class SmokePolicyTests(unittest.TestCase):
         )
 
 
+    def test_public_validation_compaction_keeps_public_failure_signal(self):
+        compact = load_function('_compact_public_validation_output', {'re': re})
+        raw = ('stack frame\n' * 400
+               + 'ERROR in (qual-overflow-public-contract)\n'
+               + 'expected: parseable-same?\n'
+               + 'actual: java.lang.NumberFormatException: Infinite or NaN\n'
+               + ('more stack\n' * 400))
+        result = compact(raw, 500)
+        self.assertLessEqual(len(result), 500)
+        self.assertIn('ERROR in (qual-overflow-public-contract)', result)
+        self.assertIn('NumberFormatException', result)
+        self.assertIn('NaN', result)
+
+    def test_followup_public_repair_is_bounded_and_public_only(self):
+        source = SCRIPT.read_text(encoding='utf-8')
+        self.assertIn('PUBLIC REPOSITORY VALIDATION FAILED AFTER FIRST PUBLIC REPAIR', source)
+        self.assertIn('PUBLIC VALIDATION OUTPUT SUMMARY (public tests only)', source)
+        self.assertIn("rec['publicValidationRepair']=frec", source)
+        self.assertIn("if applied>0 and not errs and attempted and vcode!=0:", source)
+
+
     def test_public_issue_regression_spec_uses_only_public_example(self):
         spec_fn = load_function('public_issue_regression_spec', {'re': re})
         issue = ('QUAL value overflows when writing VCF; values can exceed Integer range. '
