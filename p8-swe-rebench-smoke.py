@@ -655,12 +655,8 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     code,data,err,timed_out=remote_json({'phase':'solve','issue':solver_problem,'tool_context':context,'instance_id':iid,'model_offset':0,'review_model_offset':0})
     cand_a=(data or {}).get('edits',[]) if code==0 else []
     alt_issue=solver_problem+'\n\nGenerate an INDEPENDENT ALTERNATIVE solution. The first candidate was: '+json.dumps(cand_a)[:4000]+' Do not repeat it; test a different plausible root cause or more complete behavioral invariant using only supplied public context.'
-    if os.environ.get('ARBM_SOVEREIGN_ONLY')=='1':
-        bcode,bdata,berr,btimed=204,{'edits':[],'model':'sovereign-single-candidate','pipeline':'sovereign-fast-path'},'',False
-        cand_b=[]
-    else:
-        bcode,bdata,berr,btimed=remote_json({'phase':'solve','issue':alt_issue,'tool_context':context,'instance_id':iid,'model_offset':1,'review_model_offset':1})
-        cand_b=(bdata or {}).get('edits',[]) if bcode==0 else []
+    bcode,bdata,berr,btimed=remote_json({'phase':'solve','issue':alt_issue,'tool_context':context,'instance_id':iid,'model_offset':1,'review_model_offset':1})
+    cand_b=(bdata or {}).get('edits',[]) if bcode==0 else []
     def provider_meta(d):
         d=d or {}
         return {'model':d.get('model'),'pipeline':d.get('pipeline'),'attempts':(d.get('attempts') or [])[:16]}
@@ -761,7 +757,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     if single_provider_fallback:
         choice=passing[0]; judge_reason='single_valid_candidate_provider_fallback'; judge_edits=[]; jcode=204; jerr=''
     else:
-        if judge_ep:
+        if judge_ep or os.environ.get('ARBM_SOVEREIGN_ONLY')=='1':
             jcode,jdata,jerr,jtimed=remote_endpoint_json(judge_ep,{'issue':solver_problem,'tool_context':context,'instance_id':iid,'candidate_a':{'edits':cand_a},'candidate_b':{'edits':cand_b},'validation_a':candidate_results['A'],'validation_b':candidate_results['B']})
         choice=(jdata or {}).get('choice','NONE') if jcode==0 else 'NONE'
         judge_reason=str((jdata or {}).get('reason',''))[:600]
