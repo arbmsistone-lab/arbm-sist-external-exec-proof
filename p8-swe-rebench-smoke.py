@@ -292,35 +292,81 @@ def repo_index(repo, problem):
 
 def lexical_fallback(repo, problem, limit=8):
     stop={'this','that','with','from','when','have','will','should','there','which','into','about','more','than','what','does','using','used','only','also','some','same','after','before'}
-    raw=re.findall(r'[A-Za-z_][A-Za-z0-9_.:/-]{3,}',problem)
+    raw=re.findall(r'[A-Za-z_][A-Za-z0-9_.:/-]{2,}',problem)
     terms=[]
     for t in raw:
         x=t.strip('.,:;()[]{}').lower()
-        if len(x)<4 or x in stop or x in terms: continue
+        acronym=(t.isupper() and 2 <= len(t) <= 5)
+        if (len(x)<4 and not acronym) or x in stop or x in terms: continue
         terms.append(x)
+        if x.endswith('ing') and len(x)>6:
+            stem=x[:-3]
+            for v in (stem, stem+'e', stem+'er'):
+                if len(v)>=4 and v not in terms: terms.append(v)
     files=run(['git','ls-files'],repo,60).stdout.splitlines()
-    scores={}; centers={}
+    scores={}; centers={}; center_scores={}; matched_terms={}
+    low_problem=problem.lower()
+    domain_acronyms={x.lower() for x in re.findall(r'\b[A-Z][A-Z0-9]{1,5}\b',problem)}
+    write_intent=bool(re.search(r'\b(write|writes|writing|writer|serialize|serialization|output)\b',low_problem))
+    read_intent=bool(re.search(r'\b(read|reads|reading|reader|parse|parsing|input)\b',low_problem))
     def noisy(rel):
         r=rel.lower()
         return r.startswith('.github/') or r.startswith('.git') or r.startswith('docs/') or r.startswith('doc/') or r.endswith(('.md','.rst','.txt','.lock','.yml','.yaml','.json'))
     for q in terms[:28]:
         g=run(['git','grep','-n','-I','-i','-F',q,'--'],repo,25)
         if g.returncode not in (0,1): continue
-        for line in g.stdout.splitlines()[:80]:
+        hits=g.stdout.splitlines()[:80]
+        center_priority=1000.0/(len(hits)+1)+min(len(q),20)
+        action_term=bool(re.fullmatch(r'(write|writes|writing|writer|serialize|serialization|output|read|reads|reading|reader|parse|parsing|input)',q))
+        if action_term: center_priority-=700
+        for line in hits:
             parts=line.split(':',2)
             if len(parts)<2 or not parts[1].isdigit(): continue
             rel=parts[0].replace('\\','/')
             if rel not in files: continue
+            rel_center_priority=center_priority-(350 if q in rel.lower() else 0)+(280 if q in domain_acronyms and q not in rel.lower() else 0)
             score=3
-            if q in Path(rel).name.lower(): score+=8
+            name=Path(rel).name.lower(); rel_low=rel.lower()
+            if q in name: score+=28
+            if q in rel_low: score+=36
+            if read_intent and re.search(r'(^|[._/-])(reader|read|parser|parse)([._/-]|$)',rel_low): score+=0
             if re.search(r'(^|/)(src|lib|app|core)(/|$)',rel,re.I): score+=6
             if re.search(r'(^|/)(test|tests|spec)(/|$|_)',rel,re.I): score+=2
             if noisy(rel): score-=8
             scores[rel]=scores.get(rel,0)+score
-            centers.setdefault(rel,int(parts[1]))
+            matched_terms.setdefault(rel,set()).add(q)
+            if rel_center_priority > center_scores.get(rel,-1):
+                centers[rel]=int(parts[1]); center_scores[rel]=rel_center_priority
+    for rel,qs in matched_terms.items():
+        n=len(qs); scores[rel]=scores.get(rel,0)+(n*n*12)
+    for rel in files:
+        rel_low=rel.lower(); name=Path(rel).name.lower(); structural=0
+        domain_hit=any(re.search(r'(^|/)'+re.escape(d)+r'(/|[._-]|$)',rel_low) for d in domain_acronyms)
+        writer_hit=bool(re.search(r'(^|[._-])(writer|write|serializer|serialize)([._-]|$)',name))
+        reader_hit=bool(re.search(r'(^|[._-])(reader|read|parser|parse)([._-]|$)',name))
+        if domain_hit: structural+=180
+        if write_intent and writer_hit: structural+=180
+        if read_intent and reader_hit: structural+=180
+        if domain_hit and ((write_intent and writer_hit) or (read_intent and reader_hit)): structural+=2200
+        if structural: scores[rel]=scores.get(rel,0)+structural
     ranked=[r for r,_ in sorted(scores.items(),key=lambda kv:(-kv[1],kv[0])) if not noisy(r)]
     if len(ranked)<2:
         ranked += [r for r,_ in sorted(scores.items(),key=lambda kv:(-kv[1],kv[0])) if r not in ranked]
+    action_words={'write','writes','writing','writer','serialize','serialization','output','read','reads','reading','reader','parse','parsing','input'}
+    for rel in ranked[:max(limit,12)]:
+        try:
+            lines=Path(repo,rel).read_text(encoding='utf-8',errors='ignore').splitlines()
+        except Exception: continue
+        low_lines=[x.lower() for x in lines]; best=None
+        for q in terms[:28]:
+            idx=[i for i,line in enumerate(low_lines) if q in line]
+            if not idx: continue
+            pr=1000.0/(len(idx)+1)+min(len(q),20)
+            if q in action_words: pr-=700
+            if q in rel.lower(): pr-=350
+            if q in domain_acronyms and q not in rel.lower(): pr+=280
+            if best is None or pr>best[0]: best=(pr,idx[0]+1)
+        if best is not None: centers[rel]=best[1]
     return ranked[:limit],centers
 
 def numbered_file(repo, rel, center=None, radius=120):
@@ -426,9 +472,12 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
             if len(parts)>=2 and parts[1].isdigit():
                 rel=parts[0]; centers.setdefault(rel,int(parts[1]))
                 if rel not in candidate_paths: candidate_paths.append(rel)
-    if not candidate_paths:
-        candidate_paths,lex_centers=lexical_fallback(td,problem,8)
-        for rel,ln in lex_centers.items(): centers.setdefault(rel,ln)
+    lex_paths,lex_centers=lexical_fallback(td,problem,8)
+    for rel,ln in lex_centers.items(): centers[rel]=ln
+    planner_paths=list(candidate_paths)
+    candidate_paths=[]
+    for rel in lex_paths[:4]+planner_paths+lex_paths[4:]:
+        if rel not in candidate_paths: candidate_paths.append(rel)
     if not candidate_paths:
         evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit','dataset':DATASET,'instance_id':iid,'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'exitCode':127,'validPatch':False,'status':'NO_CONTEXT','plannerCode':pcode,'plannerError':perr[:500],'goldPatchExposedToAgent':False}
         Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
