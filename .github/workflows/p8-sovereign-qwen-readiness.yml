@@ -84,6 +84,40 @@ jobs:
           grep -E 'Maximum resident set size|Elapsed|User time|System time' \
             p8-sovereign-artifact/time.txt || true
           free -m | tee p8-sovereign-artifact/free-after.txt
+      - name: Run persistent sovereign server readiness
+        run: |
+          set -euo pipefail
+          MODEL="$MODEL_DIR/$MODEL_FILE"
+          LLAMA_SERVER=$(find /tmp/llama -type f -name llama-server -print -quit)
+          test -n "$LLAMA_SERVER"
+          chmod +x "$LLAMA_SERVER"
+          /usr/bin/time -v -o p8-sovereign-artifact/server-time.txt \
+            "$LLAMA_SERVER" -m "$MODEL" --host 127.0.0.1 --port 8088 \
+            -c 4096 -np 1 -t 4 -ctk q8_0 -ctv q8_0 \
+            --no-warmup --no-webui -a arbm-qwen-sovereign \
+            > p8-sovereign-artifact/server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          READY=0
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:8088/health > p8-sovereign-artifact/server-health.json 2>/dev/null; then READY=1; break; fi
+            sleep 2
+          done
+          test "$READY" = 1
+          python - <<'PY'
+          import json, urllib.request
+          body=json.dumps({'model':'arbm-qwen-sovereign','messages':[{'role':'user','content':'Reply with exactly SERVER_READY.'}],'max_tokens':16,'temperature':0}).encode()
+          req=urllib.request.Request('http://127.0.0.1:8088/v1/chat/completions',data=body,headers={'Content-Type':'application/json'})
+          with urllib.request.urlopen(req,timeout=120) as r: data=json.load(r)
+          open('p8-sovereign-artifact/server-response.json','w').write(json.dumps(data,indent=2)+'\n')
+          text=data['choices'][0]['message']['content']
+          print(text)
+          if 'SERVER_READY' not in text: raise SystemExit(43)
+          PY
+          ps -o pid,rss,vsz,etimes,cmd -p "$SERVER_PID" | tee p8-sovereign-artifact/server-ps.txt
+          kill "$SERVER_PID" 2>/dev/null || true
+          wait "$SERVER_PID" || true
+          trap - EXIT
       - name: Freeze sovereign evidence
         if: always()
         run: |
