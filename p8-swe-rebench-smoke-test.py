@@ -122,15 +122,15 @@ class SmokePolicyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as repo:
             target = Path(repo, 'src/cljam/io/vcf/writer.clj')
             target.parent.mkdir(parents=True)
-            target.write_text(
-                '  (when x\n    (if (zero? (mod x 1))\n      (str (int x))\n      (str x))))\n',
-                encoding='utf-8',
-            )
+            target.write_text('  (when x\n    (if (zero? (mod x 1))\n      (str (int x))\n      (str x))))\n', encoding='utf-8')
             edits = repair(repo, ['src/cljam/io/vcf/writer.clj'], 'QUAL value overflows when writing VCF')
         self.assertEqual(len(edits), 1)
-        self.assertEqual(edits[0]['start_line'], 3)
+        self.assertEqual(edits[0]['start_line'], 2)
         self.assertEqual(edits[0]['end_line'], 3)
-        self.assertIn('(format "%.0f" x)', edits[0]['new'])
+        self.assertIn('(let [i (bigint x)]', edits[0]['new'])
+        self.assertIn('(if (== x i)', edits[0]['new'])
+        self.assertIn('(str i)', edits[0]['new'])
+        self.assertNotIn('(mod x 1)', edits[0]['new'])
         self.assertNotIn('(int x)', edits[0]['new'])
 
 
