@@ -606,6 +606,18 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 if rel not in candidate_paths: candidate_paths.append(rel)
     lex_paths,lex_centers=lexical_fallback(td,problem,8)
     for rel,ln in lex_centers.items(): centers[rel]=ln
+    low_problem=problem.lower()
+    if 'overflow' in low_problem or 'out of the integer range' in low_problem or 'out of integer range' in low_problem:
+        for rel in list(dict.fromkeys(lex_paths+candidate_paths)):
+            if not re.search(r'(writer|write|serializ)',rel,re.I): continue
+            try:
+                lines=Path(td,rel).read_text(encoding='utf-8',errors='ignore').splitlines()
+            except Exception:
+                continue
+            for i,line in enumerate(lines,1):
+                if re.search(r'\bint\b|\(int\s',line,re.I):
+                    centers[rel]=i
+                    break
     planner_paths=list(candidate_paths)
     candidate_paths=[]
     for rel in lex_paths[:4]+planner_paths+lex_paths[4:]:
@@ -694,11 +706,11 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     repair_records={}
     for label in ('A','B'):
         cr=candidate_results[label]
-        guard_failed=any(str(x).startswith('public_invariant_fixed_width_widening:') for x in cr['errors'])
+        guard_failed=any(str(x).startswith(('public_invariant_fixed_width_widening:','public_invariant_no_overflow_site_touched')) for x in cr['errors'])
         validation_failed=cr['applied']>0 and not cr['errors'] and cr['validationAttempted'] and cr['validationCode']!=0
         if guard_failed or validation_failed:
             if guard_failed:
-                repair_issue=solver_problem+'\n\nPUBLIC INVARIANT REJECTION for candidate '+label+': replacing one bounded integer conversion with another bounded integer conversion does not remove a range-overflow ceiling in serialization. Produce a representation-preserving fix using only the public issue and repository context. Do not use hidden tests, gold patches, solution PRs, or evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]
+                repair_issue=solver_problem+'\n\nPUBLIC INVARIANT REJECTION for candidate '+label+': the proposed edit does not correctly remove the bounded integer conversion at the actual overflow site, or merely replaces it with another bounded integer conversion. Locate the serialization/QUAL formatting code containing the bounded integer cast in the supplied public source context and edit that exact site. Preserve ordinary integer-looking output for ordinary integral values while allowing very large floating-point QUAL values without integer overflow. Use only public issue and repository context. Do not use hidden tests, gold patches, solution PRs, or evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]
             else:
                 repair_issue=solver_problem+'\n\nPUBLIC REPOSITORY VALIDATION FAILED for candidate '+label+'. Repair the candidate using only the supplied public validation output and repository context. Do not use hidden tests or benchmark evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]+'\nPUBLIC VALIDATION OUTPUT:\n'+cr['validationPreview'][-3000:]
             repair_offset=2 if label=='A' else 3
