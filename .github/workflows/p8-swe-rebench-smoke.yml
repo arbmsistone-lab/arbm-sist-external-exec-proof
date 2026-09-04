@@ -5,6 +5,7 @@ on:
     branches: ['p8/**']
     paths:
       - 'p8-swe-rebench-smoke.py'
+      - 'p8-swe-rebench-smoke-test.py'
       - '.github/workflows/p8-swe-rebench-smoke.yml'
 permissions:
   contents: read
@@ -22,6 +23,8 @@ jobs:
       LLAMA_SHA256: f263a91280471b4c33c4999d7c76259c0f3a0a53a0b3e692b2c0b84380137a35
     steps:
       - uses: actions/checkout@v7
+      - name: Validate public-only generator policy mechanics
+        run: python p8-swe-rebench-smoke-test.py
       - name: Runner identity
         run: |
           uname -a
@@ -149,4 +152,3 @@ jobs:
           name: p8-swe-rebench-v2-real-smoke
           path: p8-swe-artifact
           retention-days: 90
-

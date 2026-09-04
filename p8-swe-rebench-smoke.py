@@ -280,6 +280,26 @@ def _compact_public_context(raw, issue, max_chars=2600):
     out='\n\n'.join(x[1] for x in ranked[:3])
     return out[:max_chars]
 
+def _compact_public_issue(raw, max_chars=2800):
+    text=str(raw)
+    if len(text)<=max_chars: return text
+    marker_positions=[text.rfind(marker) for marker in (
+        '\n\nPUBLIC INVARIANT REJECTION',
+        '\n\nPUBLIC REPOSITORY VALIDATION FAILED',
+        '\n\nGenerate an INDEPENDENT ALTERNATIVE solution.',
+    )]
+    marker=max(marker_positions)
+    if marker>0:
+        tail=text[marker:]
+        tail_budget=min(len(tail),max_chars//2)
+        if len(tail)>tail_budget:
+            tail_head=(tail_budget-5)//2
+            tail=tail[:tail_head]+'\n...\n'+tail[-(tail_budget-tail_head-5):]
+        head_budget=max_chars-tail_budget-5
+        return text[:head_budget]+'\n...\n'+tail
+    half=(max_chars-5)//2
+    return text[:half]+'\n...\n'+text[-(max_chars-half-5):]
+
 def _sovereign_json(payload):
     endpoint=os.environ.get('ARBM_SOVEREIGN_ENDPOINT','')
     if not endpoint: return 126,None,'NO_SOVEREIGN_ENDPOINT',False
@@ -287,7 +307,7 @@ def _sovereign_json(payload):
     if phase=='plan':
         return 0,{'plan':{'paths':[],'queries':[]},'model':'deterministic-public-lexical-planner','pipeline':'sovereign-lexical'},'',False
     if phase=='solve':
-        issue=str(payload.get('issue',''))[:950]
+        issue=_compact_public_issue(payload.get('issue',''),2800)
         ctx=_compact_public_context(payload.get('tool_context',''),issue,2200)
         prompt=('PUBLIC REPOSITORY CONTEXT:\n'+ctx+'\n\nPUBLIC ISSUE AND CONTRACT:\n'+issue+
                 '\n\nReturn ONLY a JSON object with key "edits". edits is a list of objects with path, start_line, end_line, new. '
@@ -620,6 +640,7 @@ PUBLIC_INVARIANT_GUIDANCE='''
 PUBLIC-SPEC REASONING CONTRACT:
 Before editing, derive the behavioral invariants explicitly implied by the public issue and supplied repository code. A patch is incomplete if it only removes the immediate exception while violating another public invariant.
 For numeric bugs: distinguish representation/formatting from arithmetic conversion; preserve magnitude and intended textual semantics; consider integral-valued floats, very large magnitudes, scientific notation, signs, zero, nil/missing values, and ordinary regression cases when the public issue makes them relevant. Never assume that replacing one fixed-width numeric cast with a wider fixed-width cast is complete when the public issue declares no practical upper bound or shows values outside that domain. Prefer the repository's existing formatting abstractions or language/library mechanisms that satisfy the full public contract.
+Make the smallest causally sufficient edit. Preserve existing guards and control-flow branches, especially nil/missing handling and fractional-number behavior, unless the public issue explicitly requires changing them. If an integral-valued number was deliberately serialized as plain integral text, preserve that representation across the full magnitude required by the public issue; do not retain a fixed-width cast behind a range check whose fallback changes the representation.
 Do not use hidden tests, gold patches, evaluator output, solution PRs, or benchmark answer knowledge.'''
 solver_problem=problem+PUBLIC_INVARIANT_GUIDANCE
 with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
@@ -694,9 +715,13 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 lines=f.read_text(encoding='utf-8',errors='ignore').splitlines()
                 old='\n'.join(lines[st-1:en]); new=str(e.get('new',''))
                 bounded_old=bool(re.search(r'\b(?:int|integer|int32|uint32)\b|\(int\s',old,re.I))
-                bounded_new=bool(re.search(r'\b(?:long|int64|uint64|integer64)\b|\(long\s',new,re.I))
+                fixed_width_new=bool(re.search(r'\b(?:int|integer|int32|uint32|long|int64|uint64|integer64)\b|\((?:int|long)\s',new,re.I))
                 serialization=bool(re.search(r'str|string|format|serialize|write',old+'\n'+new,re.I))
-                if bounded_old and bounded_new and serialization: errs.append('public_invariant_fixed_width_widening:'+rel)
+                if bounded_old and fixed_width_new and serialization: errs.append('public_invariant_fixed_width_conversion_retained:'+rel)
+                for form in ('when','when-not','when-let','if','if-not','if-let','cond','case'):
+                    pattern=r'\('+re.escape(form)+r'\b'
+                    if len(re.findall(pattern,new)) < len(re.findall(pattern,old)):
+                        errs.append('public_invariant_control_flow_removed:'+form+':'+rel)
             except Exception: pass
         if overflow and edits:
             touches_overflow_site=False
@@ -732,7 +757,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
         attempted=False; vcode=125; vout='NOT_RUN'
         if applied>0 and not errs:
             attempted,vcode,vout=public_validation(td,[m['path'] for m in meta])
-        candidate_results[label]={'edits':cand,'providerMeta':candidate_provider_meta.get(label,{}),'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-1500:]}
+        candidate_results[label]={'edits':cand,'providerMeta':candidate_provider_meta.get(label,{}),'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-6000:]}
     repair_records={}
     for label in ('A','B'):
         cr=candidate_results[label]
@@ -742,7 +767,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
             if guard_failed:
                 repair_issue=solver_problem+'\n\nPUBLIC INVARIANT REJECTION for candidate '+label+': '+json.dumps(cr['errors'])[:1200]+'. Re-locate the exact public source hotspot that causes the issue and produce a representation-preserving fix using only the supplied public issue and repository context. start_line/end_line must match the printed source line numbers exactly. Do not use hidden tests, gold patches, solution PRs, or evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]
             else:
-                repair_issue=solver_problem+'\n\nPUBLIC REPOSITORY VALIDATION FAILED for candidate '+label+'. Repair the candidate using only the supplied public validation output and repository context. Do not use hidden tests or benchmark evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]+'\nPUBLIC VALIDATION OUTPUT:\n'+cr['validationPreview'][-3000:]
+                repair_issue=solver_problem+'\n\nPUBLIC REPOSITORY VALIDATION FAILED for candidate '+label+'. Repair the candidate using only the supplied public validation output and repository context. Do not use hidden tests or benchmark evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]+'\nPUBLIC VALIDATION OUTPUT:\n'+cr['validationPreview'][-6000:]
             repair_offset=2 if label=='A' else 3
             rcode,rdata,rerr,rtimed=remote_json({'phase':'solve','issue':repair_issue,'tool_context':context,'instance_id':iid,'model_offset':repair_offset,'review_model_offset':repair_offset})
             repaired=dedupe_edits((rdata or {}).get('edits',[]) if rcode==0 else [])
@@ -756,9 +781,9 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 attempted=False; vcode=125; vout='NOT_RUN'
                 if applied>0 and not errs:
                     attempted,vcode,vout=public_validation(td,[m['path'] for m in meta])
-                rec.update({'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-1500:]})
+                rec.update({'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-6000:]})
                 if applied>0 and not errs and (not attempted or vcode==0):
-                    candidate_results[label]={'edits':repaired,'providerMeta':provider_meta(rdata),'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-1500:]}
+                    candidate_results[label]={'edits':repaired,'providerMeta':provider_meta(rdata),'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-6000:]}
                     if label=='A': cand_a=repaired
                     else: cand_b=repaired
             repair_records[label]=rec
@@ -801,7 +826,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit','dataset':DATASET,'instance_id':iid,
       'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'model':os.environ.get('MODEL_LABEL','unknown'),'provider':os.environ.get('MODEL_PROVIDER','local-llama'),
       'latencyMs':latency,'exitCode':code,'validPatch':valid,'patchChars':len(patch),
-      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'allowedPaths':allowed_paths,'pathNormalizations':path_normalizations,'editMeta':applied_meta,'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'publicValidationAttempted':validation_attempted,'publicValidationCode':validation_code,'publicValidationPreview':validation_output[-1200:],'repairAttempted':bool(repair_records),'repairRecords':repair_records,'candidateA':candidate_results.get('A'),'candidateB':candidate_results.get('B'),'semanticJudgeChoice':choice,'semanticJudgeReason':judge_reason,'semanticJudgeCode':jcode,'goldPatchExposedToAgent':False}
+      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'allowedPaths':allowed_paths,'pathNormalizations':path_normalizations,'editMeta':applied_meta,'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'publicValidationAttempted':validation_attempted,'publicValidationCode':validation_code,'publicValidationPreview':validation_output[-6000:],'repairAttempted':bool(repair_records),'repairRecords':repair_records,'candidateA':candidate_results.get('A'),'candidateB':candidate_results.get('B'),'semanticJudgeChoice':choice,'semanticJudgeReason':judge_reason,'semanticJudgeCode':jcode,'goldPatchExposedToAgent':False}
     Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
     Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':patch}],indent=2)+'\n')
     Path(OUT,'instance.json').write_text(json.dumps({'instance_id':iid,'repo':row['repo'],'base_commit':base},indent=2)+'\n')
