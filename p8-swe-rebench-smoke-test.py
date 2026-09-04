@@ -1,8 +1,10 @@
 import ast
+import json
 import re
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 
 SCRIPT = Path(__file__).with_name('p8-swe-rebench-smoke.py')
@@ -22,6 +24,37 @@ def load_function(name, namespace):
 
 
 class SmokePolicyTests(unittest.TestCase):
+    def test_sovereign_receives_separate_public_failures_and_rejected_candidate(self):
+        compact_issue=load_function('_compact_public_issue',{})
+        compact_output=load_function('_compact_public_validation_output',{'re':re})
+        requests=[]
+        class Response:
+            def __enter__(self): return self
+            def __exit__(self,*args): pass
+            def read(self): return json.dumps({'choices':[{'message':{'content':'{"edits":[]}'}}]}).encode()
+        def request(url,data,method):
+            return SimpleNamespace(data=data,add_header=lambda *args:None)
+        def urlopen(req,timeout):
+            requests.append(json.loads(req.data))
+            return Response()
+        sovereign=load_function('_sovereign_json',{
+            'json':json,'re':re,'os':SimpleNamespace(environ={'ARBM_SOVEREIGN_ENDPOINT':'http://synthetic.invalid'}),
+            'urllib':SimpleNamespace(request=SimpleNamespace(Request=request,urlopen=urlopen)),
+            '_compact_public_issue':compact_issue,'_compact_public_context':lambda *args:'FILE: src/example.py\n000001|public_source()',
+            '_compact_public_validation_output':compact_output,
+        })
+        rejected=[{'path':'src/example.py','start_line':1,'end_line':1,'new':'rejected_behavior()'}]
+        feedback=('FAIL in (ordinary-public-contract)\nexpected: preserved formatting\nactual: changed formatting\n'
+                  +'stack frame\n'*400+'ERROR in (public-edge-case)\nexpected: numeric behavior\nactual: NumberFormatException: NaN\n')
+        code,_,_,_=sovereign({'phase':'solve','issue':'public issue '+('public contract '*300)+'\n\nPUBLIC REPOSITORY VALIDATION FAILED\nPUBLIC CAUSAL LINE HINT obsolete focus',
+                             'public_validation_feedback':feedback,'rejected_edits':rejected})
+        self.assertEqual(code,0)
+        prompt=requests[0]['messages'][-1]['content']
+        for text in ('REJECTED CANDIDATE','rejected_behavior()','PUBLIC VALIDATION FAILURES','preserved formatting','NumberFormatException: NaN','complete candidate against the original numbered source'):
+            self.assertIn(text,prompt)
+        self.assertNotIn('obsolete focus',prompt)
+        self.assertEqual(requests[0]['max_tokens'],224)
+
     def test_context_compaction_deduplicates_files(self):
         compact = load_function('_compact_public_context', {'re': re})
         context = (
@@ -194,8 +227,8 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertIn('Double/parseDouble', spec['source'])
         self.assertIn('1.0e20', spec['source'])
         self.assertIn('write-variants', spec['source'])
-        self.assertNotIn('Double/POSITIVE_INFINITY', spec['source'])
-        self.assertNotIn('Double/NaN', spec['source'])
+        self.assertIn('Double/POSITIVE_INFINITY', spec['source'])
+        self.assertIn('Double/NaN', spec['source'])
         self.assertNotIn('PASS_TO_PASS', spec['source'])
         self.assertNotIn('FAIL_TO_PASS', spec['source'])
 

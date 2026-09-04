@@ -331,8 +331,8 @@ def _compact_public_validation_output(raw, max_chars=2200):
     important=[]
     seen=set()
     for line in text.splitlines():
-        if re.search(r'ERROR|FAIL|expected:|actual:|Exception|NaN|Infinite|overflow|qual-overflow',line,re.I):
-            clean=line.strip()
+        if re.match(r'^\s*(FAIL in |ERROR in |expected:|actual:|Ran \d+ tests|\d+ failures?, \d+ errors?)',line):
+            clean=line.strip()[:400]
             if clean and clean not in seen:
                 seen.add(clean); important.append(clean)
     summary='\n'.join(important)
@@ -348,12 +348,19 @@ def _sovereign_json(payload):
     if phase=='plan':
         return 0,{'plan':{'paths':[],'queries':[]},'model':'deterministic-public-lexical-planner','pipeline':'sovereign-lexical'},'',False
     if phase=='solve':
-        issue=_compact_public_issue(payload.get('issue',''),900)
+        feedback=str(payload.get('public_validation_feedback',''))
+        raw_issue=str(payload.get('issue',''))
+        issue=_compact_public_issue(raw_issue.split('\n\nPUBLIC REPOSITORY VALIDATION FAILED',1)[0],600) if feedback else _compact_public_issue(raw_issue,900)
         ctx=_compact_public_context(payload.get('tool_context',''),issue,1200)
         prompt=('PUBLIC REPOSITORY CONTEXT:\n'+ctx+'\n\nPUBLIC ISSUE AND CONTRACT:\n'+issue+
                 '\n\nReturn ONLY a JSON object with key "edits". edits is a list of objects with path, start_line, end_line, new. '
                 'Use only supplied public context. start_line and end_line MUST be exact line numbers printed before each source line; never guess or renumber them. Make the smallest causally sufficient edit: when a fixed-width conversion inside existing guards/branches causes serialization overflow, prefer editing only that causal expression and preserve enclosing control flow verbatim. Preserve existing ordinary output formatting unless the public issue requires changing it. No markdown, hidden tests, gold patches, evaluator output, or solution PRs.')
         max_tokens=112
+        if feedback:
+            prompt+='\n\nREJECTED CANDIDATE (failed public tests):\n'+json.dumps(payload.get('rejected_edits',[]),ensure_ascii=False)[:700]
+            prompt+='\n\nPUBLIC VALIDATION FAILURES:\n'+_compact_public_validation_output(feedback,1400)
+            prompt+='\nRevise the rejected candidate; do not repeat it. Fix every reported public failure while preserving the original public invariants. Return a complete candidate against the original numbered source, including all necessary edits, not an incremental patch against the rejected candidate.'
+            max_tokens=224
     elif phase=='judge':
         ctx=str(payload.get('tool_context',''))[:3500]
         issue=str(payload.get('issue',''))[:2200]
@@ -660,6 +667,8 @@ def public_issue_regression_spec(issue_text, changed_paths):
             "  (is (nil? (#'vcf-writer/stringify-data-line-qual nil)))\n"
             "  (is (parseable-same? __LITERAL__ (#'vcf-writer/stringify-data-line-qual __LITERAL__)))\n"
             "  (is (parseable-same? 1.0e20 (#'vcf-writer/stringify-data-line-qual 1.0e20)))\n"
+            "  (is (parseable-same? Double/POSITIVE_INFINITY (#'vcf-writer/stringify-data-line-qual Double/POSITIVE_INFINITY)))\n"
+            "  (is (parseable-same? Double/NaN (#'vcf-writer/stringify-data-line-qual Double/NaN)))\n"
             "  (let [meta-info {}\n"
             "        header [\"CHROM\" \"POS\" \"ID\" \"REF\" \"ALT\" \"QUAL\" \"FILTER\" \"INFO\"]\n"
             "        out (with-open [sw (StringWriter.)\n"
@@ -701,7 +710,10 @@ def public_validation(repo, changed_paths, issue_text='', full=False):
                 if probe and probe['namespace'] not in namespaces: namespaces.append(probe['namespace'])
                 cmd=['lein','test',*namespaces] if namespaces else ['lein','test']
             r=run(cmd,repo,900 if full else 360)
-            return True,r.returncode,((r.stdout or '')+'\n'+(r.stderr or ''))[-16000:]
+            output=(r.stdout or '')+'\n'+(r.stderr or '')
+            Path(OUT,'public-validation-'+str(time.time_ns())+'.log').write_text(output,encoding='utf-8')
+            summary=_compact_public_validation_output(output,2200)
+            return True,r.returncode,output[-13000:]+'\nPUBLIC FAILURE SUMMARY:\n'+summary
         if Path(repo,'go.mod').is_file() and shutil.which('go'):
             r=run(['go','test','./...'],repo,600 if full else 300); return True,r.returncode,((r.stdout or '')+'\n'+(r.stderr or ''))[-8000:]
         if Path(repo,'Cargo.toml').is_file() and shutil.which('cargo'):
@@ -968,7 +980,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     if causal_hints:
                         follow_issue+='\nPUBLIC CAUSAL LINE HINT derived only from the public repository: '+json.dumps(causal_hints)+'. Preserve surrounding when/if/branch structure; do not reintroduce fixed-width integer conversion.'
                     follow_issue+='\nPUBLIC VALIDATION OUTPUT SUMMARY (public tests only):\n'+_compact_public_validation_output(vout,2200)
-                    fcode,fdata,ferr,ftimed=remote_json({'phase':'solve','issue':follow_issue,'tool_context':context,'instance_id':iid,'model_offset':repair_offset+2,'review_model_offset':repair_offset+2})
+                    fcode,fdata,ferr,ftimed=remote_json({'phase':'solve','issue':follow_issue,'tool_context':context,'instance_id':iid,'model_offset':repair_offset+2,'review_model_offset':repair_offset+2,'public_validation_feedback':_compact_public_validation_output(vout,2200),'rejected_edits':repaired})
                     follow=dedupe_edits((fdata or {}).get('edits',[]) if fcode==0 else [])
                     frec={'attempted':True,'modelOffset':repair_offset+2,'providerCode':fcode,'providerError':ferr[:500],'providerMeta':provider_meta(fdata),'edits':follow}
                     if follow:
