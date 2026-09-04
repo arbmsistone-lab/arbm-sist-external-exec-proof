@@ -1,0 +1,49 @@
+name: P8 Provider Availability Probe
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Acquire benchmark OIDC token
+        id: oidc
+        run: |
+          TOKEN=$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+      - name: Probe adaptive provider mesh
+        env:
+          TOKEN: ${{ steps.oidc.outputs.token }}
+          ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-agent-v15
+        run: |
+          mkdir -p p8-provider-probe
+          python - <<'PY'
+          import json, os, urllib.request, urllib.error
+          body={"phase":"plan","instance_id":"provider-probe","issue":"Public probe: locate a function named example_handler and identify the likely source file. Do not propose edits.","repo_index":"TRACKED FILES:\nsrc/example.py\nINITIAL GREP SIGNALS:\nsrc/example.py:1:def example_handler():"}
+          req=urllib.request.Request(os.environ['ENDPOINT'],data=json.dumps(body).encode(),method='POST',headers={'Authorization':'Bearer '+os.environ['TOKEN'],'Content-Type':'application/json'})
+          try:
+              with urllib.request.urlopen(req,timeout=45) as r: code=r.status; text=r.read().decode()
+          except urllib.error.HTTPError as e: code=e.code; text=e.read().decode()
+          open('p8-provider-probe/response.json','w').write(text+'\n')
+          print('HTTP',code); print(text[:4000])
+          if code!=200: raise SystemExit(2)
+          data=json.loads(text)
+          if not data.get('ok') or data.get('mandatory_cost_usd')!=0: raise SystemExit(3)
+          PY
+      - name: Freeze probe hash
+        if: always()
+        run: |
+          sha256sum p8-provider-probe/* > p8-provider-probe/SHA256SUMS.txt || true
+          cat p8-provider-probe/SHA256SUMS.txt || true
+      - name: Upload probe evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: p8-provider-probe-v15
+          path: p8-provider-probe
+          retention-days: 30
