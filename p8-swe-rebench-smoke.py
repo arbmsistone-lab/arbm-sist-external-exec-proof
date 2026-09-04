@@ -642,6 +642,8 @@ def public_issue_regression_spec(issue_text, changed_paths):
             "  (is (nil? (#'vcf-writer/stringify-data-line-qual nil)))\n"
             "  (is (= \"__EXPECTED__\" (#'vcf-writer/stringify-data-line-qual __LITERAL__)))\n"
             "  (is (= \"100000000000000000000\" (#'vcf-writer/stringify-data-line-qual 1.0e20)))\n"
+            "  (is (= \"Infinity\" (#'vcf-writer/stringify-data-line-qual Double/POSITIVE_INFINITY)))\n"
+            "  (is (= \"NaN\" (#'vcf-writer/stringify-data-line-qual Double/NaN)))\n"
             "  (let [meta-info {}\n"
             "        header [\"CHROM\" \"POS\" \"ID\" \"REF\" \"ALT\" \"QUAL\" \"FILTER\" \"INFO\"]\n"
             "        out (with-open [sw (StringWriter.)\n"
@@ -852,10 +854,12 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     indent=m.group(1)
                     fallback=lines[i+1].strip()
                     if not re.match(r'^\(str\s+'+re.escape(expr)+r'\)\)+$',fallback): continue
-                    new=(indent+'(let [i (bigint '+expr+')]\n'
-                         +indent+'  (if (== '+expr+' i)\n'
-                         +indent+'    (str i)\n'
-                         +indent+'    '+fallback+')')
+                    new=(indent+'(if (or (Double/isNaN (double '+expr+')) (Double/isInfinite (double '+expr+')))\n'
+                         +indent+'  (str '+expr+')\n'
+                         +indent+'  (let [i (bigint '+expr+')]\n'
+                         +indent+'    (if (== '+expr+' i)\n'
+                         +indent+'      (str i)\n'
+                         +indent+'      '+fallback+')))')
                     ranked.append((score,rel,i,i+2,new))
                     continue
                 new=re.sub(r'\(str\s+\(int\s+[^)]+\)\)',lambda m:'(str (bigint '+expr+'))',line,count=1)
@@ -962,7 +966,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     edit_errors,applied_meta,applied_edits=apply_candidate(td,edits,allowed_paths) if edits else (['semantic_arbiter_no_choice'],[],0)
     validation_attempted=False; validation_code=0; validation_output='NOT_RUN'; repair_attempted=False
     if applied_edits>0 and not edit_errors:
-        validation_attempted,validation_code,validation_output=public_validation(td,[m['path'] for m in applied_meta])
+        validation_attempted,validation_code,validation_output=public_validation(td,[m['path'] for m in applied_meta],problem,full=True)
         if validation_attempted and validation_code!=0:
             code=123; err='FINAL_PUBLIC_VALIDATION_FAILED: '+validation_output[-1000:]
         else:
