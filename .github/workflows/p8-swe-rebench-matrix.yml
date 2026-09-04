@@ -36,10 +36,12 @@ jobs:
         env:
           ARBM_BENCHMARK_OIDC: ${{ steps.oidc.outputs.token }}
           ARBM_BENCHMARK_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-agent-v15
+          ARBM_BENCHMARK_FALLBACK_ENDPOINT: https://arbm-sist-p8-fallback.girolocal-rb.workers.dev
           ARBM_BENCHMARK_JUDGE_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-judge-v15
-          MODEL_LABEL: ARBM-Federated-Free-Mesh-v15
-          MODEL_PROVIDER: federated-zero-cost
-          WORKER_REV: provider-mesh-auto-discovery-v15
+          ARBM_BENCHMARK_JUDGE_FALLBACK_ENDPOINT: https://arbm-sist-p8-fallback.girolocal-rb.workers.dev
+          MODEL_LABEL: ARBM-Federated-Free-Mesh-v17
+          MODEL_PROVIDER: federated-zero-cost-multicloud
+          WORKER_REV: gemini-cloudflare-oidc-fallback-v17
         run: python p8-swe-rebench-smoke.py
       - name: Checkout frozen evaluator
         run: |
@@ -49,10 +51,16 @@ jobs:
       - name: Official evaluation
         run: |
           python swe-rebench-v2/scripts/eval.py --hf-dataset ibragim-bad/SWE-rebench-V2-sample --hf-config default --hf-split train --hf-offset "$HF_OFFSET" --hf-length 1 --patches p8-swe-artifact/patches.json --max-workers 1 --report-json p8-swe-artifact/eval-report.json
+      - name: Collect official evaluator diagnostics
+        if: always()
+        run: |
+          mkdir -p p8-swe-artifact/evaluator-logs
+          find . -type f -path '*logs*' -name '*_log.txt' -exec cp -f {} p8-swe-artifact/evaluator-logs/ \; || true
+          find p8-swe-artifact/evaluator-logs -type f -maxdepth 1 -print || true
       - name: Freeze evidence hashes
         if: always()
         run: |
-          sha256sum p8-swe-artifact/* > p8-swe-artifact/SHA256SUMS.txt || true
+          find p8-swe-artifact -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > p8-swe-artifact/SHA256SUMS.txt || true
           cat p8-swe-artifact/SHA256SUMS.txt || true
       - name: Upload immutable evidence
         if: always()
