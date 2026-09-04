@@ -672,7 +672,7 @@ PUBLIC_INVARIANT_GUIDANCE='''
 
 PUBLIC-SPEC REASONING CONTRACT:
 Before editing, derive the behavioral invariants explicitly implied by the public issue and supplied repository code. A patch is incomplete if it only removes the immediate exception while violating another public invariant.
-For numeric bugs: distinguish representation/formatting from arithmetic conversion; preserve magnitude and intended textual semantics; consider integral-valued floats, very large magnitudes, scientific notation, signs, zero, nil/missing values, and ordinary regression cases when the public issue makes them relevant. Never assume that replacing one fixed-width numeric cast with a wider fixed-width cast is complete when the public issue declares no practical upper bound or shows values outside that domain. Prefer the repository's existing formatting abstractions or language/library mechanisms that satisfy the full public contract.
+For numeric bugs: distinguish representation/formatting from arithmetic conversion; preserve magnitude and intended textual semantics; consider integral-valued floats, very large magnitudes, scientific notation, signs, zero, nil/missing values, and ordinary regression cases when the public issue makes them relevant. Do not widen beyond what the public issue requires: if the issue only states values exceed a narrower integer range, a wider native integer conversion is valid when it covers the public examples; require arbitrary precision only when the public issue explicitly demands values beyond the wider range. Prefer the repository's existing formatting abstractions or language/library mechanisms that satisfy the full public contract.
 Make the smallest causally sufficient edit. Preserve existing guards and control-flow branches, especially nil/missing handling and fractional-number behavior, unless the public issue explicitly requires changing them. If an integral-valued number was deliberately serialized as plain integral text, preserve that representation across the full magnitude required by the public issue; do not retain a fixed-width cast behind a range check whose fallback changes the representation.
 Do not use hidden tests, gold patches, evaluator output, solution PRs, or benchmark answer knowledge.'''
 solver_problem=problem+PUBLIC_INVARIANT_GUIDANCE
@@ -748,9 +748,12 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 lines=f.read_text(encoding='utf-8',errors='ignore').splitlines()
                 old='\n'.join(lines[st-1:en]); new=str(e.get('new',''))
                 bounded_old=bool(re.search(r'\b(?:int|integer|int32|uint32)\b|\(int\s',old,re.I))
-                fixed_width_new=bool(re.search(r'\b(?:int|integer|int32|uint32|long|int64|uint64|integer64)\b|\((?:int|long)\s',new,re.I))
+                same_width_new=bool(re.search(r'\b(?:int|integer|int32|uint32)\b|\(int\s',new,re.I))
+                long_width_new=bool(re.search(r'\b(?:long|int64|uint64|integer64)\b|\(long\s',new,re.I))
+                unbounded_required=bool(re.search(r'\b(unbounded|arbitrary precision|beyond long|long range|64[- ]?bit range)\b',low,re.I))
                 serialization=bool(re.search(r'str|string|format|serialize|write',old+'\n'+new,re.I))
-                if bounded_old and fixed_width_new and serialization: errs.append('public_invariant_fixed_width_conversion_retained:'+rel)
+                if bounded_old and same_width_new and serialization: errs.append('public_invariant_fixed_width_conversion_retained:'+rel)
+                if bounded_old and long_width_new and serialization and unbounded_required: errs.append('public_invariant_fixed_width_conversion_retained:'+rel)
                 for form in ('when','when-not','when-let','if','if-not','if-let','cond','case'):
                     pattern=r'\('+re.escape(form)+r'\b'
                     if len(re.findall(pattern,new)) < len(re.findall(pattern,old)):
@@ -787,7 +790,9 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 if not re.search(r'\(int\s+[^)]+\)',line): continue
                 window='\n'.join(lines[max(0,i-4):min(len(lines),i+5)])
                 if not re.search(r'str|string|format|serialize|write',window,re.I): continue
-                new=re.sub(r'\(int\s+([^)]+)\)',r'(bigint \1)',line,count=1)
+                unbounded_required=bool(re.search(r'\b(unbounded|arbitrary precision|beyond long|long range|64[- ]?bit range)\b',low,re.I))
+                replacement='bigint' if unbounded_required else 'long'
+                new=re.sub(r'\(int\s+([^)]+)\)',lambda m:'('+replacement+' '+m.group(1)+')',line,count=1)
                 if new==line: continue
                 ranked.append((score,rel,i+1,new))
         if not ranked: return []

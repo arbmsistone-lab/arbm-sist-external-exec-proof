@@ -107,7 +107,7 @@ class SmokePolicyTests(unittest.TestCase):
                 'path': 'src/cljam/io/vcf/writer.clj',
                 'start_line': 192,
                 'end_line': 192,
-                'new': '      (str (bigint x))',
+                'new': '      (str (long x))',
             }]
             issue = 'QUAL value overflows when writing VCF; huge values exceed Integer range'
             bad_errors = guard(repo, bad, issue)
@@ -130,7 +130,7 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertEqual(len(edits), 1)
         self.assertEqual(edits[0]['start_line'], 3)
         self.assertEqual(edits[0]['end_line'], 3)
-        self.assertIn('(bigint x)', edits[0]['new'])
+        self.assertIn('(long x)', edits[0]['new'])
         self.assertNotIn('(int x)', edits[0]['new'])
 
 
