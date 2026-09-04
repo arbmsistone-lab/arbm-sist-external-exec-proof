@@ -37,9 +37,10 @@ jobs:
         env:
           ARBM_BENCHMARK_OIDC: ${{ steps.oidc.outputs.token }}
           ARBM_BENCHMARK_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-agent-v11
+          ARBM_BENCHMARK_JUDGE_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-judge-v13
           MODEL_LABEL: ARBM-Federated-Free-Mesh-v1
           MODEL_PROVIDER: federated-zero-cost
-          WORKER_REV: repo-tool-loop-public-validation-v12
+          WORKER_REV: multi-hypothesis-semantic-arbiter-v13
         run: python p8-swe-rebench-smoke.py
       - name: Checkout frozen SWE-rebench V2 evaluator
         run: |

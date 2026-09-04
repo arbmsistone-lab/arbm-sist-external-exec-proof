@@ -251,6 +251,24 @@ def remote_json(payload):
         except Exception as exc: return 125,None,type(exc).__name__+': '+str(exc),False
     return 125,None,last_err or 'REMOTE_RETRY_EXHAUSTED',False
 
+def remote_endpoint_json(endpoint, payload):
+    body=json.dumps(payload).encode('utf-8'); last_err=''
+    for attempt,delay in enumerate((0,12),start=1):
+        if delay: time.sleep(delay)
+        try:
+            token=fresh_oidc()
+            if not token: return 126,None,'NO_OIDC_PROVIDER_TOKEN',False
+            req=urllib.request.Request(endpoint,data=body,method='POST')
+            req.add_header('Authorization','Bearer '+token); req.add_header('Content-Type','application/json')
+            with urllib.request.urlopen(req,timeout=150) as r: data=json.loads(r.read().decode('utf-8'))
+            if data.get('ok'): return 0,data,'',False
+            last_err='REMOTE_STATUS:'+str(data.get('status'))
+        except urllib.error.HTTPError as exc:
+            b=exc.read().decode('utf-8','ignore')[:2000]; last_err=f'HTTP {exc.code}: {b}'
+        except TimeoutError as exc: last_err=type(exc).__name__+': '+str(exc)
+        except Exception as exc: return 125,None,type(exc).__name__+': '+str(exc),False
+    return 125,None,last_err or 'REMOTE_RETRY_EXHAUSTED',False
+
 def repo_index(repo, problem):
     files=run(['git','ls-files'],repo,60).stdout.splitlines()
     shown='\n'.join(files[:4000])
@@ -359,29 +377,41 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     context='\n\n'.join(numbered_file(td,r,centers.get(r)) for r in candidate_paths[:8])[:32000]
     allowed_paths=re.findall(r'(?m)^FILE:\s+([^\s]+)',context)
     code,data,err,timed_out=remote_json({'phase':'solve','issue':problem,'tool_context':context,'instance_id':iid})
-    edits=(data or {}).get('edits',[]) if code==0 else []
+    cand_a=(data or {}).get('edits',[]) if code==0 else []
+    alt_issue=problem+'\n\nGenerate an INDEPENDENT ALTERNATIVE solution. The first candidate was: '+json.dumps(cand_a)[:4000]+' Do not repeat it; test a different plausible root cause or more complete behavioral invariant using only supplied public context.'
+    bcode,bdata,berr,btimed=remote_json({'phase':'solve','issue':alt_issue,'tool_context':context,'instance_id':iid})
+    cand_b=(bdata or {}).get('edits',[]) if bcode==0 else []
     latency=round((time.time()-started)*1000)
-    edit_errors=[]; applied_edits=0; path_normalizations=[]; applied_meta=[]
+    candidate_results={}
+    for label,cand in [('A',cand_a),('B',cand_b)]:
+        run(['git','reset','--hard',base],td,60)
+        errs,meta,applied=apply_candidate(td,cand,allowed_paths)
+        attempted=False; vcode=125; vout='NOT_RUN'
+        if applied>0 and not errs:
+            attempted,vcode,vout=public_validation(td,[m['path'] for m in meta])
+        candidate_results[label]={'edits':cand,'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-1500:]}
+    judge_ep=os.environ.get('ARBM_BENCHMARK_JUDGE_ENDPOINT','')
+    jcode,jdata,jerr,jtimed=(125,None,'NO_JUDGE_ENDPOINT',False)
+    if judge_ep:
+        jcode,jdata,jerr,jtimed=remote_endpoint_json(judge_ep,{'issue':problem,'tool_context':context,'instance_id':iid,'candidate_a':{'edits':cand_a},'candidate_b':{'edits':cand_b},'validation_a':candidate_results['A'],'validation_b':candidate_results['B']})
+    choice=(jdata or {}).get('choice','NONE') if jcode==0 else 'NONE'
+    judge_reason=str((jdata or {}).get('reason',''))[:600]
+    judge_edits=(jdata or {}).get('edits',[]) if jcode==0 else []
+    if choice in ('A','B'):
+        edits=judge_edits if judge_edits else candidate_results[choice]['edits']
+    else:
+        passing=[x for x in ('A','B') if candidate_results[x]['applied']>0 and not candidate_results[x]['errors'] and (not candidate_results[x]['validationAttempted'] or candidate_results[x]['validationCode']==0)]
+        edits=candidate_results[passing[0]]['edits'] if len(passing)==1 else []
+    run(['git','reset','--hard',base],td,60)
+    edit_errors,applied_meta,applied_edits=apply_candidate(td,edits,allowed_paths) if edits else (['semantic_arbiter_no_choice'],[],0)
     validation_attempted=False; validation_code=0; validation_output='NOT_RUN'; repair_attempted=False
-    if code==0 and isinstance(edits,list):
-        edit_errors,applied_meta,applied_edits=apply_candidate(td,edits,allowed_paths)
-    if code==0 and applied_edits>0 and not edit_errors:
+    if applied_edits>0 and not edit_errors:
         validation_attempted,validation_code,validation_output=public_validation(td,[m['path'] for m in applied_meta])
         if validation_attempted and validation_code!=0:
-            repair_attempted=True
-            feedback=('The first candidate failed PUBLIC repository validation. Correct the implementation using only this public feedback. '
-                      'Do not weaken or delete tests. Validation output:\n'+validation_output[-5000:])
-            rcode,rdata,rerr,rtimed=remote_json({'phase':'solve','issue':problem+'\n\n'+feedback,'tool_context':context,'instance_id':iid})
-            if rcode==0 and isinstance((rdata or {}).get('edits'),list):
-                run(['git','reset','--hard',base],td,60)
-                edits=(rdata or {}).get('edits',[])
-                edit_errors,applied_meta,applied_edits=apply_candidate(td,edits,allowed_paths)
-                if not edit_errors and applied_edits>0:
-                    validation_attempted,validation_code,validation_output=public_validation(td,[m['path'] for m in applied_meta])
-                    if validation_attempted and validation_code!=0:
-                        code=123; err='PUBLIC_VALIDATION_FAILED_AFTER_REPAIR: '+validation_output[-1000:]
-            else:
-                code=rcode or 125; err=rerr or 'REPAIR_PROVIDER_FAILED'
+            code=123; err='FINAL_PUBLIC_VALIDATION_FAILED: '+validation_output[-1000:]
+        else:
+            code=0; err=''
+    if not edits or edit_errors: code=124 if code==0 else code; err=err or jerr or 'NO_SEMANTICALLY_SELECTED_CANDIDATE'
     diff_run=run(['git','diff','--no-ext-diff','--binary'],td,60)
     patch=diff_run.stdout
     structure_valid=(code==0) and applied_edits>0 and patch.startswith('diff --git ') and len(patch)>40
@@ -395,7 +425,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit','dataset':DATASET,'instance_id':iid,
       'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'model':os.environ.get('MODEL_LABEL','unknown'),'provider':os.environ.get('MODEL_PROVIDER','local-llama'),
       'latencyMs':latency,'exitCode':code,'validPatch':valid,'patchChars':len(patch),
-      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'allowedPaths':allowed_paths,'pathNormalizations':path_normalizations,'editMeta':applied_meta,'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'publicValidationAttempted':validation_attempted,'publicValidationCode':validation_code,'publicValidationPreview':validation_output[-1200:],'repairAttempted':repair_attempted,'goldPatchExposedToAgent':False}
+      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'allowedPaths':allowed_paths,'pathNormalizations':path_normalizations,'editMeta':applied_meta,'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'publicValidationAttempted':validation_attempted,'publicValidationCode':validation_code,'publicValidationPreview':validation_output[-1200:],'repairAttempted':repair_attempted,'candidateA':candidate_results.get('A'),'candidateB':candidate_results.get('B'),'semanticJudgeChoice':choice,'semanticJudgeReason':judge_reason,'semanticJudgeCode':jcode,'goldPatchExposedToAgent':False}
     Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
     Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':patch}],indent=2)+'\n')
     Path(OUT,'instance.json').write_text(json.dumps({'instance_id':iid,'repo':row['repo'],'base_commit':base},indent=2)+'\n')
