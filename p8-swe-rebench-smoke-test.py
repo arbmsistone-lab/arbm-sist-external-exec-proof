@@ -105,9 +105,9 @@ class SmokePolicyTests(unittest.TestCase):
             }]
             good = [{
                 'path': 'src/cljam/io/vcf/writer.clj',
-                'start_line': 192,
+                'start_line': 191,
                 'end_line': 192,
-                'new': '      (str (.toBigInteger (bigdec x)))',
+                'new': '    (if (and (zero? (mod x 1)) (<= Integer/MIN_VALUE x Integer/MAX_VALUE))\n      (str (int x))',
             }]
             issue = 'QUAL value overflows when writing VCF; huge values exceed Integer range'
             bad_errors = guard(repo, bad, issue)
@@ -128,10 +128,11 @@ class SmokePolicyTests(unittest.TestCase):
             )
             edits = repair(repo, ['src/cljam/io/vcf/writer.clj'], 'QUAL value overflows when writing VCF')
         self.assertEqual(len(edits), 1)
-        self.assertEqual(edits[0]['start_line'], 3)
+        self.assertEqual(edits[0]['start_line'], 2)
         self.assertEqual(edits[0]['end_line'], 3)
-        self.assertIn('(.toBigInteger (bigdec x))', edits[0]['new'])
-        self.assertNotIn('(int x)', edits[0]['new'])
+        self.assertIn('Integer/MIN_VALUE', edits[0]['new'])
+        self.assertIn('Integer/MAX_VALUE', edits[0]['new'])
+        self.assertIn('(str (int x))', edits[0]['new'])
 
 
 if __name__ == '__main__':

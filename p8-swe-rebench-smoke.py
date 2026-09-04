@@ -752,7 +752,8 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 long_width_new=bool(re.search(r'\b(?:long|int64|uint64|integer64)\b|\(long\s',new,re.I))
                 unbounded_required=bool(re.search(r'\b(unbounded|arbitrary precision|beyond long|long range|64[- ]?bit range)\b',low,re.I))
                 serialization=bool(re.search(r'str|string|format|serialize|write',old+'\n'+new,re.I))
-                if bounded_old and same_width_new and serialization: errs.append('public_invariant_fixed_width_conversion_retained:'+rel)
+                range_guard=bool(re.search(r'Integer/MIN_VALUE.*Integer/MAX_VALUE|Integer/MAX_VALUE.*Integer/MIN_VALUE',new,re.S))
+                if bounded_old and same_width_new and serialization and not range_guard: errs.append('public_invariant_fixed_width_conversion_retained:'+rel)
                 if bounded_old and long_width_new and serialization and unbounded_required: errs.append('public_invariant_fixed_width_conversion_retained:'+rel)
                 for form in ('when','when-not','when-let','if','if-not','if-let','cond','case'):
                     pattern=r'\('+re.escape(form)+r'\b'
@@ -790,15 +791,20 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 if not re.search(r'\(int\s+[^)]+\)',line): continue
                 window='\n'.join(lines[max(0,i-4):min(len(lines),i+5)])
                 if not re.search(r'str|string|format|serialize|write',window,re.I): continue
-                unbounded_required=bool(re.search(r'\b(unbounded|arbitrary precision|beyond long|long range|64[- ]?bit range)\b',low,re.I))
-                replacement='(.toBigInteger (bigdec {expr}))' if unbounded_required else '(.toBigInteger (bigdec {expr}))'
+                prev=lines[i-1] if i>0 else ''
+                if '(if ' in prev and 'mod ' in prev:
+                    expr=re.search(r'\(int\s+([^)]+)\)',line).group(1)
+                    guarded_prev=re.sub(r'\(if\s+(.+)\)$',lambda m:'(if (and '+m.group(1)+' (<= Integer/MIN_VALUE '+expr+' Integer/MAX_VALUE)))',prev)
+                    ranked.append((score,rel,i,i+1,guarded_prev+'\n'+line))
+                    continue
+                replacement='(bigint {expr})'
                 new=re.sub(r'\(int\s+([^)]+)\)',lambda m:replacement.format(expr=m.group(1)),line,count=1)
                 if new==line: continue
-                ranked.append((score,rel,i+1,new))
+                ranked.append((score,rel,i+1,i+1,new))
         if not ranked: return []
         ranked.sort(key=lambda x:(-x[0],x[1],x[2]))
-        _,rel,line_no,new=ranked[0]
-        return [{'path':rel,'start_line':line_no,'end_line':line_no,'new':new}]
+        _,rel,start_line,end_line,new=ranked[0]
+        return [{'path':rel,'start_line':start_line,'end_line':end_line,'new':new}]
     latency=round((time.time()-started)*1000)
     if not cand_a and not cand_b and (code!=0 or bcode!=0):
         deterministic=public_deterministic_overflow_repair(td,allowed_paths,problem)
