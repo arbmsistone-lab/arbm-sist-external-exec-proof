@@ -281,6 +281,39 @@ def repo_index(repo, problem):
         if len(sig)>=120: break
     return ('TRACKED FILES:\n'+shown+'\nINITIAL GREP SIGNALS:\n'+'\n'.join(sig))[:20000]
 
+def lexical_fallback(repo, problem, limit=8):
+    stop={'this','that','with','from','when','have','will','should','there','which','into','about','more','than','what','does','using','used','only','also','some','same','after','before'}
+    raw=re.findall(r'[A-Za-z_][A-Za-z0-9_.:/-]{3,}',problem)
+    terms=[]
+    for t in raw:
+        x=t.strip('.,:;()[]{}').lower()
+        if len(x)<4 or x in stop or x in terms: continue
+        terms.append(x)
+    files=run(['git','ls-files'],repo,60).stdout.splitlines()
+    scores={}; centers={}
+    def noisy(rel):
+        r=rel.lower()
+        return r.startswith('.github/') or r.startswith('.git') or r.startswith('docs/') or r.startswith('doc/') or r.endswith(('.md','.rst','.txt','.lock','.yml','.yaml','.json'))
+    for q in terms[:28]:
+        g=run(['git','grep','-n','-I','-i','-F',q,'--'],repo,25)
+        if g.returncode not in (0,1): continue
+        for line in g.stdout.splitlines()[:80]:
+            parts=line.split(':',2)
+            if len(parts)<2 or not parts[1].isdigit(): continue
+            rel=parts[0].replace('\\','/')
+            if rel not in files: continue
+            score=3
+            if q in Path(rel).name.lower(): score+=8
+            if re.search(r'(^|/)(src|lib|app|core)(/|$)',rel,re.I): score+=6
+            if re.search(r'(^|/)(test|tests|spec)(/|$|_)',rel,re.I): score+=2
+            if noisy(rel): score-=8
+            scores[rel]=scores.get(rel,0)+score
+            centers.setdefault(rel,int(parts[1]))
+    ranked=[r for r,_ in sorted(scores.items(),key=lambda kv:(-kv[1],kv[0])) if not noisy(r)]
+    if len(ranked)<2:
+        ranked += [r for r,_ in sorted(scores.items(),key=lambda kv:(-kv[1],kv[0])) if r not in ranked]
+    return ranked[:limit],centers
+
 def numbered_file(repo, rel, center=None, radius=120):
     f=Path(repo,rel)
     if not f.is_file(): return ''
@@ -373,7 +406,14 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 rel=parts[0]; centers.setdefault(rel,int(parts[1]))
                 if rel not in candidate_paths: candidate_paths.append(rel)
     if not candidate_paths:
-        candidate_paths=run(['git','ls-files'],td,60).stdout.splitlines()[:6]
+        candidate_paths,lex_centers=lexical_fallback(td,problem,8)
+        for rel,ln in lex_centers.items(): centers.setdefault(rel,ln)
+    if not candidate_paths:
+        evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit','dataset':DATASET,'instance_id':iid,'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'exitCode':127,'validPatch':False,'status':'NO_CONTEXT','plannerCode':pcode,'plannerError':perr[:500],'goldPatchExposedToAgent':False}
+        Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
+        Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':''}],indent=2)+'\n')
+        Path(OUT,'instance.json').write_text(json.dumps({'instance_id':iid,'repo':row['repo'],'base_commit':base},indent=2)+'\n')
+        print(json.dumps(evidence)); raise SystemExit(2)
     context='\n\n'.join(numbered_file(td,r,centers.get(r)) for r in candidate_paths[:8])[:32000]
     allowed_paths=re.findall(r'(?m)^FILE:\s+([^\s]+)',context)
     code,data,err,timed_out=remote_json({'phase':'solve','issue':problem,'tool_context':context,'instance_id':iid})
@@ -382,6 +422,12 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     bcode,bdata,berr,btimed=remote_json({'phase':'solve','issue':alt_issue,'tool_context':context,'instance_id':iid})
     cand_b=(bdata or {}).get('edits',[]) if bcode==0 else []
     latency=round((time.time()-started)*1000)
+    if not cand_a and not cand_b and (code!=0 or bcode!=0):
+        evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit','dataset':DATASET,'instance_id':iid,'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'exitCode':125,'validPatch':False,'status':'WAITING_FREE_CAPACITY','providerUnavailable':True,'candidateACode':code,'candidateBCode':bcode,'providerError':(err+' | '+berr)[:1200],'allowedPaths':allowed_paths,'goldPatchExposedToAgent':False}
+        Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
+        Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':''}],indent=2)+'\n')
+        Path(OUT,'instance.json').write_text(json.dumps({'instance_id':iid,'repo':row['repo'],'base_commit':base},indent=2)+'\n')
+        print(json.dumps(evidence)); raise SystemExit(2)
     path_normalizations=[]
     candidate_results={}
     for label,cand in [('A',cand_a),('B',cand_b)]:
