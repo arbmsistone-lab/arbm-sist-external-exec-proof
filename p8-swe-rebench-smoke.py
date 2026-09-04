@@ -239,6 +239,7 @@ def _remote_json_one(endpoint, payload, retries=(0,12)):
             if not token: return 126,None,'NO_OIDC_PROVIDER_TOKEN',False
             req=urllib.request.Request(endpoint,data=body,method='POST')
             req.add_header('Authorization','Bearer '+token); req.add_header('Content-Type','application/json')
+            req.add_header('User-Agent','arbm-sist-benchmark/17'); req.add_header('Accept','application/json')
             with urllib.request.urlopen(req,timeout=150) as r: data=json.loads(r.read().decode('utf-8'))
             if data.get('ok'): return 0,data,'',False
             last_err='REMOTE_STATUS:'+str(data.get('status'))
