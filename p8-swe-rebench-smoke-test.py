@@ -133,6 +133,7 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertIn('Integer/MIN_VALUE', edits[0]['new'])
         self.assertIn('Integer/MAX_VALUE', edits[0]['new'])
         self.assertIn('(str (int x))', edits[0]['new'])
+        self.assertIn('(if (and (zero? (mod x 1)) (<= Integer/MIN_VALUE x Integer/MAX_VALUE))', edits[0]['new'])
 
 
 if __name__ == '__main__':

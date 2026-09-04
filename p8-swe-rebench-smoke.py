@@ -794,7 +794,10 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 prev=lines[i-1] if i>0 else ''
                 if '(if ' in prev and 'mod ' in prev:
                     expr=re.search(r'\(int\s+([^)]+)\)',line).group(1)
-                    guarded_prev=re.sub(r'\(if\s+(.+)\)$',lambda m:'(if (and '+m.group(1)+' (<= Integer/MIN_VALUE '+expr+' Integer/MAX_VALUE)))',prev)
+                    m=re.match(r'^(\s*)\(if\s+(.+)$',prev)
+                    if not m: continue
+                    indent,condition=m.groups()
+                    guarded_prev=indent+'(if (and '+condition+' (<= Integer/MIN_VALUE '+expr+' Integer/MAX_VALUE))'
                     ranked.append((score,rel,i,i+1,guarded_prev+'\n'+line))
                     continue
                 replacement='(bigint {expr})'
