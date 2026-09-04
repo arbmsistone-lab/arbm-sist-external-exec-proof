@@ -44,6 +44,7 @@ jobs:
         with:
           path: ${{ env.MODEL_DIR }}/${{ env.MODEL_FILE }}
           key: qwen25-coder-14b-q4km-${{ env.MODEL_SHA256 }}
+          save-always: true
       - name: Download and verify official model
         run: |
           set -euo pipefail
@@ -75,8 +76,8 @@ jobs:
           LLAMA_CLI=$(find /tmp/llama -type f -name llama-cli -print -quit)
           /usr/bin/time -v -o p8-sovereign-artifact/time.txt \
             timeout --signal=TERM --kill-after=15s 300s \
-            "$LLAMA_CLI" -m "$MODEL" -c 2048 -n 16 -t 4 -no-cnv \
-            --temp 0 -p 'Reply with exactly READY.' \
+            "$LLAMA_CLI" -m "$MODEL" -c 2048 -n 16 -t 4 \
+            --single-turn --simple-io --no-warmup --temp 0 -p 'Reply with exactly READY.' \
             > p8-sovereign-artifact/output.txt \
             2> p8-sovereign-artifact/stderr.txt
           test -s p8-sovereign-artifact/output.txt
