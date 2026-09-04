@@ -230,11 +230,9 @@ def infer(prompt, instance_id):
     return 126, [], 'NO_REMOTE_PROVIDER', False
 
 
-def remote_json(payload):
-    endpoint=os.environ.get('ARBM_BENCHMARK_ENDPOINT','')
-    if not endpoint: return 126, None, 'NO_REMOTE_PROVIDER', False
+def _remote_json_one(endpoint, payload, retries=(0,12)):
     body=json.dumps(payload).encode('utf-8'); last_err=''
-    for attempt,delay in enumerate((0,12),start=1):
+    for delay in retries:
         if delay: time.sleep(delay)
         try:
             token=fresh_oidc()
@@ -248,26 +246,36 @@ def remote_json(payload):
             b=exc.read().decode('utf-8','ignore')[:2000]; last_err=f'HTTP {exc.code}: {b}'
         except TimeoutError as exc:
             last_err=type(exc).__name__+': '+str(exc)
-        except Exception as exc: return 125,None,type(exc).__name__+': '+str(exc),False
+        except Exception as exc:
+            last_err=type(exc).__name__+': '+str(exc)
     return 125,None,last_err or 'REMOTE_RETRY_EXHAUSTED',False
 
+def remote_json(payload):
+    primary=os.environ.get('ARBM_BENCHMARK_ENDPOINT','')
+    fallback=os.environ.get('ARBM_BENCHMARK_FALLBACK_ENDPOINT','')
+    errors=[]
+    if primary:
+        c,d,e,t=_remote_json_one(primary,payload,(0,12))
+        if c==0: return c,d,e,t
+        errors.append('primary='+e[:800])
+    if fallback:
+        c,d,e,t=_remote_json_one(fallback,payload,(0,))
+        if c==0: return c,d,e,t
+        errors.append('fallback='+e[:800])
+    return 125,None,' | '.join(errors) or 'NO_REMOTE_PROVIDER',False
+
 def remote_endpoint_json(endpoint, payload):
-    body=json.dumps(payload).encode('utf-8'); last_err=''
-    for attempt,delay in enumerate((0,12),start=1):
-        if delay: time.sleep(delay)
-        try:
-            token=fresh_oidc()
-            if not token: return 126,None,'NO_OIDC_PROVIDER_TOKEN',False
-            req=urllib.request.Request(endpoint,data=body,method='POST')
-            req.add_header('Authorization','Bearer '+token); req.add_header('Content-Type','application/json')
-            with urllib.request.urlopen(req,timeout=150) as r: data=json.loads(r.read().decode('utf-8'))
-            if data.get('ok'): return 0,data,'',False
-            last_err='REMOTE_STATUS:'+str(data.get('status'))
-        except urllib.error.HTTPError as exc:
-            b=exc.read().decode('utf-8','ignore')[:2000]; last_err=f'HTTP {exc.code}: {b}'
-        except TimeoutError as exc: last_err=type(exc).__name__+': '+str(exc)
-        except Exception as exc: return 125,None,type(exc).__name__+': '+str(exc),False
-    return 125,None,last_err or 'REMOTE_RETRY_EXHAUSTED',False
+    fallback=os.environ.get('ARBM_BENCHMARK_JUDGE_FALLBACK_ENDPOINT','')
+    errors=[]
+    if endpoint:
+        c,d,e,t=_remote_json_one(endpoint,payload,(0,12))
+        if c==0: return c,d,e,t
+        errors.append('primary='+e[:800])
+    if fallback:
+        c,d,e,t=_remote_json_one(fallback,payload,(0,))
+        if c==0: return c,d,e,t
+        errors.append('fallback='+e[:800])
+    return 125,None,' | '.join(errors) or 'NO_JUDGE_ENDPOINT',False
 
 def repo_index(repo, problem):
     files=run(['git','ls-files'],repo,60).stdout.splitlines()
