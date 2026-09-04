@@ -1,6 +1,11 @@
 name: P8 SWE-rebench V2 evidence matrix
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - p8/owner-20260904
+    paths:
+      - .p8-run-matrix
 permissions:
   contents: read
   id-token: write
