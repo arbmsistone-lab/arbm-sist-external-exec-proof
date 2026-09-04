@@ -831,6 +831,21 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 except Exception: pass
             if not touches_overflow_site: errs.append('public_invariant_no_overflow_site_touched')
         return errs
+    def public_causal_fixed_width_hints(repo, edits):
+        hints=[]
+        for e in edits if isinstance(edits,list) else []:
+            try:
+                rel=str(e.get('path','')).replace('\\','/').lstrip('/')
+                f=Path(repo,rel); st=int(e.get('start_line')); en=int(e.get('end_line'))
+                if not f.is_file(): continue
+                lines=f.read_text(encoding='utf-8',errors='ignore').splitlines()
+                for idx in range(max(0,st-1),min(len(lines),en)):
+                    line=lines[idx]
+                    if re.search(r'\b(?:int|integer|int32|uint32)\b|\(int\s',line,re.I):
+                        hints.append({'path':rel,'line':idx+1,'source':line.strip()})
+            except Exception: pass
+        return hints[:4]
+
     def public_deterministic_overflow_repair(repo, paths, issue_text):
         low=str(issue_text).lower()
         if not re.search(r'overflow|out of (?:the )?integer range',low): return []
@@ -913,6 +928,9 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 repair_issue=solver_problem+'\n\nPUBLIC INVARIANT REJECTION for candidate '+label+': '+json.dumps(cr['errors'])[:1200]+'. Re-locate the exact public source hotspot that causes the issue and produce a representation-preserving fix using only the supplied public issue and repository context. MANDATORY REVISION: do not return the rejected edit unchanged. For each control_flow_removed error, retain the named original public control-flow form and its behavior. For fixed_width_conversion_retained, remove the fixed-width conversion rather than placing it behind a range check. Prefer changing only the causal conversion expression while leaving surrounding public guards and branches intact. If public source uses a fixed-width integer cast only inside an integral-valued branch to preserve plain integer text, replace only that serialization expression with a non-overflowing numeric formatting mechanism while preserving the branch and fractional fallback. start_line/end_line must match the printed source line numbers exactly. Do not use hidden tests, gold patches, solution PRs, or evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]
             else:
                 repair_issue=solver_problem+'\n\nPUBLIC REPOSITORY VALIDATION FAILED for candidate '+label+'. Repair the candidate using only the supplied public validation output and repository context. Do not use hidden tests or benchmark evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]+'\nPUBLIC VALIDATION OUTPUT:\n'+cr['validationPreview'][-6000:]
+            causal_hints=public_causal_fixed_width_hints(td,cr['edits'])
+            if causal_hints:
+                repair_issue+='\nPUBLIC CAUSAL LINE HINT derived only from the public repository: '+json.dumps(causal_hints)+'. MANDATORY: prefer start_line=end_line on the causal fixed-width conversion line and preserve surrounding when/if/branch structure unchanged. Do not replace the enclosing block when a one-line serialization repair is possible.'
             repair_offset=2 if label=='A' else 3
             rcode,rdata,rerr,rtimed=remote_json({'phase':'solve','issue':repair_issue,'tool_context':context,'instance_id':iid,'model_offset':repair_offset,'review_model_offset':repair_offset})
             repaired=dedupe_edits((rdata or {}).get('edits',[]) if rcode==0 else [])

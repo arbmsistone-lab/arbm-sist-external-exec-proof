@@ -117,6 +117,16 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertEqual(good_errors, [])
 
 
+    def test_public_causal_hint_targets_only_fixed_width_line(self):
+        hints_fn = load_function('public_causal_fixed_width_hints', {'Path': Path, 're': re})
+        with tempfile.TemporaryDirectory() as repo:
+            target = Path(repo, 'src/cljam/io/vcf/writer.clj')
+            target.parent.mkdir(parents=True)
+            target.write_text('  (when x\n    (if (zero? (mod x 1))\n      (str (int x))\n      (str x))))\n', encoding='utf-8')
+            hints = hints_fn(repo, [{'path':'src/cljam/io/vcf/writer.clj','start_line':1,'end_line':4,'new':'(str x)'}])
+        self.assertEqual(hints, [{'path':'src/cljam/io/vcf/writer.clj','line':3,'source':'(str (int x))'}])
+
+
     def test_deterministic_public_overflow_repair_is_minimal(self):
         repair = load_function('public_deterministic_overflow_repair', {'Path': Path, 're': re})
         with tempfile.TemporaryDirectory() as repo:
