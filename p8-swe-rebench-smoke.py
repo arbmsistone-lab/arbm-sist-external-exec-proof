@@ -295,12 +295,13 @@ def _compact_public_context(raw, issue, max_chars=2600):
         a=max(1,best_i-8); b=min(len(lines),best_i+10)
         excerpt='\n'.join([lines[0]]+lines[a:b])
         rel=lines[0][len('FILE:'):].strip()
-        candidate=(affinity+best,excerpt)
+        test_bonus=900 if (rel.startswith('test/') or '/test/' in rel) and best>0 else 0
+        candidate=(affinity+best+test_bonus,excerpt)
         if rel not in ranked_by_file or candidate[0]>ranked_by_file[rel][0]:
             ranked_by_file[rel]=candidate
     ranked=list(ranked_by_file.values())
     ranked.sort(key=lambda x:-x[0])
-    out='\n\n'.join(x[1] for x in ranked[:3])
+    out='\n\n'.join(x[1] for x in ranked[:4])
     return out[:max_chars]
 
 def _compact_public_issue(raw, max_chars=2800):
@@ -330,8 +331,8 @@ def _sovereign_json(payload):
     if phase=='plan':
         return 0,{'plan':{'paths':[],'queries':[]},'model':'deterministic-public-lexical-planner','pipeline':'sovereign-lexical'},'',False
     if phase=='solve':
-        issue=_compact_public_issue(payload.get('issue',''),1800)
-        ctx=_compact_public_context(payload.get('tool_context',''),issue,2200)
+        issue=_compact_public_issue(payload.get('issue',''),2200)
+        ctx=_compact_public_context(payload.get('tool_context',''),issue,3000)
         prompt=('PUBLIC REPOSITORY CONTEXT:\n'+ctx+'\n\nPUBLIC ISSUE AND CONTRACT:\n'+issue+
                 '\n\nReturn ONLY a JSON object with key "edits". edits is a list of objects with path, start_line, end_line, new. '
                 'Use only supplied public context. start_line and end_line MUST be exact line numbers printed before each source line; never guess or renumber them. Preserve existing ordinary output formatting unless the public issue requires changing it. No markdown, hidden tests, gold patches, evaluator output, or solution PRs.')
@@ -797,7 +798,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
         validation_failed=cr['applied']>0 and not cr['errors'] and cr['validationAttempted'] and cr['validationCode']!=0
         if guard_failed or validation_failed:
             if guard_failed:
-                repair_issue=solver_problem+'\n\nPUBLIC INVARIANT REJECTION for candidate '+label+': '+json.dumps(cr['errors'])[:1200]+'. Re-locate the exact public source hotspot that causes the issue and produce a representation-preserving fix using only the supplied public issue and repository context. MANDATORY REVISION: do not return the rejected edit unchanged. For each control_flow_removed error, retain the named original public control-flow form and its behavior. For fixed_width_conversion_retained, remove the fixed-width conversion rather than placing it behind a range check. Prefer changing only the causal conversion expression while leaving surrounding public guards and branches intact. start_line/end_line must match the printed source line numbers exactly. Do not use hidden tests, gold patches, solution PRs, or evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]
+                repair_issue=solver_problem+'\n\nPUBLIC INVARIANT REJECTION for candidate '+label+': '+json.dumps(cr['errors'])[:1200]+'. Re-locate the exact public source hotspot that causes the issue and produce a representation-preserving fix using only the supplied public issue and repository context. MANDATORY REVISION: do not return the rejected edit unchanged. For each control_flow_removed error, retain the named original public control-flow form and its behavior. For fixed_width_conversion_retained, remove the fixed-width conversion rather than placing it behind a range check. Prefer changing only the causal conversion expression while leaving surrounding public guards and branches intact. If public source uses a fixed-width integer cast only inside an integral-valued branch to preserve plain integer text, replace that cast with the a native unbounded integer conversion while preserving the branch and fractional fallback. start_line/end_line must match the printed source line numbers exactly. Do not use hidden tests, gold patches, solution PRs, or evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]
             else:
                 repair_issue=solver_problem+'\n\nPUBLIC REPOSITORY VALIDATION FAILED for candidate '+label+'. Repair the candidate using only the supplied public validation output and repository context. Do not use hidden tests or benchmark evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]+'\nPUBLIC VALIDATION OUTPUT:\n'+cr['validationPreview'][-6000:]
             repair_offset=2 if label=='A' else 3
