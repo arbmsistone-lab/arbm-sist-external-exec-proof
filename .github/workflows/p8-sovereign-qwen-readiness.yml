@@ -74,7 +74,8 @@ jobs:
           MODEL="$MODEL_DIR/$MODEL_FILE"
           LLAMA_CLI=$(find /tmp/llama -type f -name llama-cli -print -quit)
           /usr/bin/time -v -o p8-sovereign-artifact/time.txt \
-            "$LLAMA_CLI" -m "$MODEL" -c 2048 -n 32 -t 4 \
+            timeout --signal=TERM --kill-after=15s 300s \
+            "$LLAMA_CLI" -m "$MODEL" -c 2048 -n 16 -t 4 -no-cnv \
             --temp 0 -p 'Reply with exactly READY.' \
             > p8-sovereign-artifact/output.txt \
             2> p8-sovereign-artifact/stderr.txt
