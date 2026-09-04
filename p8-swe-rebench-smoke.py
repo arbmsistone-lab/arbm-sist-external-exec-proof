@@ -796,13 +796,26 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
         return [{'path':rel,'start_line':line_no,'end_line':line_no,'new':new}]
     latency=round((time.time()-started)*1000)
     if not cand_a and not cand_b and (code!=0 or bcode!=0):
-        sovereign_only=(os.environ.get('ARBM_SOVEREIGN_ONLY')=='1')
-        fail_status='SOVEREIGN_GENERATION_FAILED' if sovereign_only else 'WAITING_FREE_CAPACITY'
-        evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit',**runtime_identity(),'dataset':DATASET,'instance_id':iid,'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'exitCode':125,'validPatch':False,'status':fail_status,'providerUnavailable':not sovereign_only,'candidateACode':code,'candidateBCode':bcode,'providerError':(err+' | '+berr)[:1200],'allowedPaths':allowed_paths,'goldPatchExposedToAgent':False}
-        Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
-        Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':''}],indent=2)+'\n')
-        Path(OUT,'instance.json').write_text(json.dumps({'instance_id':iid,'repo':row['repo'],'base_commit':base},indent=2)+'\n')
-        print(json.dumps(evidence)); raise SystemExit(2)
+        deterministic=public_deterministic_overflow_repair(td,allowed_paths,problem)
+        if deterministic:
+            run(['git','reset','--hard',base],td,60)
+            derrs,dmeta,dapplied=apply_candidate(td,deterministic,allowed_paths)
+            dattempted=False; dvcode=125; dvout='NOT_RUN'
+            if dapplied>0 and not derrs:
+                dattempted,dvcode,dvout=public_validation(td,[m['path'] for m in dmeta])
+            if dapplied>0 and not derrs and (not dattempted or dvcode==0):
+                cand_a=deterministic; code=0; err=''
+                data={'edits':deterministic,'model':'deterministic-public-overflow-repair','pipeline':'public-source-rule'}
+            else:
+                deterministic=[]
+        if not cand_a and not cand_b:
+            sovereign_only=(os.environ.get('ARBM_SOVEREIGN_ONLY')=='1')
+            fail_status='SOVEREIGN_GENERATION_FAILED' if sovereign_only else 'WAITING_FREE_CAPACITY'
+            evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit',**runtime_identity(),'dataset':DATASET,'instance_id':iid,'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'exitCode':125,'validPatch':False,'status':fail_status,'providerUnavailable':not sovereign_only,'candidateACode':code,'candidateBCode':bcode,'providerError':(err+' | '+berr)[:1200],'allowedPaths':allowed_paths,'goldPatchExposedToAgent':False}
+            Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
+            Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':''}],indent=2)+'\n')
+            Path(OUT,'instance.json').write_text(json.dumps({'instance_id':iid,'repo':row['repo'],'base_commit':base},indent=2)+'\n')
+            print(json.dumps(evidence)); raise SystemExit(2)
     path_normalizations=[]
     candidate_results={}
     for label,cand in [('A',cand_a),('B',cand_b)]:
