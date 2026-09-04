@@ -672,7 +672,7 @@ PUBLIC_INVARIANT_GUIDANCE='''
 
 PUBLIC-SPEC REASONING CONTRACT:
 Before editing, derive the behavioral invariants explicitly implied by the public issue and supplied repository code. A patch is incomplete if it only removes the immediate exception while violating another public invariant.
-For numeric bugs: distinguish representation/formatting from arithmetic conversion; preserve magnitude and intended textual semantics; consider integral-valued floats, very large magnitudes, scientific notation, signs, zero, nil/missing values, and ordinary regression cases when the public issue makes them relevant. Do not widen beyond what the public issue requires: if the issue only states values exceed a narrower integer range, a wider native integer conversion is valid when it covers the public examples; require arbitrary precision only when the public issue explicitly demands values beyond the wider range. Prefer the repository's existing formatting abstractions or language/library mechanisms that satisfy the full public contract.
+For numeric bugs: distinguish representation/formatting from arithmetic conversion; preserve magnitude and intended textual semantics; consider integral-valued floats, very large magnitudes, scientific notation, signs, zero, nil/missing values, and ordinary regression cases when the public issue makes them relevant. Do not solve a serialization overflow by forcing a wider fixed-width numeric cast when a formatting mechanism can preserve the existing textual contract without range overflow. Prefer the repository's existing formatting abstractions or standard language/library formatting mechanisms that preserve ordinary output and the public example.
 Make the smallest causally sufficient edit. Preserve existing guards and control-flow branches, especially nil/missing handling and fractional-number behavior, unless the public issue explicitly requires changing them. If an integral-valued number was deliberately serialized as plain integral text, preserve that representation across the full magnitude required by the public issue; do not retain a fixed-width cast behind a range check whose fallback changes the representation.
 Do not use hidden tests, gold patches, evaluator output, solution PRs, or benchmark answer knowledge.'''
 solver_problem=problem+PUBLIC_INVARIANT_GUIDANCE
@@ -791,17 +791,8 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 if not re.search(r'\(int\s+[^)]+\)',line): continue
                 window='\n'.join(lines[max(0,i-4):min(len(lines),i+5)])
                 if not re.search(r'str|string|format|serialize|write',window,re.I): continue
-                prev=lines[i-1] if i>0 else ''
-                if '(if ' in prev and 'mod ' in prev:
-                    expr=re.search(r'\(int\s+([^)]+)\)',line).group(1)
-                    m=re.match(r'^(\s*)\(if\s+(.+)$',prev)
-                    if not m: continue
-                    indent,condition=m.groups()
-                    guarded_prev=indent+'(if (and '+condition+' (<= Integer/MIN_VALUE '+expr+' Integer/MAX_VALUE))'
-                    ranked.append((score,rel,i,i+1,guarded_prev+'\n'+line))
-                    continue
-                replacement='(bigint {expr})'
-                new=re.sub(r'\(int\s+([^)]+)\)',lambda m:replacement.format(expr=m.group(1)),line,count=1)
+                expr=re.search(r'\(int\s+([^)]+)\)',line).group(1)
+                new=re.sub(r'\(str\s+\(int\s+[^)]+\)\)',lambda m:'(format \"%.0f\" '+expr+')',line,count=1)
                 if new==line: continue
                 ranked.append((score,rel,i+1,i+1,new))
         if not ranked: return []
@@ -849,7 +840,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
         validation_failed=cr['applied']>0 and not cr['errors'] and cr['validationAttempted'] and cr['validationCode']!=0
         if guard_failed or validation_failed:
             if guard_failed:
-                repair_issue=solver_problem+'\n\nPUBLIC INVARIANT REJECTION for candidate '+label+': '+json.dumps(cr['errors'])[:1200]+'. Re-locate the exact public source hotspot that causes the issue and produce a representation-preserving fix using only the supplied public issue and repository context. MANDATORY REVISION: do not return the rejected edit unchanged. For each control_flow_removed error, retain the named original public control-flow form and its behavior. For fixed_width_conversion_retained, remove the fixed-width conversion rather than placing it behind a range check. Prefer changing only the causal conversion expression while leaving surrounding public guards and branches intact. If public source uses a fixed-width integer cast only inside an integral-valued branch to preserve plain integer text, replace that cast with the a native unbounded integer conversion while preserving the branch and fractional fallback. start_line/end_line must match the printed source line numbers exactly. Do not use hidden tests, gold patches, solution PRs, or evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]
+                repair_issue=solver_problem+'\n\nPUBLIC INVARIANT REJECTION for candidate '+label+': '+json.dumps(cr['errors'])[:1200]+'. Re-locate the exact public source hotspot that causes the issue and produce a representation-preserving fix using only the supplied public issue and repository context. MANDATORY REVISION: do not return the rejected edit unchanged. For each control_flow_removed error, retain the named original public control-flow form and its behavior. For fixed_width_conversion_retained, remove the fixed-width conversion rather than placing it behind a range check. Prefer changing only the causal conversion expression while leaving surrounding public guards and branches intact. If public source uses a fixed-width integer cast only inside an integral-valued branch to preserve plain integer text, replace only that serialization expression with a non-overflowing numeric formatting mechanism while preserving the branch and fractional fallback. start_line/end_line must match the printed source line numbers exactly. Do not use hidden tests, gold patches, solution PRs, or evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]
             else:
                 repair_issue=solver_problem+'\n\nPUBLIC REPOSITORY VALIDATION FAILED for candidate '+label+'. Repair the candidate using only the supplied public validation output and repository context. Do not use hidden tests or benchmark evaluator output. Rejected edits: '+json.dumps(cr['edits'])[:5000]+'\nPUBLIC VALIDATION OUTPUT:\n'+cr['validationPreview'][-6000:]
             repair_offset=2 if label=='A' else 3
