@@ -302,12 +302,24 @@ def _sovereign_json(payload):
         max_tokens=220
     else:
         return 126,None,'SOVEREIGN_UNSUPPORTED_PHASE:'+phase,False
+    if phase=='solve':
+        schema={'type':'object','additionalProperties':False,'required':['edits'],'properties':{'edits':{'type':'array','maxItems':4,'items':{'type':'object','additionalProperties':False,'required':['path','start_line','end_line','new'],'properties':{'path':{'type':'string','minLength':1,'maxLength':240},'start_line':{'type':'integer','minimum':1},'end_line':{'type':'integer','minimum':1},'new':{'type':'string','minLength':1,'maxLength':4000}}}}}}
+    else:
+        schema={'type':'object','additionalProperties':False,'required':['choice','reason'],'properties':{'choice':{'type':'string','enum':['A','B','NONE']},'reason':{'type':'string','minLength':1,'maxLength':1200}}}
     body=json.dumps({'model':'arbm-qwen-sovereign','messages':[{'role':'system','content':'You are a precise software repair agent. Output valid JSON only.'},{'role':'user','content':prompt}],
-                     'temperature':0,'max_tokens':max_tokens,'stream':False,'cache_prompt':True,'response_format':{'type':'json_object'}}).encode('utf-8')
+                     'temperature':0,'max_tokens':max_tokens,'stream':False,'cache_prompt':True,'response_format':{'type':'json_object','schema':schema}}).encode('utf-8')
     try:
         req=urllib.request.Request(endpoint,data=body,method='POST'); req.add_header('Content-Type','application/json')
         with urllib.request.urlopen(req,timeout=300) as r: outer=json.loads(r.read().decode('utf-8'))
-        content=outer['choices'][0]['message']['content']; data=json.loads(content)
+        content=outer['choices'][0]['message'].get('content','')
+        if isinstance(content,list): content=''.join(str(x.get('text','')) if isinstance(x,dict) else str(x) for x in content)
+        text=str(content).strip()
+        if text.startswith('```'):
+            text=re.sub(r'^```(?:json)?\s*|\s*```$','',text,flags=re.I|re.S).strip()
+        if not text.startswith('{'):
+            a=text.find('{'); b=text.rfind('}')
+            if a>=0 and b>a: text=text[a:b+1]
+        data=json.loads(text)
         data['model']='Qwen2.5-Coder-14B-Instruct-Q4_K_M'; data['pipeline']='sovereign-github-public-runner'
         data['attempts']=[{'provider':'local-llama-server','status':'ok'}]
         return 0,data,'',False
