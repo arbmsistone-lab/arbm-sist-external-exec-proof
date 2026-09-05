@@ -1,9 +1,7 @@
 diff --git a/crates/core/flags/hiargs.rs b/crates/core/flags/hiargs.rs
-index df09dce..840e850 100644
 --- a/crates/core/flags/hiargs.rs
 +++ b/crates/core/flags/hiargs.rs
-@@ -123,8 +123,8 @@ impl HiArgs {
- 
+@@ -124,7 +124,7 @@ impl LowArgs {
          // We modify the mode in-place on `low` so that subsequent conversions
          // see the correct mode.
 -        match low.mode {
@@ -31,7 +29,7 @@ index df09dce..840e850 100644
              let ordering = match (*t1, *t2) {
                  // Both have metadata, do the obvious thing.
                  (Some(t1), Some(t2)) => t1.cmp(&t2),
-@@ -1179,16 +1179,16 @@ fn types(low: &LowArgs) -> anyhow::Result<ignore::types::Types> {
+@@ -1179,16 +1179,16 @@ fn build_types(low: &LowArgs) -> anyhow::Result<ignore::types::Types> {
      builder.add_defaults();
      for tychange in low.type_changes.iter() {
          match tychange {
@@ -52,61 +50,3 @@ index df09dce..840e850 100644
                  builder.negate(name);
              }
          }
-diff --git a/rust2024_compat.patch b/rust2024_compat.patch
-new file mode 100644
-index 0000000..1920c6c
---- /dev/null
-+++ b/rust2024_compat.patch
-@@ -0,0 +1,52 @@
-+diff --git a/crates/core/flags/hiargs.rs b/crates/core/flags/hiargs.rs
-+--- a/crates/core/flags/hiargs.rs
-++++ b/crates/core/flags/hiargs.rs
-+@@ -124,7 +124,7 @@ impl LowArgs {
-+         // We modify the mode in-place on `low` so that subsequent conversions
-+         // see the correct mode.
-+-        match low.mode {
-+-            Mode::Search(ref mut mode) => match *mode {
-++        match &mut low.mode {
-++            Mode::Search(mode) => match *mode {
-+                 // treat `-v --count-matches` as `-v --count`
-+                 SearchMode::CountMatches if low.invert_match => {
-+                     *mode = SearchMode::Count;
-+@@ -773,7 +773,7 @@ impl HiArgs {
-+             SortModeKind::Path if !sort.reverse => return Box::new(haystacks),
-+             SortModeKind::Path => {
-+                 let mut haystacks = haystacks.collect::<Vec<Haystack>>();
-+-                haystacks.sort_by(|ref h1, ref h2| {
-++                haystacks.sort_by(|h1, h2| {
-+                     h1.path().cmp(h2.path()).reverse()
-+                 });
-+                 return Box::new(haystacks.into_iter());
-+@@ -788,7 +788,7 @@ impl HiArgs {
-+                 attach_timestamps(haystacks, |md| md.created()).collect()
-+             }
-+         };
-+-        with_timestamps.sort_by(|(_, ref t1), (_, ref t2)| {
-++        with_timestamps.sort_by(|(_, t1), (_, t2)| {
-+             let ordering = match (*t1, *t2) {
-+                 // Both have metadata, do the obvious thing.
-+                 (Some(t1), Some(t2)) => t1.cmp(&t2),
-+@@ -1179,16 +1179,16 @@ fn build_types(low: &LowArgs) -> anyhow::Result<ignore::types::Types> {
-+     builder.add_defaults();
-+     for tychange in low.type_changes.iter() {
-+         match tychange {
-+-            TypeChange::Clear { ref name } => {
-++            TypeChange::Clear { name } => {
-+                 builder.clear(name);
-+             }
-+-            TypeChange::Add { ref def } => {
-++            TypeChange::Add { def } => {
-+                 builder.add_def(def)?;
-+             }
-+-            TypeChange::Select { ref name } => {
-++            TypeChange::Select { name } => {
-+                 builder.select(name);
-+             }
-+-            TypeChange::Negate { ref name } => {
-++            TypeChange::Negate { name } => {
-+                 builder.negate(name);
-+             }
-+         }
