@@ -1,0 +1,49 @@
+name: OSWorld disk capacity zero-spend probe
+on:
+  push:
+    paths:
+      - '.github/workflows/kvm-osworld-disk-probe.yml'
+permissions:
+  contents: read
+jobs:
+  disk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Baseline disk
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h / | tee disk-probe.txt
+          df -B1 / | tee -a disk-probe.txt
+          du -sh /opt/hostedtoolcache /usr/local/lib/android /usr/share/dotnet /opt/ghc 2>/dev/null | tee -a disk-probe.txt || true
+      - name: Free disposable runner SDK space
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo apt-get clean
+          df -h / | tee -a disk-probe.txt
+          df -B1 / | tee -a disk-probe.txt
+      - name: Evaluate OSWorld image fit
+        shell: bash
+        run: |
+          set -euo pipefail
+          free_bytes=$(df -B1 --output=avail / | tail -1 | tr -d ' ')
+          compressed=14189763267
+          echo "free_bytes=${free_bytes}" | tee -a disk-probe.txt
+          echo "compressed_image_bytes=${compressed}" | tee -a disk-probe.txt
+          if [ "${free_bytes}" -gt 30000000000 ]; then
+            echo 'OSWORLD_DISK_HEADROOM=PASS' | tee -a disk-probe.txt
+          else
+            echo 'OSWORLD_DISK_HEADROOM=INSUFFICIENT' | tee -a disk-probe.txt
+            exit 2
+          fi
+      - name: Upload disk evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: osworld-disk-zero-spend-probe
+          path: disk-probe.txt
+          if-no-files-found: error
