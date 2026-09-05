@@ -6,9 +6,15 @@ on:
       - 'codex-parity-gate.mjs'
       - 'codex-parity-gate-test.mjs'
       - 'codex-parity-evidence.json'
+      - 'CODEX-PARITY-FLOOR.md'
+      - 'p8-repro-proof.mjs'
+      - 'p8-repro-proof-test.mjs'
+      - 'p9-evidence-manifest.mjs'
+      - 'p9-evidence-manifest-test.mjs'
       - '.github/workflows/p9-codex-parity-gate.yml'
 permissions:
   contents: read
+  actions: read
 jobs:
   parity-gate:
     runs-on: ubuntu-24.04
@@ -16,6 +22,59 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Gate unit tests
-        run: node codex-parity-gate-test.mjs
+        run: |
+          node codex-parity-gate-test.mjs
+          node p8-repro-proof-test.mjs
+          node p9-evidence-manifest-test.mjs
+      - name: Fetch reproducible P8 proof
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p p9-proof/p8-artifact
+          read -r RUN_ID HEAD_SHA <<<"$(python - <<'PY'
+          import json
+          e=json.load(open('codex-parity-evidence.json',encoding='utf-8'))['p8Evidence']
+          print(e['runId'],e['headSha'])
+          PY
+          )"
+          API="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}"
+          AUTH="Authorization: Bearer ${GH_TOKEN}"
+          curl -fsSL -H "$AUTH" -H 'Accept: application/vnd.github+json' "$API/attempts/1" > p9-proof/attempt1.json
+          curl -fsSL -H "$AUTH" -H 'Accept: application/vnd.github+json' "$API/attempts/2" > p9-proof/attempt2.json
+          curl -fsSL -H "$AUTH" -H 'Accept: application/vnd.github+json' "$API/attempts/1/jobs" > p9-proof/jobs1.json
+          curl -fsSL -H "$AUTH" -H 'Accept: application/vnd.github+json' "$API/attempts/2/jobs" > p9-proof/jobs2.json
+          curl -fsSL -H "$AUTH" -H 'Accept: application/vnd.github+json' "$API/artifacts" > p9-proof/artifacts.json
+          python - <<'PY'
+          import json
+          d=json.load(open('p9-proof/artifacts.json',encoding='utf-8'))
+          a=next(x for x in d['artifacts'] if x['name']=='p8-swe-rebench-v2-real-smoke')
+          open('p9-proof/artifact-id.txt','w').write(str(a['id']))
+          PY
+          ARTIFACT_ID=$(cat p9-proof/artifact-id.txt)
+          curl -fsSL -L -H "$AUTH" -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" \
+            -o p9-proof/p8-artifact.zip
+          unzip -q p9-proof/p8-artifact.zip -d p9-proof/p8-artifact
+          test -f p9-proof/p8-artifact/agent-evidence.json
+          node p8-repro-proof.mjs \
+            codex-parity-evidence.json \
+            p9-proof/attempt1.json p9-proof/attempt2.json \
+            p9-proof/jobs1.json p9-proof/jobs2.json \
+            p9-proof/artifacts.json p9-proof/p8-artifact/agent-evidence.json
+      - name: Freeze and verify P9 evidence hashes
+        run: |
+          python - <<'PY'
+          import hashlib,json,pathlib
+          files=['codex-parity-evidence.json','p9-proof/attempt1.json','p9-proof/attempt2.json',
+                 'p9-proof/jobs1.json','p9-proof/jobs2.json','p9-proof/artifacts.json',
+                 'p9-proof/p8-artifact/agent-evidence.json']
+          out=[]
+          for f in files:
+              b=pathlib.Path(f).read_bytes()
+              out.append({'path':f,'sha256':hashlib.sha256(b).hexdigest()})
+          pathlib.Path('p9-evidence-manifest.json').write_text(json.dumps({'files':out},indent=2)+'\n')
+          PY
+          node p9-evidence-manifest.mjs . p9-evidence-manifest.json
       - name: Evaluate release evidence
         run: node codex-parity-gate.mjs codex-parity-evidence.json

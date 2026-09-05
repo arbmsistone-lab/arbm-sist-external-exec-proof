@@ -5,8 +5,7 @@ const hashes = ['a'.repeat(64)];
 const base = {
   reference: { product: 'OpenAI Codex', capturedAt: '2026-09-04T00:00:00Z', validUntil: '2026-10-04T23:59:59Z', publicSources: ['official'] },
   qualityPolicy: { mode: 'CODEX_HARD_FLOOR', sameTaskContract: true, confidenceLevel: 0.95, nonInferiorityMarginPp: 2, noQualityDowngradeForCost: true },
-  costPolicy: { mode: 'QUALITY_FLOOR_THEN_MIN_COST', paidEscalationAllowed: true, benchmarkCostTracked: true, maxAverageAiCostBRLPerActiveUserMonth: 30, arbmCostPerResolvedTaskBRL: 0.05, codexCostPerResolvedTaskBRL: 0.10 },
-  commercial: { licensePriceBRL: 1197, monthlyPriceBRL: 79.90, noAutomaticOverageCharge: true },
+  costPolicy: { mode: 'ZERO_SPEND_HARD', zeroSpendMode: 'HARD', paidEscalationAllowed: false, benchmarkCostTracked: true, maxMandatoryAiCostBRLPerActiveUserMonth: 0, arbmProviderCostPerResolvedTaskBRL: 0 },
   p8Complete: true,
   p9IndependentAudit: true,
   failedRunsDisclosed: true,
@@ -19,9 +18,13 @@ const base = {
 const now = new Date('2026-09-10T00:00:00Z');
 assert.equal(evaluateCodexParity(base, now).pass, true);
 
-const expensive = structuredClone(base);
-expensive.costPolicy.arbmCostPerResolvedTaskBRL = 0.11;
-assert.ok(evaluateCodexParity(expensive, now).reasons.includes('COST_ADVANTAGE_NOT_PROVEN'));
+const paid = structuredClone(base);
+paid.costPolicy.paidEscalationAllowed = true;
+assert.ok(evaluateCodexParity(paid, now).reasons.includes('PAID_ESCALATION_FORBIDDEN'));
+
+const nonzero = structuredClone(base);
+nonzero.costPolicy.arbmProviderCostPerResolvedTaskBRL = 0.01;
+assert.ok(evaluateCodexParity(nonzero, now).reasons.includes('RESOLVED_TASK_PROVIDER_COST_NOT_ZERO'));
 
 const weak = structuredClone(base);
 weak.dimensions[0].ciLowerDifferencePp = -2.1;

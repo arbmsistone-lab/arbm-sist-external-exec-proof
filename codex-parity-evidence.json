@@ -19,23 +19,28 @@
     "noQualityDowngradeForCost": true
   },
   "costPolicy": {
-    "mode": "QUALITY_FLOOR_THEN_MIN_COST",
-    "paidEscalationAllowed": true,
+    "mode": "ZERO_SPEND_HARD",
+    "zeroSpendMode": "HARD",
+    "paidEscalationAllowed": false,
     "benchmarkCostTracked": true,
-    "maxAverageAiCostBRLPerActiveUserMonth": 30,
-    "arbmCostPerResolvedTaskBRL": null,
-    "codexCostPerResolvedTaskBRL": null
+    "maxMandatoryAiCostBRLPerActiveUserMonth": 0,
+    "arbmProviderCostPerResolvedTaskBRL": 0
   },
-  "commercial": {
-    "licensePriceBRL": 1197,
-    "monthlyPriceBRL": 79.90,
-    "noAutomaticOverageCharge": true
-  },
-  "p8Complete": false,
+  "p8Complete": true,
   "p9IndependentAudit": false,
   "failedRunsDisclosed": true,
-  "rawArtifactsHashed": false,
+  "rawArtifactsHashed": true,
   "noHiddenEvaluatorFeedback": true,
   "continuousParityWatch": true,
-  "dimensions": []
+  "dimensions": [],
+  "p8Evidence": {
+    "repository": "arbmsistone-lab/arbm-sist-external-exec-proof",
+    "runId": 33973829039,
+    "headSha": "3f86c85b4fc91c607be72cd55d2ec3e7d1661733",
+    "successfulAttempts": [
+      1,
+      2
+    ],
+    "artifactName": "p8-swe-rebench-v2-real-smoke"
+  }
 }

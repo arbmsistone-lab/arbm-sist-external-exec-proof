@@ -17,7 +17,6 @@ export const REQUIRED_DIMENSIONS = [
 const finiteScore = (x) => Number.isFinite(Number(x)) && Number(x) >= 0 && Number(x) <= 1;
 const finiteNumber = (x) => Number.isFinite(Number(x));
 const isoDate = (x) => typeof x === 'string' && !Number.isNaN(Date.parse(x));
-const approx = (a, b, eps = 0.001) => Math.abs(Number(a) - Number(b)) <= eps;
 
 export function evaluateCodexParity(evidence, now = new Date()) {
   const reasons = [];
@@ -25,7 +24,6 @@ export function evaluateCodexParity(evidence, now = new Date()) {
   const ref = e.reference && typeof e.reference === 'object' ? e.reference : {};
   const quality = e.qualityPolicy && typeof e.qualityPolicy === 'object' ? e.qualityPolicy : {};
   const cost = e.costPolicy && typeof e.costPolicy === 'object' ? e.costPolicy : {};
-  const commercial = e.commercial && typeof e.commercial === 'object' ? e.commercial : {};
 
   if (ref.product !== 'OpenAI Codex') reasons.push('REFERENCE_PRODUCT_INVALID');
   if (!isoDate(ref.capturedAt)) reasons.push('REFERENCE_DATE_MISSING');
@@ -44,15 +42,12 @@ export function evaluateCodexParity(evidence, now = new Date()) {
   if (e.noHiddenEvaluatorFeedback !== true) reasons.push('HIDDEN_EVALUATOR_FIREWALL_NOT_PROVEN');
   if (e.continuousParityWatch !== true) reasons.push('CONTINUOUS_PARITY_WATCH_MISSING');
 
-  if (cost.mode !== 'QUALITY_FLOOR_THEN_MIN_COST') reasons.push('COST_POLICY_INVALID');
-  if (cost.paidEscalationAllowed !== true) reasons.push('PAID_ESCALATION_NOT_ALLOWED');
+  if (cost.mode !== 'ZERO_SPEND_HARD') reasons.push('COST_POLICY_INVALID');
+  if (cost.zeroSpendMode !== 'HARD') reasons.push('ZERO_SPEND_MODE_INVALID');
+  if (cost.paidEscalationAllowed !== false) reasons.push('PAID_ESCALATION_FORBIDDEN');
   if (cost.benchmarkCostTracked !== true) reasons.push('BENCHMARK_COST_NOT_TRACKED');
-  if (!finiteNumber(cost.maxAverageAiCostBRLPerActiveUserMonth) || Number(cost.maxAverageAiCostBRLPerActiveUserMonth) > 30) reasons.push('AI_COST_TARGET_INVALID');
-  if (!finiteNumber(cost.arbmCostPerResolvedTaskBRL) || !finiteNumber(cost.codexCostPerResolvedTaskBRL) || Number(cost.arbmCostPerResolvedTaskBRL) >= Number(cost.codexCostPerResolvedTaskBRL)) reasons.push('COST_ADVANTAGE_NOT_PROVEN');
-
-  if (!approx(commercial.licensePriceBRL, 1197)) reasons.push('LICENSE_TARGET_MISMATCH');
-  if (!approx(commercial.monthlyPriceBRL, 79.90)) reasons.push('MONTHLY_TARGET_MISMATCH');
-  if (commercial.noAutomaticOverageCharge !== true) reasons.push('NO_SURPRISE_BILLING_NOT_PROVEN');
+  if (!finiteNumber(cost.maxMandatoryAiCostBRLPerActiveUserMonth) || Number(cost.maxMandatoryAiCostBRLPerActiveUserMonth) !== 0) reasons.push('MANDATORY_AI_COST_NOT_ZERO');
+  if (!finiteNumber(cost.arbmProviderCostPerResolvedTaskBRL) || Number(cost.arbmProviderCostPerResolvedTaskBRL) !== 0) reasons.push('RESOLVED_TASK_PROVIDER_COST_NOT_ZERO');
 
   if (!Array.isArray(e.dimensions)) reasons.push('DIMENSIONS_MISSING');
   const byId = new Map((Array.isArray(e.dimensions) ? e.dimensions : []).map((d) => [d?.id, d]));
@@ -72,7 +67,7 @@ export function evaluateCodexParity(evidence, now = new Date()) {
   const pass = reasons.length === 0;
   return {
     schema: 'arbm-codex-parity-gate-v2',
-    policy: 'CODEX_PARITY_HARD_FLOOR+QUALITY_FIRST_COST_MIN_HARD',
+    policy: 'CODEX_PARITY_HARD_FLOOR+ZERO_SPEND_HARD',
     pass,
     release: pass ? 'PARITY_GATE_PASS' : 'BLOCKED',
     reasons,
