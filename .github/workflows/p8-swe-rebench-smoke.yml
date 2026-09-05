@@ -106,6 +106,7 @@ jobs:
         timeout-minutes: 9
         env:
           ARBM_SOVEREIGN_ONLY: '1'
+          ARBM_RESUME_PUBLIC_EVIDENCE: '1'
           ARBM_SOVEREIGN_TIMEOUT_SECONDS: '420'
           MODEL_LABEL: ARBM-Sovereign-Qwen14B-v22
           MODEL_PROVIDER: github-public-runner-open-weight
