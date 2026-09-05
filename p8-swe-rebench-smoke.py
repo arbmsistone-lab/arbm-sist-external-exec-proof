@@ -341,6 +341,31 @@ def _compact_public_validation_output(raw, max_chars=2200):
     half=(max_chars-5)//2
     return text[:half]+'\n...\n'+text[-(max_chars-half-5):]
 
+def _semantic_candidate_fingerprint(edits):
+    normalized=[]
+    for e in edits if isinstance(edits,list) else []:
+        if not isinstance(e,dict): continue
+        normalized.append({'path':str(e.get('path','')).replace('\\','/').lstrip('/'),'start_line':int(e.get('start_line',0) or 0),'end_line':int(e.get('end_line',0) or 0),'new':' '.join(str(e.get('new','')).split())})
+    normalized.sort(key=lambda x:(x['path'],x['start_line'],x['end_line'],x['new']))
+    raw=json.dumps(normalized,sort_keys=True,separators=(',',':'),ensure_ascii=False)
+    return __import__('hashlib').sha256(raw.encode('utf-8')).hexdigest()
+
+def _extract_public_constraint_ledger(raw, existing=None, max_items=16):
+    ledger=list(existing or []); seen=set(ledger); current=''
+    for line in (x.strip() for x in str(raw).splitlines() if x.strip()):
+        if line.startswith(('FAIL in ','ERROR in ')):
+            current=line; item='PUBLIC_TEST: '+line
+        elif line.startswith('expected:'):
+            item=('CONSTRAINT: '+current+' | ' if current else 'CONSTRAINT: ')+line
+        elif line.startswith('actual:'):
+            item=('COUNTEREXAMPLE: '+current+' | ' if current else 'COUNTEREXAMPLE: ')+line
+        elif line.startswith('PUBLIC INVARIANT REJECTION:') or line.startswith('public_invariant_') or line.startswith('DUPLICATE_FAILED_CANDIDATE'):
+            item='STRUCTURAL: '+line
+        else:
+            continue
+        item=item[:700]
+        if item not in seen: seen.add(item); ledger.append(item)
+    return ledger[-max_items:]
 def _sovereign_json(payload):
     endpoint=os.environ.get('ARBM_SOVEREIGN_ENDPOINT','')
     if not endpoint: return 126,None,'NO_SOVEREIGN_ENDPOINT',False
@@ -359,7 +384,11 @@ def _sovereign_json(payload):
         if feedback:
             prompt+='\n\nREJECTED CANDIDATE (failed public tests):\n'+json.dumps(payload.get('rejected_edits',[]),ensure_ascii=False)[:700]
             prompt+='\n\nPUBLIC VALIDATION FAILURES:\n'+_compact_public_validation_output(feedback,1400)
-            prompt+='\nRevise the rejected candidate; do not repeat it. Fix every reported public failure while preserving the original public invariants. Return a complete candidate against the original numbered source, including all necessary edits, not an incremental patch against the rejected candidate.'
+            ledger=payload.get('public_constraint_ledger',[])
+            if ledger: prompt+='\n\nACCUMULATED PUBLIC CONSTRAINT LEDGER:\n'+'\n'.join(str(x) for x in ledger)[:1800]
+            fps=payload.get('failed_candidate_fingerprints',[])
+            if fps: prompt+='\n\nFAILED CANDIDATE FINGERPRINTS (must not repeat semantically):\n'+'\n'.join(str(x) for x in fps[-12:])
+            prompt+='\nRevise the rejected candidate; do not repeat it or any semantically equivalent failed candidate. Fix every accumulated public constraint while preserving the original public invariants. Return a complete candidate against the original numbered source, including all necessary edits, not an incremental patch against the rejected candidate.'
             max_tokens=224
     elif phase=='judge':
         ctx=str(payload.get('tool_context',''))[:3500]
@@ -976,8 +1005,11 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     public_repair_attempts=[]
                     rejected_chain=list(repaired)
                     current_vout=vout
+                    failed_candidate_fingerprints=[_semantic_candidate_fingerprint(repaired)]
+                    public_constraint_ledger=_extract_public_constraint_ledger(vout)
                     for public_attempt in range(1,4):
                         failure_summary=_compact_public_validation_output(current_vout,2200)
+                        public_constraint_ledger=_extract_public_constraint_ledger(current_vout,public_constraint_ledger)
                         follow_issue=(solver_problem+'\n\nPUBLIC REPOSITORY VALIDATION FAILED AFTER FIRST PUBLIC REPAIR / ITERATIVE PUBLIC REPAIR for candidate '+label+
                                       '. This is bounded public repair attempt '+str(public_attempt)+' of 3. Use only public repository source and public test failures. '
                                       'Treat every expected/actual pair and public exception below as a semantic constraint that the next complete candidate must satisfy simultaneously. '
@@ -987,12 +1019,23 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                             follow_issue+='\nPUBLIC CAUSAL LINE HINT derived only from the public repository: '+json.dumps(causal_hints)+'. Do not reintroduce fixed-width integer conversion.'
                         follow_issue+='\nPUBLIC VALIDATION OUTPUT SUMMARY (public tests only):\n'+failure_summary
                         follow_issue+='\nPUBLIC SEMANTIC CONSTRAINTS / COUNTEREXAMPLES:\n'+failure_summary
+                        follow_issue+='\nACCUMULATED PUBLIC CONSTRAINT LEDGER:\n'+'\n'.join(public_constraint_ledger)[:2200]
+                        follow_issue+='\nFAILED SEMANTIC FINGERPRINTS: '+json.dumps(failed_candidate_fingerprints[-12:])
                         foffset=repair_offset+1+public_attempt
-                        fcode,fdata,ferr,ftimed=remote_json({'phase':'solve','issue':follow_issue,'tool_context':context,'instance_id':iid,'model_offset':foffset,'review_model_offset':foffset,'public_validation_feedback':failure_summary,'rejected_edits':rejected_chain})
+                        fcode,fdata,ferr,ftimed=remote_json({'phase':'solve','issue':follow_issue,'tool_context':context,'instance_id':iid,'model_offset':foffset,'review_model_offset':foffset,'public_validation_feedback':failure_summary,'rejected_edits':rejected_chain,'public_constraint_ledger':public_constraint_ledger,'failed_candidate_fingerprints':failed_candidate_fingerprints})
                         follow=dedupe_edits((fdata or {}).get('edits',[]) if fcode==0 else [])
-                        frec={'attempt':public_attempt,'modelOffset':foffset,'providerCode':fcode,'providerError':ferr[:500],'providerMeta':provider_meta(fdata),'edits':follow}
+                        follow_fingerprint=_semantic_candidate_fingerprint(follow) if follow else ''
+                        frec={'attempt':public_attempt,'modelOffset':foffset,'providerCode':fcode,'providerError':ferr[:500],'providerMeta':provider_meta(fdata),'edits':follow,'semanticFingerprint':follow_fingerprint}
                         if not follow:
                             public_repair_attempts.append(frec); break
+                        if follow_fingerprint in failed_candidate_fingerprints:
+                            frec.update({'errors':['DUPLICATE_FAILED_CANDIDATE'],'applied':0,'validationAttempted':False,'validationCode':125,'validationPreview':'NOT_RUN'})
+                            public_repair_attempts.append(frec)
+                            rejected_chain=follow
+                            current_vout='PUBLIC INVARIANT REJECTION:\nDUPLICATE_FAILED_CANDIDATE:'+follow_fingerprint
+                            public_constraint_ledger=_extract_public_constraint_ledger(current_vout,public_constraint_ledger)
+                            continue
+                        failed_candidate_fingerprints.append(follow_fingerprint)
                         run(['git','reset','--hard',base],td,60)
                         fguard=public_invariant_guard(td,follow,problem)
                         ferrs=[]; fmeta=[]; fapplied=0
@@ -1012,7 +1055,10 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                             current_vout='PUBLIC INVARIANT REJECTION:\n'+'\n'.join(str(x) for x in ferrs)
                         else:
                             current_vout=fvout if fvout!='NOT_RUN' else current_vout
+                        public_constraint_ledger=_extract_public_constraint_ledger(current_vout,public_constraint_ledger)
                     rec['publicValidationRepairs']=public_repair_attempts
+                    rec['publicConstraintLedger']=public_constraint_ledger
+                    rec['failedCandidateFingerprints']=failed_candidate_fingerprints
                     if public_repair_attempts:
                         frec=public_repair_attempts[-1]
                         rec['publicValidationRepair']=frec
