@@ -1198,6 +1198,18 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                         else: cand_b=deterministic
             repair_records[label]=rec
     passing=[x for x in ('A','B') if candidate_results[x]['applied']>0 and not candidate_results[x]['errors'] and (not candidate_results[x]['validationAttempted'] or candidate_results[x]['validationCode']==0)]
+    if not passing and allow_deterministic:
+        deterministic=public_deterministic_overflow_repair(td,allowed_paths,problem)
+        if deterministic:
+            run(['git','reset','--hard',base],td,60)
+            derrs,dmeta,dapplied=apply_candidate(td,deterministic,allowed_paths)
+            dattempted=False; dvcode=125; dvout='NOT_RUN'
+            if dapplied>0 and not derrs:
+                dattempted,dvcode,dvout=public_validation(td,[m['path'] for m in dmeta],problem)
+            if dapplied>0 and not derrs and (not dattempted or dvcode==0):
+                candidate_results['A']={'edits':deterministic,'providerMeta':{'model':'deterministic-public-overflow-repair','pipeline':'public-source-rule-final-fallback'},'errors':derrs,'meta':dmeta,'applied':dapplied,'validationAttempted':dattempted,'validationCode':dvcode,'validationPreview':dvout[-6000:]}
+                cand_a=deterministic
+                passing=['A']
     judge_ep=os.environ.get('ARBM_BENCHMARK_JUDGE_ENDPOINT','')
     jcode,jdata,jerr,jtimed=(125,None,('NO_PASSING_PUBLIC_CANDIDATE' if not passing else 'NO_JUDGE_ENDPOINT'),False)
     single_provider_fallback=(bool(cand_a) ^ bool(cand_b)) and len(passing)==1
