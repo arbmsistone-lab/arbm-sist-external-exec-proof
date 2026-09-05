@@ -6,6 +6,10 @@ on:
       - 'codex-parity-gate.mjs'
       - 'codex-parity-gate-test.mjs'
       - 'codex-parity-evidence.json'
+      - 'p9-independent-audit.mjs'
+      - 'p9-independent-audit-test.mjs'
+      - 'p9-paired-samples.json'
+      - 'P9-PAIRED-SAMPLES-CONTRACT.md'
       - 'CODEX-PARITY-FLOOR.md'
       - 'p8-repro-proof.mjs'
       - 'p8-repro-proof-test.mjs'
@@ -18,7 +22,7 @@ permissions:
 jobs:
   parity-gate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - name: Gate unit tests
@@ -26,6 +30,7 @@ jobs:
           node codex-parity-gate-test.mjs
           node p8-repro-proof-test.mjs
           node p9-evidence-manifest-test.mjs
+          node p9-independent-audit-test.mjs
       - name: Fetch reproducible P8 proof
         env:
           GH_TOKEN: ${{ github.token }}
@@ -62,13 +67,19 @@ jobs:
             p9-proof/attempt1.json p9-proof/attempt2.json \
             p9-proof/jobs1.json p9-proof/jobs2.json \
             p9-proof/artifacts.json p9-proof/p8-artifact/agent-evidence.json
+      - name: Build independent paired audit
+        run: |
+          set -euo pipefail
+          test -f p9-paired-samples.json || { echo 'P9_PAIRED_SAMPLES_MISSING'; exit 2; }
+          node p9-independent-audit.mjs \
+            p9-paired-samples.json codex-parity-evidence.json p9-proof/audited-evidence.json
       - name: Freeze and verify P9 evidence hashes
         run: |
           python - <<'PY'
           import hashlib,json,pathlib
-          files=['codex-parity-evidence.json','p9-proof/attempt1.json','p9-proof/attempt2.json',
-                 'p9-proof/jobs1.json','p9-proof/jobs2.json','p9-proof/artifacts.json',
-                 'p9-proof/p8-artifact/agent-evidence.json']
+          files=['codex-parity-evidence.json','p9-paired-samples.json','p9-proof/audited-evidence.json',
+                 'p9-proof/attempt1.json','p9-proof/attempt2.json','p9-proof/jobs1.json',
+                 'p9-proof/jobs2.json','p9-proof/artifacts.json','p9-proof/p8-artifact/agent-evidence.json']
           out=[]
           for f in files:
               b=pathlib.Path(f).read_bytes()
@@ -76,5 +87,14 @@ jobs:
           pathlib.Path('p9-evidence-manifest.json').write_text(json.dumps({'files':out},indent=2)+'\n')
           PY
           node p9-evidence-manifest.mjs . p9-evidence-manifest.json
-      - name: Evaluate release evidence
-        run: node codex-parity-gate.mjs codex-parity-evidence.json
+      - name: Evaluate audited release evidence
+        run: node codex-parity-gate.mjs p9-proof/audited-evidence.json
+      - name: Upload P9 evidence bundle
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: p9-codex-parity-evidence
+          path: |
+            p9-proof
+            p9-evidence-manifest.json
+          retention-days: 30
