@@ -43,7 +43,7 @@ jobs:
           set -euo pipefail
           python -m pip install --disable-pip-version-check -q -U huggingface_hub
           export HF_XET_HIGH_PERFORMANCE=1
-          hf download xlangai/v2-image osworld-v2-ubuntu-x86.qcow2.zip --repo-type dataset --revision v2026.06.24 --local-dir hf-vm
+          hf download xlangai/v2-image osworld-v2-ubuntu-x86.qcow2.zip --repo-type dataset --revision 8213366932c553e5fe758d0f2c8c8b81ffc3be8c --local-dir hf-vm
           cp hf-vm/osworld-v2-ubuntu-x86.qcow2.zip osworld-vm.zip
           echo "VM_ZIP_BYTES=$(stat -c%s osworld-vm.zip)" | tee -a osworld-boot.txt
           actual=$(sha256sum osworld-vm.zip | awk '{print $1}')
