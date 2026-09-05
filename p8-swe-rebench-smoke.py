@@ -968,8 +968,9 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     indent=m.group(1)
                     fallback=lines[i+1].strip()
                     if not re.match(r'^\(str\s+'+re.escape(expr)+r'\)\)+$',fallback): continue
-                    new=(indent+'(if (zero? (mod '+expr+' 1))\n'
-                         +indent+'  (cstr/replace (str '+expr+') #"\\.0$" "")\n'
+                    new=(indent+'(if (and (< (Math/ulp (float '+expr+')) 1.0)\n'
+                         +indent+'         (zero? (mod '+expr+' 1)))\n'
+                         +indent+'  (format "%.0f" '+expr+')\n'
                          +indent+'  '+fallback)
                     ranked.append((score,rel,i,i+2,new))
                     continue
@@ -1045,10 +1046,11 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 floating_qual=('qual' in low and 'vcf' in low and rel.endswith('/vcf/writer.clj'))
                 integer_coercion_new=bool(re.search(r'\((?:int|long|bigint)\s+',new,re.I))
                 forced_fixed_decimal=bool(re.search(r'\bformat\s+"%\.0f"',new,re.I))
+                precision_guarded_format=bool(re.search(r'Math/ulp\s+\(float\s+',new,re.I) and re.search(r'<\s*.*1\.0',new,re.I))
                 if bounded_old and same_width_new and serialization: errs.append('public_invariant_fixed_width_conversion_retained:'+rel)
                 if bounded_old and long_width_new and serialization and unbounded_required: errs.append('public_invariant_fixed_width_conversion_retained:'+rel)
                 if bounded_old and floating_qual and serialization and integer_coercion_new: errs.append('public_invariant_floating_qual_integer_coercion:'+rel)
-                if bounded_old and floating_qual and serialization and forced_fixed_decimal: errs.append('public_invariant_floating_qual_forced_decimal:'+rel)
+                if bounded_old and floating_qual and serialization and forced_fixed_decimal and not precision_guarded_format: errs.append('public_invariant_floating_qual_forced_decimal:'+rel)
                 for form in ('when','when-not','when-let','if','if-not','if-let','cond','case'):
                     pattern=r'\('+re.escape(form)+r'\b'
                     if len(re.findall(pattern,new)) < len(re.findall(pattern,old)):

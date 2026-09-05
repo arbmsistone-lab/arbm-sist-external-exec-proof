@@ -253,6 +253,18 @@ class SmokePolicyTests(unittest.TestCase):
             errors = guard(repo, edit, 'QUAL value overflows when writing VCF; huge values exceed Integer range')
         self.assertTrue(any('floating_qual_forced_decimal' in e for e in errors))
 
+    def test_floating_qual_guard_allows_precision_guarded_format(self):
+        guard = load_function('public_invariant_guard', {'Path': Path, 're': re})
+        with tempfile.TemporaryDirectory() as repo:
+            target = Path(repo, 'src/cljam/io/vcf/writer.clj')
+            target.parent.mkdir(parents=True)
+            target.write_text('  (when x\n    (if (zero? (mod x 1))\n      (str (int x))\n      (str x))))\n', encoding='utf-8')
+            edit = [{'path':'src/cljam/io/vcf/writer.clj','start_line':1,'end_line':4,
+                     'new':'  (when x\n    (if (and (< (Math/ulp (float x)) 1.0) (zero? (mod x 1)))\n      (format "%.0f" x)\n      (str x))))'}]
+            errors = guard(repo, edit, 'QUAL value overflows when writing VCF; huge values exceed Integer range')
+        self.assertFalse(any('floating_qual_forced_decimal' in e for e in errors))
+        self.assertEqual(errors, [])
+
 
     def test_public_causal_hint_targets_only_fixed_width_line(self):
         hints_fn = load_function('public_causal_fixed_width_hints', {'Path': Path, 're': re})
@@ -274,15 +286,15 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertEqual(len(edits), 1)
         self.assertEqual(edits[0]['start_line'], 2)
         self.assertEqual(edits[0]['end_line'], 4)
-        self.assertIn('(cstr/replace (str x)', edits[0]['new'])
-        self.assertIn('#"\\.0$"', edits[0]['new'])
+        self.assertIn('(Math/ulp (float x))', edits[0]['new'])
+        self.assertIn('(format "%.0f" x)', edits[0]['new'])
         self.assertIn('(mod x 1)', edits[0]['new'])
         self.assertNotIn('(int x)', edits[0]['new'])
         self.assertNotIn('(long x)', edits[0]['new'])
         self.assertNotIn('(bigint x)', edits[0]['new'])
         self.assertEqual(
             edits[0]['new'],
-            '    (if (zero? (mod x 1))\n      (cstr/replace (str x) #"\\.0$" "")\n      (str x))))',
+            '    (if (and (< (Math/ulp (float x)) 1.0)\n             (zero? (mod x 1)))\n      (format "%.0f" x)\n      (str x))))',
         )
 
 
