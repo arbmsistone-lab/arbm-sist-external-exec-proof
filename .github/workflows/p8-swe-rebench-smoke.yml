@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     env:
+      ZERO_SPEND_MODE: HARD
       HF_OFFSET: '1'
       MODEL_DIR: ${{ github.workspace }}/.cache/arbm-models
       MODEL_FILE: qwen2.5-coder-14b-instruct-q4_k_m.gguf
@@ -25,6 +26,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Validate public-only generator policy mechanics
         run: |
+          python arbm-constitution.py
+          python arbm-constitution-test.py
           python p8-swe-rebench-smoke-test.py
           python p8-quality-cost-endpoint-test.py
       - name: Runner identity
@@ -82,11 +85,10 @@ jobs:
           PY
       - name: Restore sovereign model cache
         if: steps.fallback.outputs.needed == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ${{ env.MODEL_DIR }}/${{ env.MODEL_FILE }}
           key: qwen25-coder-14b-q4km-${{ env.MODEL_SHA256 }}
-          save-always: true
       - name: Prepare verified sovereign model
         if: steps.fallback.outputs.needed == 'true'
         run: |
@@ -121,9 +123,9 @@ jobs:
           ARBM_SOVEREIGN_ONLY: '1'
           ARBM_RESUME_PUBLIC_EVIDENCE: '1'
           ARBM_SOVEREIGN_TIMEOUT_SECONDS: '420'
-          MODEL_LABEL: ARBM-Sovereign-Qwen14B-v22
+          MODEL_LABEL: ARBM-Sovereign-Qwen14B-v23
           MODEL_PROVIDER: github-public-runner-open-weight
-          WORKER_REV: public-feedback-preserving-sovereign-v22
+          WORKER_REV: complete-numbered-source-sovereign-v23
         run: python p8-swe-rebench-smoke.py
       - name: Stop sovereign backstop server
         if: always() && steps.fallback.outputs.needed == 'true'

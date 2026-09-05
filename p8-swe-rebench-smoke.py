@@ -2,6 +2,9 @@ import json, os, re, shutil, subprocess, sys, tempfile, time, urllib.request, ur
 from pathlib import Path
 from datasets import load_dataset
 
+if os.environ.get('ZERO_SPEND_MODE', 'HARD') != 'HARD':
+    raise SystemExit('CONSTITUTION_VIOLATION:ZERO_SPEND_MODE -> NO-GO')
+
 DATASET = 'ibragim-bad/SWE-rebench-V2-sample'
 HF_OFFSET = int(os.environ.get('HF_OFFSET', '0'))
 MODEL = os.environ.get('MODEL_PATH', 'model.gguf')
@@ -319,7 +322,9 @@ def _compact_public_context(raw, issue, max_chars=2600):
             score+=2 if re.search(r'\b(defn?|class|function|write|format|serialize|parse|int|long|float|double)\b',low) else 0
             if score>best: best=score; best_i=i
         a=max(1,best_i-8); b=min(len(lines),best_i+10)
-        excerpt='\n'.join([lines[0]]+lines[a:b])
+        # Ranking metadata must not consume the source budget. Never slice a
+        # numbered line: a partial line can cause the model to guess edit ranges.
+        excerpt='\n'.join([lines[0]]+[line for line in lines[a:b] if re.match(r'^\d+\|',line)])
         rel=lines[0][len('FILE:'):].strip()
         test_bonus=900 if (rel.startswith('test/') or '/test/' in rel) and best>0 else 0
         candidate=(affinity+best+test_bonus,excerpt)
@@ -327,11 +332,29 @@ def _compact_public_context(raw, issue, max_chars=2600):
             ranked_by_file[rel]=candidate
     ranked=list(ranked_by_file.values())
     ranked.sort(key=lambda x:-x[0])
-    out='\n\n'.join(x[1] for x in ranked[:4])
+    sections=[]
+    remaining=max(0,max_chars)
+    # Reserve most of the small runtime budget for actual numbered source.
+    # Precision observations supplement that source; they cannot replace it.
+    precision_lines=[]
     if precision:
-        budget=max(0,max_chars-len(precision)-2)
-        return (precision+'\n\n'+out[:budget])[:max_chars]
-    return out[:max_chars]
+        limit=min(len(precision), max_chars//3)
+        for line in precision.splitlines():
+            if len('\n'.join(precision_lines+[line]))<=limit:
+                precision_lines.append(line)
+        if precision_lines:
+            remaining-=len('\n'.join(precision_lines))+2
+    for _,excerpt in ranked[:4]:
+        kept=[]
+        for line in excerpt.splitlines():
+            if len('\n'.join(kept+[line]))>remaining: break
+            kept.append(line)
+        if len(kept)>1:
+            block='\n'.join(kept)
+            sections.append(block)
+            remaining-=len(block)+2
+    if precision_lines: sections.append('\n'.join(precision_lines))
+    return '\n\n'.join(sections)
 
 def _compact_public_issue(raw, max_chars=2800):
     text=str(raw)
@@ -466,7 +489,7 @@ def remote_json(payload):
     primary=os.environ.get('ARBM_BENCHMARK_ENDPOINT','')
     fallback=os.environ.get('ARBM_BENCHMARK_FALLBACK_ENDPOINT','')
     errors=[]
-    if quality and not QUALITY_CIRCUIT_OPEN:
+    if quality and os.environ.get('ZERO_SPEND_MODE','HARD') != 'HARD' and not QUALITY_CIRCUIT_OPEN:
         c,d,e,t=_remote_json_one(quality,payload,(0,8))
         if c==0:
             _record_provider_result('quality-cost',d); return c,d,e,t
@@ -498,7 +521,7 @@ def remote_endpoint_json(endpoint, payload):
     quality=os.environ.get('ARBM_BENCHMARK_QUALITY_JUDGE_ENDPOINT','')
     fallback=os.environ.get('ARBM_BENCHMARK_JUDGE_FALLBACK_ENDPOINT','')
     errors=[]
-    if quality and not QUALITY_JUDGE_CIRCUIT_OPEN:
+    if quality and os.environ.get('ZERO_SPEND_MODE','HARD') != 'HARD' and not QUALITY_JUDGE_CIRCUIT_OPEN:
         c,d,e,t=_remote_json_one(quality,payload,(0,8))
         if c==0:
             _record_provider_result('quality-cost-judge',d); return c,d,e,t
