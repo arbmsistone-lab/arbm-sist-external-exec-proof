@@ -1,0 +1,70 @@
+name: OSWorld official provider zero-spend preflight
+on:
+  push:
+    paths:
+      - '.github/workflows/osworld-provider-preflight.yml'
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Free runner disk and verify KVM
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          sudo apt-get clean
+          test -c /dev/kvm
+          sudo chmod 666 /dev/kvm
+          df -h / | tee osworld-preflight.txt
+          ls -l /dev/kvm | tee -a osworld-preflight.txt
+      - name: Checkout official OSWorld release
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v2026.08.08 https://github.com/xlang-ai/OSWorld-V2.git osworld
+          test "$(git -C osworld rev-parse HEAD)" = "d578d2d4e0dc82b43e270fdaa7fa89d9708cd154"
+          echo 'OSWORLD_PIN=PASS' | tee -a osworld-preflight.txt
+      - name: Validate Docker provider imports
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -q docker psutil requests filelock
+          PYTHONPATH="$PWD/osworld" python - <<'PY' | tee -a osworld-preflight.txt
+          from desktop_env.providers.docker.provider import DockerProvider
+          p=DockerProvider(region='local')
+          assert p.client.ping() is True
+          assert p.environment['RAM_SIZE']=='4G'
+          assert p.environment['CPU_CORES']=='4'
+          print('OSWORLD_DOCKER_PROVIDER_IMPORT=PASS')
+          print('OSWORLD_DOCKER_DAEMON=PASS')
+          PY
+      - name: Validate official VM artifact endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://huggingface.co/datasets/xlangai/v2-image/resolve/v2026.06.24/osworld-v2-ubuntu-x86.qcow2.zip'
+          curl -fsSL -r 0-1023 "$url" -o vm-prefix.bin
+          test -s vm-prefix.bin
+          echo "VM_PREFIX_SHA256=$(sha256sum vm-prefix.bin | awk '{print $1}')" | tee -a osworld-preflight.txt
+          echo 'OSWORLD_VM_ARTIFACT_ACCESS=PASS' | tee -a osworld-preflight.txt
+      - name: Validate OSWorld runtime image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker manifest inspect happysixd/osworld-docker >/dev/null
+          echo 'OSWORLD_RUNTIME_IMAGE_MANIFEST=PASS' | tee -a osworld-preflight.txt
+          docker pull happysixd/osworld-docker
+          echo 'OSWORLD_RUNTIME_IMAGE_PULL=PASS' | tee -a osworld-preflight.txt
+          docker image inspect happysixd/osworld-docker --format '{{.Id}} {{.Size}}' | tee -a osworld-preflight.txt
+      - name: Upload preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: osworld-official-provider-preflight
+          path: |
+            osworld-preflight.txt
+            vm-prefix.bin
+          if-no-files-found: warn
