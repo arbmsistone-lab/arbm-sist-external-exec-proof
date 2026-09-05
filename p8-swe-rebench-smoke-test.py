@@ -149,6 +149,12 @@ class SmokePolicyTests(unittest.TestCase):
                 'end_line': 193,
                 'new': '(if (zero? (mod x 1)) (str (int x)) (str x)))',
             }]
+            range_guard_bad = [{
+                'path': 'src/cljam/io/vcf/writer.clj',
+                'start_line': 190,
+                'end_line': 193,
+                'new': '(if (and (zero? (mod x 1)) (< x Integer/MAX_VALUE)) (str (int x)) (str x)))',
+            }]
             good = [{
                 'path': 'src/cljam/io/vcf/writer.clj',
                 'start_line': 192,
@@ -157,8 +163,10 @@ class SmokePolicyTests(unittest.TestCase):
             }]
             issue = 'QUAL value overflows when writing VCF; huge values exceed Integer range'
             bad_errors = guard(repo, bad, issue)
+            range_guard_errors = guard(repo, range_guard_bad, issue)
             good_errors = guard(repo, good, issue)
         self.assertTrue(any('fixed_width_conversion_retained' in e for e in bad_errors))
+        self.assertTrue(any('fixed_width_conversion_retained' in e for e in range_guard_errors))
         self.assertTrue(any('control_flow_removed:when' in e for e in bad_errors))
         self.assertEqual(good_errors, [])
 
@@ -297,6 +305,12 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertNotIn("run(['sudo','apt-get','install','-y','leiningen']", source)
         self.assertIn('PUBLIC_VALIDATION_INFRA_UNAVAILABLE:lein_missing', source)
         self.assertIn('_public_validation_infra_failure', source)
+
+    def test_public_precision_guidance_uses_repo_visible_numeric_types(self):
+        source = SCRIPT.read_text(encoding='utf-8')
+        self.assertIn('QUAL as Double on the VCF path and as IEEE-754 Float on the BCF path', source)
+        self.assertIn('Float precision no longer represents sub-unit fractions', source)
+        self.assertIn('Do not use hidden tests, gold patches, evaluator output, solution PRs', source)
 
 
 if __name__ == '__main__':
