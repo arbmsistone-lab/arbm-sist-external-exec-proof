@@ -1184,6 +1184,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     else: cand_b=repaired
             repair_unusable=(not repaired) or bool(rec.get('errors')) or (bool(rec.get('validationAttempted')) and int(rec.get('validationCode',0)) != 0)
             if repair_unusable:
+                run(['git','reset','--hard',base],td,60)
                 deterministic=public_deterministic_overflow_repair(td,allowed_paths,problem) if allow_deterministic else []
                 if deterministic:
                     run(['git','reset','--hard',base],td,60)
@@ -1199,6 +1200,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
             repair_records[label]=rec
     passing=[x for x in ('A','B') if candidate_results[x]['applied']>0 and not candidate_results[x]['errors'] and (not candidate_results[x]['validationAttempted'] or candidate_results[x]['validationCode']==0)]
     if not passing and allow_deterministic:
+        run(['git','reset','--hard',base],td,60)
         deterministic=public_deterministic_overflow_repair(td,allowed_paths,problem)
         if deterministic:
             run(['git','reset','--hard',base],td,60)

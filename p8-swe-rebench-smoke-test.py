@@ -254,6 +254,17 @@ class SmokePolicyTests(unittest.TestCase):
         )
 
 
+    def test_deterministic_fallback_resets_to_public_baseline_first(self):
+        source = SCRIPT.read_text(encoding='utf-8')
+        self.assertIn(
+            "if repair_unusable:\n                run(['git','reset','--hard',base],td,60)\n                deterministic=public_deterministic_overflow_repair",
+            source,
+        )
+        self.assertIn(
+            "if not passing and allow_deterministic:\n        run(['git','reset','--hard',base],td,60)\n        deterministic=public_deterministic_overflow_repair",
+            source,
+        )
+
     def test_public_validation_compaction_keeps_public_failure_signal(self):
         compact = load_function('_compact_public_validation_output', {'re': re})
         raw = ('stack frame\n' * 400
