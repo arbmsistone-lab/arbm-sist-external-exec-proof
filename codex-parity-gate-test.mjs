@@ -11,8 +11,10 @@ const good = () => ({
   zeroSpendHard: true,
   p8Complete: true,
   p9IndependentAudit: true,
+  p9Audit: { auditor: 'independent-auditor', completedAt: '2026-09-04T01:00:00Z', sourceCommit: hash, artifactSha256: [hash] },
   failedRunsDisclosed: true,
   rawArtifactsHashed: true,
+  rawArtifactSha256: [hash],
   noHiddenEvaluatorFeedback: true,
   dimensions: REQUIRED_DIMENSIONS.map((id) => ({
     id, arbm: 0.8, codex: 0.8, samples: 3, artifactSha256: [hash],
@@ -33,5 +35,11 @@ check(() => { const e=good(); e.dimensions=e.dimensions.slice(1); assert(has(eva
 check(() => { const e=good(); e.rawArtifactsHashed=false; assert(has(evaluateCodexParity(e),'RAW_ARTIFACT_HASHES_MISSING')); });
 check(() => { const e=good(); e.noHiddenEvaluatorFeedback=false; assert(has(evaluateCodexParity(e),'HIDDEN_EVALUATOR_FIREWALL_NOT_PROVEN')); });
 check(() => { const e=good(); e.failedRunsDisclosed=false; assert(has(evaluateCodexParity(e),'FAILED_RUNS_NOT_DISCLOSED')); });
+
+check(() => { const e=good(); e.p9Audit.auditor=''; assert(has(evaluateCodexParity(e),'P9_AUDITOR_IDENTITY_MISSING')); });
+check(() => { const e=good(); e.p9Audit.completedAt='not-a-date'; assert(has(evaluateCodexParity(e),'P9_AUDIT_DATE_MISSING')); });
+check(() => { const e=good(); e.p9Audit.sourceCommit='bad'; assert(has(evaluateCodexParity(e),'P9_AUDIT_COMMIT_INVALID')); });
+check(() => { const e=good(); e.p9Audit.artifactSha256=['bad']; assert(has(evaluateCodexParity(e),'P9_AUDIT_HASHES_INVALID')); });
+check(() => { const e=good(); e.rawArtifactSha256=[]; assert(has(evaluateCodexParity(e),'RAW_ARTIFACT_HASH_LIST_INVALID')); });
 
 console.log(JSON.stringify({suite:'CODEX-PARITY-GATE-V1',pass:cases,total:cases,score:100}));

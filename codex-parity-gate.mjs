@@ -16,6 +16,7 @@ export const REQUIRED_DIMENSIONS = [
 
 const finiteScore = (x) => Number.isFinite(Number(x)) && Number(x) >= 0 && Number(x) <= 1;
 const isoDate = (x) => typeof x === 'string' && !Number.isNaN(Date.parse(x));
+const sha256 = (x) => typeof x === 'string' && /^[a-f0-9]{64}$/i.test(x);
 
 export function evaluateCodexParity(evidence) {
   const reasons = [];
@@ -27,8 +28,18 @@ export function evaluateCodexParity(evidence) {
   if (e.zeroSpendHard !== true) reasons.push('ZERO_SPEND_POLICY_NOT_PROVEN');
   if (e.p8Complete !== true) reasons.push('P8_INCOMPLETE');
   if (e.p9IndependentAudit !== true) reasons.push('P9_INDEPENDENT_AUDIT_MISSING');
+  const audit = e.p9Audit && typeof e.p9Audit === 'object' ? e.p9Audit : {};
+  if (e.p9IndependentAudit === true) {
+    if (typeof audit.auditor !== 'string' || audit.auditor.trim().length < 3) reasons.push('P9_AUDITOR_IDENTITY_MISSING');
+    if (!isoDate(audit.completedAt)) reasons.push('P9_AUDIT_DATE_MISSING');
+    if (!sha256(audit.sourceCommit)) reasons.push('P9_AUDIT_COMMIT_INVALID');
+    if (!Array.isArray(audit.artifactSha256) || audit.artifactSha256.length < 1 || audit.artifactSha256.some((x) => !sha256(x))) reasons.push('P9_AUDIT_HASHES_INVALID');
+  }
   if (e.failedRunsDisclosed !== true) reasons.push('FAILED_RUNS_NOT_DISCLOSED');
   if (e.rawArtifactsHashed !== true) reasons.push('RAW_ARTIFACT_HASHES_MISSING');
+  if (e.rawArtifactsHashed === true) {
+    if (!Array.isArray(e.rawArtifactSha256) || e.rawArtifactSha256.length < 1 || e.rawArtifactSha256.some((x) => !sha256(x))) reasons.push('RAW_ARTIFACT_HASH_LIST_INVALID');
+  }
   if (e.noHiddenEvaluatorFeedback !== true) reasons.push('HIDDEN_EVALUATOR_FIREWALL_NOT_PROVEN');
   if (!Array.isArray(e.dimensions)) reasons.push('DIMENSIONS_MISSING');
 
