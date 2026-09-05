@@ -14,5 +14,11 @@ check(()=>assert(verifyEvidenceManifest(dir,{files:[{path:'missing.txt',sha256:h
 check(()=>assert(verifyEvidenceManifest(dir,{files:[{path:'a.txt',sha256:'0'.repeat(64)}]}).reasons.includes('MANIFEST_HASH_MISMATCH:a.txt')));
 check(()=>assert(verifyEvidenceManifest(dir,{files:[{path:'../escape',sha256:h}]}).reasons.some(x=>x.startsWith('MANIFEST_PATH_INVALID:'))));
 check(()=>assert(verifyEvidenceManifest(dir,{files:[{path:'a.txt',sha256:h},{path:'a.txt',sha256:h}]}).reasons.includes('MANIFEST_DUPLICATE_PATH:a.txt')));
+check(()=>assert(verifyEvidenceManifest(dir,{files:[{path:'C:/escape.txt',sha256:h}]}).reasons.includes('MANIFEST_PATH_INVALID:C:/escape.txt')));
+check(()=>assert(verifyEvidenceManifest(dir,{files:[{path:'//server/share.txt',sha256:h}]}).reasons.includes('MANIFEST_PATH_INVALID://server/share.txt')));
+const outside=path.join(os.tmpdir(),'p9-manifest-outside-'+process.pid+'.txt'); fs.writeFileSync(outside,'hello');
+const link=path.join(dir,'link.txt'); let symlinkMade=false; try { fs.symlinkSync(outside,link,'file'); symlinkMade=true; } catch {}
+if (symlinkMade) check(()=>assert(verifyEvidenceManifest(dir,{files:[{path:'link.txt',sha256:h}]}).reasons.includes('MANIFEST_SYMLINK_FORBIDDEN:link.txt')));
+fs.rmSync(outside,{force:true});
 fs.rmSync(dir,{recursive:true,force:true});
 console.log(JSON.stringify({suite:'P9-EVIDENCE-MANIFEST-V1',pass:cases,total:cases,score:100}));

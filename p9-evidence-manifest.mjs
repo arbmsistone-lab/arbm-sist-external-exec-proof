@@ -10,13 +10,19 @@ export function verifyEvidenceManifest(root, manifest) {
   for (const e of entries) {
     const rel=String(e?.path||'').replace(/\\/g,'/');
     const expected=String(e?.sha256||'').toLowerCase();
-    if (!rel || rel.startsWith('/') || rel.includes('../')) { reasons.push(`MANIFEST_PATH_INVALID:${rel}`); continue; }
+    if (!rel || path.isAbsolute(rel) || /^[A-Za-z]:\//.test(rel) || rel.startsWith('//') || rel.includes('../')) { reasons.push(`MANIFEST_PATH_INVALID:${rel}`); continue; }
     if (seen.has(rel)) { reasons.push(`MANIFEST_DUPLICATE_PATH:${rel}`); continue; } seen.add(rel);
     if (!/^[a-f0-9]{64}$/.test(expected)) { reasons.push(`MANIFEST_HASH_INVALID:${rel}`); continue; }
     const abs=path.resolve(root,rel); const base=path.resolve(root)+path.sep;
     if (!(abs+path.sep).startsWith(base) && !abs.startsWith(base)) { reasons.push(`MANIFEST_PATH_ESCAPE:${rel}`); continue; }
-    if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) { reasons.push(`MANIFEST_FILE_MISSING:${rel}`); continue; }
-    const actual=sha256File(abs);
+    if (!fs.existsSync(abs)) { reasons.push(`MANIFEST_FILE_MISSING:${rel}`); continue; }
+    const lst=fs.lstatSync(abs);
+    if (lst.isSymbolicLink()) { reasons.push(`MANIFEST_SYMLINK_FORBIDDEN:${rel}`); continue; }
+    const realBase=fs.realpathSync(root)+path.sep;
+    const real=fs.realpathSync(abs);
+    if (!(real+path.sep).startsWith(realBase) && !real.startsWith(realBase)) { reasons.push(`MANIFEST_REALPATH_ESCAPE:${rel}`); continue; }
+    if (!fs.statSync(real).isFile()) { reasons.push(`MANIFEST_FILE_MISSING:${rel}`); continue; }
+    const actual=sha256File(real);
     if (actual!==expected) reasons.push(`MANIFEST_HASH_MISMATCH:${rel}`); else verified.push({path:rel,sha256:actual});
   }
   return {pass:reasons.length===0,reasons,verified};
