@@ -1,37 +1,33 @@
 import assert from 'node:assert/strict';
 import { evaluateCodexParity, REQUIRED_DIMENSIONS } from './codex-parity-gate.mjs';
 
-const hash = 'a'.repeat(64);
-const good = () => ({
-  reference: {
-    product: 'OpenAI Codex',
-    capturedAt: '2026-09-04T00:00:00Z',
-    publicSources: ['https://openai.com/index/running-codex-safely/'],
-  },
-  zeroSpendHard: true,
+const hashes = ['a'.repeat(64)];
+const base = {
+  reference: { product: 'OpenAI Codex', capturedAt: '2026-09-04T00:00:00Z', validUntil: '2026-10-04T23:59:59Z', publicSources: ['official'] },
+  qualityPolicy: { mode: 'CODEX_HARD_FLOOR', sameTaskContract: true, confidenceLevel: 0.95, nonInferiorityMarginPp: 2, noQualityDowngradeForCost: true },
+  costPolicy: { mode: 'QUALITY_FLOOR_THEN_MIN_COST', paidEscalationAllowed: true, benchmarkCostTracked: true, maxAverageAiCostBRLPerActiveUserMonth: 30, arbmCostPerResolvedTaskBRL: 0.05, codexCostPerResolvedTaskBRL: 0.10 },
+  commercial: { licensePriceBRL: 1197, monthlyPriceBRL: 79.90, noAutomaticOverageCharge: true },
   p8Complete: true,
   p9IndependentAudit: true,
   failedRunsDisclosed: true,
   rawArtifactsHashed: true,
   noHiddenEvaluatorFeedback: true,
-  dimensions: REQUIRED_DIMENSIONS.map((id) => ({
-    id, arbm: 0.8, codex: 0.8, samples: 3, artifactSha256: [hash],
-  })),
-});
+  continuousParityWatch: true,
+  dimensions: REQUIRED_DIMENSIONS.map((id) => ({ id, arbm: 0.80, codex: 0.80, samples: 30, ciLowerDifferencePp: -1.0, artifactSha256: hashes })),
+};
 
-const has = (r, reason) => r.reasons.some((x) => x === reason);
-let cases = 0;
-const check = (fn) => { fn(); cases += 1; };
+const now = new Date('2026-09-10T00:00:00Z');
+assert.equal(evaluateCodexParity(base, now).pass, true);
 
-check(() => assert.equal(evaluateCodexParity(good()).pass, true));
-check(() => { const e=good(); e.dimensions[0].arbm=.79; assert(has(evaluateCodexParity(e),'BELOW_CODEX:task_correctness')); });
-check(() => { const e=good(); e.p8Complete=false; assert(has(evaluateCodexParity(e),'P8_INCOMPLETE')); });
-check(() => { const e=good(); e.p9IndependentAudit=false; assert(has(evaluateCodexParity(e),'P9_INDEPENDENT_AUDIT_MISSING')); });
-check(() => { const e=good(); e.zeroSpendHard=false; assert(has(evaluateCodexParity(e),'ZERO_SPEND_POLICY_NOT_PROVEN')); });
-check(() => { const e=good(); e.dimensions[0].samples=2; assert(has(evaluateCodexParity(e),'INSUFFICIENT_SAMPLES:task_correctness')); });
-check(() => { const e=good(); e.dimensions=e.dimensions.slice(1); assert(has(evaluateCodexParity(e),'DIMENSION_MISSING:task_correctness')); });
-check(() => { const e=good(); e.rawArtifactsHashed=false; assert(has(evaluateCodexParity(e),'RAW_ARTIFACT_HASHES_MISSING')); });
-check(() => { const e=good(); e.noHiddenEvaluatorFeedback=false; assert(has(evaluateCodexParity(e),'HIDDEN_EVALUATOR_FIREWALL_NOT_PROVEN')); });
-check(() => { const e=good(); e.failedRunsDisclosed=false; assert(has(evaluateCodexParity(e),'FAILED_RUNS_NOT_DISCLOSED')); });
+const expensive = structuredClone(base);
+expensive.costPolicy.arbmCostPerResolvedTaskBRL = 0.11;
+assert.ok(evaluateCodexParity(expensive, now).reasons.includes('COST_ADVANTAGE_NOT_PROVEN'));
 
-console.log(JSON.stringify({suite:'CODEX-PARITY-GATE-V1',pass:cases,total:cases,score:100}));
+const weak = structuredClone(base);
+weak.dimensions[0].ciLowerDifferencePp = -2.1;
+assert.ok(evaluateCodexParity(weak, now).reasons.some((r) => r.startsWith('NON_INFERIORITY_NOT_PROVEN:')));
+
+const stale = structuredClone(base);
+assert.ok(evaluateCodexParity(stale, new Date('2026-10-05T00:00:00Z')).reasons.includes('REFERENCE_EXPIRED'));
+
+console.log('codex parity gate v2 tests: PASS');

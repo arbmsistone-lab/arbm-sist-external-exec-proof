@@ -1,20 +1,41 @@
 {
-  "schema": "arbm-codex-parity-evidence-v1",
+  "schema": "arbm-codex-parity-evidence-v2",
   "status": "BLOCKED_UNVERIFIED",
   "reference": {
     "product": "OpenAI Codex",
     "capturedAt": "2026-09-04T00:00:00Z",
+    "validUntil": "2026-10-04T23:59:59Z",
     "publicSources": [
       "https://openai.com/codex/",
       "https://openai.com/index/running-codex-safely/",
       "https://help.openai.com/en/articles/20001107-codex-security"
     ]
   },
-  "zeroSpendHard": true,
+  "qualityPolicy": {
+    "mode": "CODEX_HARD_FLOOR",
+    "sameTaskContract": true,
+    "confidenceLevel": 0.95,
+    "nonInferiorityMarginPp": 2,
+    "noQualityDowngradeForCost": true
+  },
+  "costPolicy": {
+    "mode": "QUALITY_FLOOR_THEN_MIN_COST",
+    "paidEscalationAllowed": true,
+    "benchmarkCostTracked": true,
+    "maxAverageAiCostBRLPerActiveUserMonth": 30,
+    "arbmCostPerResolvedTaskBRL": null,
+    "codexCostPerResolvedTaskBRL": null
+  },
+  "commercial": {
+    "licensePriceBRL": 1197,
+    "monthlyPriceBRL": 79.90,
+    "noAutomaticOverageCharge": true
+  },
   "p8Complete": false,
   "p9IndependentAudit": false,
   "failedRunsDisclosed": true,
   "rawArtifactsHashed": false,
   "noHiddenEvaluatorFeedback": true,
+  "continuousParityWatch": true,
   "dimensions": []
 }
