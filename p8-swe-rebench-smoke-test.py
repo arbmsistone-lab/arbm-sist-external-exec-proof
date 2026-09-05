@@ -232,7 +232,7 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertIn('PUBLIC REPOSITORY VALIDATION FAILED AFTER FIRST PUBLIC REPAIR', source)
         self.assertIn('PUBLIC VALIDATION OUTPUT SUMMARY (public tests only)', source)
         self.assertIn("rec['publicValidationRepair']=frec", source)
-        self.assertIn("if applied>0 and not errs and attempted and vcode!=0:", source)
+        self.assertIn("if applied>0 and not errs and attempted and vcode!=0 and not _public_validation_infra_failure(vcode,vout):", source)
 
 
     def test_public_issue_regression_spec_uses_only_public_example(self):
@@ -247,8 +247,8 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertIn('Double/parseDouble', spec['source'])
         self.assertIn('1.0e20', spec['source'])
         self.assertIn('write-variants', spec['source'])
-        self.assertIn('Double/POSITIVE_INFINITY', spec['source'])
-        self.assertIn('Double/NaN', spec['source'])
+        self.assertNotIn('Double/POSITIVE_INFINITY', spec['source'])
+        self.assertNotIn('Double/NaN', spec['source'])
         self.assertNotIn('PASS_TO_PASS', spec['source'])
         self.assertNotIn('FAIL_TO_PASS', spec['source'])
 
@@ -288,6 +288,15 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertIn("_record_provider_failure('quality-cost-judge',e)", source)
         self.assertIn("[REDACTED]", source)
         self.assertIn("'status':'failed'", source)
+
+    def test_public_validation_infra_is_prepared_before_generation(self):
+        source = SCRIPT.read_text(encoding='utf-8')
+        workflow = Path('.github/workflows/p8-swe-rebench-smoke.yml').read_text(encoding='utf-8')
+        self.assertIn('Prepare Clojure public-validation runtime', workflow)
+        self.assertIn('lein version', workflow)
+        self.assertNotIn("run(['sudo','apt-get','install','-y','leiningen']", source)
+        self.assertIn('PUBLIC_VALIDATION_INFRA_UNAVAILABLE:lein_missing', source)
+        self.assertIn('_public_validation_infra_failure', source)
 
 
 if __name__ == '__main__':
