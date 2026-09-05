@@ -289,6 +289,12 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertIn("[REDACTED]", source)
         self.assertIn("'status':'failed'", source)
 
+    def test_missing_router_evidence_triggers_sovereign_fallback(self):
+        workflow = Path('.github/workflows/p8-swe-rebench-smoke.yml').read_text(encoding='utf-8')
+        self.assertIn("status='MISSING_EVIDENCE'", workflow)
+        self.assertIn("'MISSING_EVIDENCE'", workflow)
+        self.assertIn("sovereign_needed", workflow)
+
     def test_public_validation_infra_is_prepared_before_generation(self):
         source = SCRIPT.read_text(encoding='utf-8')
         workflow = Path('.github/workflows/p8-swe-rebench-smoke.yml').read_text(encoding='utf-8')
