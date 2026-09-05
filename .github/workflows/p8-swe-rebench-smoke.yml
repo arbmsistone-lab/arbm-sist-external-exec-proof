@@ -24,7 +24,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Validate public-only generator policy mechanics
-        run: python p8-swe-rebench-smoke-test.py
+        run: |
+          python p8-swe-rebench-smoke-test.py
+          python p8-quality-cost-endpoint-test.py
       - name: Runner identity
         run: |
           uname -a
@@ -41,18 +43,20 @@ jobs:
           TOKEN=$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')
           echo "::add-mask::$TOKEN"
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
-      - name: Generate patch via remote zero-cost mesh first
+      - name: Generate patch via quality-cost router first
         id: cloudgen
         continue-on-error: true
         env:
           ARBM_BENCHMARK_OIDC: ${{ steps.oidc.outputs.token }}
+          ARBM_BENCHMARK_QUALITY_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-quality-cost-v1
+          ARBM_BENCHMARK_QUALITY_JUDGE_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-quality-cost-v1
           ARBM_BENCHMARK_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-agent-v17
           ARBM_BENCHMARK_FALLBACK_ENDPOINT: https://arbm-sist-p8-fallback.girolocal-rb.workers.dev
           ARBM_BENCHMARK_JUDGE_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-judge-v15
           ARBM_BENCHMARK_JUDGE_FALLBACK_ENDPOINT: https://arbm-sist-p8-fallback.girolocal-rb.workers.dev
-          MODEL_LABEL: ARBM-Federated-Free-Mesh-v22
-          MODEL_PROVIDER: federated-zero-cost-multicloud
-          WORKER_REV: public-feedback-preserving-sovereign-v22
+          MODEL_LABEL: ARBM-Quality-Cost-Router-v1
+          MODEL_PROVIDER: quality-floor-then-min-cost
+          WORKER_REV: quality-cost-router-v1
         run: python p8-swe-rebench-smoke.py
       - name: Detect sovereign fallback requirement
         id: fallback

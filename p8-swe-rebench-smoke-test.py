@@ -272,6 +272,9 @@ class SmokePolicyTests(unittest.TestCase):
         p = source.index("ARBM_BENCHMARK_ENDPOINT", q)
         self.assertLess(q, p)
         self.assertIn("_record_provider_result('quality-cost'", source)
+        workflow = Path('.github/workflows/p8-swe-rebench-smoke.yml').read_text(encoding='utf-8')
+        self.assertIn('arbm-benchmark-quality-cost-v1', workflow)
+        self.assertIn('quality-floor-then-min-cost', workflow)
 
     def test_provider_cost_is_frozen_in_evidence(self):
         source = SCRIPT.read_text(encoding='utf-8')
