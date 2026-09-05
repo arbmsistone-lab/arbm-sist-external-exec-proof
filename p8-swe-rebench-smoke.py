@@ -973,17 +973,26 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     attempted,vcode,vout=public_validation(td,[m['path'] for m in meta],problem)
                 rec.update({'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-6000:]})
                 if applied>0 and not errs and attempted and vcode!=0:
-                    follow_issue=(solver_problem+'\n\nPUBLIC REPOSITORY VALIDATION FAILED AFTER FIRST PUBLIC REPAIR for candidate '+label+
-                                  '. Produce one bounded follow-up repair using only this public validation output and public repository context. '
-                                  'Do not use hidden tests, benchmark evaluator output, gold patches, or solution PRs. Preserve already-correct control flow and fix the newly exposed public edge case with the smallest causally sufficient edit. '
-                                  'Rejected first repair: '+json.dumps(repaired)[:5000])
-                    if causal_hints:
-                        follow_issue+='\nPUBLIC CAUSAL LINE HINT derived only from the public repository: '+json.dumps(causal_hints)+'. Preserve surrounding when/if/branch structure; do not reintroduce fixed-width integer conversion.'
-                    follow_issue+='\nPUBLIC VALIDATION OUTPUT SUMMARY (public tests only):\n'+_compact_public_validation_output(vout,2200)
-                    fcode,fdata,ferr,ftimed=remote_json({'phase':'solve','issue':follow_issue,'tool_context':context,'instance_id':iid,'model_offset':repair_offset+2,'review_model_offset':repair_offset+2,'public_validation_feedback':_compact_public_validation_output(vout,2200),'rejected_edits':repaired})
-                    follow=dedupe_edits((fdata or {}).get('edits',[]) if fcode==0 else [])
-                    frec={'attempted':True,'modelOffset':repair_offset+2,'providerCode':fcode,'providerError':ferr[:500],'providerMeta':provider_meta(fdata),'edits':follow}
-                    if follow:
+                    public_repair_attempts=[]
+                    rejected_chain=list(repaired)
+                    current_vout=vout
+                    for public_attempt in range(1,4):
+                        failure_summary=_compact_public_validation_output(current_vout,2200)
+                        follow_issue=(solver_problem+'\n\nPUBLIC REPOSITORY VALIDATION FAILED AFTER FIRST PUBLIC REPAIR / ITERATIVE PUBLIC REPAIR for candidate '+label+
+                                      '. This is bounded public repair attempt '+str(public_attempt)+' of 3. Use only public repository source and public test failures. '
+                                      'Treat every expected/actual pair and public exception below as a semantic constraint that the next complete candidate must satisfy simultaneously. '
+                                      'Do not use hidden tests, benchmark evaluator output, gold patches, or solution PRs. Preserve already-correct behavior and control flow unless a public failure proves that control flow itself is unsafe. '
+                                      'Rejected candidate chain: '+json.dumps(rejected_chain,ensure_ascii=False)[:6500])
+                        if causal_hints:
+                            follow_issue+='\nPUBLIC CAUSAL LINE HINT derived only from the public repository: '+json.dumps(causal_hints)+'. Do not reintroduce fixed-width integer conversion.'
+                        follow_issue+='\nPUBLIC VALIDATION OUTPUT SUMMARY (public tests only):\n'+failure_summary
+                        follow_issue+='\nPUBLIC SEMANTIC CONSTRAINTS / COUNTEREXAMPLES:\n'+failure_summary
+                        foffset=repair_offset+1+public_attempt
+                        fcode,fdata,ferr,ftimed=remote_json({'phase':'solve','issue':follow_issue,'tool_context':context,'instance_id':iid,'model_offset':foffset,'review_model_offset':foffset,'public_validation_feedback':failure_summary,'rejected_edits':rejected_chain})
+                        follow=dedupe_edits((fdata or {}).get('edits',[]) if fcode==0 else [])
+                        frec={'attempt':public_attempt,'modelOffset':foffset,'providerCode':fcode,'providerError':ferr[:500],'providerMeta':provider_meta(fdata),'edits':follow}
+                        if not follow:
+                            public_repair_attempts.append(frec); break
                         run(['git','reset','--hard',base],td,60)
                         fguard=public_invariant_guard(td,follow,problem)
                         ferrs=[]; fmeta=[]; fapplied=0
@@ -993,15 +1002,25 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                         if fapplied>0 and not ferrs:
                             fattempted,fvcode,fvout=public_validation(td,[m['path'] for m in fmeta],problem)
                         frec.update({'errors':ferrs,'meta':fmeta,'applied':fapplied,'validationAttempted':fattempted,'validationCode':fvcode,'validationPreview':fvout[-6000:]})
+                        public_repair_attempts.append(frec)
                         if fapplied>0 and not ferrs and (not fattempted or fvcode==0):
                             repaired=follow; rdata=fdata; errs=ferrs; meta=fmeta; applied=fapplied; attempted=fattempted; vcode=fvcode; vout=fvout
                             rec.update({'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-6000:]})
-                    rec['publicValidationRepair']=frec
+                            break
+                        rejected_chain=follow
+                        if ferrs:
+                            current_vout='PUBLIC INVARIANT REJECTION:\n'+'\n'.join(str(x) for x in ferrs)
+                        else:
+                            current_vout=fvout if fvout!='NOT_RUN' else current_vout
+                    rec['publicValidationRepairs']=public_repair_attempts
+                    if public_repair_attempts:
+                        frec=public_repair_attempts[-1]
+                        rec['publicValidationRepair']=frec
                 if applied>0 and not errs and (not attempted or vcode==0):
                     candidate_results[label]={'edits':repaired,'providerMeta':provider_meta(rdata),'errors':errs,'meta':meta,'applied':applied,'validationAttempted':attempted,'validationCode':vcode,'validationPreview':vout[-6000:]}
                     if label=='A': cand_a=repaired
                     else: cand_b=repaired
-            repair_unusable=(not repaired) or bool(rec.get('errors'))
+            repair_unusable=(not repaired) or bool(rec.get('errors')) or (bool(rec.get('validationAttempted')) and int(rec.get('validationCode',0)) != 0)
             if repair_unusable:
                 deterministic=public_deterministic_overflow_repair(td,allowed_paths,problem) if allow_deterministic else []
                 if deterministic:
@@ -1018,7 +1037,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
             repair_records[label]=rec
     passing=[x for x in ('A','B') if candidate_results[x]['applied']>0 and not candidate_results[x]['errors'] and (not candidate_results[x]['validationAttempted'] or candidate_results[x]['validationCode']==0)]
     judge_ep=os.environ.get('ARBM_BENCHMARK_JUDGE_ENDPOINT','')
-    jcode,jdata,jerr,jtimed=(125,None,'NO_JUDGE_ENDPOINT',False)
+    jcode,jdata,jerr,jtimed=(125,None,('NO_PASSING_PUBLIC_CANDIDATE' if not passing else 'NO_JUDGE_ENDPOINT'),False)
     single_provider_fallback=(bool(cand_a) ^ bool(cand_b)) and len(passing)==1
     if single_provider_fallback:
         choice=passing[0]; judge_reason='single_valid_candidate_provider_fallback'; judge_edits=[]; jcode=204; jerr=''
