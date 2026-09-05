@@ -268,6 +268,19 @@ def _remote_json_one(endpoint, payload, retries=(0,12)):
     return 125,None,last_err or 'REMOTE_RETRY_EXHAUSTED',False
 
 PRIMARY_CIRCUIT_OPEN=False
+QUALITY_CIRCUIT_OPEN=False
+QUALITY_JUDGE_CIRCUIT_OPEN=False
+PROVIDER_COST_USD=0.0
+PROVIDER_CALL_LEDGER=[]
+
+def _record_provider_result(route, data):
+    global PROVIDER_COST_USD, PROVIDER_CALL_LEDGER
+    d=data if isinstance(data,dict) else {}
+    try: cost=max(0.0,float(d.get('mandatory_cost_usd',d.get('estimated_cost_usd',0)) or 0))
+    except Exception: cost=0.0
+    PROVIDER_COST_USD+=cost
+    PROVIDER_CALL_LEDGER.append({'route':route,'model':d.get('model'),'pipeline':d.get('pipeline'),'costUsd':round(cost,8),'inputTokens':d.get('input_tokens'),'outputTokens':d.get('output_tokens'),'totalTokens':d.get('total_tokens')})
+    if len(PROVIDER_CALL_LEDGER)>64: del PROVIDER_CALL_LEDGER[:-64]
 
 def _capacity_error(err):
     low=str(err).lower()
@@ -428,40 +441,62 @@ def _sovereign_json(payload):
         return 125,None,'SOVEREIGN_ERROR:'+type(exc).__name__+': '+str(exc)[:800],False
 
 def remote_json(payload):
-    global PRIMARY_CIRCUIT_OPEN
-    if os.environ.get('ARBM_SOVEREIGN_ONLY')=='1': return _sovereign_json(payload)
+    global PRIMARY_CIRCUIT_OPEN, QUALITY_CIRCUIT_OPEN
+    if os.environ.get('ARBM_SOVEREIGN_ONLY')=='1':
+        result=_sovereign_json(payload)
+        if result[0]==0: _record_provider_result('sovereign',result[1])
+        return result
+    quality=os.environ.get('ARBM_BENCHMARK_QUALITY_ENDPOINT','')
     primary=os.environ.get('ARBM_BENCHMARK_ENDPOINT','')
     fallback=os.environ.get('ARBM_BENCHMARK_FALLBACK_ENDPOINT','')
     errors=[]
+    if quality and not QUALITY_CIRCUIT_OPEN:
+        c,d,e,t=_remote_json_one(quality,payload,(0,8))
+        if c==0:
+            _record_provider_result('quality-cost',d); return c,d,e,t
+        if _capacity_error(e): QUALITY_CIRCUIT_OPEN=True
+        errors.append('quality='+e[:800])
     if primary and not PRIMARY_CIRCUIT_OPEN:
         c,d,e,t=_remote_json_one(primary,payload,(0,12))
-        if c==0: return c,d,e,t
+        if c==0:
+            _record_provider_result('free-primary',d); return c,d,e,t
         if _capacity_error(e): PRIMARY_CIRCUIT_OPEN=True
         errors.append('primary='+e[:800])
     if fallback:
         c,d,e,t=_remote_json_one(fallback,payload,(0,))
-        if c==0: return c,d,e,t
+        if c==0:
+            _record_provider_result('free-fallback',d); return c,d,e,t
         errors.append('fallback='+e[:800])
     if os.environ.get('ARBM_SOVEREIGN_ENDPOINT'):
         c,d,e,t=_sovereign_json(payload)
-        if c==0: return c,d,e,t
+        if c==0:
+            _record_provider_result('sovereign',d); return c,d,e,t
         errors.append('sovereign='+e[:800])
     return 125,None,' | '.join(errors) or 'NO_REMOTE_PROVIDER',False
 
 def remote_endpoint_json(endpoint, payload):
-    global PRIMARY_CIRCUIT_OPEN
+    global PRIMARY_CIRCUIT_OPEN, QUALITY_JUDGE_CIRCUIT_OPEN
     if os.environ.get('ARBM_SOVEREIGN_ONLY')=='1':
         q=dict(payload); q['phase']='judge'; return _sovereign_json(q)
+    quality=os.environ.get('ARBM_BENCHMARK_QUALITY_JUDGE_ENDPOINT','')
     fallback=os.environ.get('ARBM_BENCHMARK_JUDGE_FALLBACK_ENDPOINT','')
     errors=[]
+    if quality and not QUALITY_JUDGE_CIRCUIT_OPEN:
+        c,d,e,t=_remote_json_one(quality,payload,(0,8))
+        if c==0:
+            _record_provider_result('quality-cost-judge',d); return c,d,e,t
+        if _capacity_error(e): QUALITY_JUDGE_CIRCUIT_OPEN=True
+        errors.append('quality='+e[:800])
     if endpoint and not PRIMARY_CIRCUIT_OPEN:
         c,d,e,t=_remote_json_one(endpoint,payload,(0,12))
-        if c==0: return c,d,e,t
+        if c==0:
+            _record_provider_result('judge-primary',d); return c,d,e,t
         if _capacity_error(e): PRIMARY_CIRCUIT_OPEN=True
         errors.append('primary='+e[:800])
     if fallback:
         c,d,e,t=_remote_json_one(fallback,payload,(0,))
-        if c==0: return c,d,e,t
+        if c==0:
+            _record_provider_result('free-fallback',d); return c,d,e,t
         errors.append('fallback='+e[:800])
     return 125,None,' | '.join(errors) or 'NO_JUDGE_ENDPOINT',False
 
@@ -1143,7 +1178,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit',**runtime_identity(),'dataset':DATASET,'instance_id':iid,
       'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'model':os.environ.get('MODEL_LABEL','unknown'),'provider':os.environ.get('MODEL_PROVIDER','local-llama'),
       'latencyMs':latency,'exitCode':code,'validPatch':valid,'status':terminal_status,'patchChars':len(patch),
-      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'allowedPaths':allowed_paths,'pathNormalizations':path_normalizations,'editMeta':applied_meta,'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'publicValidationAttempted':validation_attempted,'publicValidationCode':validation_code,'publicValidationPreview':validation_output[-6000:],'repairAttempted':bool(repair_records),'repairRecords':repair_records,'candidateA':candidate_results.get('A'),'candidateB':candidate_results.get('B'),'semanticJudgeChoice':choice,'semanticJudgeReason':judge_reason,'semanticJudgeCode':jcode,'resumePublicEvidence':resume_public,'goldPatchExposedToAgent':False}
+      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'allowedPaths':allowed_paths,'pathNormalizations':path_normalizations,'editMeta':applied_meta,'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'publicValidationAttempted':validation_attempted,'publicValidationCode':validation_code,'publicValidationPreview':validation_output[-6000:],'repairAttempted':bool(repair_records),'repairRecords':repair_records,'candidateA':candidate_results.get('A'),'candidateB':candidate_results.get('B'),'semanticJudgeChoice':choice,'semanticJudgeReason':judge_reason,'semanticJudgeCode':jcode,'resumePublicEvidence':resume_public,'providerCostUsd':round(PROVIDER_COST_USD,8),'providerCallLedger':PROVIDER_CALL_LEDGER,'goldPatchExposedToAgent':False}
     Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
     Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':patch}],indent=2)+'\n')
     Path(OUT,'instance.json').write_text(json.dumps({'instance_id':iid,'repo':row['repo'],'base_commit':base},indent=2)+'\n')

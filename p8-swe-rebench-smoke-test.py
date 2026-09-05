@@ -266,5 +266,19 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertIn("range(1,public_repair_limit+1)", source)
 
 
+    def test_quality_cost_route_precedes_free_mesh(self):
+        source = SCRIPT.read_text(encoding='utf-8')
+        q = source.index("ARBM_BENCHMARK_QUALITY_ENDPOINT")
+        p = source.index("ARBM_BENCHMARK_ENDPOINT", q)
+        self.assertLess(q, p)
+        self.assertIn("_record_provider_result('quality-cost'", source)
+
+    def test_provider_cost_is_frozen_in_evidence(self):
+        source = SCRIPT.read_text(encoding='utf-8')
+        self.assertIn("'providerCostUsd':round(PROVIDER_COST_USD,8)", source)
+        self.assertIn("'providerCallLedger':PROVIDER_CALL_LEDGER", source)
+        self.assertIn("QUALITY_FIRST_COST_MIN_HARD", Path('CODEX-PARITY-FLOOR.md').read_text(encoding='utf-8'))
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
