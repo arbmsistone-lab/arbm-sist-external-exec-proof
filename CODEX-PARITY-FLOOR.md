@@ -7,7 +7,7 @@ Release state: BLOCKED until independently evidenced
 ## Objective
 ARBM SIST must deliver coding-agent quality that is demonstrably non-inferior to the contemporary Codex reference in every certified task class, while minimizing cost among configurations that preserve that quality floor.
 
-Zero spend is preferred, but it is never allowed to reduce certified quality. Low-cost paid inference is authorized when it materially improves expected correctness, latency, reliability, or capacity while remaining inside the governed cost envelope.
+The 2026-09-05 Constitution supersedes the earlier spending policy. ZERO_SPEND_MODE=HARD is mandatory; new real spending needs explicit human authorization. If free capacity cannot achieve the quality floor, the result is NO-GO, never an automatic paid fallback or reduced quality threshold.
 
 ## Non-negotiable quality rule
 ARBM SIST must not be approved for commercial release while demonstrated coding competence, operational reliability, or safety is below the dated Codex reference on comparable tasks under the same task contract.
@@ -32,9 +32,9 @@ Commercial parity requires same-task comparisons, frozen harness versions, raw a
 Critical safety or reliability failure is an automatic NO-GO regardless of aggregate score.
 
 ## Cost rule
-The router must select the lowest-cost configuration that passes the certified quality floor. It may use paid cloud models, but must not downgrade model quality because a user has consumed more volume. If capacity must be controlled, reduce concurrency or queue work rather than silently lowering the quality floor.
+The router must select the lowest-cost authorized configuration that passes the certified quality floor. HARD mode excludes paid or unknown-cost inference. If capacity must be controlled, reduce concurrency or queue work rather than silently lowering the quality floor.
 
-Commercial targets are R$ 1,197.00 for the local software license and R$ 79.90/month per active user for Intelligence & Evolution. The engineering target for average AI spend is <= R$ 30.00 per active user/month, subject to measurement in production.
+Commercial constants and launch requirements are frozen in ARBM-SIST-COMMERCIAL-POLICY.md: PRO R$1,197 includes 12 months of Continuity; R$79.90/month starts in month 13. Optional BOOST targets R$19.90/month, with managed AI COGS capped at R$7/customer/month, subject to real A/B evidence before launch. Continuity is not a premium token allowance. No automatic billing is enabled by this specification.
 
 ## Continuous parity rule
 Parity expires whenever the Codex reference materially changes or the reference validity window ends. The benchmark snapshot must be refreshed and rerun before the release may continue to claim parity.

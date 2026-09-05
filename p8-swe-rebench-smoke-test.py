@@ -24,6 +24,58 @@ def load_function(name, namespace):
 
 
 class SmokePolicyTests(unittest.TestCase):
+    def test_hard_mode_never_calls_paid_quality_route(self):
+        for mode in (None, 'HARD'):
+            with self.subTest(mode=mode):
+                calls = []
+                env = {'ARBM_BENCHMARK_QUALITY_ENDPOINT': 'https://paid.invalid',
+                       'ARBM_BENCHMARK_ENDPOINT': 'https://free.invalid'}
+                if mode is not None: env['ZERO_SPEND_MODE'] = mode
+                def call(endpoint, payload, retries):
+                    calls.append(endpoint)
+                    return 0, {'edits': []}, '', False
+                remote = load_function('remote_json', {
+                    'os': SimpleNamespace(environ=env),
+                    'PRIMARY_CIRCUIT_OPEN': False, 'QUALITY_CIRCUIT_OPEN': False,
+                    '_remote_json_one': call, '_record_provider_result': lambda *args: None,
+                })
+                self.assertEqual(remote({'phase': 'solve'})[0], 0)
+                self.assertEqual(calls, ['https://free.invalid'])
+
+    def test_hard_mode_never_calls_paid_judge_route(self):
+        calls = []
+        def call(endpoint, payload, retries):
+            calls.append(endpoint)
+            return 0, {'choice': 'NONE'}, '', False
+        remote = load_function('remote_endpoint_json', {
+            'os': SimpleNamespace(environ={'ARBM_BENCHMARK_QUALITY_JUDGE_ENDPOINT': 'https://paid.invalid'}),
+            'PRIMARY_CIRCUIT_OPEN': False, 'QUALITY_JUDGE_CIRCUIT_OPEN': False,
+            '_remote_json_one': call, '_record_provider_result': lambda *args: None,
+        })
+        self.assertEqual(remote('https://free.invalid', {'phase': 'judge'})[0], 0)
+        self.assertEqual(calls, ['https://free.invalid'])
+
+    def test_runtime_budget_preserves_complete_causal_source_with_precision(self):
+        compact = load_function('_compact_public_context', {'re': re})
+        evidence_fn = load_function('public_numeric_precision_evidence', {'Path': Path})
+        hotspot = load_function('public_static_hotspots', {'Path': Path, 're': re})
+        with tempfile.TemporaryDirectory() as repo:
+            for rel, source in (
+                ('src/cljam/io/vcf/reader.clj', ':qual (Double/parseDouble x)'),
+                ('src/cljam/io/bcf/reader.clj', ':qual (Float/intBitsToFloat bits)'),
+                ('src/cljam/io/vcf/writer.clj', '\n'*187 + '(defn- stringify-data-line-qual\n  [x]\n  (when x\n    (if (zero? (mod x 1))\n      (str (int x))\n      (str x))))\n')):
+                path = Path(repo, rel)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(source, encoding='utf-8')
+            issue = 'QUAL overflows when writing VCF'
+            raw = evidence_fn(repo, issue) + '\n\n' + hotspot(repo, ['src/cljam/io/vcf/writer.clj'], issue)
+        result = compact(raw, issue, 900)
+        self.assertLessEqual(len(result), 900)
+        for line in ('000188|(defn-', '000190|  (when x', '000192|      (str (int x))', '000193|      (str x))))'):
+            self.assertIn(line, result)
+        self.assertIn('Java Double', result)
+        self.assertIn('Java Float', result)
+
     def test_sovereign_receives_separate_public_failures_and_rejected_candidate(self):
         compact_issue=load_function('_compact_public_issue',{})
         compact_output=load_function('_compact_public_validation_output',{'re':re})

@@ -1,0 +1,30 @@
+test_context_compaction_deduplicates_files (__main__.SmokePolicyTests.test_context_compaction_deduplicates_files) ... ok
+test_deterministic_public_overflow_repair_is_minimal (__main__.SmokePolicyTests.test_deterministic_public_overflow_repair_is_minimal) ... ok
+test_failed_quality_route_is_audited_and_redacted (__main__.SmokePolicyTests.test_failed_quality_route_is_audited_and_redacted) ... ok
+test_followup_public_repair_is_bounded_and_public_only (__main__.SmokePolicyTests.test_followup_public_repair_is_bounded_and_public_only) ... ok
+test_hard_mode_never_calls_paid_judge_route (__main__.SmokePolicyTests.test_hard_mode_never_calls_paid_judge_route) ... ok
+test_hard_mode_never_calls_paid_quality_route (__main__.SmokePolicyTests.test_hard_mode_never_calls_paid_quality_route) ... ok
+test_issue_compaction_keeps_public_issue_and_latest_rejection (__main__.SmokePolicyTests.test_issue_compaction_keeps_public_issue_and_latest_rejection) ... ok
+test_issue_compaction_prioritizes_public_causal_line_hint (__main__.SmokePolicyTests.test_issue_compaction_prioritizes_public_causal_line_hint) ... ok
+test_overflow_guard_rejects_removed_control_flow_and_retained_cast (__main__.SmokePolicyTests.test_overflow_guard_rejects_removed_control_flow_and_retained_cast) ... ok
+test_precision_evidence_is_derived_from_public_repo_and_survives_compaction (__main__.SmokePolicyTests.test_precision_evidence_is_derived_from_public_repo_and_survives_compaction) ... ok
+test_provider_cost_is_frozen_in_evidence (__main__.SmokePolicyTests.test_provider_cost_is_frozen_in_evidence) ... ok
+test_public_causal_hint_targets_only_fixed_width_line (__main__.SmokePolicyTests.test_public_causal_hint_targets_only_fixed_width_line) ... ok
+test_public_constraint_ledger_is_cumulative_and_deduplicated (__main__.SmokePolicyTests.test_public_constraint_ledger_is_cumulative_and_deduplicated) ... ok
+test_public_issue_regression_spec_uses_only_public_example (__main__.SmokePolicyTests.test_public_issue_regression_spec_uses_only_public_example) ... ok
+test_public_precision_guidance_uses_repo_visible_numeric_types (__main__.SmokePolicyTests.test_public_precision_guidance_uses_repo_visible_numeric_types) ... ok
+test_public_validation_compaction_keeps_public_failure_signal (__main__.SmokePolicyTests.test_public_validation_compaction_keeps_public_failure_signal) ... ok
+test_public_validation_infra_is_prepared_before_generation (__main__.SmokePolicyTests.test_public_validation_infra_is_prepared_before_generation) ... ok
+test_quality_cost_route_precedes_free_mesh (__main__.SmokePolicyTests.test_quality_cost_route_precedes_free_mesh) ... ok
+test_repair_compaction_keeps_mandatory_revision_directives (__main__.SmokePolicyTests.test_repair_compaction_keeps_mandatory_revision_directives) ... ok
+test_runtime_budget_preserves_complete_causal_source_with_precision (__main__.SmokePolicyTests.test_runtime_budget_preserves_complete_causal_source_with_precision) ... ok
+test_semantic_candidate_fingerprint_normalizes_whitespace (__main__.SmokePolicyTests.test_semantic_candidate_fingerprint_normalizes_whitespace) ... ok
+test_sovereign_receives_separate_public_failures_and_rejected_candidate (__main__.SmokePolicyTests.test_sovereign_receives_separate_public_failures_and_rejected_candidate) ... ok
+test_sovereign_repair_budget_is_bounded (__main__.SmokePolicyTests.test_sovereign_repair_budget_is_bounded) ... ok
+test_sovereign_resume_uses_public_evidence_only (__main__.SmokePolicyTests.test_sovereign_resume_uses_public_evidence_only) ... ok
+test_writer_hotspot_outranks_reader_for_public_write_issue (__main__.SmokePolicyTests.test_writer_hotspot_outranks_reader_for_public_write_issue) ... ok
+
+----------------------------------------------------------------------
+Ran 25 tests in 0.498s
+
+OK

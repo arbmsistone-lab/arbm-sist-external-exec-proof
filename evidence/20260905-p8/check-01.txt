@@ -1,0 +1,1 @@
+{"gate": "constitution-policy", "status": "PASS", "reasons": [], "technicalRelease": "NO-GO", "worldClassReadiness": "NOT VERIFIED", "globalTop3ZeroCost": "NOT CERTIFIED"}

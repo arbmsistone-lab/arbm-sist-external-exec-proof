@@ -1,0 +1,131 @@
+{
+  "baseline": "ae5597ecf687fefb5f543562c0137740a61bd7bd",
+  "utc": "2026-09-05T12:42:29.424572+00:00",
+  "originalRun": 33939225279,
+  "artifactId": 9961394272,
+  "artifactFiles": [
+    {
+      "name": "agent-evidence.json",
+      "sha256": "e199a0b187a0e6ec4acd838e9a5f1c8f52fec0823a91b902f08beeccd6d8edf3",
+      "verified": true
+    },
+    {
+      "name": "instance.json",
+      "sha256": "d1cc4a65e9b12354bdbbd81f79348d0ab97167b0d5699fec66dff8281de46722",
+      "verified": true
+    },
+    {
+      "name": "patches.json",
+      "sha256": "734fbfe7337d848adb1f79106dff5bfc632de74cac0990f3960760fa22850841",
+      "verified": true
+    }
+  ],
+  "originalFailure": {
+    "exitCode": 124,
+    "timedOut": false,
+    "status": "SOVEREIGN_GENERATION_FAILED",
+    "stderrPreview": "NO_PASSING_PUBLIC_CANDIDATE",
+    "validPatch": false
+  },
+  "checks": [
+    {
+      "command": [
+        "python",
+        "arbm-constitution.py"
+      ],
+      "exitCode": 0,
+      "output": "check-01.txt",
+      "sha256": "d1a2c85343ba48a20063d337aaa61c41a1750fe72f7e9c0da68589816d60f9c9"
+    },
+    {
+      "command": [
+        "python",
+        "arbm-constitution-test.py"
+      ],
+      "exitCode": 0,
+      "output": "check-02.txt",
+      "sha256": "5e28eeb8a8750a69970aeb48afd8d811b82d836289381a152d80b19325b7b918"
+    },
+    {
+      "command": [
+        "python",
+        "p8-swe-rebench-smoke-test.py"
+      ],
+      "exitCode": 0,
+      "output": "check-03.txt",
+      "sha256": "e68eb2b48d3e11aa72d4e6b592fc64791b17abcae0bfea50fb2ed46e4f7a4822"
+    },
+    {
+      "command": [
+        "python",
+        "p8-quality-cost-endpoint-test.py"
+      ],
+      "exitCode": 0,
+      "output": "check-04.txt",
+      "sha256": "65870ffb3a463c9a73130df4d18128ee8ce97a432e9c0e21bc8e34220112b768"
+    },
+    {
+      "command": [
+        "node",
+        "codex-parity-gate-test.mjs"
+      ],
+      "exitCode": 0,
+      "output": "check-05.txt",
+      "sha256": "5f2a73a08ba1ded6e4d630e8a770d2f4e99adf2d30100016b2f523bc1aa10bb1"
+    },
+    {
+      "command": [
+        "node",
+        "shadow-evaluator-test.mjs"
+      ],
+      "exitCode": 0,
+      "output": "check-06.txt",
+      "sha256": "a6d034c06755ef22a4b62e028798e40111ca69f12e58d87438ce25b39f0c0645"
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "py_compile",
+        "p8-swe-rebench-smoke.py",
+        "arbm-constitution.py"
+      ],
+      "exitCode": 0,
+      "output": "check-07.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "node",
+        "--check",
+        "codex-parity-gate.mjs"
+      ],
+      "exitCode": 0,
+      "output": "check-08.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "node",
+        "--check",
+        "shadow-evaluator.mjs"
+      ],
+      "exitCode": 0,
+      "output": "check-09.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exitCode": 0,
+      "output": "check-10.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "technicalRelease": "NO-GO",
+  "worldClassReadiness": "NOT VERIFIED",
+  "globalTop3ZeroCost": "NOT CERTIFIED"
+}
