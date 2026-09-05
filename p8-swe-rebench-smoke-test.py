@@ -230,6 +230,20 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertTrue(any('control_flow_removed:when' in e for e in bad_errors))
         self.assertEqual(good_errors, [])
 
+    def test_floating_qual_guard_rejects_forced_fixed_decimal(self):
+        guard = load_function('public_invariant_guard', {'Path': Path, 're': re})
+        with tempfile.TemporaryDirectory() as repo:
+            target = Path(repo, 'src/cljam/io/vcf/writer.clj')
+            target.parent.mkdir(parents=True)
+            target.write_text(
+                '  (when x\n    (if (zero? (mod x 1))\n      (str (int x))\n      (str x))))\n',
+                encoding='utf-8',
+            )
+            edit = [{'path':'src/cljam/io/vcf/writer.clj','start_line':1,'end_line':4,
+                     'new':'  (when x\n    (if (zero? (mod x 1))\n      (format "%.0f" x)\n      (str x))))'}]
+            errors = guard(repo, edit, 'QUAL value overflows when writing VCF; huge values exceed Integer range')
+        self.assertTrue(any('floating_qual_forced_decimal' in e for e in errors))
+
 
     def test_public_causal_hint_targets_only_fixed_width_line(self):
         hints_fn = load_function('public_causal_fixed_width_hints', {'Path': Path, 're': re})

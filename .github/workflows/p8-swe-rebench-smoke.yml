@@ -69,6 +69,7 @@ jobs:
           MODEL_LABEL: ARBM-Quality-Cost-Router-v1
           MODEL_PROVIDER: quality-floor-then-min-cost
           WORKER_REV: quality-cost-router-v1
+          ARBM_ALLOW_DETERMINISTIC_PUBLIC_REPAIR: '1'
         run: python p8-swe-rebench-smoke.py
       - name: Detect sovereign fallback requirement
         id: fallback

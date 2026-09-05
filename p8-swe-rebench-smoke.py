@@ -986,9 +986,11 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 serialization=bool(re.search(r'str|string|format|serialize|write',old+'\n'+new,re.I))
                 floating_qual=('qual' in low and 'vcf' in low and rel.endswith('/vcf/writer.clj'))
                 integer_coercion_new=bool(re.search(r'\((?:int|long|bigint)\s+',new,re.I))
+                forced_fixed_decimal=bool(re.search(r'\bformat\s+"%\.0f"',new,re.I))
                 if bounded_old and same_width_new and serialization: errs.append('public_invariant_fixed_width_conversion_retained:'+rel)
                 if bounded_old and long_width_new and serialization and unbounded_required: errs.append('public_invariant_fixed_width_conversion_retained:'+rel)
                 if bounded_old and floating_qual and serialization and integer_coercion_new: errs.append('public_invariant_floating_qual_integer_coercion:'+rel)
+                if bounded_old and floating_qual and serialization and forced_fixed_decimal: errs.append('public_invariant_floating_qual_forced_decimal:'+rel)
                 for form in ('when','when-not','when-let','if','if-not','if-let','cond','case'):
                     pattern=r'\('+re.escape(form)+r'\b'
                     if len(re.findall(pattern,new)) < len(re.findall(pattern,old)):
