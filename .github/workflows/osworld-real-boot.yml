@@ -1,0 +1,95 @@
+name: OSWorld real VM zero-spend boot
+on:
+  push:
+    paths:
+      - '.github/workflows/osworld-real-boot.yml'
+permissions:
+  contents: read
+jobs:
+  boot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Prepare free KVM runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          sudo apt-get clean
+          test -c /dev/kvm
+          sudo chmod 666 /dev/kvm
+          df -h / | tee osworld-boot.txt
+          echo 'KVM=PASS' | tee -a osworld-boot.txt
+      - name: Checkout pinned OSWorld
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v2026.08.08 https://github.com/xlang-ai/OSWorld-V2.git osworld
+          test "$(git -C osworld rev-parse HEAD)" = "d578d2d4e0dc82b43e270fdaa7fa89d9708cd154"
+          python -m pip install --disable-pip-version-check -q docker psutil requests filelock
+      - name: Pin OSWorld runtime image
+        shell: bash
+        run: |
+          set -euo pipefail
+          digest='sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9'
+          docker pull "happysixd/osworld-docker@${digest}"
+          docker tag "happysixd/osworld-docker@${digest}" happysixd/osworld-docker:latest
+          actual=$(docker image inspect happysixd/osworld-docker:latest --format '{{index .RepoDigests 0}}')
+          echo "RUNTIME_IMAGE=${actual}" | tee -a osworld-boot.txt
+          echo "$actual" | grep -F "$digest"
+      - name: Download and verify official VM artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://huggingface.co/datasets/xlangai/v2-image/resolve/v2026.06.24/osworld-v2-ubuntu-x86.qcow2.zip'
+          curl -fL --retry 5 --retry-delay 3 "$url" -o osworld-vm.zip
+          echo "VM_ZIP_BYTES=$(stat -c%s osworld-vm.zip)" | tee -a osworld-boot.txt
+          actual=$(sha256sum osworld-vm.zip | awk '{print $1}')
+          expected='eb737ae70b49849e24af407de6a518439a23de05a8497096a948334ce0a909aa'
+          echo "VM_ZIP_SHA256=${actual}" | tee -a osworld-boot.txt
+          test "$actual" = "$expected"
+          unzip -q osworld-vm.zip -d vm
+          rm -f osworld-vm.zip
+          qcow=$(find vm -type f -name '*.qcow2' | head -1)
+          test -n "$qcow"
+          echo "$qcow" > vm-path.txt
+          echo "VM_QCOW_BYTES=$(stat -c%s "$qcow")" | tee -a osworld-boot.txt
+          df -h / | tee -a osworld-boot.txt
+      - name: Boot official OSWorld VM with Docker provider
+        shell: bash
+        run: |
+          set -euo pipefail
+          qcow=$(cat vm-path.txt)
+          export QCOW_PATH="$PWD/$qcow"
+          PYTHONPATH="$PWD/osworld" python - <<'PY' | tee -a osworld-boot.txt
+          import os, requests
+          from desktop_env.providers.docker.provider import DockerProvider
+          p=DockerProvider(region='local')
+          try:
+              p.start_emulator(os.environ['QCOW_PATH'], headless=True, os_type='Ubuntu')
+              endpoint=f'http://localhost:{p.server_port}/screenshot'
+              r=requests.get(endpoint, timeout=20)
+              assert r.status_code == 200, r.status_code
+              assert len(r.content) > 1000, len(r.content)
+              print('OSWORLD_REAL_VM_BOOT=PASS')
+              print(f'OSWORLD_SCREENSHOT_BYTES={len(r.content)}')
+              print(f'OSWORLD_PORTS={p.get_ip_address(os.environ["QCOW_PATH"])}')
+          finally:
+              p.stop_emulator(os.environ['QCOW_PATH'])
+          PY
+          test "$(docker ps -q | wc -l)" -eq 0
+      - name: Capture diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          docker ps -a | tee -a osworld-boot.txt
+          df -h / | tee -a osworld-boot.txt
+          echo "FINAL_FREE_BYTES=$(df -B1 --output=avail / | tail -1 | tr -d ' ')" | tee -a osworld-boot.txt
+      - name: Upload boot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: osworld-real-vm-zero-spend-boot
+          path: osworld-boot.txt
+          if-no-files-found: error
