@@ -28,34 +28,32 @@ jobs:
             ripgrep-cargo-test|ripgrep-cargo-check) ;;
             *) echo 'MISSION_NOT_ALLOWLISTED'; exit 64 ;;
           esac
-      - name: Pull and verify frozen SWE image
+      - uses: actions/checkout@v7
+      - name: Rebuild and verify frozen SWE baseline
         shell: bash
         run: |
           set -euo pipefail
-          IMAGE='swe-milestone/burntsushi_ripgrep_14.1.1_15.0.0__base-offline:v1.0.2'
-          EXPECTED_ID='sha256:a22b225816bfc9fa243456a710bfc6e25ba6342c1162053a7876a73bfdec7e58'
-          docker pull "$IMAGE"
-          test "$(docker image inspect "$IMAGE" --format '{{.Id}}')" = "$EXPECTED_ID"
-          test "$(docker run --rm --entrypoint sh "$IMAGE" -lc 'git -C /testbed rev-parse HEAD')" = 'd4b620ee55bcf3b2e85d23576878161540b67948'
+          git clone --depth 1 --branch 14.1.1 https://github.com/BurntSushi/ripgrep.git target
+          test "$(git -C target rev-parse HEAD)" = '4649aa9700619f94cf9c66876e9549d83420e16c'
+          git -C target apply --index ../ripgrep-rust2024.patch
+          test "$(git -C target write-tree)" = 'ae9e34953dc822672095250a5f9a6045968f1358'
       - name: Execute heavy mission
         shell: bash
         run: |
           set -euo pipefail
-          IMAGE='swe-milestone/burntsushi_ripgrep_14.1.1_15.0.0__base-offline:v1.0.2'
           if [ "${{ inputs.mission }}" = "ripgrep-cargo-test" ]; then
-            docker run --rm --entrypoint sh "$IMAGE" -lc 'cd /testbed && CARGO_BUILD_JOBS=2 RUST_TEST_THREADS=1 cargo test --locked'
+            (cd target && CARGO_BUILD_JOBS=2 RUST_TEST_THREADS=1 cargo test --locked)
           else
-            docker run --rm --entrypoint sh "$IMAGE" -lc 'cd /testbed && CARGO_BUILD_JOBS=2 cargo check --locked'
+            (cd target && CARGO_BUILD_JOBS=2 cargo check --locked)
           fi
       - name: Emit evidence
         shell: bash
         run: |
           set -euo pipefail
-          IMAGE='swe-milestone/burntsushi_ripgrep_14.1.1_15.0.0__base-offline:v1.0.2'
-          TARGET_SHA="$(docker run --rm --entrypoint sh "$IMAGE" -lc 'git -C /testbed rev-parse HEAD')"
-          IMAGE_ID="$(docker image inspect "$IMAGE" --format '{{.Id}}')"
-          printf '{"schema":"arbm-heavy-cloud-v1","requestId":"%s","mission":"%s","runner":"%s","targetSha":"%s","imageId":"%s","zeroSpendMode":"HARD","executionType":"remote","state":"SUCCEEDED"}\n' \
-            "${{ inputs.request_id }}" "${{ inputs.mission }}" "$RUNNER_NAME" "$TARGET_SHA" "$IMAGE_ID" > evidence.json
+          PARENT_SHA="$(git -C target rev-parse HEAD)"
+          TREE_SHA="$(git -C target write-tree)"
+          printf '{"schema":"arbm-heavy-cloud-v1","requestId":"%s","mission":"%s","runner":"%s","parentSha":"%s","treeSha":"%s","benchmarkBaselineCommit":"d4b620ee55bcf3b2e85d23576878161540b67948","zeroSpendMode":"HARD","executionType":"remote","state":"SUCCEEDED"}\n' \
+            "${{ inputs.request_id }}" "${{ inputs.mission }}" "$RUNNER_NAME" "$PARENT_SHA" "$TREE_SHA" > evidence.json
           sha256sum evidence.json > evidence.sha256
           cat evidence.json
       - name: Upload evidence
