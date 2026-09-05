@@ -376,18 +376,20 @@ def _sovereign_json(payload):
         feedback=str(payload.get('public_validation_feedback',''))
         raw_issue=str(payload.get('issue',''))
         issue=_compact_public_issue(raw_issue.split('\n\nPUBLIC REPOSITORY VALIDATION FAILED',1)[0],600) if feedback else _compact_public_issue(raw_issue,900)
-        ctx=_compact_public_context(payload.get('tool_context',''),issue,1200)
+        ctx=_compact_public_context(payload.get('tool_context',''),issue,900)
         prompt=('PUBLIC REPOSITORY CONTEXT:\n'+ctx+'\n\nPUBLIC ISSUE AND CONTRACT:\n'+issue+
                 '\n\nReturn ONLY a JSON object with key "edits". edits is a list of objects with path, start_line, end_line, new. '
                 'Use only supplied public context. start_line and end_line MUST be exact line numbers printed before each source line; never guess or renumber them. Make the smallest causally sufficient edit: when a fixed-width conversion inside existing guards/branches causes serialization overflow, prefer editing only that causal expression and preserve enclosing control flow verbatim. Preserve existing ordinary output formatting unless the public issue requires changing it. No markdown, hidden tests, gold patches, evaluator output, or solution PRs.')
         max_tokens=112
         if feedback:
             prompt+='\n\nREJECTED CANDIDATE (failed public tests):\n'+json.dumps(payload.get('rejected_edits',[]),ensure_ascii=False)[:700]
-            prompt+='\n\nPUBLIC VALIDATION FAILURES:\n'+_compact_public_validation_output(feedback,1400)
+            prompt+='\n\nPUBLIC VALIDATION FAILURES:\n'+_compact_public_validation_output(feedback,700)
             ledger=payload.get('public_constraint_ledger',[])
-            if ledger: prompt+='\n\nACCUMULATED PUBLIC CONSTRAINT LEDGER:\n'+'\n'.join(str(x) for x in ledger)[:1800]
+            if ledger: prompt+='\n\nACCUMULATED PUBLIC CONSTRAINT LEDGER:\n'+'\n'.join(str(x) for x in ledger[-10:])[:900]
             fps=payload.get('failed_candidate_fingerprints',[])
-            if fps: prompt+='\n\nFAILED CANDIDATE FINGERPRINTS (must not repeat semantically):\n'+'\n'.join(str(x) for x in fps[-12:])
+            if fps: prompt+='\n\nFAILED CANDIDATE FINGERPRINTS (must not repeat semantically):\n'+'\n'.join(str(x) for x in fps[-4:])
+            hints=payload.get('public_causal_hints',[])
+            if hints: prompt+='\n\nPUBLIC CAUSAL HINTS:\n'+json.dumps(hints,ensure_ascii=False)[:700]
             prompt+='\nRevise the rejected candidate; do not repeat it or any semantically equivalent failed candidate. Fix every accumulated public constraint while preserving the original public invariants. Return a complete candidate against the original numbered source, including all necessary edits, not an incremental patch against the rejected candidate.'
             max_tokens=224
     elif phase=='judge':
@@ -1017,12 +1019,9 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                                       'Rejected candidate chain: '+json.dumps(rejected_chain,ensure_ascii=False)[:6500])
                         if causal_hints:
                             follow_issue+='\nPUBLIC CAUSAL LINE HINT derived only from the public repository: '+json.dumps(causal_hints)+'. Do not reintroduce fixed-width integer conversion.'
-                        follow_issue+='\nPUBLIC VALIDATION OUTPUT SUMMARY (public tests only):\n'+failure_summary
-                        follow_issue+='\nPUBLIC SEMANTIC CONSTRAINTS / COUNTEREXAMPLES:\n'+failure_summary
-                        follow_issue+='\nACCUMULATED PUBLIC CONSTRAINT LEDGER:\n'+'\n'.join(public_constraint_ledger)[:2200]
-                        follow_issue+='\nFAILED SEMANTIC FINGERPRINTS: '+json.dumps(failed_candidate_fingerprints[-12:])
+                        follow_issue+='\nPUBLIC VALIDATION OUTPUT SUMMARY (public tests only): supplied separately via public_validation_feedback.'
                         foffset=repair_offset+1+public_attempt
-                        fcode,fdata,ferr,ftimed=remote_json({'phase':'solve','issue':follow_issue,'tool_context':context,'instance_id':iid,'model_offset':foffset,'review_model_offset':foffset,'public_validation_feedback':failure_summary,'rejected_edits':rejected_chain,'public_constraint_ledger':public_constraint_ledger,'failed_candidate_fingerprints':failed_candidate_fingerprints})
+                        fcode,fdata,ferr,ftimed=remote_json({'phase':'solve','issue':follow_issue,'tool_context':context,'instance_id':iid,'model_offset':foffset,'review_model_offset':foffset,'public_validation_feedback':failure_summary,'rejected_edits':rejected_chain,'public_constraint_ledger':public_constraint_ledger,'failed_candidate_fingerprints':failed_candidate_fingerprints,'public_causal_hints':causal_hints})
                         follow=dedupe_edits((fdata or {}).get('edits',[]) if fcode==0 else [])
                         follow_fingerprint=_semantic_candidate_fingerprint(follow) if follow else ''
                         frec={'attempt':public_attempt,'modelOffset':foffset,'providerCode':fcode,'providerError':ferr[:500],'providerMeta':provider_meta(fdata),'edits':follow,'semanticFingerprint':follow_fingerprint}
