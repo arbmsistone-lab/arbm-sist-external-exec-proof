@@ -829,7 +829,29 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     allowed_paths=[]
     for rel in re.findall(r'(?m)^FILE:\s+([^\s]+)',context):
         if rel not in allowed_paths: allowed_paths.append(rel)
-    code,data,err,timed_out=remote_json({'phase':'solve','issue':solver_problem,'tool_context':context,'instance_id':iid,'model_offset':0,'review_model_offset':0})
+    resume_public={}
+    if os.environ.get('ARBM_SOVEREIGN_ONLY')=='1' and os.environ.get('ARBM_RESUME_PUBLIC_EVIDENCE')=='1':
+        ep=Path(OUT,'agent-evidence.json')
+        if ep.is_file():
+            try:
+                prior=json.loads(ep.read_text(encoding='utf-8'))
+                options=[]
+                for key in ('candidateA','candidateB'):
+                    cr=prior.get(key) or {}
+                    if cr.get('edits') and cr.get('validationAttempted') and int(cr.get('validationCode',0))!=0:
+                        preview=str(cr.get('validationPreview',''))
+                        signal=preview.count('ERROR in ')+preview.count('FAIL in ')
+                        options.append((signal or 999,key,cr))
+                if options:
+                    _,key,cr=min(options,key=lambda x:x[0])
+                    rr=(prior.get('repairRecords') or {}).get(key[-1],{})
+                    resume_public={'source':key,'rejected_edits':cr.get('edits',[]),'feedback':_compact_public_validation_output(cr.get('validationPreview',''),1000),'ledger':rr.get('publicConstraintLedger',[]),'fingerprints':rr.get('failedCandidateFingerprints',[])}
+            except Exception:
+                resume_public={}
+    solve_payload={'phase':'solve','issue':solver_problem,'tool_context':context,'instance_id':iid,'model_offset':0,'review_model_offset':0}
+    if resume_public:
+        solve_payload.update({'public_validation_feedback':resume_public['feedback'],'rejected_edits':resume_public['rejected_edits'],'public_constraint_ledger':resume_public['ledger'],'failed_candidate_fingerprints':resume_public['fingerprints']})
+    code,data,err,timed_out=remote_json(solve_payload)
     cand_a=(data or {}).get('edits',[]) if code==0 else []
     alt_issue=solver_problem+'\n\nGenerate an INDEPENDENT ALTERNATIVE solution. The first candidate was: '+json.dumps(cand_a)[:4000]+' Do not repeat it; test a different plausible root cause or more complete behavioral invariant using only supplied public context.'
     if os.environ.get('ARBM_SOVEREIGN_ONLY')=='1':
@@ -1009,7 +1031,8 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     current_vout=vout
                     failed_candidate_fingerprints=[_semantic_candidate_fingerprint(repaired)]
                     public_constraint_ledger=_extract_public_constraint_ledger(vout)
-                    for public_attempt in range(1,4):
+                    public_repair_limit=1 if os.environ.get('ARBM_SOVEREIGN_ONLY')=='1' else 3
+                    for public_attempt in range(1,public_repair_limit+1):
                         failure_summary=_compact_public_validation_output(current_vout,2200)
                         public_constraint_ledger=_extract_public_constraint_ledger(current_vout,public_constraint_ledger)
                         follow_issue=(solver_problem+'\n\nPUBLIC REPOSITORY VALIDATION FAILED AFTER FIRST PUBLIC REPAIR / ITERATIVE PUBLIC REPAIR for candidate '+label+
@@ -1120,7 +1143,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit',**runtime_identity(),'dataset':DATASET,'instance_id':iid,
       'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'model':os.environ.get('MODEL_LABEL','unknown'),'provider':os.environ.get('MODEL_PROVIDER','local-llama'),
       'latencyMs':latency,'exitCode':code,'validPatch':valid,'status':terminal_status,'patchChars':len(patch),
-      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'allowedPaths':allowed_paths,'pathNormalizations':path_normalizations,'editMeta':applied_meta,'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'publicValidationAttempted':validation_attempted,'publicValidationCode':validation_code,'publicValidationPreview':validation_output[-6000:],'repairAttempted':bool(repair_records),'repairRecords':repair_records,'candidateA':candidate_results.get('A'),'candidateB':candidate_results.get('B'),'semanticJudgeChoice':choice,'semanticJudgeReason':judge_reason,'semanticJudgeCode':jcode,'goldPatchExposedToAgent':False}
+      'stderrChars':len(err),'stderrPreview':err[:500],'timedOut':timed_out,'editCount':len(edits) if isinstance(edits,list) else 0,'allowedPaths':allowed_paths,'pathNormalizations':path_normalizations,'editMeta':applied_meta,'appliedEdits':applied_edits,'editErrors':edit_errors[:8],'structureValid':structure_valid,'applyCheck':apply_check,'applyError':apply_error,'publicValidationAttempted':validation_attempted,'publicValidationCode':validation_code,'publicValidationPreview':validation_output[-6000:],'repairAttempted':bool(repair_records),'repairRecords':repair_records,'candidateA':candidate_results.get('A'),'candidateB':candidate_results.get('B'),'semanticJudgeChoice':choice,'semanticJudgeReason':judge_reason,'semanticJudgeCode':jcode,'resumePublicEvidence':resume_public,'goldPatchExposedToAgent':False}
     Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
     Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':patch}],indent=2)+'\n')
     Path(OUT,'instance.json').write_text(json.dumps({'instance_id':iid,'repo':row['repo'],'base_commit':base},indent=2)+'\n')

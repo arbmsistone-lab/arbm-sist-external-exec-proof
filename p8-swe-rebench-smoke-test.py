@@ -253,5 +253,18 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertNotIn('FAIL_TO_PASS', spec['source'])
 
 
+    def test_sovereign_resume_uses_public_evidence_only(self):
+        source = SCRIPT.read_text(encoding='utf-8')
+        self.assertIn("ARBM_RESUME_PUBLIC_EVIDENCE", source)
+        self.assertIn("public_validation_feedback", source)
+        self.assertIn("rejected_edits", source)
+        self.assertIn("resumePublicEvidence", source)
+
+    def test_sovereign_repair_budget_is_bounded(self):
+        source = SCRIPT.read_text(encoding='utf-8')
+        self.assertIn("public_repair_limit=1 if os.environ.get('ARBM_SOVEREIGN_ONLY')=='1' else 3", source)
+        self.assertIn("range(1,public_repair_limit+1)", source)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
