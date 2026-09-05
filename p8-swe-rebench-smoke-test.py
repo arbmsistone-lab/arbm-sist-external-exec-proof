@@ -207,6 +207,26 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertIn('NumberFormatException', result)
         self.assertIn('NaN', result)
 
+    def test_semantic_candidate_fingerprint_normalizes_whitespace(self):
+        fp = load_function('_semantic_candidate_fingerprint', {'json': json})
+        a = [{'path':'src/example.clj','start_line':7,'end_line':7,'new':'(str   x)'}]
+        b = [{'path':'src\\example.clj','start_line':7,'end_line':7,'new':'  (str x)  '}]
+        c = [{'path':'src/example.clj','start_line':7,'end_line':7,'new':'(format "%.0f" x)'}]
+        self.assertEqual(fp(a), fp(b))
+        self.assertNotEqual(fp(a), fp(c))
+
+    def test_public_constraint_ledger_is_cumulative_and_deduplicated(self):
+        ledger_fn = load_function('_extract_public_constraint_ledger', {})
+        first = 'FAIL in (ordinary)\nexpected: (= output "10")\nactual: (= output "10.0")\n'
+        second = 'ERROR in (edge)\nexpected: no throw\nactual: NumberFormatException: NaN\n'
+        ledger = ledger_fn(first)
+        ledger = ledger_fn(second, ledger)
+        ledger = ledger_fn(first, ledger)
+        joined='\n'.join(ledger)
+        self.assertIn('expected: (= output "10")', joined)
+        self.assertIn('NumberFormatException: NaN', joined)
+        self.assertEqual(len(ledger), len(set(ledger)))
+
     def test_followup_public_repair_is_bounded_and_public_only(self):
         source = SCRIPT.read_text(encoding='utf-8')
         self.assertIn('PUBLIC REPOSITORY VALIDATION FAILED AFTER FIRST PUBLIC REPAIR', source)
