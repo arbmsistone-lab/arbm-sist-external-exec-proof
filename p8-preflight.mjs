@@ -12,7 +12,14 @@ const pins = [
 ];
 
 function sh(cmd,args=[]){return execFileSync(cmd,args,{encoding:'utf8'}).trim();}
-function diskFreeMB(){return Number(sh('df',['-Pm','.']).split(/\r?\n/).at(-1).trim().split(/\s+/)[3]);}
+function diskFreeMB(){
+  if (typeof fs.statfsSync === 'function') {
+    const s=fs.statfsSync('.',{bigint:true});
+    return Number((s.bavail*s.bsize)/1048576n);
+  }
+  if (process.platform !== 'win32') return Number(sh('df',['-Pm','.']).split(/\r?\n/).at(-1).trim().split(/\s+/)[3]);
+  throw new Error('DISK_FREE_UNAVAILABLE');
+}
 function verifyFetch(pin){
   const dir=fs.mkdtempSync('p8-pin-');
   try { sh('git',['-C',dir,'init','-q']); sh('git',['-C',dir,'remote','add','origin',pin.repo]); sh('git',['-C',dir,'fetch','-q','--depth=1','origin',pin.ref]); return sh('git',['-C',dir,'rev-parse','FETCH_HEAD'])===pin.ref; }
