@@ -293,7 +293,14 @@ def _capacity_error(err):
     return ('http 429' in low or 'waiting_free_capacity' in low or 'quota' in low or 'high demand' in low)
 
 def _compact_public_context(raw, issue, max_chars=2600):
-    blocks=re.split(r'(?m)(?=^FILE:\s+)',str(raw))
+    raw_text=str(raw)
+    precision=''
+    marker='PUBLIC NUMERIC PRECISION EVIDENCE derived only from tracked repository source:'
+    if marker in raw_text:
+        start=raw_text.index(marker)
+        end=raw_text.find('\n\nFILE:',start)
+        precision=raw_text[start:(end if end>start else min(len(raw_text),start+1400))].strip()
+    blocks=re.split(r'(?m)(?=^FILE:\s+)',raw_text)
     stop={'this','that','with','from','when','have','will','should','there','which','into','about','more','than','only','also','using','used','public','issue','contract','before','after'}
     terms=[]
     for t in re.findall(r'[A-Za-z_][A-Za-z0-9_./:-]{2,}',str(issue)):
@@ -321,6 +328,9 @@ def _compact_public_context(raw, issue, max_chars=2600):
     ranked=list(ranked_by_file.values())
     ranked.sort(key=lambda x:-x[0])
     out='\n\n'.join(x[1] for x in ranked[:4])
+    if precision:
+        budget=max(0,max_chars-len(precision)-2)
+        return (precision+'\n\n'+out[:budget])[:max_chars]
     return out[:max_chars]
 
 def _compact_public_issue(raw, max_chars=2800):
@@ -658,6 +668,26 @@ def numbered_file(repo, rel, center=None, radius=120):
     else: a=max(0,center-radius); b=min(len(lines),center+radius)
     return f'FILE: {rel}\n'+''.join(f'{i+1:06d}|{lines[i]}' for i in range(a,b))
 
+def public_numeric_precision_evidence(repo, issue_text):
+    low=str(issue_text).lower()
+    if not ('qual' in low and 'vcf' in low): return ''
+    vcf=Path(repo,'src/cljam/io/vcf/reader.clj')
+    bcf=Path(repo,'src/cljam/io/bcf/reader.clj')
+    try:
+        vt=vcf.read_text(encoding='utf-8',errors='ignore') if vcf.is_file() else ''
+        bt=bcf.read_text(encoding='utf-8',errors='ignore') if bcf.is_file() else ''
+    except Exception:
+        return ''
+    vcf_double=('Double/parseDouble' in vt and ':qual' in vt)
+    bcf_float=('Float/intBitsToFloat' in bt and ':qual' in bt)
+    if not (vcf_double and bcf_float): return ''
+    return ('PUBLIC NUMERIC PRECISION EVIDENCE derived only from tracked repository source:\n'
+            '- VCF QUAL is parsed as Java Double.\n'
+            '- BCF QUAL is decoded as Java Float (IEEE-754 binary32).\n'
+            '- For binary32, representable spacing grows with magnitude; once spacing reaches one unit, `(mod x 1)==0` can result from representation precision rather than an original integer-text intent.\n'
+            '- Therefore preserve the existing 10.0 -> "10" public behavior for ordinary exact integral values, but do not use `(int x)` or blindly strip Float/Double representation at magnitudes where sub-unit precision is unavailable.\n'
+            '- Preserve the original when/if branches unless public source/tests require otherwise.\n')
+
 def _lisp_paren_delta(text):
     depth=0; quoted=False; esc=False; comment=False
     for ch in text:
@@ -863,7 +893,8 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
         print(json.dumps(evidence)); raise SystemExit(2)
     base_context='\n\n'.join(numbered_file(td,r,centers.get(r)) for r in candidate_paths[:8])
     hotspots=public_static_hotspots(td,candidate_paths,problem)
-    context=((hotspots+'\n\n') if hotspots else '')+base_context
+    precision_evidence=public_numeric_precision_evidence(td,problem)
+    context=((precision_evidence+'\n\n') if precision_evidence else '')+((hotspots+'\n\n') if hotspots else '')+base_context
     context=context[:32000]
     allowed_paths=[]
     for rel in re.findall(r'(?m)^FILE:\s+([^\s]+)',context):

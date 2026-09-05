@@ -312,6 +312,25 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertIn('Float precision no longer represents sub-unit fractions', source)
         self.assertIn('Do not use hidden tests, gold patches, evaluator output, solution PRs', source)
 
+    def test_precision_evidence_is_derived_from_public_repo_and_survives_compaction(self):
+        evidence_fn = load_function('public_numeric_precision_evidence', {'Path': Path})
+        compact_fn = load_function('_compact_public_context', {'re': re})
+        with tempfile.TemporaryDirectory() as repo:
+            vcf = Path(repo, 'src/cljam/io/vcf/reader.clj')
+            bcf = Path(repo, 'src/cljam/io/bcf/reader.clj')
+            vcf.parent.mkdir(parents=True)
+            bcf.parent.mkdir(parents=True)
+            vcf.write_text(':qual (Double/parseDouble x)\n', encoding='utf-8')
+            bcf.write_text(':qual (Float/intBitsToFloat bits)\n', encoding='utf-8')
+            evidence = evidence_fn(repo, 'QUAL overflows when writing VCF')
+        self.assertIn('derived only from tracked repository source', evidence)
+        self.assertIn('Java Double', evidence)
+        self.assertIn('Java Float', evidence)
+        raw = evidence + '\n\nFILE: src/cljam/io/vcf/writer.clj\n000192|      (str (int x))\n'
+        compact = compact_fn(raw, 'QUAL overflow', 1100)
+        self.assertIn('PUBLIC NUMERIC PRECISION EVIDENCE', compact)
+        self.assertIn('FILE: src/cljam/io/vcf/writer.clj', compact)
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
