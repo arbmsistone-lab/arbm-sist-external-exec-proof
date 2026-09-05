@@ -984,8 +984,11 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 long_width_new=bool(re.search(r'\b(?:long|int64|uint64|integer64)\b|\(long\s',new,re.I))
                 unbounded_required=bool(re.search(r'\b(unbounded|arbitrary precision|beyond long|long range|64[- ]?bit range)\b',low,re.I))
                 serialization=bool(re.search(r'str|string|format|serialize|write',old+'\n'+new,re.I))
+                floating_qual=('qual' in low and 'vcf' in low and rel.endswith('/vcf/writer.clj'))
+                integer_coercion_new=bool(re.search(r'\((?:int|long|bigint)\s+',new,re.I))
                 if bounded_old and same_width_new and serialization: errs.append('public_invariant_fixed_width_conversion_retained:'+rel)
                 if bounded_old and long_width_new and serialization and unbounded_required: errs.append('public_invariant_fixed_width_conversion_retained:'+rel)
+                if bounded_old and floating_qual and serialization and integer_coercion_new: errs.append('public_invariant_floating_qual_integer_coercion:'+rel)
                 for form in ('when','when-not','when-let','if','if-not','if-let','cond','case'):
                     pattern=r'\('+re.escape(form)+r'\b'
                     if len(re.findall(pattern,new)) < len(re.findall(pattern,old)):
@@ -1045,8 +1048,8 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     indent=m.group(1)
                     fallback=lines[i+1].strip()
                     if not re.match(r'^\(str\s+'+re.escape(expr)+r'\)\)+$',fallback): continue
-                    new=(indent+'(if (== (double '+expr+') (Math/rint (double '+expr+')))\n'
-                         +indent+'  (format "%.0f" (double '+expr+'))\n'
+                    new=(indent+'(if (zero? (mod '+expr+' 1))\n'
+                         +indent+'  (cstr/replace (str '+expr+') #"\\.0$" "")\n'
                          +indent+'  '+fallback)
                     ranked.append((score,rel,i,i+2,new))
                     continue

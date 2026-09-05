@@ -207,18 +207,26 @@ class SmokePolicyTests(unittest.TestCase):
                 'end_line': 193,
                 'new': '(if (and (zero? (mod x 1)) (< x Integer/MAX_VALUE)) (str (int x)) (str x)))',
             }]
+            bigint_bad = [{
+                'path': 'src/cljam/io/vcf/writer.clj',
+                'start_line': 192,
+                'end_line': 192,
+                'new': '      (str (bigint x))',
+            }]
             good = [{
                 'path': 'src/cljam/io/vcf/writer.clj',
                 'start_line': 192,
                 'end_line': 192,
-                'new': '      (format "%.0f" x)',
+                'new': '      (cstr/replace (str x) #"\\.0$" "")',
             }]
             issue = 'QUAL value overflows when writing VCF; huge values exceed Integer range'
             bad_errors = guard(repo, bad, issue)
             range_guard_errors = guard(repo, range_guard_bad, issue)
+            bigint_errors = guard(repo, bigint_bad, issue)
             good_errors = guard(repo, good, issue)
         self.assertTrue(any('fixed_width_conversion_retained' in e for e in bad_errors))
         self.assertTrue(any('fixed_width_conversion_retained' in e for e in range_guard_errors))
+        self.assertTrue(any('floating_qual_integer_coercion' in e for e in bigint_errors))
         self.assertTrue(any('control_flow_removed:when' in e for e in bad_errors))
         self.assertEqual(good_errors, [])
 
@@ -243,14 +251,15 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertEqual(len(edits), 1)
         self.assertEqual(edits[0]['start_line'], 2)
         self.assertEqual(edits[0]['end_line'], 4)
-        self.assertIn('(Math/rint (double x))', edits[0]['new'])
-        self.assertIn('(format "%.0f" (double x))', edits[0]['new'])
-        self.assertNotIn('(mod x 1)', edits[0]['new'])
+        self.assertIn('(cstr/replace (str x)', edits[0]['new'])
+        self.assertIn('#"\\.0$"', edits[0]['new'])
+        self.assertIn('(mod x 1)', edits[0]['new'])
         self.assertNotIn('(int x)', edits[0]['new'])
+        self.assertNotIn('(long x)', edits[0]['new'])
         self.assertNotIn('(bigint x)', edits[0]['new'])
         self.assertEqual(
             edits[0]['new'],
-            '    (if (== (double x) (Math/rint (double x)))\n      (format "%.0f" (double x))\n      (str x))))',
+            '    (if (zero? (mod x 1))\n      (cstr/replace (str x) #"\\.0$" "")\n      (str x))))',
         )
 
 
