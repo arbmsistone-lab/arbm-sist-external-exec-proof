@@ -279,7 +279,13 @@ def _record_provider_result(route, data):
     try: cost=max(0.0,float(d.get('mandatory_cost_usd',d.get('estimated_cost_usd',0)) or 0))
     except Exception: cost=0.0
     PROVIDER_COST_USD+=cost
-    PROVIDER_CALL_LEDGER.append({'route':route,'model':d.get('model'),'pipeline':d.get('pipeline'),'costUsd':round(cost,8),'inputTokens':d.get('input_tokens'),'outputTokens':d.get('output_tokens'),'totalTokens':d.get('total_tokens')})
+    PROVIDER_CALL_LEDGER.append({'route':route,'status':'ok','model':d.get('model'),'pipeline':d.get('pipeline'),'costUsd':round(cost,8),'inputTokens':d.get('input_tokens'),'outputTokens':d.get('output_tokens'),'totalTokens':d.get('total_tokens')})
+    if len(PROVIDER_CALL_LEDGER)>64: del PROVIDER_CALL_LEDGER[:-64]
+
+def _record_provider_failure(route, err):
+    global PROVIDER_CALL_LEDGER
+    msg=re.sub(r'(?i)(bearer|api[_-]?key|authorization)\s*[:=]?\s*[^\s,;|]+',r'\1=[REDACTED]',str(err))[:500]
+    PROVIDER_CALL_LEDGER.append({'route':route,'status':'failed','error':msg,'costUsd':0.0})
     if len(PROVIDER_CALL_LEDGER)>64: del PROVIDER_CALL_LEDGER[:-64]
 
 def _capacity_error(err):
@@ -454,6 +460,7 @@ def remote_json(payload):
         c,d,e,t=_remote_json_one(quality,payload,(0,8))
         if c==0:
             _record_provider_result('quality-cost',d); return c,d,e,t
+        _record_provider_failure('quality-cost',e)
         if _capacity_error(e): QUALITY_CIRCUIT_OPEN=True
         errors.append('quality='+e[:800])
     if primary and not PRIMARY_CIRCUIT_OPEN:
@@ -485,6 +492,7 @@ def remote_endpoint_json(endpoint, payload):
         c,d,e,t=_remote_json_one(quality,payload,(0,8))
         if c==0:
             _record_provider_result('quality-cost-judge',d); return c,d,e,t
+        _record_provider_failure('quality-cost-judge',e)
         if _capacity_error(e): QUALITY_JUDGE_CIRCUIT_OPEN=True
         errors.append('quality='+e[:800])
     if endpoint and not PRIMARY_CIRCUIT_OPEN:
@@ -1016,7 +1024,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
         if not cand_a and not cand_b:
             sovereign_only=(os.environ.get('ARBM_SOVEREIGN_ONLY')=='1')
             fail_status='SOVEREIGN_GENERATION_FAILED' if sovereign_only else 'WAITING_FREE_CAPACITY'
-            evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit',**runtime_identity(),'dataset':DATASET,'instance_id':iid,'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'exitCode':125,'validPatch':False,'status':fail_status,'providerUnavailable':not sovereign_only,'candidateACode':code,'candidateBCode':bcode,'providerError':(err+' | '+berr)[:1200],'allowedPaths':allowed_paths,'goldPatchExposedToAgent':False}
+            evidence={'schema':'arbm-p8-swe-smoke-v2-line-edit',**runtime_identity(),'dataset':DATASET,'instance_id':iid,'repo':row['repo'],'base_commit':base,'hfOffset':HF_OFFSET,'exitCode':125,'validPatch':False,'status':fail_status,'providerUnavailable':not sovereign_only,'candidateACode':code,'candidateBCode':bcode,'providerError':(err+' | '+berr)[:1200],'allowedPaths':allowed_paths,'providerCostUsd':round(PROVIDER_COST_USD,8),'providerCallLedger':PROVIDER_CALL_LEDGER,'goldPatchExposedToAgent':False}
             Path(OUT,'agent-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
             Path(OUT,'patches.json').write_text(json.dumps([{'instance_id':iid,'patch':''}],indent=2)+'\n')
             Path(OUT,'instance.json').write_text(json.dumps({'instance_id':iid,'repo':row['repo'],'base_commit':base},indent=2)+'\n')

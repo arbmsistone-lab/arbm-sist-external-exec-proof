@@ -282,6 +282,13 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertIn("'providerCallLedger':PROVIDER_CALL_LEDGER", source)
         self.assertIn("QUALITY_FIRST_COST_MIN_HARD", Path('CODEX-PARITY-FLOOR.md').read_text(encoding='utf-8'))
 
+    def test_failed_quality_route_is_audited_and_redacted(self):
+        source = SCRIPT.read_text(encoding='utf-8')
+        self.assertIn("_record_provider_failure('quality-cost',e)", source)
+        self.assertIn("_record_provider_failure('quality-cost-judge',e)", source)
+        self.assertIn("[REDACTED]", source)
+        self.assertIn("'status':'failed'", source)
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
