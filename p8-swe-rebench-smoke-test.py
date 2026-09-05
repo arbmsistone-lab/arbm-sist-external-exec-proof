@@ -289,6 +289,10 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertIn("[REDACTED]", source)
         self.assertIn("'status':'failed'", source)
 
+    def test_cancelled_router_can_reach_sovereign_fallback(self):
+        workflow = Path('.github/workflows/p8-swe-rebench-smoke.yml').read_text(encoding='utf-8')
+        self.assertGreaterEqual(workflow.count("if: always() && steps.fallback.outputs.needed == 'true'"), 5)
+
     def test_missing_router_evidence_triggers_sovereign_fallback(self):
         workflow = Path('.github/workflows/p8-swe-rebench-smoke.yml').read_text(encoding='utf-8')
         self.assertIn("status='MISSING_EVIDENCE'", workflow)

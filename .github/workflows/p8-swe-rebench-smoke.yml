@@ -81,14 +81,14 @@ jobs:
           print({'status':status,'sovereign_needed':need})
           PY
       - name: Restore sovereign model cache
-        if: steps.fallback.outputs.needed == 'true'
+        if: always() && steps.fallback.outputs.needed == 'true'
         uses: actions/cache@v4
         with:
           path: ${{ env.MODEL_DIR }}/${{ env.MODEL_FILE }}
           key: qwen25-coder-14b-q4km-${{ env.MODEL_SHA256 }}
           save-always: true
       - name: Prepare verified sovereign model
-        if: steps.fallback.outputs.needed == 'true'
+        if: always() && steps.fallback.outputs.needed == 'true'
         run: |
           set -euo pipefail
           mkdir -p "$MODEL_DIR"
@@ -102,7 +102,7 @@ jobs:
           echo "$LLAMA_SHA256  /tmp/llama.tgz" | sha256sum -c -
           mkdir -p /tmp/llama && tar -xzf /tmp/llama.tgz -C /tmp/llama
       - name: Start sovereign backstop server
-        if: steps.fallback.outputs.needed == 'true'
+        if: always() && steps.fallback.outputs.needed == 'true'
         run: |
           set -euo pipefail
           LLAMA_SERVER=$(find /tmp/llama -type f -name llama-server -print -quit)
@@ -115,7 +115,7 @@ jobs:
           for i in $(seq 1 90); do if curl -fsS http://127.0.0.1:8088/health >/dev/null 2>&1; then READY=1; break; fi; sleep 2; done
           test "$READY" = 1
       - name: Generate patch via sovereign backstop
-        if: steps.fallback.outputs.needed == 'true'
+        if: always() && steps.fallback.outputs.needed == 'true'
         timeout-minutes: 9
         env:
           ARBM_SOVEREIGN_ONLY: '1'
