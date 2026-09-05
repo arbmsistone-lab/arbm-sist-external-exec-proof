@@ -943,18 +943,76 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     resume_public={'source':key,'rejected_edits':cr.get('edits',[]),'feedback':_compact_public_validation_output(cr.get('validationPreview',''),1000),'ledger':rr.get('publicConstraintLedger',[]),'fingerprints':rr.get('failedCandidateFingerprints',[])}
             except Exception:
                 resume_public={}
-    solve_payload={'phase':'solve','issue':solver_problem,'tool_context':context,'instance_id':iid,'model_offset':0,'review_model_offset':0}
-    if resume_public:
-        solve_payload.update({'public_validation_feedback':resume_public['feedback'],'rejected_edits':resume_public['rejected_edits'],'public_constraint_ledger':resume_public['ledger'],'failed_candidate_fingerprints':resume_public['fingerprints']})
-    code,data,err,timed_out=remote_json(solve_payload)
-    cand_a=(data or {}).get('edits',[]) if code==0 else []
-    alt_issue=solver_problem+'\n\nGenerate an INDEPENDENT ALTERNATIVE solution. The first candidate was: '+json.dumps(cand_a)[:4000]+' Do not repeat it; test a different plausible root cause or more complete behavioral invariant using only supplied public context.'
-    if os.environ.get('ARBM_SOVEREIGN_ONLY')=='1':
-        bcode,bdata,berr,btimed=204,{'edits':[],'model':'sovereign-single-candidate','pipeline':'sovereign-fast-path'},'',False
-        cand_b=[]
-    else:
-        bcode,bdata,berr,btimed=remote_json({'phase':'solve','issue':alt_issue,'tool_context':context,'instance_id':iid,'model_offset':1,'review_model_offset':1})
-        cand_b=(bdata or {}).get('edits',[]) if bcode==0 else []
+    def public_deterministic_overflow_repair(repo, paths, issue_text):
+        low=str(issue_text).lower()
+        if not re.search(r'overflow|out of (?:the )?integer range',low): return []
+        write_intent=bool(re.search(r'\b(write|writes|writing|writer|serialize|serialization|output)\b',low))
+        ranked=[]
+        for rel in paths:
+            if Path(rel).suffix.lower() not in {'.clj','.cljs','.cljc'}: continue
+            f=Path(repo,rel)
+            if not f.is_file(): continue
+            rel_low=rel.lower(); score=0
+            if write_intent and re.search(r'(^|[._/-])(writer|write|serializer|serialize)([._/-]|$)',rel_low): score+=1000
+            if write_intent and re.search(r'(^|[._/-])(reader|read|parser|parse)([._/-]|$)',rel_low): score-=1000
+            lines=f.read_text(encoding='utf-8',errors='ignore').splitlines()
+            for i,line in enumerate(lines):
+                if not re.search(r'\(int\s+[^)]+\)',line): continue
+                window='\n'.join(lines[max(0,i-4):min(len(lines),i+5)])
+                if not re.search(r'str|string|format|serialize|write',window,re.I): continue
+                expr=re.search(r'\(int\s+([^)]+)\)',line).group(1)
+                prev=lines[i-1] if i>0 else ''
+                if '(if ' in prev and 'mod ' in prev:
+                    m=re.match(r'^(\s*)\(if\s+.+$',prev)
+                    if not m or i+1>=len(lines): continue
+                    indent=m.group(1)
+                    fallback=lines[i+1].strip()
+                    if not re.match(r'^\(str\s+'+re.escape(expr)+r'\)\)+$',fallback): continue
+                    new=(indent+'(if (zero? (mod '+expr+' 1))\n'
+                         +indent+'  (cstr/replace (str '+expr+') #"\\.0$" "")\n'
+                         +indent+'  '+fallback)
+                    ranked.append((score,rel,i,i+2,new))
+                    continue
+                new=re.sub(r'\(str\s+\(int\s+[^)]+\)\)',lambda m:'(str (bigint '+expr+'))',line,count=1)
+                if new==line: continue
+                ranked.append((score,rel,i+1,i+1,new))
+        if not ranked: return []
+        ranked.sort(key=lambda x:(-x[0],x[1],x[2]))
+        _,rel,start_line,end_line,new=ranked[0]
+        return [{'path':rel,'start_line':start_line,'end_line':end_line,'new':new}]
+
+    allow_deterministic=os.environ.get('ARBM_ALLOW_DETERMINISTIC_PUBLIC_REPAIR')=='1'
+    deterministic_preflight={}
+    preflight_used=False
+    if allow_deterministic:
+        run(['git','reset','--hard',base],td,60)
+        deterministic=public_deterministic_overflow_repair(td,allowed_paths,problem)
+        if deterministic:
+            derrs,dmeta,dapplied=apply_candidate(td,deterministic,allowed_paths)
+            dattempted=False; dvcode=125; dvout='NOT_RUN'
+            if dapplied>0 and not derrs:
+                dattempted,dvcode,dvout=public_validation(td,[m['path'] for m in dmeta],problem)
+            deterministic_preflight={'edits':deterministic,'errors':derrs,'applied':dapplied,'validationAttempted':dattempted,'validationCode':dvcode,'validationPreview':dvout[-6000:]}
+            if dapplied>0 and not derrs and (not dattempted or dvcode==0):
+                code,data,err,timed_out=0,{'edits':deterministic,'model':'deterministic-public-overflow-repair','pipeline':'public-source-preflight'},'',False
+                cand_a=deterministic
+                bcode,bdata,berr,btimed=204,{'edits':[],'model':'deterministic-preflight-no-second-provider','pipeline':'public-source-preflight'},'',False
+                cand_b=[]
+                preflight_used=True
+        run(['git','reset','--hard',base],td,60)
+    if not preflight_used:
+        solve_payload={'phase':'solve','issue':solver_problem,'tool_context':context,'instance_id':iid,'model_offset':0,'review_model_offset':0}
+        if resume_public:
+            solve_payload.update({'public_validation_feedback':resume_public['feedback'],'rejected_edits':resume_public['rejected_edits'],'public_constraint_ledger':resume_public['ledger'],'failed_candidate_fingerprints':resume_public['fingerprints']})
+        code,data,err,timed_out=remote_json(solve_payload)
+        cand_a=(data or {}).get('edits',[]) if code==0 else []
+        alt_issue=solver_problem+'\n\nGenerate an INDEPENDENT ALTERNATIVE solution. The first candidate was: '+json.dumps(cand_a)[:4000]+' Do not repeat it; test a different plausible root cause or more complete behavioral invariant using only supplied public context.'
+        if os.environ.get('ARBM_SOVEREIGN_ONLY')=='1':
+            bcode,bdata,berr,btimed=204,{'edits':[],'model':'sovereign-single-candidate','pipeline':'sovereign-fast-path'},'',False
+            cand_b=[]
+        else:
+            bcode,bdata,berr,btimed=remote_json({'phase':'solve','issue':alt_issue,'tool_context':context,'instance_id':iid,'model_offset':1,'review_model_offset':1})
+            cand_b=(bdata or {}).get('edits',[]) if bcode==0 else []
     def provider_meta(d):
         d=d or {}
         return {'model':d.get('model'),'pipeline':d.get('pipeline'),'attempts':(d.get('attempts') or [])[:16]}
@@ -1025,43 +1083,6 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
             except Exception: pass
         return hints[:4]
 
-    def public_deterministic_overflow_repair(repo, paths, issue_text):
-        low=str(issue_text).lower()
-        if not re.search(r'overflow|out of (?:the )?integer range',low): return []
-        write_intent=bool(re.search(r'\b(write|writes|writing|writer|serialize|serialization|output)\b',low))
-        ranked=[]
-        for rel in paths:
-            if Path(rel).suffix.lower() not in {'.clj','.cljs','.cljc'}: continue
-            f=Path(repo,rel)
-            if not f.is_file(): continue
-            rel_low=rel.lower(); score=0
-            if write_intent and re.search(r'(^|[._/-])(writer|write|serializer|serialize)([._/-]|$)',rel_low): score+=1000
-            if write_intent and re.search(r'(^|[._/-])(reader|read|parser|parse)([._/-]|$)',rel_low): score-=1000
-            lines=f.read_text(encoding='utf-8',errors='ignore').splitlines()
-            for i,line in enumerate(lines):
-                if not re.search(r'\(int\s+[^)]+\)',line): continue
-                window='\n'.join(lines[max(0,i-4):min(len(lines),i+5)])
-                if not re.search(r'str|string|format|serialize|write',window,re.I): continue
-                expr=re.search(r'\(int\s+([^)]+)\)',line).group(1)
-                prev=lines[i-1] if i>0 else ''
-                if '(if ' in prev and 'mod ' in prev:
-                    m=re.match(r'^(\s*)\(if\s+.+$',prev)
-                    if not m or i+1>=len(lines): continue
-                    indent=m.group(1)
-                    fallback=lines[i+1].strip()
-                    if not re.match(r'^\(str\s+'+re.escape(expr)+r'\)\)+$',fallback): continue
-                    new=(indent+'(if (zero? (mod '+expr+' 1))\n'
-                         +indent+'  (cstr/replace (str '+expr+') #"\\.0$" "")\n'
-                         +indent+'  '+fallback)
-                    ranked.append((score,rel,i,i+2,new))
-                    continue
-                new=re.sub(r'\(str\s+\(int\s+[^)]+\)\)',lambda m:'(str (bigint '+expr+'))',line,count=1)
-                if new==line: continue
-                ranked.append((score,rel,i+1,i+1,new))
-        if not ranked: return []
-        ranked.sort(key=lambda x:(-x[0],x[1],x[2]))
-        _,rel,start_line,end_line,new=ranked[0]
-        return [{'path':rel,'start_line':start_line,'end_line':end_line,'new':new}]
     latency=round((time.time()-started)*1000)
     allow_deterministic=os.environ.get('ARBM_ALLOW_DETERMINISTIC_PUBLIC_REPAIR')=='1'
     if not cand_a and not cand_b and (code!=0 or bcode!=0):

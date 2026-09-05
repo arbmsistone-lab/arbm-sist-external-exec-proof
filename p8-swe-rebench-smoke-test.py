@@ -24,6 +24,15 @@ def load_function(name, namespace):
 
 
 class SmokePolicyTests(unittest.TestCase):
+    def test_deterministic_preflight_precedes_remote_solve(self):
+        source = SCRIPT.read_text(encoding='utf-8')
+        preflight = source.index("if allow_deterministic:\n        run(['git','reset','--hard',base],td,60)")
+        remote = source.index('code,data,err,timed_out=remote_json(solve_payload)')
+        self.assertLess(preflight, remote)
+        window = source[preflight:remote]
+        self.assertIn('preflight_used=True', window)
+        self.assertIn("pipeline':'public-source-preflight'", window)
+
     def test_hard_mode_never_calls_paid_quality_route(self):
         for mode in (None, 'HARD'):
             with self.subTest(mode=mode):
