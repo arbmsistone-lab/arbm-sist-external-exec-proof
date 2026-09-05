@@ -16,7 +16,6 @@ jobs:
           set -euo pipefail
           df -h / | tee disk-probe.txt
           df -B1 / | tee -a disk-probe.txt
-          du -sh /opt/hostedtoolcache /usr/local/lib/android /usr/share/dotnet /opt/ghc 2>/dev/null | tee -a disk-probe.txt || true
       - name: Free disposable runner SDK space
         shell: bash
         run: |
