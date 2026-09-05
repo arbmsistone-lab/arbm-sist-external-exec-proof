@@ -227,8 +227,8 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertIn('Double/parseDouble', spec['source'])
         self.assertIn('1.0e20', spec['source'])
         self.assertIn('write-variants', spec['source'])
-        self.assertIn('Double/POSITIVE_INFINITY', spec['source'])
-        self.assertIn('Double/NaN', spec['source'])
+        self.assertNotIn('Double/POSITIVE_INFINITY', spec['source'])
+        self.assertNotIn('Double/NaN', spec['source'])
         self.assertNotIn('PASS_TO_PASS', spec['source'])
         self.assertNotIn('FAIL_TO_PASS', spec['source'])
 
