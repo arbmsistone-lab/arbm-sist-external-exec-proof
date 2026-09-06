@@ -1,22 +1,22 @@
 model:
   model_class: litellm_textbased
-  action_regex: '```mswea_bash_command\s*\n(.*?)\n```'
+  action_regex: <bash_code>\s*(.*?)\s*</bash_code>
+  format_error_template: |
+    Invalid action format. Continue the task; do NOT finish or submit.
+    Respond with exactly one <bash_code>...</bash_code> block containing one actionable shell command.
+    Do not include a second command block.
   model_kwargs:
     temperature: 0
 agent:
   system_template: |
     You are an autonomous coding agent. Inspect, edit, and test the repository until the issue is solved.
-    Every response MUST contain exactly ONE bash block:
-    ```mswea_bash_command
-    your_command_here
-    ```
-    Each command runs in a fresh subshell, so directory changes do not persist; use cd path && command.
-    Do not emit tool-call JSON, XML, or plain-text-only responses.
-    Finish only with: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT
+    Every response MUST contain exactly ONE command block:
+    <bash_code>your_command_here</bash_code>
+    Each command runs in a fresh subshell; use cd path && command when needed.
+    Never emit multiple command blocks. Never submit until the implementation is actually complete and tested.
+    Finish only with: <bash_code>echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT</bash_code>
   instance_template: |
     Solve this issue completely:
     {{task}}
-    Inspect only relevant files, make the smallest correct implementation, run focused tests, then broader tests if needed.
-    Avoid repeated listings or no-op navigation. Preserve existing behavior and do not stop until the implementation is verified.
-  format_error_template: |
-    Invalid action format. Respond with exactly one ```mswea_bash_command block containing one actionable shell command.
+    Start by inspecting relevant files with one concise command. Make the smallest correct implementation, run focused tests, then broader tests if needed.
+    Avoid repeated listings, no-op navigation, and premature submission. Preserve existing behavior and continue until verified.
