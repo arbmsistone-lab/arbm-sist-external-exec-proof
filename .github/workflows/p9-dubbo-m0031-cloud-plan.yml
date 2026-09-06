@@ -80,7 +80,8 @@ jobs:
           root_manifests={'pom.xml'}
           bad=[p for p in paths if p not in root_manifests and not any(p==r or p.startswith(r+'/') for r in roots)]
           if bad: raise SystemExit('ARBM_PLAN_SCOPE_VIOLATION:'+','.join(bad))
-          open('plan.json','w',encoding='utf-8').write(json.dumps(data,ensure_ascii=False,indent=2))          evidence={'schema':'arbm-p9-cloud-plan-v1','requestId':'${{ inputs.request_id }}','task':'dubbo/M003.1','benchmarkCommit':os.environ['BENCHMARK_COMMIT'],'benchmarkVersion':os.environ['BENCHMARK_VERSION'],'srsSha256':os.environ['SRS_SHA256'],'imageRef':os.environ['IMAGE_REF'],'endpoint':'arbm-benchmark-agent-v17','scopePass':True,'plannedPaths':paths,'zeroSpendMode':'HARD','executionType':'remote','state':'SUCCEEDED'}
+          open('plan.json','w',encoding='utf-8').write(json.dumps(data,ensure_ascii=False,indent=2))
+          evidence={'schema':'arbm-p9-cloud-plan-v1','requestId':'${{ inputs.request_id }}','task':'dubbo/M003.1','benchmarkCommit':os.environ['BENCHMARK_COMMIT'],'benchmarkVersion':os.environ['BENCHMARK_VERSION'],'srsSha256':os.environ['SRS_SHA256'],'imageRef':os.environ['IMAGE_REF'],'endpoint':'arbm-benchmark-agent-v17','scopePass':True,'plannedPaths':paths,'zeroSpendMode':'HARD','executionType':'remote','state':'SUCCEEDED'}
           open('evidence.json','w',encoding='utf-8').write(json.dumps(evidence,sort_keys=True,indent=2))
           PY
           sha256sum SRS.md repo-index.txt plan.json evidence.json > SHA256SUMS.txt
