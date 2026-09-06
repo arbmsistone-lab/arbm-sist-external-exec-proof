@@ -81,7 +81,7 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json, os, urllib.request
+          import json, os, urllib.error, urllib.request
           body={
             'issue':open('SRS.md',encoding='utf-8').read(),
             'tool_context':open('tool-context.txt',encoding='utf-8').read(),
@@ -90,10 +90,15 @@ jobs:
           req=urllib.request.Request(
             os.environ['ENDPOINT'], data=json.dumps(body).encode(), method='POST',
             headers={'Authorization':'Bearer '+os.environ['ARBM_BENCHMARK_OIDC'],'Content-Type':'application/json','Accept':'application/json'})
-          with urllib.request.urlopen(req,timeout=180) as r:
-            data=json.loads(r.read().decode())
+          try:
+            with urllib.request.urlopen(req,timeout=180) as r:
+              data=json.loads(r.read().decode())
+          except urllib.error.HTTPError as e:
+            raw=e.read().decode(errors='replace')
+            try: data=json.loads(raw)
+            except Exception: data={'http':e.code,'raw':raw[:1200]}
           if not data.get('ok') or data.get('status')!='PASS':
-            raise SystemExit('P9_SOLVE_NOT_PASS:'+json.dumps(data)[:1600])
+            raise SystemExit('P9_SOLVE_NOT_PASS:'+json.dumps(data)[:6000])
           open('solution.json','w',encoding='utf-8').write(json.dumps(data,ensure_ascii=False,indent=2))
           PY
       - name: Independently validate and apply operations
