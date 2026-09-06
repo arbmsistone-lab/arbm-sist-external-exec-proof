@@ -1,0 +1,28 @@
+{
+  "schema": "arbm-virtual-expert-panel-v1",
+  "requiredExperts": 20,
+  "consensus": "ALL_REQUIRED_PASS",
+  "failClosed": true,
+  "experts": [
+    {"id":"architecture","focus":"system architecture and boundary integrity"},
+    {"id":"benchmark-integrity","focus":"benchmark immutability and anti-leakage"},
+    {"id":"solver-quality","focus":"solver correctness and causal sufficiency"},
+    {"id":"semantic-preservation","focus":"behavioral compatibility and edge cases"},
+    {"id":"language-runtime","focus":"language/runtime specific correctness"},
+    {"id":"ci-cd","focus":"workflow reliability and reproducibility"},
+    {"id":"github-actions","focus":"GitHub runner and Actions constraints"},
+    {"id":"cloud-routing","focus":"remote provider routing and failover"},
+    {"id":"cpu-memory","focus":"CPU/RAM capability matching"},
+    {"id":"gpu","focus":"GPU workload eligibility"},
+    {"id":"storage","focus":"disk and artifact capacity"},
+    {"id":"virtualization","focus":"KVM/VM/nested virtualization requirements"},
+    {"id":"security","focus":"security boundaries and credential safety"},
+    {"id":"supply-chain","focus":"dependency, image and artifact provenance"},
+    {"id":"zero-spend","focus":"mandatory cost zero and overage prevention"},
+    {"id":"authentication","focus":"authorized access without bypass"},
+    {"id":"observability","focus":"evidence, logs, hashes and diagnostics"},
+    {"id":"certification","focus":"external certification gate completeness"},
+    {"id":"anti-regression","focus":"regression prevention and rollback"},
+    {"id":"commercial-readiness","focus":"sale/use release gating"}
+  ]
+}

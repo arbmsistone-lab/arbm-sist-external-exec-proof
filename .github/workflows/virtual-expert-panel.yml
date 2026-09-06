@@ -1,0 +1,21 @@
+name: Virtual Expert Panel
+
+on:
+  pull_request:
+    paths:
+      - 'certification/virtual-expert-panel.json'
+      - 'certification/virtual-expert-panel.mjs'
+      - '.github/workflows/virtual-expert-panel.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  panel-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate 20-expert fail-closed panel
+        run: node certification/virtual-expert-panel.mjs
