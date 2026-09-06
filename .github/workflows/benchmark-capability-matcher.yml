@@ -1,0 +1,22 @@
+﻿name: Benchmark Capability Matcher
+on:
+  workflow_dispatch:
+  push:
+    branches: ['global/capability-matcher-20260906']
+    paths:
+      - 'certification/benchmark-capability-requirements.json'
+      - 'certification/provider-capabilities.json'
+      - 'certification/capability-matcher.mjs'
+permissions:
+  contents: read
+jobs:
+  match:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - run: node certification/capability-matcher.mjs | tee capability-match.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-capability-match
+          path: capability-match.json
+          retention-days: 90
