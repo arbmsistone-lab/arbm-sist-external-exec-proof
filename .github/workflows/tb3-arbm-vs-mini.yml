@@ -1,0 +1,91 @@
+name: TB3 ARBM vs mini-SWE Same Model
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  head-to-head:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    env:
+      HARBOR_COMMIT: c29f416af4b02ef593d6874f88b59d38bf164646
+      PYTHONPATH: ${{ github.workspace }}
+      TB3_DATASET: terminal-bench/terminal-bench@3.0.0
+      TB3_TASK: atrx-vep-crispr
+      MODEL_DIR: ${{ github.workspace }}/.cache/arbm-models
+      MODEL_FILE: qwen2.5-coder-14b-instruct-q4_k_m.gguf
+      MODEL_SHA256: c1e659736d89ac1065fb495330fb824d94001974a4bfa78e7270e43476a8d940
+      LLAMA_TAG: b10516
+      LLAMA_SHA256: f263a91280471b4c33c4999d7c76259c0f3a0a53a0b3e692b2c0b84380137a35
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
+      - name: Install frozen Harbor
+        run: |
+          set -euo pipefail
+          git clone https://github.com/harbor-framework/harbor.git harbor-src
+          git -C harbor-src checkout "$HARBOR_COMMIT"
+          python -m pip install -e ./harbor-src
+          harbor --version
+          python -c "from arbm_harbor_agent import ArbmSovereignAgent; assert ArbmSovereignAgent.name() == 'arbm-sovereign'; print('ARBM_CUSTOM_AGENT_IMPORT=PASS')"
+      - name: Restore sovereign model cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.MODEL_DIR }}/${{ env.MODEL_FILE }}
+          key: tb3-qwen25-coder-14b-q4km-${{ env.MODEL_SHA256 }}
+          save-always: true
+      - name: Start frozen sovereign inference
+        run: |
+          set -euo pipefail
+          mkdir -p "$MODEL_DIR"
+          MODEL="$MODEL_DIR/$MODEL_FILE"
+          if [ ! -f "$MODEL" ]; then curl -fL --retry 5 --retry-delay 5 -o "$MODEL" "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/resolve/main/$MODEL_FILE?download=true"; fi
+          echo "$MODEL_SHA256  $MODEL" | sha256sum -c -
+          curl -fL --retry 4 -o /tmp/llama.tgz "https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA_TAG/llama-$LLAMA_TAG-bin-ubuntu-x64.tar.gz"
+          echo "$LLAMA_SHA256  /tmp/llama.tgz" | sha256sum -c -
+          mkdir -p /tmp/llama && tar -xzf /tmp/llama.tgz -C /tmp/llama
+          LLAMA_SERVER=$(find /tmp/llama -type f -name llama-server -print -quit)
+          chmod +x "$LLAMA_SERVER"
+          "$LLAMA_SERVER" -m "$MODEL" --host 0.0.0.0 --port 8088 -c 4096 -np 1 -t 4 -ctk q8_0 -ctv q8_0 --no-warmup --no-webui -a arbm-qwen-sovereign > sovereign.log 2>&1 &
+          echo "ARBM_SOVEREIGN_SERVER_PID=$!" >> "$GITHUB_ENV"
+          for i in $(seq 1 90); do curl -fsS http://127.0.0.1:8088/health >/dev/null && break; sleep 2; done
+          curl -fsS http://127.0.0.1:8088/health
+      - name: Run ARBM scaffold
+        env:
+          ARBM_SOVEREIGN_BACKEND: http://127.0.0.1:8088
+        run: |
+          set -euo pipefail
+          harbor run -d "$TB3_DATASET" -t "$TB3_TASK" -a arbm_harbor_agent:ArbmSovereignAgent -m arbm-qwen-sovereign -o jobs-arbm -k 1 | tee tb3-arbm.log
+      - name: Start mini-SWE format adapter
+        run: |
+          set -euo pipefail
+          ARBM_SOVEREIGN_BACKEND=http://127.0.0.1:8088 ARBM_SOVEREIGN_PROXY_PORT=8089 ARBM_PROXY_MAX_CALLS=25 python sovereign-action-proxy.py > action-proxy.log 2>&1 &
+          echo "ARBM_ACTION_PROXY_PID=$!" >> "$GITHUB_ENV"
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8089/health >/dev/null && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8089/health
+      - name: Run mini-SWE scaffold
+        run: |
+          set -euo pipefail
+          harbor run -d "$TB3_DATASET" -t "$TB3_TASK" -a mini-swe-agent -m openai/arbm-qwen-sovereign -o jobs-mini -k 1 --ae OPENAI_BASE_URL=http://172.17.0.1:8089/v1 --ae OPENAI_API_KEY=local-dummy-key | tee tb3-mini.log
+      - name: Freeze head-to-head evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          cp -r jobs-arbm evidence/ 2>/dev/null || true
+          cp -r jobs-mini evidence/ 2>/dev/null || true
+          cp -f tb3-arbm.log tb3-mini.log sovereign.log action-proxy.log evidence/ 2>/dev/null || true
+          printf '%s\n' 'BENCHMARK=Terminal-Bench-3.0' 'TASK=atrx-vep-crispr' 'MODEL=Qwen2.5-Coder-14B-Instruct-Q4_K_M' 'MODEL_BUDGET_CALLS=25' 'ARBM_VERSION=11.2.0' > evidence/protocol.txt
+          find evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > evidence/SHA256SUMS.txt || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tb3-arbm-vs-mini-qwen-same-model
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Stop runtimes
+        if: always()
+        run: |
+          kill "$ARBM_ACTION_PROXY_PID" 2>/dev/null || true
+          kill "$ARBM_SOVEREIGN_SERVER_PID" 2>/dev/null || true

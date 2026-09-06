@@ -3,6 +3,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 BACKEND=os.environ.get('ARBM_SOVEREIGN_BACKEND','http://127.0.0.1:8088')
 PORT=int(os.environ.get('ARBM_SOVEREIGN_PROXY_PORT','8089'))
+MAX_CALLS=int(os.environ.get('ARBM_PROXY_MAX_CALLS','0'))
+CALLS=0
 ACTION_RE=re.compile(r'```mswea_bash_command\s*\n(.*?)\n```',re.S)
 BASH_RE=re.compile(r'```(?:bash|sh|shell)\s*\n(.*?)\n```',re.S|re.I)
 
@@ -29,8 +31,13 @@ class Handler(BaseHTTPRequestHandler):
         return self.send_bytes(404,b'{"error":"not_found"}')
 
     def do_POST(self):
+        global CALLS
         if self.path!='/v1/chat/completions':
             return self.send_bytes(404,b'{"error":"not_found"}')
+        CALLS += 1
+        if MAX_CALLS and CALLS > MAX_CALLS:
+            data={'id':'arbm-budget-stop','object':'chat.completion','model':'arbm-qwen-sovereign','choices':[{'index':0,'finish_reason':'stop','message':{'role':'assistant','content':'```mswea_bash_command\necho COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\n```'}}]}
+            return self.send_bytes(200,json.dumps(data).encode())
         size=int(self.headers.get('content-length','0') or 0)
         body=self.rfile.read(size)
         req=urllib.request.Request(BACKEND+self.path,data=body,method='POST')
