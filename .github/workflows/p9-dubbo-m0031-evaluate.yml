@@ -1,0 +1,211 @@
+name: P9 Dubbo M003.1 Official Diagnostic Evaluation
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Evaluation request id
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+jobs:
+  evaluate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      TASK_ID: M003.1
+      REPO_ID: apache_dubbo_dubbo-3.3.3_dubbo-3.3.6
+      BENCHMARK_COMMIT: 6d8b31168fd0e2ad57c0d1daa3df1556df014320
+      BENCHMARK_VERSION: v1.0.2
+      SOLVE_RUN_ID: '34003310061'
+      SOLVE_ARTIFACT: p9-dubbo-m0031-solve-arbm-p9-m0031-solve-20260905-07
+      IMAGE_REF: hyd2apse/swe-milestone__apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__m003.1@sha256:236a1ca0c7560850cca946886d77c64f24adb0c82913bd6299262add5475f5f2
+      LOCAL_IMAGE: swe-milestone/apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__m003.1:v1.0.2
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download frozen solve artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.SOLVE_ARTIFACT }}
+          path: solve-artifact
+          repository: arbmsistone-lab/arbm-sist-external-exec-proof
+          run-id: ${{ env.SOLVE_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Verify frozen solve identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s solve-artifact/solution.json
+          test -s solve-artifact/solve-evidence.json
+          python - <<'PY'
+          import json
+          s=json.load(open('solve-artifact/solution.json'))
+          e=json.load(open('solve-artifact/solve-evidence.json'))
+          assert s.get('github_run_id')=='34003310061'
+          assert e.get('requestId')=='arbm-p9-m0031-solve-20260905-07'
+          assert e.get('goldPatchExposed') is False
+          assert e.get('mandatoryCostUsd')==0
+          assert e.get('task')=='dubbo/M003.1'
+          print('FROZEN_SOLVE_IDENTITY_PASS')
+          PY
+      - name: Fetch pinned harness and public evaluation data
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --no-checkout https://github.com/DeepCommit-ai/SWE-Milestone.git harness-src
+          git -C harness-src checkout "$BENCHMARK_COMMIT"
+          mkdir -p "data/$REPO_ID/test_results/$TASK_ID" data/config
+          base="https://huggingface.co/datasets/DeepCommit-ai/SWE-Milestone-data/resolve/$BENCHMARK_VERSION"
+          curl -fsSL --retry 4 -o "data/$REPO_ID/metadata.json" "$base/$REPO_ID/metadata.json?download=true"
+          curl -fsSL --retry 4 -o "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json" "$base/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json?download=true"
+          curl -fsSL --retry 4 -o "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_filter_list.json" "$base/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_filter_list.json?download=true"
+          curl -fsSL --retry 4 -o "data/config/$REPO_ID.yaml" "$base/config/$REPO_ID.yaml?download=true"
+          test -s "data/$REPO_ID/metadata.json"
+          test -s "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json"
+          test -s "data/config/$REPO_ID.yaml"
+          sha256sum "data/$REPO_ID/metadata.json" "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json" "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_filter_list.json" "data/config/$REPO_ID.yaml" > public-data-SHA256SUMS.txt
+      - name: Pull pinned official image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE_REF"
+          docker tag "$IMAGE_REF" "$LOCAL_IMAGE"
+      - name: Recreate exact frozen candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker create --name p9evalprep "$LOCAL_IMAGE" sleep infinity >/dev/null
+          docker start p9evalprep >/dev/null
+          docker exec p9evalprep bash -lc '/usr/local/bin/switch_state.sh start >/dev/null'
+          python - <<'PY'
+          import json, pathlib, subprocess, tempfile
+          sol=json.load(open('solve-artifact/solution.json'))
+          ops=sol.get('operations') or []
+          roots=('dubbo-plugin/dubbo-mutiny','dubbo-plugin/dubbo-compiler')
+          assert 1 <= len(ops) <= 12
+          root=pathlib.Path(tempfile.mkdtemp(prefix='p9frozen-'))
+          def valid(p):
+            p=str(p).replace('\\','/').removeprefix('./')
+            assert p and not p.startswith('/') and '..' not in p.split('/')
+            assert any(p==r or p.startswith(r+'/') for r in roots)
+            return p
+          for o in ops:
+            p=valid(o['path']); kind=o['op']; new=str(o['new'])
+            dst=root/p; dst.parent.mkdir(parents=True,exist_ok=True)
+            if kind=='edit':
+              subprocess.run(['docker','cp',f'p9evalprep:/testbed/{p}',str(dst)],check=True)
+              lines=dst.read_text(encoding='utf-8').splitlines(True)
+              a=int(o['start_line'])-1; b=int(o['end_line'])
+              rep=new if new.endswith('\n') else new+'\n'
+              lines[a:b]=[rep]
+              dst.write_text(''.join(lines),encoding='utf-8')
+            elif kind=='create':
+              assert int(o['start_line'])==0 and int(o['end_line'])==0
+              dst.write_text(new if new.endswith('\n') else new+'\n',encoding='utf-8')
+            else:
+              raise AssertionError('unsupported op')
+            parent=str(pathlib.PurePosixPath(p).parent)
+            subprocess.run(['docker','exec','p9evalprep','bash','-lc',f'mkdir -p -- /testbed/{parent}'],check=True)
+            subprocess.run(['docker','cp',str(dst),f'p9evalprep:/testbed/{p}'],check=True)
+          open('candidate-paths.txt','w').write('\n'.join(valid(o['path']) for o in ops)+'\n')
+          PY
+          docker exec p9evalprep bash -lc 'cd /testbed; git diff --check'
+      - name: Build frozen candidate offline
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec p9evalprep bash -lc '
+            set -euo pipefail
+            cd /testbed
+            mvn -q -DskipTests spotless:check || true
+            mvn -o -pl dubbo-plugin/dubbo-compiler,dubbo-plugin/dubbo-mutiny -am -DskipTests package
+            git diff --check
+          '
+      - name: Create diagnostic source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf snapshot-tree
+          mkdir -p snapshot-tree
+          while IFS= read -r p; do
+            test -n "$p"
+            mkdir -p "snapshot-tree/$(dirname "$p")"
+            docker cp "p9evalprep:/testbed/$p" "snapshot-tree/$p"
+          done < candidate-paths.txt
+          tar -cf source_snapshot.tar -C snapshot-tree .
+          test -s source_snapshot.tar
+          sha256sum source_snapshot.tar > source_snapshot.tar.sha256
+      - name: Run official evaluator diagnostic
+        shell: bash
+        env:
+          SWE_MILESTONE_IMAGE_TAG: v1.0.2
+        run: |
+          set -euo pipefail
+          python -m pip install -q -e ./harness-src
+          cfg="data/config/$REPO_ID.yaml"
+          cfg_sha=$(sha256sum "$cfg" | awk '{print $1}')
+          set +e
+          python harness-src/harness/e2e/evaluator.py \
+            --workspace-root "data/$REPO_ID" \
+            --milestone-id "$TASK_ID" \
+            --patch-file source_snapshot.tar \
+            --baseline-classification "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json" \
+            --repo-config "$cfg" \
+            --repo-config-sha256 "$cfg_sha" \
+            --allow-legacy-snapshot \
+            --output evaluation_result.json
+          rc=$?
+          set -e
+          echo "$rc" > eval-exit.txt
+          test -s evaluation_result.json
+      - name: Freeze diagnostic evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, pathlib
+          p=pathlib.Path('evaluation_result.json')
+          data=json.loads(p.read_text()) if p.exists() else {}
+          summary={
+            'schema':'arbm-p9-official-diagnostic-v1',
+            'requestId':'${{ inputs.request_id }}',
+            'solveRunId':34003310061,
+            'task':'dubbo/M003.1',
+            'benchmarkCommit':'6d8b31168fd0e2ad57c0d1daa3df1556df014320',
+            'benchmarkVersion':'v1.0.2',
+            'resolved':bool(data.get('resolved',False)),
+            'legacySnapshot':True,
+            'promotionGrade':False,
+            'zeroSpendMode':'HARD',
+          }
+          pathlib.Path('diagnostic-summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True))
+          PY
+          sha256sum solve-artifact/solution.json solve-artifact/solve-evidence.json source_snapshot.tar public-data-SHA256SUMS.txt diagnostic-summary.json > evaluation-SHA256SUMS.txt
+      - name: Upload diagnostic evaluation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: p9-dubbo-m0031-official-diagnostic-${{ inputs.request_id }}
+          path: |
+            evaluation_result.json
+            eval-exit.txt
+            diagnostic-summary.json
+            evaluation-SHA256SUMS.txt
+            public-data-SHA256SUMS.txt
+            source_snapshot.tar.sha256
+          retention-days: 90
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: docker rm -f p9evalprep >/dev/null 2>&1 || true
+      - name: Enforce diagnostic result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s eval-exit.txt
+          rc=$(cat eval-exit.txt)
+          echo "OFFICIAL_DIAGNOSTIC_EVALUATOR_RC=$rc"
+          test "$rc" = "0"
