@@ -1,0 +1,90 @@
+name: SWE-Milestone Evaluator Binding Probe
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  evaluator-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Constitutional contract
+        run: |
+          echo REMOTE_ONLY_FOR_HEAVY
+          echo ZERO_SPEND_HARD
+      - name: Fetch exact benchmark source
+        run: |
+          git clone --filter=blob:none https://github.com/DeepCommit-ai/SWE-Milestone.git src
+          git -C src checkout 6d8b31168fd0e2ad57c0d1daa3df1556df014320
+          python -m pip install -e ./src
+      - name: Materialize exact benchmark data
+        run: |
+          git clone --depth 1 --branch v1.0.2 https://huggingface.co/datasets/DeepCommit-ai/SWE-Milestone-data data
+          test "$(git -C data rev-parse HEAD)" = "3500478e740d42583277c2658aa7729eb36e10f4"
+      - name: Discover element-web workspace and classification
+        id: discover
+        run: |
+          set -euo pipefail
+          ws=$(find data -mindepth 1 -maxdepth 1 -type d -iname '*element*web*' | head -n1)
+          test -n "$ws"
+          cls=$(find "$ws/test_results" -type f -name '*_classification.json' | sort | head -n1)
+          test -n "$cls"
+          mid=$(basename "$cls" _classification.json)
+          echo "workspace=$ws" >> "$GITHUB_OUTPUT"
+          echo "classification=$cls" >> "$GITHUB_OUTPUT"
+          echo "milestone=$mid" >> "$GITHUB_OUTPUT"
+          printf 'workspace=%s\nclassification=%s\nmilestone=%s\n' "$ws" "$cls" "$mid"
+      - name: Run evaluator binding probe on empty public baseline diff
+        id: eval
+        continue-on-error: true
+        env:
+          WS: ${{ steps.discover.outputs.workspace }}
+          CLS: ${{ steps.discover.outputs.classification }}
+          MID: ${{ steps.discover.outputs.milestone }}
+        run: |
+          set +e
+          : > empty.patch
+          python -m harness.e2e.evaluator \
+            --workspace-root "$WS" \
+            --milestone-id "$MID" \
+            --patch-file empty.patch \
+            --baseline-classification "$CLS" \
+            --output evaluator-result.json \
+            > evaluator-output.txt 2>&1
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          tail -n 160 evaluator-output.txt
+          exit 0
+      - name: Freeze diagnostic verdict
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          code=int('${{ steps.eval.outputs.exit_code }}')
+          text=pathlib.Path('evaluator-output.txt').read_text(errors='ignore')
+          summary={
+            'schema':'arbm-swemilestone-evaluator-binding-probe-v1',
+            'benchmark':'SWE-Milestone 1.0.2',
+            'repo':'element-web',
+            'milestone':'${{ steps.discover.outputs.milestone }}',
+            'evaluatorExitCode':code,
+            'resultFilePresent':pathlib.Path('evaluator-result.json').is_file(),
+            'classification':'EVALUATOR_BINDING_PROBE_ONLY',
+            'completeFamilyCertified':False,
+            'outputTail':text[-3000:]
+          }
+          pathlib.Path('evaluator-binding-summary.json').write_text(json.dumps(summary,indent=2)+'\n')
+          print(json.dumps(summary))
+          PY
+      - name: Freeze hashes
+        run: |
+          sha256sum evaluator-binding-summary.json evaluator-output.txt > SHA256SUMS.txt
+          if [ -f evaluator-result.json ]; then sha256sum evaluator-result.json >> SHA256SUMS.txt; fi
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: swemilestone-evaluator-binding-probe
+          path: |
+            evaluator-binding-summary.json
+            evaluator-output.txt
+            evaluator-result.json
+            SHA256SUMS.txt
