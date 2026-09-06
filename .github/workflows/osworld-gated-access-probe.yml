@@ -36,7 +36,8 @@ jobs:
               out[k]={'http':0,'accessible':False,'error':type(e).__name__}
           open('osworld-access.json','w').write(json.dumps(out,indent=2)+'\n')
           print(json.dumps(out))
-          PY      - name: Freeze verdict
+          PY
+      - name: Freeze verdict
         run: |
           python - <<'PY'
           import json
