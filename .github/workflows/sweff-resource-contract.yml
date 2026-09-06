@@ -1,0 +1,75 @@
+name: SWEfficiency Resource Contract
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Evidence request id
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  resource-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      SWEFF_COMMIT: 12d32a2d6800824a7d84bdb6797b5708e7b7957f
+      SWEFF_REPO: https://github.com/swefficiency/swefficiency.git
+      REQUIRED_MEMORY_MB: '16384'
+    steps:
+      - name: Constitutional contract
+        run: |
+          set -euo pipefail
+          echo ZERO_SPEND_MODE=HARD
+          echo EXECUTION_POLICY=REMOTE_ONLY
+          echo LOCAL_HEAVY_ALLOWED=false
+      - name: Fetch exact SWEfficiency source
+        run: |
+          set -euo pipefail
+          git init sweff
+          cd sweff
+          git remote add origin "$SWEFF_REPO"
+          git fetch --depth=1 origin "$SWEFF_COMMIT"
+          git checkout --detach "$SWEFF_COMMIT"
+          test "$(git rev-parse HEAD)" = "$SWEFF_COMMIT"
+
+      - name: Measure runner capacity
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          mem_kb="$(awk '/MemTotal/{print $2}' /proc/meminfo)"
+          mem_mb="$((mem_kb/1024))"
+          cpus="$(nproc)"
+          disk_kb="$(df -Pk . | awk 'NR==2{print $4}')"
+          printf '{"cpus":%s,"memoryMB":%s,"diskAvailableKB":%s}\n' "$cpus" "$mem_mb" "$disk_kb" > evidence/runner-capacity.json
+          cat evidence/runner-capacity.json
+      - name: Freeze compatibility verdict
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json, pathlib
+          cap=json.loads(pathlib.Path('evidence/runner-capacity.json').read_text())
+          required=16384
+          compatible=cap['memoryMB'] >= required
+          out={'schema':'arbm-sweff-resource-contract-v1','benchmark':'SWEfficiency',
+               'commit':'12d32a2d6800824a7d84bdb6797b5708e7b7957f',
+               'requiredMemoryMB':required,'observedMemoryMB':cap['memoryMB'],
+               'memoryCompatible':compatible,'completeFamilyCertified':False,
+               'classification':'RESOURCE_CONTRACT_ONLY' if compatible else 'BLOCKED_EXTERNAL_COMPUTE'}
+          p=pathlib.Path('evidence/sweff-resource-summary.json')
+          p.write_text(json.dumps(out,indent=2))
+          d=hashlib.sha256(p.read_bytes()).hexdigest()
+          pathlib.Path('evidence/SHA256SUMS.txt').write_text(f'{d}  sweff-resource-summary.json\n')
+          print(json.dumps(out,indent=2))
+          PY
+
+      - name: Upload immutable evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: sweff-resource-contract-${{ inputs.request_id }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
