@@ -40,15 +40,21 @@ jobs:
           echo "repo_config_sha=$cfg_sha" >> "$GITHUB_OUTPUT"
           echo "runtime_policy=$policy" >> "$GITHUB_OUTPUT"
           echo "runtime_policy_sha=$policy_sha" >> "$GITHUB_OUTPUT"
-      - name: Pull exact feature_enhancements image by digest
+      - name: Pull exact evaluator images by digest
         run: |
           set -euo pipefail
-          remote='hyd2apse/swe-milestone__element-hq_element-web_v1.11.95_v1.11.97__feature_enhancements@sha256:50bb079d4b9cc0b072f3957a7cdea81537f8b70fb06d941b4e1d9c92dea6bbef'
-          logical='swe-milestone/element-hq_element-web_v1.11.95_v1.11.97__feature_enhancements:v1.0.2'
-          docker pull "$remote"
-          id=$(docker image inspect "$remote" --format '{{.Id}}')
-          docker tag "$id" "$logical"
-          test "$(docker image inspect "$logical" --format '{{.Id}}')" = "$id"
+          feature_remote='hyd2apse/swe-milestone__element-hq_element-web_v1.11.95_v1.11.97__feature_enhancements@sha256:50bb079d4b9cc0b072f3957a7cdea81537f8b70fb06d941b4e1d9c92dea6bbef'
+          feature_logical='swe-milestone/element-hq_element-web_v1.11.95_v1.11.97__feature_enhancements:v1.0.2'
+          closure_remote='hyd2apse/swe-milestone__element-hq_element-web_v1.11.95_v1.11.97__base-offline@sha256:7c0367cc633fa0367368c358d245f379e2eef534f2360cf8296ec02d9ca18ce8'
+          closure_logical='swe-milestone/element-hq_element-web_v1.11.95_v1.11.97__base-offline:v1.0.2'
+          for pair in "$feature_remote|$feature_logical" "$closure_remote|$closure_logical"; do
+            remote=${pair%%|*}
+            logical=${pair#*|}
+            docker pull "$remote"
+            id=$(docker image inspect "$remote" --format '{{.Id}}')
+            docker tag "$id" "$logical"
+            test "$(docker image inspect "$logical" --format '{{.Id}}')" = "$id"
+          done
       - name: Run promotion-grade evaluator binding probe
         id: eval
         continue-on-error: true
