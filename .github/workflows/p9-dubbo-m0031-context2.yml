@@ -1,0 +1,45 @@
+name: P9 Dubbo M003.1 Generator Wiring Capture
+on:
+  push:
+    branches:
+      - p8/p9-dubbo-m0031-context
+    paths:
+      - '.github/workflows/p9-dubbo-m0031-context2.yml'
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      IMAGE_REF: hyd2apse/swe-milestone__apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__m003.1@sha256:236a1ca0c7560850cca946886d77c64f24adb0c82913bd6299262add5475f5f2
+    steps:
+      - name: Capture generator wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE_REF"
+          docker run --rm "$IMAGE_REF" bash -lc '
+            set -euo pipefail
+            /usr/local/bin/switch_state.sh start >/dev/null
+            cd /testbed
+            echo "PUBLIC_START_HEAD=$(git rev-parse HEAD)"
+            echo "===== GENERATOR_CLASSES ====="
+            find dubbo-plugin/dubbo-compiler/src/main/java -type f -name "*Generator*.java" -print | sort
+            echo "===== REACTOR_GENERATOR_REFERENCES ====="
+            grep -Rni --exclude-dir=target -E "ReactorDubbo3TripleGenerator|ReactorDubbo3Triple|Dubbo3TripleGenerator" dubbo-plugin/dubbo-compiler | head -n 500 || true
+            echo "===== COMPILER_README ====="
+            test -f dubbo-plugin/dubbo-compiler/README.md && nl -ba dubbo-plugin/dubbo-compiler/README.md || true
+            echo "===== COMPILER_TARGET_HINTS ====="
+            grep -Rni --exclude-dir=target -E "mainClass|protoc-gen|generator|reactor|mutiny" dubbo-plugin/dubbo-compiler pom.xml | head -n 500 || true
+          ' > generator-wiring.txt
+          test -s generator-wiring.txt
+          sha256sum generator-wiring.txt > SHA256SUMS.txt
+      - name: Upload wiring context
+        uses: actions/upload-artifact@v7
+        with:
+          name: p9-dubbo-m0031-generator-wiring
+          path: |
+            generator-wiring.txt
+            SHA256SUMS.txt
+          retention-days: 30
