@@ -31,13 +31,3 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"action":"heartbeat","healthy":true,"zeroSpendVerified":true,"capabilities":["git","tests","build","cloud"],"detail":{"source":"github-actions-oidc-runner"}}' \
             https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-continuity-coordinator-v1
-      - name: Claim eligible mission
-        shell: bash
-        env:
-          ARBM_OIDC: ${{ steps.oidc.outputs.token }}
-        run: |
-          curl --fail-with-body --silent --show-error \
-            -H "Authorization: Bearer $ARBM_OIDC" \
-            -H "Content-Type: application/json" \
-            -d '{"action":"claim"}' \
-            https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-continuity-coordinator-v1
