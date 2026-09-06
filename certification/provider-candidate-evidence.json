@@ -87,7 +87,7 @@
         "gpu": "H100 80GB",
         "h100UsdPerHour": 1.39,
         "newUserCreditsUsd": 10,
-        "cardRequiredForSignup": false,
+        "cardRequiredForSignup": "CONFLICTING_DOCS",
         "onboardStorageTB": "10-24"
       },
       "computed": {
@@ -97,6 +97,7 @@
       },
       "unresolved": [
         "live ARBM account proof",
+        "current payment-method requirement conflict between quickstart/billing pages",
         "CPU/RAM shape attached to H100",
         "credit hard-stop proof on ARBM account",
         "additional zero-spend credits sufficient for 8h worst case"
