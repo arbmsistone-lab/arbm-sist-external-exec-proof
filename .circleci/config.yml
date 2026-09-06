@@ -1,0 +1,27 @@
+version: 2.1
+jobs:
+  sweff_resource_probe:
+    machine:
+      image: ubuntu-2604:current
+    resource_class: xlarge.gen3
+    steps:
+      - checkout
+      - run:
+          name: Probe CPU RAM disk Docker
+          command: |
+            set -euo pipefail
+            echo "ARBM_CIRCLECI_SWEFF_PROBE=START"
+            nproc
+            grep MemTotal /proc/meminfo
+            df -h /
+            docker version
+            docker info
+            mem_kb=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
+            test "$mem_kb" -ge 33000000
+            docker run --rm hello-world >/tmp/hello.txt
+            grep -q 'Hello from Docker!' /tmp/hello.txt
+            echo "ARBM_CIRCLECI_SWEFF_PROBE=PASS"
+workflows:
+  sweff_resource_probe:
+    jobs:
+      - sweff_resource_probe
