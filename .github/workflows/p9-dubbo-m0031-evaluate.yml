@@ -67,6 +67,13 @@ jobs:
           test -s "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json"
           test -s "data/config/$REPO_ID.yaml"
           sha256sum "data/$REPO_ID/metadata.json" "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json" "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_filter_list.json" "data/config/$REPO_ID.yaml" > public-data-SHA256SUMS.txt
+      - name: Adapt diagnostic CPU quota to hosted runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "data/$REPO_ID/metadata.json" metadata-official.json
+          python -c "import json,os,pathlib; p=pathlib.Path(\"data/$REPO_ID/metadata.json\"); d=json.loads(p.read_text()); official=d.get(\"docker_cpus\",16); effective=max(1,min(os.cpu_count() or 1,4)); d[\"docker_cpus\"]=effective; p.write_text(json.dumps(d,indent=2)); pathlib.Path(\"diagnostic-resource-override.json\").write_text(json.dumps({\"field\":\"docker_cpus\",\"official\":official,\"effective\":effective,\"reason\":\"github-hosted-runner-capacity\",\"promotionGrade\":False},indent=2))"
+          cat diagnostic-resource-override.json
       - name: Pull pinned official image
         shell: bash
         run: |
@@ -186,7 +193,7 @@ jobs:
           }
           pathlib.Path('diagnostic-summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True))
           PY
-          sha256sum solve-artifact/solution.json solve-artifact/solve-evidence.json source_snapshot.tar public-data-SHA256SUMS.txt diagnostic-summary.json > evaluation-SHA256SUMS.txt
+          sha256sum solve-artifact/solution.json solve-artifact/solve-evidence.json source_snapshot.tar public-data-SHA256SUMS.txt metadata-official.json diagnostic-resource-override.json diagnostic-summary.json > evaluation-SHA256SUMS.txt
       - name: Upload diagnostic evaluation evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -198,6 +205,7 @@ jobs:
             diagnostic-summary.json
             evaluation-SHA256SUMS.txt
             public-data-SHA256SUMS.txt
+            diagnostic-resource-override.json
             source_snapshot.tar.sha256
           retention-days: 90
       - name: Cleanup
