@@ -1,0 +1,104 @@
+name: P9 Dubbo M003.1 Deterministic Solve
+on:
+  push:
+    branches:
+      - p8/p9-dubbo-m0031-solve
+    paths:
+      - '.github/workflows/p9-dubbo-m0031-solve.yml'
+permissions:
+  contents: read
+jobs:
+  solve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      ZERO_SPEND_MODE: HARD
+      IMAGE_REF: hyd2apse/swe-milestone__apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__m003.1@sha256:236a1ca0c7560850cca946886d77c64f24adb0c82913bd6299262add5475f5f2
+      EXPECTED_HEAD: 6d57b0baf6ae250495fae3310867fce16ad41963
+      NEW_FILE: dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/tri/reactive/MutinyDubbo3TripleGenerator.java
+    steps:
+      - name: Pull pinned official image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE_REF"
+          docker create --name p9solve "$IMAGE_REF" sleep infinity
+          docker start p9solve
+          docker exec p9solve bash -lc '/usr/local/bin/switch_state.sh start >/dev/null; cd /testbed; test "$(git rev-parse HEAD)" = "'$EXPECTED_HEAD'"'
+      - name: Add minimal Mutiny generator
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec p9solve bash -lc '
+            set -euo pipefail
+            cd /testbed
+            src=dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/tri/reactive/ReactorDubbo3TripleGenerator.java
+            dst=dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/tri/reactive/MutinyDubbo3TripleGenerator.java
+            test -f "$src"
+            test ! -e "$dst"
+            cp "$src" "$dst"
+            sed -i "s/ReactorDubbo3TripleGenerator/MutinyDubbo3TripleGenerator/g; s/ReactorDubbo3TripleStub.mustache/MutinyDubbo3TripleStub.mustache/g; s/ReactorDubbo3TripleInterfaceStub.mustache/MutinyDubbo3TripleInterfaceStub.mustache/g" "$dst"
+            test "$(grep -c Reactor "$dst")" -eq 0
+          '
+      - name: Enforce scope and formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec p9solve bash -lc '
+            set -euo pipefail
+            cd /testbed
+            git add -N dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/tri/reactive/MutinyDubbo3TripleGenerator.java
+            test "$(git diff --name-only | wc -l)" -eq 1
+            test "$(git diff --name-only)" = "dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/tri/reactive/MutinyDubbo3TripleGenerator.java"
+            git diff --check
+            mvn -o spotless:apply -Dspotless.check.skip=false
+            test "$(git status --short | wc -l)" -eq 1
+            mvn -o spotless:check -Dspotless.check.skip=false
+            git diff --check
+          '
+      - name: Verify deterministic generator contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec p9solve bash -lc '
+            set -euo pipefail
+            cd /testbed
+            f=dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/tri/reactive/MutinyDubbo3TripleGenerator.java
+            grep -F "class MutinyDubbo3TripleGenerator extends AbstractGenerator" "$f"
+            grep -F "MutinyDubbo3TripleStub.mustache" "$f"
+            grep -F "MutinyDubbo3TripleInterfaceStub.mustache" "$f"
+            test -f dubbo-plugin/dubbo-compiler/src/main/resources/MutinyDubbo3TripleStub.mustache
+            test -f dubbo-plugin/dubbo-compiler/src/main/resources/MutinyDubbo3TripleInterfaceStub.mustache
+            grep -F "SchemaDescriptorRegistry.addSchemaDescriptor" dubbo-plugin/dubbo-compiler/src/main/resources/MutinyDubbo3TripleStub.mustache
+            grep -F "io.smallrye.mutiny.Multi" dubbo-plugin/dubbo-compiler/src/main/resources/MutinyDubbo3TripleInterfaceStub.mustache
+            grep -F "io.smallrye.mutiny.Uni" dubbo-plugin/dubbo-compiler/src/main/resources/MutinyDubbo3TripleInterfaceStub.mustache
+          '
+      - name: Build affected modules on JDK 17+
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec p9solve bash -lc '
+            set -euo pipefail
+            cd /testbed
+            java -version
+            mvn -o -pl dubbo-plugin/dubbo-compiler,dubbo-plugin/dubbo-mutiny -am -DskipTests package
+          '
+      - name: Freeze implementation evidence
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p p9-solve-evidence
+          docker exec p9solve bash -lc 'cd /testbed; git status --short; git diff --check; git diff -- dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/tri/reactive/MutinyDubbo3TripleGenerator.java' > p9-solve-evidence/diff.txt 2>&1 || true
+          docker exec p9solve bash -lc 'cd /testbed; sha256sum dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/tri/reactive/MutinyDubbo3TripleGenerator.java' > p9-solve-evidence/file-sha256.txt 2>&1 || true
+          sha256sum p9-solve-evidence/* > p9-solve-evidence/SHA256SUMS.txt
+      - name: Upload immutable solve evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: p9-dubbo-m0031-deterministic-solve
+          path: p9-solve-evidence
+          retention-days: 90
+      - name: Cleanup remote benchmark container
+        if: always()
+        shell: bash
+        run: docker rm -f p9solve >/dev/null 2>&1 || true
