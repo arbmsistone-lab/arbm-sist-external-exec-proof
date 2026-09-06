@@ -168,6 +168,22 @@ jobs:
               rep=new_text if new_text.endswith('\n') else new_text+'\n'; lines[a-1:b]=[rep]
             dst.write_text(''.join(lines),encoding='utf-8'); copy_in(path,dst)
           PY
+          docker exec p9ctx bash -lc 'cd /testbed; git ls-files --others --exclude-standard -z' > untracked-paths.z
+          python - <<'PY'
+          import pathlib, subprocess
+          roots=('dubbo-plugin/dubbo-mutiny','dubbo-plugin/dubbo-compiler')
+          raw=pathlib.Path('untracked-paths.z').read_bytes().split(b'\0')
+          paths=[]
+          for item in raw:
+            if not item: continue
+            path=item.decode('utf-8').replace('\\','/').removeprefix('./')
+            assert path and not path.startswith('/') and '..' not in path.split('/')
+            assert any(path==r or path.startswith(r+'/') for r in roots), path
+            paths.append(path)
+          for path in paths:
+            subprocess.run(['docker','exec','p9ctx','git','-C','/testbed','add','-N','--',path],check=True)
+          print('INTENT_TO_ADD_PATHS',len(paths))
+          PY
           docker exec p9ctx bash -lc 'cd /testbed; git status --short; git diff --check; git diff --binary' > solution.patch.txt
           test -s solution.patch.txt
       - name: Warm Spotless formatter cache for final offline gate
