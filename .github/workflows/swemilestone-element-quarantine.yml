@@ -1,0 +1,71 @@
+name: SWE-Milestone Element Quarantine Smoke
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  quarantine-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Constitutional contract
+        run: |
+          echo REMOTE_ONLY_FOR_HEAVY
+          echo ZERO_SPEND_HARD
+      - name: Fetch exact benchmark source
+        run: |
+          git clone --filter=blob:none https://github.com/DeepCommit-ai/SWE-Milestone.git src
+          git -C src checkout 6d8b31168fd0e2ad57c0d1daa3df1556df014320
+          test "$(cat src/manifests/BENCHMARK_VERSION)" = "v1.0.2"
+      - name: Install harness dependencies
+        run: python -m pip install -q ./src
+      - name: Pull exact element-web offline image
+        run: |
+          set -euo pipefail
+          REF='hyd2apse/swe-milestone__element-hq_element-web_v1.11.95_v1.11.97__base-offline@sha256:7c0367cc633fa0367368c358d245f379e2eef534f2360cf8296ec02d9ca18ce8'
+          TAG='swe-milestone/element-hq_element-web_v1.11.95_v1.11.97__base-offline:v1.0.2'
+          docker pull "$REF"
+          docker tag "$REF" "$TAG"
+          docker image inspect "$TAG" --format '{{.Id}}' > element-image-id.txt
+      - name: Run official quarantine verifier
+        working-directory: src
+        run: |
+          python scripts/verify_quarantine.py --repo element-web | tee ../quarantine-output.txt
+      - name: Freeze verdict
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          out=Path('quarantine-output.txt').read_text(errors='ignore') if Path('quarantine-output.txt').exists() else ''
+          summary={
+            'schema':'arbm-swemilestone-quarantine-smoke-v1',
+            'benchmark':'SWE-Milestone 1.0.2',
+            'repo':'element-web',
+            'codeCommit':'6d8b31168fd0e2ad57c0d1daa3df1556df014320',
+            'imageDigest':'sha256:7c0367cc633fa0367368c358d245f379e2eef534f2360cf8296ec02d9ca18ce8',
+            'quarantinePass':'ALL PASS' in out,
+            'completeFamilyCertified':False,
+            'classification':'QUARANTINE_LIVE_PASS' if 'ALL PASS' in out else 'QUARANTINE_LIVE_FAIL'
+          }
+          Path('quarantine-summary.json').write_text(json.dumps(summary,indent=2)+'\n')
+          print(json.dumps(summary))
+          PY
+          sha256sum quarantine-summary.json quarantine-output.txt element-image-id.txt > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: swemilestone-element-quarantine
+          path: |
+            quarantine-summary.json
+            quarantine-output.txt
+            element-image-id.txt
+            SHA256SUMS.txt
+      - name: Quarantine gate
+        run: |
+          python - <<'PY'
+          import json
+          s=json.load(open('quarantine-summary.json'))
+          if not s['quarantinePass']:
+            raise SystemExit(61)
+          PY
