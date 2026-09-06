@@ -1,0 +1,58 @@
+name: SWE-Milestone Missing Image Semantics
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  semantics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Constitutional contract
+        run: |
+          echo REMOTE_ONLY_FOR_HEAVY
+          echo ZERO_SPEND_HARD
+      - name: Fetch exact source and data
+        run: |
+          git clone --filter=blob:none https://github.com/DeepCommit-ai/SWE-Milestone.git src
+          git -C src checkout 6d8b31168fd0e2ad57c0d1daa3df1556df014320
+          git clone --depth 1 --branch v1.0.2 https://huggingface.co/datasets/DeepCommit-ai/SWE-Milestone-data data
+          test "$(git -C data rev-parse HEAD)" = "3500478e740d42583277c2658aa7729eb36e10f4"
+      - name: Analyze classification-to-image gaps
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          rows=[]
+          for line in Path('src/manifests/digests-v1.0.2.tsv').read_text().splitlines():
+              if not line.strip() or line.startswith('#'): continue
+              local=line.split('\t',1)[0].split(':v1.0.2')[0]
+              repo,mid=local.split('swe-milestone/',1)[1].split('__',1)
+              rows.append((repo.lower(),mid.lower()))
+          images=set(rows)
+          gaps=[]
+          for ws in sorted(Path('data').iterdir()):
+              if not ws.is_dir(): continue
+              for f in sorted(ws.glob('test_results/*/*_classification.json')):
+                  mid=f.parent.name
+                  if (ws.name.lower(),mid.lower()) in images: continue
+                  obj=json.loads(f.read_text())
+                  srs=ws/'srs'/mid/'SRS.md'
+                  refs=[]
+                  for meta in list(ws.glob('*.json'))+list(ws.glob('*.yaml'))+list(ws.glob('*.yml')):
+                      try: txt=meta.read_text(errors='ignore')
+                      except Exception: continue
+                      if mid in txt: refs.append(meta.name)
+                  gaps.append({'repo':ws.name,'milestone':mid,'srsExists':srs.is_file(),'classificationKeys':sorted(obj.keys()),'metadataRefs':sorted(refs)})
+          out={'schema':'arbm-swemilestone-missing-image-semantics-v1','gapCount':len(gaps),'gaps':gaps,'completeFamilyCertified':False,'classification':'MISSING_IMAGE_SEMANTICS_ONLY'}
+          Path('missing-image-semantics.json').write_text(json.dumps(out,indent=2)+'\n')
+          print(json.dumps({'gapCount':len(gaps),'withSRS':sum(x['srsExists'] for x in gaps),'withoutSRS':sum(not x['srsExists'] for x in gaps),'refFiles':sorted({r for x in gaps for r in x['metadataRefs']})}))
+          PY
+      - name: Freeze hashes
+        run: sha256sum missing-image-semantics.json > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: swemilestone-missing-image-semantics
+          path: |
+            missing-image-semantics.json
+            SHA256SUMS.txt
