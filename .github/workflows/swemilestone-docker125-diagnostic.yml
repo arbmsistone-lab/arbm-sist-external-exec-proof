@@ -1,0 +1,51 @@
+name: SWE-Milestone Docker 125 Diagnostic
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Constitutional contract
+        run: |
+          echo REMOTE_ONLY_FOR_HEAVY
+          echo ZERO_SPEND_HARD
+      - name: Runner capacity
+        run: |
+          nproc
+          free -m
+          df -h /
+          docker info --format '{{json .}}' > docker-info.json
+      - name: Test Docker CPU quota semantics
+        shell: bash
+        run: |
+          set +e
+          docker run --rm --cpus 16 alpine:3.20 sh -lc 'echo quota16-ok; nproc' > quota16.out 2> quota16.err
+          code=$?
+          echo "quota16_exit=$code"
+          cat quota16.out || true
+          cat quota16.err || true
+          echo "$code" > quota16.exit
+          exit 0
+      - name: Freeze verdict
+        run: |
+          python - <<'PY'
+          import json, pathlib, os
+          code=int(pathlib.Path('quota16.exit').read_text().strip())
+          summary={'schema':'arbm-swemilestone-docker125diag-v1','quota16ExitCode':code,'dockerAcceptsCpus16OnStandardRunner':code==0,'completeFamilyCertified':False,'classification':'DOCKER_CPU_QUOTA_DIAGNOSTIC_ONLY'}
+          pathlib.Path('summary.json').write_text(json.dumps(summary,indent=2)+'\n')
+          print(json.dumps(summary))
+          PY
+          sha256sum summary.json quota16.out quota16.err docker-info.json > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: swemilestone-docker125-diagnostic
+          path: |
+            summary.json
+            quota16.out
+            quota16.err
+            docker-info.json
+            SHA256SUMS.txt
