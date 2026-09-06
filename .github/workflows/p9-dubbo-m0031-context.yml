@@ -1,0 +1,58 @@
+name: P9 Dubbo M003.1 Official Context Capture
+on:
+  push:
+    branches:
+      - p8/p9-dubbo-m0031-context
+    paths:
+      - '.github/workflows/p9-dubbo-m0031-context.yml'
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      IMAGE_REF: hyd2apse/swe-milestone__apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__m003.1@sha256:236a1ca0c7560850cca946886d77c64f24adb0c82913bd6299262add5475f5f2
+    steps:
+      - name: Pull pinned official image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE_REF"
+          docker tag "$IMAGE_REF" p9-dubbo-m0031:v1.0.2
+      - name: Capture exact benchmark context
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p p9-context
+          docker run --rm p9-dubbo-m0031:v1.0.2 bash -lc '
+            set -euo pipefail
+            /usr/local/bin/switch_state.sh start >/dev/null
+            cd /testbed
+            echo "PUBLIC_START_HEAD=$(git rev-parse HEAD)"
+            for f in \
+              dubbo-plugin/dubbo-mutiny/pom.xml \
+              dubbo-plugin/dubbo-compiler/pom.xml \
+              dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/DubboGeneratorPlugin.java \
+              dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/tri/reactive/ReactorDubbo3TripleGenerator.java \
+              dubbo-plugin/dubbo-compiler/src/main/resources/MutinyDubbo3TripleInterfaceStub.mustache \
+              dubbo-plugin/dubbo-compiler/src/main/resources/MutinyDubbo3TripleStub.mustache \
+              dubbo-plugin/dubbo-compiler/src/main/resources/ReactorDubbo3TripleInterfaceStub.mustache \
+              dubbo-plugin/dubbo-compiler/src/main/resources/ReactorDubbo3TripleStub.mustache; do
+              echo "===== FILE:${f} ====="
+              test -f "$f"
+              nl -ba "$f"
+            done
+            echo "===== MUTINY_REFERENCES ====="
+            grep -Rni --exclude-dir=target -E "Mutiny|mutiny|Uni<|Multi<" dubbo-plugin/dubbo-compiler dubbo-plugin/dubbo-mutiny | head -n 400 || true
+            echo "===== GIT_STATUS ====="
+            git status --short
+          ' > p9-context/context.txt
+          test -s p9-context/context.txt
+          sha256sum p9-context/context.txt > p9-context/SHA256SUMS.txt
+      - name: Upload immutable context
+        uses: actions/upload-artifact@v7
+        with:
+          name: p9-dubbo-m0031-official-context
+          path: p9-context
+          retention-days: 30
