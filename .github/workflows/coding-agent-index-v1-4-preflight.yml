@@ -1,0 +1,42 @@
+name: Coding Agent Index v1.4 Preflight
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Freeze benchmark repositories
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone https://github.com/datacurve-ai/deep-swe.git deep-swe
+          git -C deep-swe checkout 0b9fabbb63b9104d678fe965e1632f2dd9eaa2ea
+          git clone https://github.com/harbor-framework/terminal-bench-2-1.git terminal-bench
+          git -C terminal-bench checkout 7131e4375048a0e408a8fb404b5f499d726b695b
+          git clone https://github.com/EnvCommons/swe-atlas-qna.git swe-atlas
+          git -C swe-atlas checkout 12dfc9ad64c5b397f0368bc9c3b9ef828956cbe7
+      - name: Verify task counts and pins
+        shell: python
+        run: |
+          import json,re,pathlib,subprocess
+          deep=json.loads(pathlib.Path('deep-swe/tasks/manifest.json').read_text())
+          assert deep['task_count']==113
+          tb=pathlib.Path('terminal-bench/leaderboard/src/leaderboard/ci/static_analysis.py').read_text()
+          assert re.search(r'EXPECTED_TASK_COUNT\s*=\s*89',tb)
+          atlas=pathlib.Path('swe-atlas/golden_tests.py').read_text()
+          assert 'assert len(TASKS) == 124' in atlas
+          refs={
+            'deep-swe':subprocess.check_output(['git','-C','deep-swe','rev-parse','HEAD'],text=True).strip(),
+            'terminal-bench-2-1':subprocess.check_output(['git','-C','terminal-bench','rev-parse','HEAD'],text=True).strip(),
+            'swe-atlas-qna':subprocess.check_output(['git','-C','swe-atlas','rev-parse','HEAD'],text=True).strip(),
+          }
+          evidence={'schema':'arbm-coding-agent-index-v1.4-preflight','tasks':326,'trialsRequired':978,'trialPolicy':'3_per_task','antiCherryPick':True,'refs':refs,'state':'READY_FOR_AGENT_INFERENCE'}
+          pathlib.Path('coding-agent-index-preflight.json').write_text(json.dumps(evidence,indent=2)+'\n')
+          print(json.dumps(evidence))
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coding-agent-index-v1-4-preflight
+          path: coding-agent-index-preflight.json
