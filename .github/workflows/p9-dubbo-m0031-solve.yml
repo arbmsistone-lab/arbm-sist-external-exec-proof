@@ -1,0 +1,172 @@
+name: P9 Dubbo M003.1 Cloud Solve
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: ARBM P9 request id
+        required: true
+        type: string
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  solve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      TASK_ID: M003.1
+      REPO_ID: apache_dubbo_dubbo-3.3.3_dubbo-3.3.6
+      BENCHMARK_VERSION: v1.0.2
+      SRS_SHA256: aac87b7e8a66001512c9c54649b3e1571d252777177d52cbed197fc541dd164f
+      IMAGE_REF: hyd2apse/swe-milestone__apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__m003.1@sha256:236a1ca0c7560850cca946886d77c64f24adb0c82913bd6299262add5475f5f2
+      ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-agent-p9-v1
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate P9 ref
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$GITHUB_REF" in refs/heads/p9/*) ;; *) echo 'P9_REF_REQUIRED'; exit 64;; esac          test -n '${{ inputs.request_id }}'
+      - name: Fetch pinned public SRS
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 4 -o SRS.md "https://huggingface.co/datasets/DeepCommit-ai/SWE-Milestone-data/resolve/${BENCHMARK_VERSION}/${REPO_ID}/srs/${TASK_ID}/SRS.md?download=true"
+          echo "$SRS_SHA256  SRS.md" | sha256sum -c -
+      - name: Pull pinned image and export public context
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE_REF"
+          docker tag "$IMAGE_REF" p9-m0031:v1.0.2
+          docker create --name p9ctx p9-m0031:v1.0.2 sleep infinity >/dev/null
+          docker start p9ctx >/dev/null
+          docker exec p9ctx bash -lc '/usr/local/bin/switch_state.sh start >/dev/null; cd /testbed; git ls-files > /tmp/known.txt'
+          docker cp p9ctx:/tmp/known.txt known-paths.txt
+          python - <<'PY'
+          import subprocess
+          planned=[
+            'dubbo-plugin/dubbo-mutiny/pom.xml',
+            'dubbo-plugin/dubbo-compiler/pom.xml',
+            'dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/DubboGeneratorPlugin.java',
+            'dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/tri/reactive/ReactorDubbo3TripleGenerator.java',
+            'dubbo-plugin/dubbo-compiler/src/main/resources/ReactorDubbo3TripleInterfaceStub.mustache',
+            'dubbo-plugin/dubbo-compiler/src/main/resources/ReactorDubbo3TripleStub.mustache']          out=[]
+          for p in planned:
+            r=subprocess.run(['docker','exec','p9ctx','bash','-lc',f'cd /testbed; test -f {p!r} && cat -- {p!r}'],capture_output=True,text=True)
+            if r.returncode:
+              continue
+            lines=r.stdout.splitlines()
+            numbered='\n'.join(f'{i:06d}|{line}' for i,line in enumerate(lines,1))
+            out.append(f'FILE: {p}\n{numbered}\n')
+          if not out:
+            raise SystemExit('NO_PUBLIC_CONTEXT')
+          open('tool-context.txt','w',encoding='utf-8').write('\n'.join(out))
+          PY
+          test -s tool-context.txt
+      - name: Acquire P9 OIDC token
+        id: oidc
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN=$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+      - name: Request P9 multi-file solution
+        env:
+          ARBM_BENCHMARK_OIDC: ${{ steps.oidc.outputs.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, urllib.request
+          body={
+            'issue':open('SRS.md',encoding='utf-8').read(),
+            'tool_context':open('tool-context.txt',encoding='utf-8').read(),
+            'known_paths':open('known-paths.txt',encoding='utf-8').read().splitlines(),
+          }
+          req=urllib.request.Request(
+            os.environ['ENDPOINT'], data=json.dumps(body).encode(), method='POST',
+            headers={'Authorization':'Bearer '+os.environ['ARBM_BENCHMARK_OIDC'],'Content-Type':'application/json','Accept':'application/json'})
+          with urllib.request.urlopen(req,timeout=180) as r:
+            data=json.loads(r.read().decode())
+          if not data.get('ok') or data.get('status')!='PASS':
+            raise SystemExit('P9_SOLVE_NOT_PASS:'+json.dumps(data)[:1600])
+          open('solution.json','w',encoding='utf-8').write(json.dumps(data,ensure_ascii=False,indent=2))
+          PY
+      - name: Independently validate and apply operations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, subprocess
+          data=json.load(open('solution.json',encoding='utf-8'))
+          ops=data.get('operations') or []
+          roots=('dubbo-plugin/dubbo-mutiny','dubbo-plugin/dubbo-compiler')
+          known=set(open('known-paths.txt',encoding='utf-8').read().splitlines())
+          if not (1 <= len(ops) <= 12): raise SystemExit('OP_COUNT_FAIL')
+          def norm(p):
+            p=str(p).replace('\\','/').removeprefix('./')
+            if not p or p.startswith('/') or '..' in p.split('/') or (len(p)>2 and p[1]==':'): raise SystemExit('PATH_INVALID:'+p)
+            if not any(p==r or p.startswith(r+'/') for r in roots): raise SystemExit('PATH_SCOPE_FAIL:'+p)
+            return p
+          grouped={}
+          creates=[]
+          for o in ops:
+            p=norm(o.get('path')); kind=str(o.get('op')); a=int(o.get('start_line',-1)); b=int(o.get('end_line',-1)); new=str(o.get('new',''))
+            if not new.strip(): raise SystemExit('EMPTY_NEW:'+p)
+            if kind=='create':
+              if a!=0 or b!=0 or p in known: raise SystemExit('CREATE_CONTRACT_FAIL:'+p)
+              creates.append((p,new))
+            elif kind=='edit':
+              if p not in known or a<1 or b<a or b-a+1>220: raise SystemExit('EDIT_CONTRACT_FAIL:'+p)
+              grouped.setdefault(p,[]).append((a,b,new))
+            else: raise SystemExit('OP_INVALID:'+kind)
+          for p,items in grouped.items():
+            items.sort(reverse=True)
+            for i in range(len(items)-1):
+              if items[i+1][1] >= items[i][0]: raise SystemExit('OVERLAP:'+p)
+          open('validated-ops.json','w').write(json.dumps({'edits':grouped,'creates':creates}))
+          PY          python - <<'PY'
+          import json, subprocess
+          x=json.load(open('validated-ops.json'))
+          for p,new in x['creates']:
+            payload=json.dumps({'p':p,'new':new})
+            code="import json,pathlib,os; x=json.loads(os.environ['X']); p=pathlib.Path('/testbed')/x['p']; p.parent.mkdir(parents=True,exist_ok=True); p.write_text(x['new'],encoding='utf-8')"
+            subprocess.run(['docker','exec','-e','X='+payload,'p9ctx','python3','-c',code],check=True)
+          for p,items in x['edits'].items():
+            for a,b,new in items:
+              payload=json.dumps({'p':p,'a':a,'b':b,'new':new})
+              code="import json,pathlib,os; x=json.loads(os.environ['X']); p=pathlib.Path('/testbed')/x['p']; lines=p.read_text(encoding='utf-8').splitlines(True); a=x['a']-1; b=x['b']; rep=x['new']; rep += '' if rep.endswith('\\n') else '\\n'; lines[a:b]=[rep]; p.write_text(''.join(lines),encoding='utf-8')"
+              subprocess.run(['docker','exec','-e','X='+payload,'p9ctx','python3','-c',code],check=True)
+          PY
+          docker exec p9ctx bash -lc 'cd /testbed; git status --short; git diff --check; git diff --binary' > solution.patch.txt
+          test -s solution.patch.txt
+      - name: Freeze solve evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,hashlib,os
+          sol=json.load(open('solution.json',encoding='utf-8'))
+          ev={'schema':'arbm-p9-solve-v1','requestId':'${{ inputs.request_id }}','task':'dubbo/M003.1','state':'SUCCEEDED','zeroSpendMode':'HARD','executionType':'remote','srsSha256':os.environ['SRS_SHA256'],'imageRef':os.environ['IMAGE_REF'],'pipeline':sol.get('pipeline'),'model':sol.get('model'),'mandatoryCostUsd':sol.get('mandatory_cost_usd'),'authorizedRoots':sol.get('authorized_roots'),'operationCount':len(sol.get('operations') or []),'goldPatchExposed':sol.get('gold_patch_exposed',False)}
+          open('solve-evidence.json','w',encoding='utf-8').write(json.dumps(ev,sort_keys=True,indent=2))
+          PY
+          sha256sum SRS.md tool-context.txt known-paths.txt solution.json validated-ops.json solution.patch.txt solve-evidence.json > SHA256SUMS.txt
+          cat solve-evidence.json
+      - name: Upload P9 solve evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: p9-dubbo-m0031-solve-${{ inputs.request_id }}
+          path: |
+            SRS.md
+            solution.json
+            validated-ops.json
+            solution.patch.txt
+            solve-evidence.json
+            SHA256SUMS.txt
+          retention-days: 90
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: docker rm -f p9ctx >/dev/null 2>&1 || true
