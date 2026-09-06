@@ -90,6 +90,26 @@ jobs:
           set -o pipefail
           pier run -p deep-swe/tasks --agent mini-swe-agent --model openai/arbm-qwen-sovereign --n-tasks 1 --sample-seed 0 --agent-kwarg 'model_class=litellm_textbased' --agent-kwarg 'config_file=.github/config/arbm-mini-textbased.yaml' --agent-kwarg 'extra_python_packages=["fastapi","orjson"]' --agent-env OPENAI_BASE_URL=http://host.docker.internal:8088/v1 --agent-env OPENAI_API_KEY=local-dummy-key | tee diagnostic.log
           echo "PIER_EXIT=${PIPESTATUS[0]}" > diagnostic-exit.txt
+      - name: Enforce real DeepSWE success
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import glob, json, sys
+          roots=[p for p in glob.glob('jobs/*/result.json')]
+          assert len(roots)==1, f'expected_one_job_result:{roots}'
+          root=json.load(open(roots[0], encoding='utf-8'))
+          stats=root.get('stats') or {}
+          assert stats.get('n_completed_trials') == 1, stats
+          assert stats.get('n_errored_trials') == 0, stats
+          evals=stats.get('evals') or {}
+          metrics=[m for e in evals.values() for m in (e.get('metrics') or [])]
+          assert len(metrics)==1 and metrics[0].get('reward') == 1.0, metrics
+          trials=[p for p in glob.glob('jobs/*/*/result.json')]
+          assert len(trials)==1, f'expected_one_trial_result:{trials}'
+          trial=json.load(open(trials[0], encoding='utf-8'))
+          assert not trial.get('exception_info'), trial.get('exception_info')
+          print('DEEPSWE_REAL_SUCCESS_GATE=PASS reward=1 errors=0 exception=none')
+          PY
       - name: Freeze full diagnostic evidence
         if: always()
         run: |
