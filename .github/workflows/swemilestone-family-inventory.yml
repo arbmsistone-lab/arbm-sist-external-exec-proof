@@ -1,0 +1,44 @@
+name: SWE-Milestone Family Inventory
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Constitutional contract
+        run: |
+          echo REMOTE_ONLY_FOR_HEAVY
+          echo ZERO_SPEND_HARD
+      - name: Materialize exact benchmark data
+        run: |
+          git clone --depth 1 --branch v1.0.2 https://huggingface.co/datasets/DeepCommit-ai/SWE-Milestone-data data
+          test "$(git -C data rev-parse HEAD)" = "3500478e740d42583277c2658aa7729eb36e10f4"
+      - name: Build exact family inventory
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('data')
+          repos=[]
+          total=0
+          for ws in sorted(p for p in root.iterdir() if p.is_dir() and p.name!='config' and not p.name.startswith('.')):
+              classes=sorted(ws.glob('test_results/*/*_classification.json'))
+              srs=sorted(ws.glob('srs/*/SRS.md'))
+              mids=sorted({p.parent.name for p in classes})
+              repos.append({'repo':ws.name,'classificationCount':len(classes),'srsCount':len(srs),'milestones':mids})
+              total+=len(classes)
+          out={'schema':'arbm-swemilestone-family-inventory-v1','dataCommit':'3500478e740d42583277c2658aa7729eb36e10f4','repos':repos,'reposTotal':len(repos),'classificationTotal':total,'completeFamilyCertified':False,'classification':'FAMILY_INVENTORY_ONLY'}
+          Path('swemilestone-family-inventory.json').write_text(json.dumps(out,indent=2)+'\n')
+          print(json.dumps({'reposTotal':len(repos),'classificationTotal':total,'counts':[(x['repo'],x['classificationCount']) for x in repos]}))
+          PY
+      - name: Freeze hashes
+        run: sha256sum swemilestone-family-inventory.json > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: swemilestone-family-inventory
+          path: |
+            swemilestone-family-inventory.json
+            SHA256SUMS.txt
