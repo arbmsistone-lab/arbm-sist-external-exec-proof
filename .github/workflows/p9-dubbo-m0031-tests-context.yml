@@ -1,0 +1,48 @@
+name: P9 Dubbo M003.1 Public Tests Context
+on:
+  push:
+    branches:
+      - p8/p9-dubbo-m0031-context
+    paths:
+      - '.github/workflows/p9-dubbo-m0031-tests-context.yml'
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      IMAGE_REF: hyd2apse/swe-milestone__apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__m003.1@sha256:236a1ca0c7560850cca946886d77c64f24adb0c82913bd6299262add5475f5f2
+    steps:
+      - name: Capture public tests and selector enum
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE_REF"
+          docker run --rm "$IMAGE_REF" bash -lc '
+            set -euo pipefail
+            /usr/local/bin/switch_state.sh start >/dev/null
+            cd /testbed
+            echo "PUBLIC_START_HEAD=$(git rev-parse HEAD)"
+            echo "===== GENERATE_TYPE_ENUM ====="
+            nl -ba dubbo-maven-plugin/src/main/java/org/apache/dubbo/maven/plugin/protoc/enums/DubboGenerateTypeEnum.java
+            echo "===== PUBLIC_TEST_FILES ====="
+            find dubbo-plugin/dubbo-compiler dubbo-plugin/dubbo-mutiny dubbo-maven-plugin -path "*/src/test/*" -type f | sort
+            echo "===== PUBLIC_MUTINY_TEST_REFERENCES ====="
+            grep -Rni --exclude-dir=target -E "Mutiny|mutiny|SchemaDescriptorRegistry|tri_reactor|dubboGenerateType" \
+              dubbo-plugin/dubbo-compiler/src/test \
+              dubbo-plugin/dubbo-mutiny/src/test \
+              dubbo-maven-plugin/src/test 2>/dev/null | head -n 1200 || true
+            echo "===== PUBLIC_SCHEMA_TEST_REFERENCES ====="
+            grep -Rni --exclude-dir=target -E "getSchemaDescriptor|message.proto|SchemaDescriptor" \
+              dubbo-plugin dubbo-maven-plugin 2>/dev/null | head -n 1200 || true
+          ' > tests-context.txt
+          test -s tests-context.txt
+          sha256sum tests-context.txt > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: p9-dubbo-m0031-public-tests-context
+          path: |
+            tests-context.txt
+            SHA256SUMS.txt
+          retention-days: 30
