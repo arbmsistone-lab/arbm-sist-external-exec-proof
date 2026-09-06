@@ -1,0 +1,74 @@
+name: TB3 ARBM vs mini-SWE Remote Same Model
+on:
+  push:
+    branches: [benchmark/deepswe-context-fix]
+    paths:
+      - '.github/workflows/tb3-arbm-vs-mini-remote.yml'
+      - 'arbm_harbor_agent_remote.py'
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  head-to-head:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      HARBOR_COMMIT: c29f416af4b02ef593d6874f88b59d38bf164646
+      PYTHONPATH: ${{ github.workspace }}
+      TB3_DATASET: terminal-bench/terminal-bench@3.0.0
+      TB3_TASK: terminal-bench/atrx-vep-crispr
+      REMOTE_BASE: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-chat-v1
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install frozen Harbor
+        run: |
+          git clone https://github.com/harbor-framework/harbor.git harbor-src
+          git -C harbor-src checkout "$HARBOR_COMMIT"
+          python -m pip install -e ./harbor-src
+      - name: Acquire OIDC for ARBM leg
+        id: oidc1
+        run: |
+          TOKEN=$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+      - name: Probe remote inference
+        env:
+          TOKEN: ${{ steps.oidc1.outputs.token }}
+        run: |
+          cat > /tmp/probe.json <<'JSON'
+          {"model":"gemini-3.7-flash","messages":[{"role":"user","content":"Return exactly OK"}],"temperature":0,"max_tokens":64}
+          JSON
+          curl -fsS "$REMOTE_BASE/v1/chat/completions" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/probe.json | tee remote-probe.json
+          grep -q 'gemini-3.7-flash' remote-probe.json
+      - name: Run ARBM scaffold
+        env:
+          ARBM_REMOTE_ENDPOINT: ${{ env.REMOTE_BASE }}
+          ARBM_REMOTE_TOKEN: ${{ steps.oidc1.outputs.token }}
+        run: |
+          harbor run -d "$TB3_DATASET" -i "$TB3_TASK" -a arbm_harbor_agent_remote:ArbmRemoteAgent -m gemini-3.7-flash -o jobs-arbm -k 1 | tee tb3-arbm-remote.log
+      - name: Acquire fresh OIDC for mini-SWE leg
+        id: oidc2
+        run: |
+          TOKEN=$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+      - name: Run mini-SWE scaffold
+        env:
+          TOKEN: ${{ steps.oidc2.outputs.token }}
+        run: |
+          harbor run -d "$TB3_DATASET" -i "$TB3_TASK" -a mini-swe-agent -m openai/gemini-3.7-flash -o jobs-mini -k 1 --ak 'config_file=.github/config/arbm-mini-textbased.yaml' --ae OPENAI_BASE_URL="$REMOTE_BASE/v1" --ae OPENAI_API_BASE="$REMOTE_BASE/v1" --ae MSWEA_API_KEY="$TOKEN" --ae OPENAI_API_KEY="$TOKEN" | tee tb3-mini-remote.log
+      - name: Freeze evidence
+        if: always()
+        run: |
+          mkdir -p evidence
+          cp -r jobs-arbm jobs-mini evidence/ 2>/dev/null || true
+          cp -f tb3-arbm-remote.log tb3-mini-remote.log remote-probe.json evidence/ 2>/dev/null || true
+          printf '%s\n' 'BENCHMARK=Terminal-Bench-3.0' 'TASK=terminal-bench/atrx-vep-crispr' 'MODEL=gemini-3.7-flash' 'MODEL_BUDGET_CALLS=25' 'TEMPERATURE=0' 'MANDATORY_COST_USD=0' 'ARBM_VERSION=11.2.0' > evidence/protocol.txt
+          find evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > evidence/SHA256SUMS.txt || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tb3-arbm-vs-mini-gemini37-same-model
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
