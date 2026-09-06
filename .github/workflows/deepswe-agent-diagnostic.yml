@@ -59,7 +59,15 @@ jobs:
           mkdir -p /tmp/llama && tar -xzf /tmp/llama.tgz -C /tmp/llama
           LLAMA_SERVER=$(find /tmp/llama -type f -name llama-server -print -quit)
           chmod +x "$LLAMA_SERVER"
-          "$LLAMA_SERVER" -m "$MODEL" --host 0.0.0.0 --port 8088 -c 4096 -np 1 -t 4 -ctk q8_0 -ctv q8_0 --jinja --no-warmup --no-webui -a arbm-qwen-sovereign > sovereign.log 2>&1 &
+          curl -fsSL -o /tmp/qwen-tokenizer.json "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct/resolve/156d6e6c8fc75b368af7a42572ef1caebe25729f/tokenizer_config.json"
+          python - <<'PY'
+          import json
+          d=json.load(open("/tmp/qwen-tokenizer.json", encoding="utf-8"))
+          t=d.get("chat_template") or ""
+          assert "<tool_call>" in t and "tool_calls" in t, "official_qwen_tool_template_missing"
+          open("/tmp/qwen-tool-template.jinja","w",encoding="utf-8").write(t)
+          PY
+          "$LLAMA_SERVER" -m "$MODEL" --host 0.0.0.0 --port 8088 -c 4096 -np 1 -t 4 -ctk q8_0 -ctv q8_0 --jinja --chat-template-file /tmp/qwen-tool-template.jinja --no-warmup --no-webui -a arbm-qwen-sovereign > sovereign.log 2>&1 &
           echo "ARBM_SOVEREIGN_SERVER_PID=$!" >> "$GITHUB_ENV"
           for i in $(seq 1 90); do curl -fsS http://127.0.0.1:8088/health >/dev/null && break; sleep 2; done
           curl -fsS http://127.0.0.1:8088/health
