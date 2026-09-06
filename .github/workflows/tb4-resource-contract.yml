@@ -1,0 +1,109 @@
+name: Terminal-Bench 4 Resource Contract
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Evidence request id
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  resource-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      TB4_COMMIT: 452bf305c6daa62fc59061d22133a7cbc7c1572e
+      TB4_REPO: https://github.com/harbor-framework/terminal-bench.git
+    steps:
+      - name: Constitutional execution contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "ZERO_SPEND_MODE=HARD"
+          echo "EXECUTION_POLICY=REMOTE_ONLY"
+          echo "LOCAL_HEAVY_ALLOWED=false"
+          echo "REQUEST_ID=${{ inputs.request_id }}"
+      - name: Fetch exact Terminal-Bench 4 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init tb4
+          cd tb4
+          git remote add origin "$TB4_REPO"
+          git fetch --depth=1 origin "$TB4_COMMIT"
+          git fetch --depth=1 origin refs/tags/v4.0.0:refs/tags/v4.0.0
+          git checkout --detach "$TB4_COMMIT"
+          test "$(git rev-parse HEAD)" = "$TB4_COMMIT"
+          test "$(git rev-list -n1 v4.0.0)" = "$TB4_COMMIT"
+
+      - name: Capture runner capacity
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          cpus="$(nproc)"
+          mem_kb="$(awk '/MemTotal/{print $2}' /proc/meminfo)"
+          disk_kb="$(df -Pk . | awk 'NR==2{print $4}')"
+          printf '{"cpus":%s,"memoryKB":%s,"diskAvailableKB":%s,"gpu":false,"jobTimeoutMinutes":360}\n' \
+            "$cpus" "$mem_kb" "$disk_kb" > evidence/runner-capacity.json
+          cat evidence/runner-capacity.json
+      - name: Classify all 66 task resource contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, pathlib, tomllib
+          cap=json.loads(pathlib.Path('evidence/runner-capacity.json').read_text())
+          rows=[]
+          for p in sorted(pathlib.Path('tb4/tasks').glob('*/task.toml')):
+              d=tomllib.loads(p.read_text())
+              env=d.get('environment',{})
+              agent=d.get('agent',{})
+              req={'cpus':int(env.get('cpus',1)),'memoryMB':int(env.get('memory_mb',0)),
+                   'storageMB':int(env.get('storage_mb',0)),'gpus':int(env.get('gpus',0)),
+                   'gpuTypes':env.get('gpu_types',[]),'agentTimeoutSec':int(agent.get('timeout_sec',0))}
+              blockers=[]
+              if req['cpus']>cap['cpus']: blockers.append('CPU_CAPACITY')
+              if req['memoryMB']*1024>cap['memoryKB']: blockers.append('MEMORY_CAPACITY')
+              if req['storageMB']*1024>cap['diskAvailableKB']: blockers.append('DISK_CAPACITY')
+              if req['gpus']>0 and not cap['gpu']: blockers.append('GPU_REQUIRED')
+              if req['agentTimeoutSec']>cap['jobTimeoutMinutes']*60: blockers.append('JOB_TIMEOUT_CEILING')
+              rows.append({'task':p.parent.name,'requirements':req,'compatible':not blockers,'blockers':blockers})
+          assert len(rows)==66, len(rows)
+          pathlib.Path('evidence/tb4-resource-matrix.json').write_text(json.dumps(rows,indent=2))
+          PY
+      - name: Freeze resource compatibility summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import collections, hashlib, json, pathlib
+          rows=json.loads(pathlib.Path('evidence/tb4-resource-matrix.json').read_text())
+          blocked=collections.Counter(b for r in rows for b in r['blockers'])
+          compatible=sum(1 for r in rows if r['compatible'])
+          gpu=[r['task'] for r in rows if r['requirements']['gpus']>0]
+          out={'schema':'arbm-tb4-resource-contract-v1','benchmark':'Terminal-Bench 4',
+               'commit':'452bf305c6daa62fc59061d22133a7cbc7c1572e','tag':'v4.0.0',
+               'tasksTotal':len(rows),'runnerCompatibleTasks':compatible,
+               'runnerBlockedTasks':len(rows)-compatible,'blockers':dict(blocked),
+               'gpuTasks':gpu,'completeFamilyCertified':False,
+               'classification':'RESOURCE_CONTRACT_ONLY'}
+          p=pathlib.Path('evidence/tb4-resource-summary.json')
+          p.write_text(json.dumps(out,indent=2))
+          digest=hashlib.sha256(p.read_bytes()).hexdigest()
+          pathlib.Path('evidence/SHA256SUMS.txt').write_text(f'{digest}  tb4-resource-summary.json\n')
+          print(json.dumps(out,indent=2))
+          PY
+
+      - name: Upload immutable evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: tb4-resource-contract-${{ inputs.request_id }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
+
