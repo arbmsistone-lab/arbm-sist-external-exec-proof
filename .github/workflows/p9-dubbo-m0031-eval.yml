@@ -40,7 +40,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          python -m pip install -r swe-milestone/requirements.txt
+          python -m pip install -e swe-milestone
           python -m pip install huggingface_hub
       - name: Download frozen Dubbo workspace metadata
         shell: bash
