@@ -107,6 +107,32 @@
         "https://docs.hyperbolic.ai/docs/compute/pricing",
         "https://docs.hyperbolic.ai/docs/compute/storage"
       ]
+    },
+    {
+      "id": "omc-cloud-h100-trial",
+      "state": "DISCOVERED",
+      "documented": {
+        "company": "OMC Cloud Computers and Communications Ltd.",
+        "trialDays": 30,
+        "cardRequiredForTrialMarketing": false,
+        "gpu": "H100 80GB available",
+        "rootAccess": true,
+        "billing": "pay-per-use / hourly",
+        "legalDocsPresent": true
+      },
+      "unresolved": [
+        "prove H100 is enabled inside the 30-day no-card trial",
+        "prove trial credit/resource ceiling",
+        "prove 16CPU/32GB and >=1TB storage shape for jax-speedrun-gpu",
+        "prove hard-stop/no overage",
+        "live ARBM account and H100 entitlement proof"
+      ],
+      "sources": [
+        "https://omc.cloud/usecases/llm-training",
+        "https://omc.cloud/pricing",
+        "https://omc.cloud/privacy-policy",
+        "https://omc.cloud/sla"
+      ]
     }
   ]
 }
