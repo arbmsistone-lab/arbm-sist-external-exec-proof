@@ -1,4 +1,4 @@
-name: DeepSWE Agent Deps Fix
+name: DeepSWE Host Gateway Fix
 on:
   workflow_dispatch:
 permissions:
@@ -23,6 +23,19 @@ jobs:
           git -C deep-swe checkout 0b9fabbb63b9104d678fe965e1632f2dd9eaa2ea
           uv tool install datacurve-pier
           pier --version
+          PIER_PY=$(head -n 1 "$(command -v pier)" | sed 's/^#!//')
+          "$PIER_PY" - <<'PY'
+          from pathlib import Path
+          import pier.environments.agent_setup as m
+          p=Path(m.__file__)
+          s=p.read_text()
+          old='"networks": ["pier-egress-internal", "default"],'
+          new='"networks": ["pier-egress-internal", "default"],\n                "extra_hosts": ["host.docker.internal:host-gateway"],'
+          if old not in s:
+              raise SystemExit('pier_proxy_patch_target_missing')
+          p.write_text(s.replace(old,new,1))
+          print('PIER_HOST_GATEWAY_PATCH=APPLIED')
+          PY
       - name: Restore sovereign model cache
         uses: actions/cache@v4
         with:
@@ -44,11 +57,15 @@ jobs:
           echo "ARBM_SOVEREIGN_SERVER_PID=$!" >> "$GITHUB_ENV"
           for i in $(seq 1 90); do curl -fsS http://127.0.0.1:8088/health >/dev/null && break; sleep 2; done
           curl -fsS http://127.0.0.1:8088/health
+      - name: Verify Docker host gateway
+        run: |
+          set -euo pipefail
+          docker run --rm --add-host host.docker.internal:host-gateway curlimages/curl:8.15.0 -fsS http://host.docker.internal:8088/health
       - name: Run one deterministic diagnostic task
         timeout-minutes: 55
         run: |
           set -o pipefail
-          pier run -p deep-swe/tasks --agent mini-swe-agent --model openai/arbm-qwen-sovereign --n-tasks 1 --sample-seed 0 --agent-kwarg 'extra_python_packages=["fastapi","orjson"]' --agent-env OPENAI_BASE_URL=http://172.17.0.1:8088/v1 --agent-env OPENAI_API_KEY=local-dummy-key | tee diagnostic.log
+          pier run -p deep-swe/tasks --agent mini-swe-agent --model openai/arbm-qwen-sovereign --n-tasks 1 --sample-seed 0 --agent-kwarg 'extra_python_packages=["fastapi","orjson"]' --agent-env OPENAI_BASE_URL=http://host.docker.internal:8088/v1 --agent-env OPENAI_API_KEY=local-dummy-key | tee diagnostic.log
           echo "PIER_EXIT=${PIPESTATUS[0]}" > diagnostic-exit.txt
       - name: Freeze full diagnostic evidence
         if: always()
@@ -63,7 +80,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: deepswe-agent-deps-fix
+          name: deepswe-host-gateway-fix
           path: diagnostic-evidence
       - name: Stop sovereign runtime
         if: always()
