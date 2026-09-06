@@ -75,11 +75,11 @@ jobs:
         run: |
           set -euo pipefail
           cat > /tmp/text-probe.json <<'JSON'
-          {"model":"arbm-qwen-sovereign","messages":[{"role":"system","content":"Every response must contain exactly one bash command block using ```mswea_bash_command then the command then ```"},{"role":"user","content":"Run echo TOOL_OK"}],"temperature":0,"max_tokens":96}
+          {"model":"arbm-qwen-sovereign","messages":[{"role":"system","content":"Every response must contain exactly one command block: <bash_code>command</bash_code>. Never emit a second block."},{"role":"user","content":"Run echo TOOL_OK"}],"temperature":0,"max_tokens":96}
           JSON
           curl -fsS http://127.0.0.1:8088/v1/chat/completions -H 'Content-Type: application/json' --data-binary @/tmp/text-probe.json > /tmp/text-probe-response.json
           cat /tmp/text-probe-response.json
-          grep -q 'mswea_bash_command' /tmp/text-probe-response.json
+          grep -q '<bash_code>' /tmp/text-probe-response.json
       - name: Verify Docker host gateway
         run: |
           set -euo pipefail
