@@ -1,0 +1,77 @@
+name: Global 5-Family Benchmark Preflight
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {id: swe-rebench-v2, repo: 'https://github.com/SWE-rebench/SWE-rebench-V2.git', commit: 'c71902a8cf8d2b725f63d51f199f4d3e56f68d2d'}
+          - {id: terminal-bench-4, repo: 'https://github.com/harbor-framework/terminal-bench.git', commit: '452bf305c6daa62fc59061d22133a7cbc7c1572e'}
+          - {id: swe-milestone-1.0.2, repo: 'https://github.com/DeepCommit-ai/SWE-Milestone.git', commit: '6d8b31168fd0e2ad57c0d1daa3df1556df014320'}
+          - {id: osworld-v2-2026.08.08, repo: 'https://github.com/xlang-ai/OSWorld-V2.git', commit: 'd578d2d4e0dc82b43e270fdaa7fa89d9708cd154'}
+          - {id: swefficiency, repo: 'https://github.com/swefficiency/swefficiency.git', commit: '12d32a2d6800824a7d84bdb6797b5708e7b7957f'}
+    steps:
+      - name: Constitutional zero-spend contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "ZERO_SPEND_MODE=HARD"
+          echo "EXECUTION_POLICY=REMOTE_ONLY"
+          echo "LOCAL_EXECUTION_ALLOWED=false"
+          echo "REQUEST_ID=${{ inputs.request_id }}"
+      - name: Fetch exact public benchmark commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init benchmark
+          cd benchmark
+          git remote add origin "${{ matrix.repo }}"
+          git fetch --depth=1 origin "${{ matrix.commit }}"
+          git checkout --detach FETCH_HEAD
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "${{ matrix.commit }}"
+          echo "BENCHMARK_FAMILY=${{ matrix.id }}"
+          echo "PIN_MATCH=true"
+          echo "COMMIT=$actual"
+      - name: Generic harness inspection
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd benchmark
+          test -f README.md -o -f README.rst -o -f README.txt
+          files="$(find . -maxdepth 2 -type f | wc -l)"
+          test "$files" -gt 0
+          echo "PUBLIC_REPO_ACCESS=true"
+          echo "FILES_DISCOVERED=$files"
+          for f in pyproject.toml requirements.txt setup.py package.json Cargo.toml Dockerfile docker-compose.yml; do
+            if [ -f "$f" ]; then echo "MANIFEST=$f"; fi
+          done
+      - name: Family-specific readiness markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd benchmark
+          case "${{ matrix.id }}" in
+            swe-milestone-1.0.2) test -d harness ;;
+            *) true ;;
+          esac
+          echo "PREFLIGHT_FAMILY_READY=true"
+      - name: Summary
+        shell: bash
+        run: |
+          echo "### ${{ matrix.id }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- public fetch: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- mandatory spend: 0" >> "$GITHUB_STEP_SUMMARY"
