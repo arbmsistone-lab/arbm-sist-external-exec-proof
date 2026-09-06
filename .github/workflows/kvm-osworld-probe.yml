@@ -1,0 +1,76 @@
+name: KVM OSWorld zero-spend probe
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/kvm-osworld-probe.yml'
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Probe host virtualization
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "runner=${RUNNER_NAME}" | tee kvm-probe.txt
+          uname -a | tee -a kvm-probe.txt
+          lscpu | tee -a kvm-probe.txt
+          test -e /dev/kvm
+          ls -l /dev/kvm | tee -a kvm-probe.txt
+          grep -E -m1 'vmx|svm' /proc/cpuinfo | tee -a kvm-probe.txt
+      - name: Prove QEMU KVM acceleration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v qemu-system-x86_64 >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq qemu-system-x86
+          fi
+          qemu-system-x86_64 --version | tee -a kvm-probe.txt
+          sudo chmod 666 /dev/kvm
+          set +e
+          timeout 4s qemu-system-x86_64 -machine accel=kvm -cpu host -m 128 -display none -nodefaults -S 2>qemu-kvm.stderr
+          code=$?
+          set -e
+          cat qemu-kvm.stderr | tee -a kvm-probe.txt
+          if [ "$code" -ne 124 ]; then
+            echo "QEMU_KVM_START_FAILED exit=$code" | tee -a kvm-probe.txt
+            exit 2
+          fi
+          echo 'QEMU_KVM_START=PASS' | tee -a kvm-probe.txt
+      - name: Docker privileged KVM visibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --privileged --device /dev/kvm:/dev/kvm ubuntu:24.04 bash -lc 'test -c /dev/kvm && ls -l /dev/kvm' | tee -a kvm-probe.txt
+          echo 'DOCKER_KVM_DEVICE=PASS' | tee -a kvm-probe.txt
+      - name: Freeze probe evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum kvm-probe.txt | tee kvm-probe.sha256
+          cat > kvm-summary.json <<'JSON'
+          {
+            "schema":"arbm-kvm-osworld-probe-v1",
+            "runner":"ubuntu-24.04",
+            "repositoryVisibility":"public",
+            "zeroSpendRoute":"github-public-standard-runner",
+            "kvmRequired":true,
+            "dockerDeviceRequired":true
+          }
+          JSON
+      - name: Upload probe evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kvm-osworld-zero-spend-probe
+          path: |
+            kvm-probe.txt
+            kvm-probe.sha256
+            kvm-summary.json
+            qemu-kvm.stderr
+          if-no-files-found: warn
