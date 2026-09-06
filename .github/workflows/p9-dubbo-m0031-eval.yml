@@ -1,0 +1,125 @@
+name: P9 Dubbo M003.1 Official Evaluator
+on:
+  push:
+    branches:
+      - p8/p9-dubbo-m0031-eval
+    paths:
+      - 'p9-dubbo-m0031.patch'
+      - '.github/workflows/p9-dubbo-m0031-eval.yml'
+permissions:
+  contents: read
+jobs:
+  evaluate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      ZERO_SPEND_MODE: HARD
+      HARNESS_COMMIT: 6d8b31168fd0e2ad57c0d1daa3df1556df014320
+      DATA_COMMIT: 3500478e740d42583277c2658aa7729eb36e10f4
+      REPO_ID: apache_dubbo_dubbo-3.3.3_dubbo-3.3.6
+      MILESTONE_ID: M003.1
+      PATCH_SHA256: 8bbb6edfd8836451e49398ca0659ac134dabab37fe35299ecb0db19e13bb2b2d
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify frozen patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "$PATCH_SHA256  p9-dubbo-m0031.patch" | sha256sum -c -
+          test "$(grep -c '^+++ b/' p9-dubbo-m0031.patch)" -eq 1
+          test "$(grep '^+++ b/' p9-dubbo-m0031.patch | cut -c7-)" = "dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/tri/reactive/MutinyDubbo3TripleGenerator.java"
+      - name: Checkout frozen SWE-Milestone harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone https://github.com/DeepCommit-ai/SWE-Milestone.git swe-milestone
+          git -C swe-milestone checkout "$HARNESS_COMMIT"
+          test "$(git -C swe-milestone rev-parse HEAD)" = "$HARNESS_COMMIT"
+      - name: Install evaluator dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -r swe-milestone/requirements.txt
+          python -m pip install huggingface_hub
+      - name: Download frozen Dubbo workspace metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          from huggingface_hub import snapshot_download
+          repo=os.environ['REPO_ID']
+          snapshot_download(
+              repo_id='DeepCommit-ai/SWE-Milestone-data',
+              repo_type='dataset',
+              revision=os.environ['DATA_COMMIT'],
+              allow_patterns=[repo+'/**'],
+              local_dir='workspace-data')
+          PY
+      - name: Verify workspace baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="workspace-data/$REPO_ID"
+          test -f "$ROOT/metadata.json"
+          test -f "$ROOT/dockerfiles/$MILESTONE_ID/test_config.json"
+          BASELINE=$(find "$ROOT/test_results/$MILESTONE_ID" -maxdepth 1 -type f -name '*classification.json' -print -quit)
+          test -n "$BASELINE"
+          echo "BASELINE=$BASELINE" >> "$GITHUB_ENV"
+          sha256sum "$BASELINE" > baseline-sha256.txt
+      - name: Run official evaluator fail closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/p9-eval"
+          cd swe-milestone
+          python -m harness.e2e.evaluator \
+            --workspace-root "$GITHUB_WORKSPACE/workspace-data/$REPO_ID" \
+            --milestone-id "$MILESTONE_ID" \
+            --patch-file "$GITHUB_WORKSPACE/p9-dubbo-m0031.patch" \
+            --baseline-classification "$GITHUB_WORKSPACE/$BASELINE" \
+            --output "$GITHUB_WORKSPACE/p9-eval/evaluation_result.json" \
+            --no-filter-src \
+            --fail-closed-build-reports
+      - name: Enforce official PASS contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          d=json.load(open('p9-eval/evaluation_result.json',encoding='utf-8'))
+          s=d.get('test_summary') or {}
+          assert d.get('milestone_id')=='M003.1', d
+          assert d.get('patch_exists') is True, d
+          assert d.get('patch_successfully_applied') is True, d
+          assert d.get('resolved') is True, d
+          assert (d.get('build_failure_policy') or {}).get('fail_closed') is True, d
+          assert not d.get('infrastructure_failure'), d
+          assert not d.get('infra_invalid_reason'), d
+          assert s.get('fail_to_pass_achieved')==s.get('fail_to_pass_required'), s
+          assert s.get('none_to_pass_achieved')==s.get('none_to_pass_required'), s
+          assert s.get('pass_to_pass_achieved')==s.get('pass_to_pass_required'), s
+          assert int(s.get('pass_to_pass_failed',0))==0, s
+          assert int(s.get('pass_to_pass_missing',0))==0, s
+          assert int(s.get('none_to_pass_missing',0))==0, s
+          print(json.dumps({'M003.1':'OFFICIAL_PASS','summary':s},sort_keys=True))
+          PY
+      - name: Freeze evaluator evidence
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p p9-eval
+          cp -f p9-dubbo-m0031.patch p9-eval/submitted.patch || true
+          cp -f baseline-sha256.txt p9-eval/baseline-sha256.txt || true
+          printf '%s\n' "$HARNESS_COMMIT" > p9-eval/harness-commit.txt
+          printf '%s\n' "$DATA_COMMIT" > p9-eval/data-commit.txt
+          printf '%s\n' "$PATCH_SHA256" > p9-eval/patch-sha256.txt
+          find p9-eval -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > p9-eval/SHA256SUMS.txt || true
+      - name: Upload immutable evaluator evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: p9-dubbo-m0031-official-evaluator
+          path: p9-eval
+          retention-days: 90
