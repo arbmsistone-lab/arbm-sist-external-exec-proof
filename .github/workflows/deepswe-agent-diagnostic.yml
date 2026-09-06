@@ -1,4 +1,4 @@
-name: DeepSWE Agent Diagnostic
+name: DeepSWE Agent Deps Fix
 on:
   workflow_dispatch:
 permissions:
@@ -48,7 +48,7 @@ jobs:
         timeout-minutes: 55
         run: |
           set -o pipefail
-          pier run -p deep-swe/tasks --agent mini-swe-agent --model openai/arbm-qwen-sovereign --n-tasks 1 --sample-seed 0 --agent-env OPENAI_BASE_URL=http://172.17.0.1:8088/v1 --agent-env OPENAI_API_KEY=local-dummy-key | tee diagnostic.log
+          pier run -p deep-swe/tasks --agent mini-swe-agent --model openai/arbm-qwen-sovereign --n-tasks 1 --sample-seed 0 --agent-kwarg 'extra_python_packages=["fastapi","orjson"]' --agent-env OPENAI_BASE_URL=http://172.17.0.1:8088/v1 --agent-env OPENAI_API_KEY=local-dummy-key | tee diagnostic.log
           echo "PIER_EXIT=${PIPESTATUS[0]}" > diagnostic-exit.txt
       - name: Freeze full diagnostic evidence
         if: always()
@@ -63,7 +63,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: deepswe-agent-diagnostic
+          name: deepswe-agent-deps-fix
           path: diagnostic-evidence
       - name: Stop sovereign runtime
         if: always()
