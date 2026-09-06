@@ -35,7 +35,8 @@ jobs:
           files=sorted(x.name for x in p.glob('digests-*.tsv'))
           print({'digest_manifests':files})
           Path('digest-manifests.txt').write_text('\n'.join(files)+'\n')
-          PY      - name: Freeze verdict
+          PY
+      - name: Freeze verdict
         run: |
           python - <<'PY'
           import json
