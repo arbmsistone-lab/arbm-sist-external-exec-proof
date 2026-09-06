@@ -14,9 +14,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+      - run: node certification/capability-matcher-test.mjs
       - run: node certification/capability-matcher.mjs | tee capability-match.json
       - uses: actions/upload-artifact@v7
         with:
           name: benchmark-capability-match
           path: capability-match.json
           retention-days: 90
+
