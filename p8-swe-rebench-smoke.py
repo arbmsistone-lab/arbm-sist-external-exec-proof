@@ -889,7 +889,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 long_width_new=bool(re.search(r'\b(?:long|int64|uint64|integer64)\b|\(long\s',new,re.I))
                 unbounded_required=bool(re.search(r'\b(unbounded|arbitrary precision|beyond long|long range|64[- ]?bit range)\b',low,re.I))
                 serialization=bool(re.search(r'str|string|format|serialize|write',old+'\n'+new,re.I))
-                range_guard=bool(re.search(r'Integer/MIN_VALUE.*Integer/MAX_VALUE|Integer/MAX_VALUE.*Integer/MIN_VALUE',new,re.S))
+                range_guard=bool(re.search(r'Long/MIN_VALUE.*Long/MAX_VALUE|Long/MAX_VALUE.*Long/MIN_VALUE',new,re.S))
                 if bounded_old and same_width_new and serialization and not range_guard: errs.append('public_invariant_fixed_width_conversion_retained:'+rel)
                 if bounded_old and long_width_new and serialization and unbounded_required: errs.append('public_invariant_fixed_width_conversion_retained:'+rel)
                 for form in ('when','when-not','when-let','if','if-not','if-let','cond','case'):
@@ -951,9 +951,9 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     indent=m.group(1)
                     fallback=lines[i+1].strip()
                     if not re.match(r'^\(str\s+'+re.escape(expr)+r'\)\)+$',fallback): continue
-                    new=(indent+'(if (and (<= Integer/MIN_VALUE '+expr+' Integer/MAX_VALUE)\n'
+                    new=(indent+'(if (and (<= Long/MIN_VALUE '+expr+' Long/MAX_VALUE)\n'
                          +indent+'         (zero? (mod '+expr+' 1)))\n'
-                         +indent+'  (str (int '+expr+'))\n'
+                         +indent+'  (str (long '+expr+'))\n'
                          +indent+'  '+fallback)
                     ranked.append((score,rel,i,i+2,new))
                     continue
