@@ -26,6 +26,8 @@ jobs:
           total=0
           for ws in sorted(p for p in root.iterdir() if p.is_dir() and p.name!='config' and not p.name.startswith('.')):
               classes=sorted(ws.glob('test_results/*/*_classification.json'))
+              if not classes:
+                  continue
               srs=sorted(ws.glob('srs/*/SRS.md'))
               mids=sorted({p.parent.name for p in classes})
               repos.append({'repo':ws.name,'classificationCount':len(classes),'srsCount':len(srs),'milestones':mids})
