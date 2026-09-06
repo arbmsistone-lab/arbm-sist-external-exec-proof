@@ -1,0 +1,108 @@
+name: TB2.1 Coding Agent Index Campaign
+on:
+  push:
+    branches: [benchmark/deepswe-context-fix]
+    paths:
+      - '.github/workflows/tb21-index-campaign.yml'
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  shard:
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        shard: [0,1,2,3,4,5,6,7]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    env:
+      HARBOR_COMMIT: c29f416af4b02ef593d6874f88b59d38bf164646
+      TB21_COMMIT: 7131e4375048a0e408a8fb404b5f499d726b695b
+      REMOTE_MESH: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-chat-mesh-v1
+      SHARDS: 8
+    steps:
+      - uses: actions/checkout@v7
+      - name: Freeze harness and benchmark
+        run: |
+          set -euo pipefail
+          git clone https://github.com/harbor-framework/harbor.git harbor-src
+          git -C harbor-src checkout "$HARBOR_COMMIT"
+          python -m pip install -e ./harbor-src
+          git clone https://github.com/harbor-framework/terminal-bench-2-1.git tb21
+          git -C tb21 checkout "$TB21_COMMIT"
+          test "$(git -C tb21 rev-parse HEAD)" = "$TB21_COMMIT"
+          COUNT=$(find tb21/tasks -mindepth 1 -maxdepth 1 -type d | wc -l)
+          echo "TB21_TASKS=$COUNT"
+          test "$COUNT" -eq 89
+      - name: Start renewable free-mesh bridge
+        env:
+          ARBM_REMOTE_ENDPOINT: ${{ env.REMOTE_MESH }}
+        run: |
+          set -euo pipefail
+          ARBM_OIDC_BRIDGE_PORT=8090 python oidc-chat-bridge.py > oidc-bridge.log 2>&1 &
+          echo "BRIDGE_PID=$!" >> "$GITHUB_ENV"
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8090/health >/dev/null && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8090/health
+      - name: Run deterministic shard, three trials each
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          set -u
+          mkdir -p jobs-campaign logs
+          find tb21/tasks -mindepth 1 -maxdepth 1 -type d | sort | awk -v s="$SHARD" -v n="$SHARDS" '((NR-1)%n)==s' > shard-tasks.txt
+          test -s shard-tasks.txt
+          failures=0
+          while IFS= read -r task; do
+            name=$(basename "$task")
+            echo "=== TASK $name / SHARD $SHARD ==="
+            harbor run -p "$task" -a mini-swe-agent -m openai/arbm-free-mesh-v1 \
+              -o "jobs-campaign/$name" -k 3 \
+              --ak 'config_file=.github/config/arbm-mini-textbased.yaml' \
+              --ae OPENAI_BASE_URL=http://172.17.0.1:8090/v1 \
+              --ae OPENAI_API_BASE=http://172.17.0.1:8090/v1 \
+              --ae OPENAI_API_KEY=local-bridge --ae MSWEA_API_KEY=local-bridge \
+              --ae NO_PROXY=172.17.0.1,127.0.0.1,localhost \
+              --ae no_proxy=172.17.0.1,127.0.0.1,localhost \
+              2>&1 | tee "logs/$name.log" || failures=$((failures+1))
+          done < shard-tasks.txt
+          echo "COMMAND_FAILURES=$failures" | tee command-failures.txt
+      - name: Audit shard completeness
+        if: always()
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          python - <<'PY'
+          import json, pathlib, os
+          tasks=[x.strip() for x in pathlib.Path('shard-tasks.txt').read_text().splitlines() if x.strip()]
+          results=list(pathlib.Path('jobs-campaign').rglob('result.json')) if pathlib.Path('jobs-campaign').exists() else []
+          summary={'schema':'arbm-coding-agent-index-tb21-shard-v1','shard':int(os.environ['SHARD']),
+                   'shards':8,'expectedTasks':len(tasks),'attemptsPerTask':3,'expectedTrials':len(tasks)*3,
+                   'antiCherryPick':True,'benchmarkCommit':os.environ['TB21_COMMIT'],'resultFiles':len(results)}
+          pathlib.Path('shard-summary.json').write_text(json.dumps(summary,indent=2))
+          print(json.dumps(summary,indent=2))
+          PY
+      - name: Freeze shard evidence
+        if: always()
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          cp -r jobs-campaign logs evidence/ 2>/dev/null || true
+          cp -f shard-tasks.txt shard-summary.json command-failures.txt oidc-bridge.log evidence/ 2>/dev/null || true
+          printf '%s\n' 'BENCHMARK=Terminal-Bench-2.1' "BENCHMARK_COMMIT=$TB21_COMMIT" \
+            'ROUTE=ARBM_FREE_MESH_V1_FIXED_ORDER' 'REFERENCE_SCAFFOLD=mini-swe-agent' \
+            'TRIALS_PER_TASK=3' 'ANTI_CHERRY_PICK=true' 'MANDATORY_COST_USD=0' "SHARD=$SHARD/8" \
+            > evidence/protocol.txt
+          find evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > evidence/SHA256SUMS.txt || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tb21-index-shard-${{ matrix.shard }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 90
+      - name: Stop bridge
+        if: always()
+        run: kill "$BRIDGE_PID" 2>/dev/null || true
