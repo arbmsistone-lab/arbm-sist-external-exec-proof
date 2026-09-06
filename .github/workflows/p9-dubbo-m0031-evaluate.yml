@@ -57,16 +57,20 @@ jobs:
           set -euo pipefail
           git clone --filter=blob:none --no-checkout https://github.com/DeepCommit-ai/SWE-Milestone.git harness-src
           git -C harness-src checkout "$BENCHMARK_COMMIT"
-          mkdir -p "data/$REPO_ID/test_results/$TASK_ID" data/config
+          mkdir -p "data/$REPO_ID/test_results/$TASK_ID" "data/$REPO_ID/dockerfiles" data/config
           base="https://huggingface.co/datasets/DeepCommit-ai/SWE-Milestone-data/resolve/$BENCHMARK_VERSION"
           curl -fsSL --retry 4 -o "data/$REPO_ID/metadata.json" "$base/$REPO_ID/metadata.json?download=true"
           curl -fsSL --retry 4 -o "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json" "$base/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json?download=true"
           curl -fsSL --retry 4 -o "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_filter_list.json" "$base/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_filter_list.json?download=true"
           curl -fsSL --retry 4 -o "data/config/$REPO_ID.yaml" "$base/config/$REPO_ID.yaml?download=true"
+          curl -fsSL --retry 4 -o "data/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh" "$base/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh?download=true"
           test -s "data/$REPO_ID/metadata.json"
           test -s "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json"
           test -s "data/config/$REPO_ID.yaml"
-          sha256sum "data/$REPO_ID/metadata.json" "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json" "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_filter_list.json" "data/config/$REPO_ID.yaml" > public-data-SHA256SUMS.txt
+          test -s "data/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh"
+          test "$(sha256sum "data/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh" | awk '{print $1}')" = "9df245197141632388c2ae9dc47725f268f1de3809878165d6d8045c92975ad2"
+          chmod +x "data/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh"
+          sha256sum "data/$REPO_ID/metadata.json" "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json" "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_filter_list.json" "data/config/$REPO_ID.yaml" "data/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh" > public-data-SHA256SUMS.txt
       - name: Adapt diagnostic CPU quota to hosted runner
         shell: bash
         run: |
@@ -138,14 +142,32 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf snapshot-tree
-          mkdir -p snapshot-tree
-          while IFS= read -r p; do
-            test -n "$p"
-            mkdir -p "snapshot-tree/$(dirname "$p")"
-            docker cp "p9evalprep:/testbed/$p" "snapshot-tree/$p"
-          done < candidate-paths.txt
-          tar -cf source_snapshot.tar -C snapshot-tree .
+          docker exec p9evalprep bash -lc 'cd /testbed; git ls-files -co --exclude-standard -z' > worktree-paths.z
+          python - <<'PY'
+          import hashlib,json,pathlib,sys,yaml
+          sys.path.insert(0,'harness-src')
+          from harness.e2e.evaluator import resolve_residue_prune_config
+          from harness.utils.snapshot import should_include_snapshot_file
+          repo='apache_dubbo_dubbo-3.3.3_dubbo-3.3.6'
+          cfgp=pathlib.Path('data/config')/(repo+'.yaml')
+          metap=pathlib.Path('data')/repo/'metadata.json'
+          cfg_raw=cfgp.read_bytes(); cfg_sha=hashlib.sha256(cfg_raw).hexdigest()
+          cfg=yaml.safe_load(cfg_raw) or {}; metadata=json.loads(metap.read_text())
+          resolved=resolve_residue_prune_config(cfg,metadata,repo_config_binding_mode='trial-pinned',repo_config_sha256=cfg_sha)
+          assert resolved.src_filter is not None
+          raw=pathlib.Path('worktree-paths.z').read_bytes().split(b'\0')
+          paths=[]
+          for item in raw:
+            if not item: continue
+            path=item.decode('utf-8')
+            if should_include_snapshot_file(path,resolved.src_filter,extra_build_manifests=set()):
+              paths.append(path)
+          paths=sorted(set(paths))
+          assert paths and any(path.endswith('MutinyDubbo3TripleGenerator.java') for path in paths)
+          pathlib.Path('snapshot-paths.z').write_bytes(b'\0'.join(path.encode() for path in paths)+b'\0')
+          print('SNAPSHOT_PATHS',len(paths))
+          PY
+          docker exec -i p9evalprep tar -C /testbed -cf - --null -T - < snapshot-paths.z > source_snapshot.tar
           test -s source_snapshot.tar
           sha256sum source_snapshot.tar > source_snapshot.tar.sha256
       - name: Create pinned snapshot integrity sidecar
