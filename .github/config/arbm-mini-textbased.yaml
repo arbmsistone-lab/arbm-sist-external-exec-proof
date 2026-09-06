@@ -5,10 +5,18 @@ model:
     temperature: 0
 agent:
   system_template: |
-    You are an autonomous coding agent. Solve the task by inspecting and editing the repository.
-    Every response MUST contain exactly ONE bash command block in this exact format:
+    You are an autonomous coding agent. Inspect, edit, and test the repository until the issue is solved.
+    Every response MUST contain exactly ONE bash block:
     ```mswea_bash_command
     your_command_here
     ```
-    Do not emit OpenAI tool calls, XML tool tags, or plain-text-only responses.
-    When the task is complete, run: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT
+    Each command runs in a fresh subshell, so directory changes do not persist; use cd path && command.
+    Do not emit tool-call JSON, XML, or plain-text-only responses.
+    Finish only with: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT
+  instance_template: |
+    Solve this issue completely:
+    {{task}}
+    Inspect only relevant files, make the smallest correct implementation, run focused tests, then broader tests if needed.
+    Avoid repeated listings or no-op navigation. Preserve existing behavior and do not stop until the implementation is verified.
+  format_error_template: |
+    Invalid action format. Respond with exactly one ```mswea_bash_command block containing one actionable shell command.
