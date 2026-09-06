@@ -71,6 +71,7 @@ jobs:
           test "$(sha256sum "data/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh" | awk '{print $1}')" = "6869ee39355d4ddfca7dfb5bddf9f1b32e9651c94a31b522a8435d3810f2d099"
           chmod +x "data/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh"
           sha256sum "data/$REPO_ID/metadata.json" "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json" "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_filter_list.json" "data/config/$REPO_ID.yaml" "data/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh" > public-data-SHA256SUMS.txt
+          python -m pip install -q -e ./harness-src
       - name: Adapt diagnostic CPU quota to hosted runner
         shell: bash
         run: |
