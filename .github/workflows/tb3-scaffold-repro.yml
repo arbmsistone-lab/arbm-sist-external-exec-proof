@@ -1,6 +1,13 @@
 name: TB3 Scaffold v1 vs v2 Reproducibility
 on:
   workflow_dispatch:
+  push:
+    branches: [benchmark/deepswe-context-fix]
+    paths:
+      - .github/workflows/tb3-scaffold-repro.yml
+      - arbm_harbor_agent.py
+      - certification/scaffold-promotion-*
+      - certification/tb3-*
 permissions:
   contents: read
 jobs:
