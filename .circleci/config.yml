@@ -17,8 +17,8 @@ jobs:
             docker version
             docker info
             mem_kb=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
-            test "$mem_kb" -ge 16500000
-            docker run --rm hello-world >/tmp/hello.txt
+            echo "MEM_KB=$mem_kb"
+            docker run --rm --memory-reservation=16g --memory=32g hello-world >/tmp/hello.txt
             grep -q 'Hello from Docker!' /tmp/hello.txt
             echo "ARBM_CIRCLECI_SWEFF_PROBE=PASS"
 workflows:
