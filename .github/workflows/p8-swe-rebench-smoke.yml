@@ -108,12 +108,10 @@ jobs:
         env:
           ARBM_SOVEREIGN_ONLY: '1'
           ARBM_RESUME_PUBLIC_EVIDENCE: '1'
-          ARBM_ALLOW_DETERMINISTIC_PUBLIC_REPAIR: '1'
           ARBM_SOVEREIGN_TIMEOUT_SECONDS: '600'
           MODEL_LABEL: ARBM-Sovereign-Qwen14B-v22
           MODEL_PROVIDER: github-public-runner-open-weight
           WORKER_REV: public-feedback-preserving-sovereign-v22
-          ARBM_ALLOW_DETERMINISTIC_PUBLIC_REPAIR: '1'
         run: python p8-swe-rebench-smoke.py
       - name: Stop sovereign backstop server
         if: always() && steps.fallback.outputs.needed == 'true'
