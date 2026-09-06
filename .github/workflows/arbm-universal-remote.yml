@@ -1,0 +1,51 @@
+name: ARBM Universal Remote
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Correlation id
+        required: true
+        type: string
+      mission_b64:
+        description: Base64url mission payload
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  universal-remote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    env:
+      MISSION_B64: ${{ inputs.mission_b64 }}
+      ARBM_RUN_ROOT: ${{ github.workspace }}/.arbm-run
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate runner unit tests
+        run: node scripts/universal-remote-runner.test.mjs
+
+      - name: Execute universal mission
+        id: execute
+        run: node scripts/universal-remote-runner.mjs
+
+      - name: Freeze evidence
+        if: always()
+        run: |
+          mkdir -p "$ARBM_RUN_ROOT/evidence"
+          printf '%s\n' "${{ inputs.request_id }}" > "$ARBM_RUN_ROOT/evidence/request-id.txt"
+          sha256sum "$ARBM_RUN_ROOT/evidence"/* 2>/dev/null | sort > "$ARBM_RUN_ROOT/evidence/evidence-sha256.txt" || true
+
+      - name: Upload universal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: universal-remote-${{ inputs.request_id }}
+          path: ${{ env.ARBM_RUN_ROOT }}/evidence
+          if-no-files-found: error
+          retention-days: 7
