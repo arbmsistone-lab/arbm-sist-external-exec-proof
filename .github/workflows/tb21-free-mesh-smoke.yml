@@ -1,0 +1,53 @@
+name: TB2.1 ARBM Free Mesh Smoke
+on:
+  push:
+    branches: [benchmark/deepswe-context-fix]
+    paths:
+      - '.github/workflows/tb21-free-mesh-smoke.yml'
+      - 'oidc-chat-bridge.py'
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      HARBOR_COMMIT: c29f416af4b02ef593d6874f88b59d38bf164646
+      REMOTE_MESH: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-chat-mesh-v1
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install frozen Harbor
+        run: |
+          git clone https://github.com/harbor-framework/harbor.git harbor-src
+          git -C harbor-src checkout "$HARBOR_COMMIT"
+          python -m pip install -e ./harbor-src
+      - name: Start renewable OIDC chat bridge
+        env:
+          ARBM_REMOTE_ENDPOINT: ${{ env.REMOTE_MESH }}
+        run: |
+          ARBM_OIDC_BRIDGE_PORT=8090 python oidc-chat-bridge.py > oidc-bridge.log 2>&1 &
+          echo "BRIDGE_PID=$!" >> "$GITHUB_ENV"
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8090/health >/dev/null && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8090/health
+      - name: Run reference scaffold on one TB2.1 task
+        run: |
+          harbor run -d terminal-bench/terminal-bench-2-1 -i terminal-bench/adaptive-rejection-sampler -a mini-swe-agent -m openai/arbm-free-mesh-v1 -o jobs-tb21-mesh -k 1 --ak 'config_file=.github/config/arbm-mini-textbased.yaml' --ae OPENAI_BASE_URL=http://172.17.0.1:8090/v1 --ae OPENAI_API_BASE=http://172.17.0.1:8090/v1 --ae OPENAI_API_KEY=local-bridge --ae MSWEA_API_KEY=local-bridge --ae NO_PROXY=172.17.0.1,127.0.0.1,localhost --ae no_proxy=172.17.0.1,127.0.0.1,localhost | tee tb21-mesh-smoke.log
+      - name: Freeze evidence
+        if: always()
+        run: |
+          mkdir -p evidence
+          cp -r jobs-tb21-mesh evidence/ 2>/dev/null || true
+          cp -f tb21-mesh-smoke.log oidc-bridge.log evidence/ 2>/dev/null || true
+          printf '%s\n' 'BENCHMARK=Terminal-Bench-2.1' 'ROUTE=ARBM_FREE_MESH_V1_FIXED_ORDER' 'REFERENCE_SCAFFOLD=mini-swe-agent' 'ATTEMPTS=1' 'MANDATORY_COST_USD=0' > evidence/protocol.txt
+          find evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > evidence/SHA256SUMS.txt || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tb21-free-mesh-smoke
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Stop bridge
+        if: always()
+        run: kill "$BRIDGE_PID" 2>/dev/null || true
