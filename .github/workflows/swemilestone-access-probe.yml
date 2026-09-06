@@ -1,0 +1,64 @@
+name: SWE-Milestone access probe
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Constitutional contract
+        run: |
+          echo REMOTE_ONLY_FOR_HEAVY
+          echo ZERO_SPEND_HARD
+      - name: Fetch exact source
+        run: |
+          git clone --filter=blob:none https://github.com/DeepCommit-ai/SWE-Milestone.git src
+          git -C src checkout 6d8b31168fd0e2ad57c0d1daa3df1556df014320
+      - name: Inspect benchmark pin
+        run: |
+          cat src/manifests/BENCHMARK_VERSION
+          test "$(cat src/manifests/BENCHMARK_VERSION)" = "v1.0.2"
+      - name: Probe public data access
+        run: |
+          set +e
+          git ls-remote https://huggingface.co/datasets/DeepCommit-ai/SWE-Milestone-data refs/tags/v1.0.2 > data-ref.txt 2> data-ref.err
+          echo $? > data-ref.code
+          cat data-ref.txt || true
+          cat data-ref.err || true
+      - name: Probe pinned Docker images metadata
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('src/manifests')
+          files=sorted(x.name for x in p.glob('digests-*.tsv'))
+          print({'digest_manifests':files})
+          Path('digest-manifests.txt').write_text('\n'.join(files)+'\n')
+          PY      - name: Freeze verdict
+        run: |
+          python - <<'PY'
+          import json
+          code=int(open('data-ref.code').read().strip())
+          summary={
+            'schema':'arbm-swemilestone-access-probe-v1',
+            'benchmark':'SWE-Milestone 1.0.2',
+            'commit':'6d8b31168fd0e2ad57c0d1daa3df1556df014320',
+            'dataRefAccessible': code==0 and bool(open('data-ref.txt').read().strip()),
+            'completeFamilyCertified':False,
+            'classification':'ACCESS_PROBE_ONLY'
+          }
+          open('swemilestone-access-summary.json','w').write(json.dumps(summary,indent=2)+'\n')
+          print(json.dumps(summary))
+          PY
+          sha256sum swemilestone-access-summary.json > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: swemilestone-access-probe
+          path: |
+            swemilestone-access-summary.json
+            data-ref.txt
+            data-ref.err
+            digest-manifests.txt
+            SHA256SUMS.txt
