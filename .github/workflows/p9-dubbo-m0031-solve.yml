@@ -1,4 +1,4 @@
-name: P9 Dubbo M003.1 Cloud Solve
+﻿name: P9 Dubbo M003.1 Cloud Solve
 on:
   workflow_dispatch:
     inputs:
@@ -52,7 +52,8 @@ jobs:
             'dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/DubboGeneratorPlugin.java',
             'dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/tri/reactive/ReactorDubbo3TripleGenerator.java',
             'dubbo-plugin/dubbo-compiler/src/main/resources/ReactorDubbo3TripleInterfaceStub.mustache',
-            'dubbo-plugin/dubbo-compiler/src/main/resources/ReactorDubbo3TripleStub.mustache']          out=[]
+            'dubbo-plugin/dubbo-compiler/src/main/resources/ReactorDubbo3TripleStub.mustache']
+          out=[]
           for p in planned:
             r=subprocess.run(['docker','exec','p9ctx','bash','-lc',f'cd /testbed; test -f {p!r} && cat -- {p!r}'],capture_output=True,text=True)
             if r.returncode:
@@ -172,3 +173,4 @@ jobs:
         if: always()
         shell: bash
         run: docker rm -f p9ctx >/dev/null 2>&1 || true
+
