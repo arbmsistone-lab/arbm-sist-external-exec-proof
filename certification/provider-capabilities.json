@@ -1,0 +1,9 @@
+﻿{
+  "schema": "arbm-provider-capabilities-v1",
+  "providers": [
+    {"id":"github-public-standard","state":"ACTIVE","zeroCostVerified":true,"cpu":4,"memoryMB":15989,"diskMB":90000,"docker":true,"kvm":true,"gpu":0,"maxTaskSeconds":21600,"authorizedDataset":false},
+    {"id":"gitlab-free-private","state":"ACTIVE","zeroCostVerified":true,"cpu":2,"memoryMB":16006,"diskMB":100000,"docker":true,"kvm":false,"gpu":0,"maxTaskSeconds":3600,"authorizedDataset":false},
+    {"id":"circleci-free-current","state":"QUALIFIED_CANDIDATE","zeroCostVerified":false,"cpu":2,"memoryMB":7781,"diskMB":138000,"docker":true,"kvm":false,"gpu":0,"maxTaskSeconds":3600,"authorizedDataset":false},
+    {"id":"latchkey-oss-16core","state":"QUALIFIED_CANDIDATE","zeroCostVerified":false,"cpu":16,"memoryMB":65536,"docker":true,"kvm":false,"gpu":0,"maxTaskSeconds":3600,"authorizedDataset":false}
+  ]
+}

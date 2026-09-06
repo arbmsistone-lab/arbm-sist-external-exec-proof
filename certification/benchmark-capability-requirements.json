@@ -1,0 +1,11 @@
+﻿{
+  "schema": "arbm-benchmark-capability-requirements-v1",
+  "policy": {"zeroSpendHard": true, "heavyExecution": "REMOTE_ONLY", "failClosed": true},
+  "families": {
+    "swe-milestone-1.0.2": {"cpu": 16, "memoryMB": 16384, "docker": true, "gpu": 0, "maxTaskSeconds": 3600},
+    "swefficiency": {"cpu": 2, "memoryMB": 16384, "docker": true, "gpu": 0, "maxTaskSeconds": 3600},
+    "terminal-bench-4": {"cpu": 16, "memoryMB": 32768, "diskMB": 1024000, "docker": true, "gpu": 1, "maxTaskSeconds": 28800},
+    "osworld-v2": {"cpu": 4, "memoryMB": 8192, "kvm": true, "requiresAuthorizedDataset": true},
+    "swe-rebench-v2": {"cpu": 4, "memoryMB": 8192, "docker": true, "gpu": 0, "maxTaskSeconds": 4500}
+  }
+}
