@@ -26,7 +26,8 @@ jobs:
       - name: Validate bridge ref and request
         shell: bash
         run: |
-          set -euo pipefail          case "$GITHUB_REF" in refs/heads/p8/*) ;; *) echo 'P9_BRIDGE_REQUIRES_OIDC_ALLOWED_P8_REF'; exit 64;; esac
+          set -euo pipefail
+          case "$GITHUB_REF" in refs/heads/p8/*) ;; *) echo 'P9_BRIDGE_REQUIRES_OIDC_ALLOWED_P8_REF'; exit 64;; esac
           test -n '${{ inputs.request_id }}'
       - name: Fetch and pin public SRS
         shell: bash
