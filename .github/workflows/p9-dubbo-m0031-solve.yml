@@ -131,17 +131,26 @@ jobs:
           open('validated-ops.json','w').write(json.dumps({'edits':grouped,'creates':creates}))
           PY
           python - <<'PY'
-          import json, subprocess
+          import json, pathlib, subprocess, tempfile
           x=json.load(open('validated-ops.json'))
-          for p,new in x['creates']:
-            payload=json.dumps({'p':p,'new':new})
-            code="import json,pathlib,os; x=json.loads(os.environ['X']); p=pathlib.Path('/testbed')/x['p']; p.parent.mkdir(parents=True,exist_ok=True); p.write_text(x['new'],encoding='utf-8')"
-            subprocess.run(['docker','exec','-e','X='+payload,'p9ctx','python3','-c',code],check=True)
-          for p,items in x['edits'].items():
-            for a,b,new in items:
-              payload=json.dumps({'p':p,'a':a,'b':b,'new':new})
-              code="import json,pathlib,os; x=json.loads(os.environ['X']); p=pathlib.Path('/testbed')/x['p']; lines=p.read_text(encoding='utf-8').splitlines(True); a=x['a']-1; b=x['b']; rep=x['new']; rep += '' if rep.endswith('\\n') else '\\n'; lines[a:b]=[rep]; p.write_text(''.join(lines),encoding='utf-8')"
-              subprocess.run(['docker','exec','-e','X='+payload,'p9ctx','python3','-c',code],check=True)
+          root=pathlib.Path(tempfile.mkdtemp(prefix='p9apply-'))
+          def copy_out(path):
+            dst=root/path; dst.parent.mkdir(parents=True,exist_ok=True)
+            subprocess.run(['docker','cp',f'p9ctx:/testbed/{path}',str(dst)],check=True)
+            return dst
+          def copy_in(path,src):
+            parent=pathlib.PurePosixPath(path).parent
+            subprocess.run(['docker','exec','p9ctx','bash','-lc',f'mkdir -p -- /testbed/{parent}'],check=True)
+            subprocess.run(['docker','cp',str(src),f'p9ctx:/testbed/{path}'],check=True)
+          for path,new_text in x['creates']:
+            dst=root/path; dst.parent.mkdir(parents=True,exist_ok=True)
+            dst.write_text(new_text if new_text.endswith('\n') else new_text+'\n',encoding='utf-8')
+            copy_in(path,dst)
+          for path,items in x['edits'].items():
+            dst=copy_out(path); lines=dst.read_text(encoding='utf-8').splitlines(True)
+            for a,b,new_text in items:
+              rep=new_text if new_text.endswith('\n') else new_text+'\n'; lines[a-1:b]=[rep]
+            dst.write_text(''.join(lines),encoding='utf-8'); copy_in(path,dst)
           PY
           docker exec p9ctx bash -lc 'cd /testbed; git status --short; git diff --check; git diff --binary' > solution.patch.txt
           test -s solution.patch.txt
