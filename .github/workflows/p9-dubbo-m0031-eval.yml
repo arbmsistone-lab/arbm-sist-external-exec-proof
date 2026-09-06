@@ -19,6 +19,8 @@ jobs:
       REPO_ID: apache_dubbo_dubbo-3.3.3_dubbo-3.3.6
       MILESTONE_ID: M003.1
       PATCH_SHA256: 8bbb6edfd8836451e49398ca0659ac134dabab37fe35299ecb0db19e13bb2b2d
+      IMAGE_REF: hyd2apse/swe-milestone__apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__m003.1@sha256:236a1ca0c7560850cca946886d77c64f24adb0c82913bd6299262add5475f5f2
+      LOCAL_IMAGE: swe-milestone/apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__m003.1:v1.0.2
     steps:
       - uses: actions/checkout@v7
       - name: Verify frozen patch
@@ -57,6 +59,32 @@ jobs:
               allow_patterns=[repo+'/**'],
               local_dir='workspace-data')
           PY
+      - name: Freeze promotion-grade evaluator bindings
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p p9-bindings
+          python - <<'PY'
+          import hashlib, os
+          from pathlib import Path
+          from harness.e2e.repo_config_binding import resolve_repo_config
+          from harness.e2e.runtime_policy_binding import resolve_runtime_policy
+          repo=os.environ['REPO_ID']
+          root=Path('workspace-data')/repo
+          project=Path('swe-milestone')
+          rc=resolve_repo_config(repo,root,project_root=project)
+          rp=resolve_runtime_policy(repo,project,unprotected=False)
+          out=Path('p9-bindings'); out.mkdir(exist_ok=True)
+          (out/'repo_config.yaml').write_bytes(rc.raw_bytes)
+          (out/'runtime_policy.yaml').write_bytes(rp.raw_bytes)
+          rch=hashlib.sha256(rc.raw_bytes).hexdigest()
+          rph=hashlib.sha256(rp.raw_bytes).hexdigest()
+          with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as f:
+              f.write('REPO_CONFIG_SHA256='+rch+'\n')
+              f.write('RUNTIME_POLICY_SHA256='+rph+'\n')
+              f.write('RUNTIME_POLICY_MODE='+rp.mode+'\n')
+          print({'repo_config_sha256':rch,'runtime_policy_sha256':rph,'runtime_policy_mode':rp.mode})
+          PY
       - name: Verify workspace baseline
         shell: bash
         run: |
@@ -68,6 +96,13 @@ jobs:
           test -n "$BASELINE"
           echo "BASELINE=$BASELINE" >> "$GITHUB_ENV"
           sha256sum "$BASELINE" > baseline-sha256.txt
+      - name: Prepare pinned evaluation image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE_REF"
+          docker tag "$IMAGE_REF" "$LOCAL_IMAGE"
+          docker image inspect "$LOCAL_IMAGE" --format '{{.Id}} {{json .RepoDigests}}' > image-identity.txt
       - name: Run official evaluator fail closed
         shell: bash
         run: |
@@ -81,6 +116,11 @@ jobs:
             --baseline-classification "$GITHUB_WORKSPACE/$BASELINE" \
             --output "$GITHUB_WORKSPACE/p9-eval/evaluation_result.json" \
             --no-filter-src \
+            --repo-config "$GITHUB_WORKSPACE/p9-bindings/repo_config.yaml" \
+            --repo-config-sha256 "$REPO_CONFIG_SHA256" \
+            --runtime-policy "$GITHUB_WORKSPACE/p9-bindings/runtime_policy.yaml" \
+            --runtime-policy-sha256 "$RUNTIME_POLICY_SHA256" \
+            --runtime-policy-mode "$RUNTIME_POLICY_MODE" \
             --fail-closed-build-reports
       - name: Enforce official PASS contract
         shell: bash
@@ -112,6 +152,12 @@ jobs:
           mkdir -p p9-eval
           cp -f p9-dubbo-m0031.patch p9-eval/submitted.patch || true
           cp -f baseline-sha256.txt p9-eval/baseline-sha256.txt || true
+          cp -f image-identity.txt p9-eval/image-identity.txt || true
+          cp -f p9-bindings/repo_config.yaml p9-eval/repo_config.yaml || true
+          cp -f p9-bindings/runtime_policy.yaml p9-eval/runtime_policy.yaml || true
+          printf '%s\n' "$REPO_CONFIG_SHA256" > p9-eval/repo-config-sha256.txt
+          printf '%s\n' "$RUNTIME_POLICY_SHA256" > p9-eval/runtime-policy-sha256.txt
+          printf '%s\n' "$RUNTIME_POLICY_MODE" > p9-eval/runtime-policy-mode.txt
           printf '%s\n' "$HARNESS_COMMIT" > p9-eval/harness-commit.txt
           printf '%s\n' "$DATA_COMMIT" > p9-eval/data-commit.txt
           printf '%s\n' "$PATCH_SHA256" > p9-eval/patch-sha256.txt
