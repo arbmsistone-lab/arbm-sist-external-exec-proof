@@ -1,0 +1,101 @@
+name: P9 Release Certification
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      E2E_RUN: '34003442688'
+      E2E_ARTIFACT: p9-dubbo-m0031-solve-arbm-p9-m0031-e2e-20260905-01
+      E2E_ARTIFACT_SHA256: b23c00855b185de24d0e261f5537cace2cdf52e81e88c12fe1638898e85abf83
+      BENCHMARK_VERSION: v1.0.2
+      SRS_SHA256: aac87b7e8a66001512c9c54649b3e1571d252777177d52cbed197fc541dd164f
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify prerequisite runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,subprocess
+          expected={
+            34002099233:'0e0f2c3e9fdce6448d26b0c004ecd376b962d38f',
+            34002413162:'352582940b16b8cb524ac6597dc2b3dfe1e5336d',
+            34002711887:'8dc6a3a2625bb4f40fb567bed0418a218ab0bc61',
+            34002951417:'2b7fbff07b62867fef3e32dd373bd3c8c3ad5996',
+            34003310061:'c84e5af861950cb088167f0fd27a56a3169f9a7e',
+            34003442688:'2f69fa4e80828455aefd9bc837fa06b53877b130'}
+          repo=os.environ['GITHUB_REPOSITORY']
+          for run,sha in expected.items():
+            raw=subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{run}'],text=True)
+            data=json.loads(raw)
+            assert data['status']=='completed', (run,data['status'])
+            assert data['conclusion']=='success', (run,data['conclusion'])
+            assert data['head_sha']==sha, (run,data['head_sha'],sha)
+          print('PREREQUISITE_RUNS=PASS')
+          PY
+      - name: Verify authoritative artifact digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          digest=$(gh api repos/$GITHUB_REPOSITORY/actions/runs/$E2E_RUN/artifacts --jq '.artifacts[] | select(.name==env.E2E_ARTIFACT) | .digest')
+          test "$digest" = "sha256:$E2E_ARTIFACT_SHA256"
+          echo ARTIFACT_DIGEST=PASS
+      - name: Download authoritative E2E evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir evidence
+          gh run download "$E2E_RUN" --repo "$GITHUB_REPOSITORY" --name "$E2E_ARTIFACT" --dir evidence
+          test -s evidence/solve-evidence.json
+          test -s evidence/SHA256SUMS.txt
+          (cd evidence && sha256sum -c SHA256SUMS.txt)
+      - name: Validate P9 release contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,pathlib
+          ev=json.load(open('evidence/solve-evidence.json',encoding='utf-8'))
+          assert ev['state']=='SUCCEEDED'
+          assert ev['zeroSpendMode']=='HARD'
+          assert ev['executionType']=='remote'
+          assert ev['mandatoryCostUsd']==0
+          assert ev['goldPatchExposed'] is False
+          assert ev['pipeline']=='p9-public-multifile-v2'
+          assert ev['operationCount'] >= 1
+          assert ev['srsSha256']==os.environ['SRS_SHA256']
+          assert set(ev['authorizedRoots'])=={'dubbo-plugin/dubbo-mutiny','dubbo-plugin/dubbo-compiler'}
+          assert ev['imageRef'].endswith('@sha256:236a1ca0c7560850cca946886d77c64f24adb0c82913bd6299262add5475f5f2')
+          cert={
+            'schema':'arbm-p9-release-cert-v1','state':'GO','task':'dubbo/M003.1',
+            'benchmarkVersion':os.environ['BENCHMARK_VERSION'],
+            'srsSha256':os.environ['SRS_SHA256'],'zeroSpendMode':'HARD',
+            'executionType':'remote','goldPatchExposed':False,
+            'authoritativeRun':int(os.environ['E2E_RUN']),
+            'authoritativeWorkflowSha':'2f69fa4e80828455aefd9bc837fa06b53877b130',
+            'prerequisiteRuns':[34002099233,34002413162,34002711887,34002951417,34003310061,34003442688]}
+          pathlib.Path('P9_RELEASE_CERTIFICATE.json').write_text(json.dumps(cert,sort_keys=True,indent=2)+'\n')
+          print(json.dumps(cert,sort_keys=True))
+          PY
+          sha256sum P9_RELEASE_CERTIFICATE.json > P9_RELEASE_CERTIFICATE.sha256
+      - name: Upload immutable release certificate
+        uses: actions/upload-artifact@v7
+        with:
+          name: p9-release-certificate-dubbo-m0031
+          path: |
+            P9_RELEASE_CERTIFICATE.json
+            P9_RELEASE_CERTIFICATE.sha256
+            evidence/solve-evidence.json
+            evidence/SHA256SUMS.txt
+          retention-days: 90
