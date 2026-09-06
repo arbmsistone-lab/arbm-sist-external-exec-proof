@@ -8,6 +8,7 @@ ACTION_RE=re.compile(r'```(?:mswea_bash_command|bash|sh|shell)\s*\n(.*?)\n```',r
 ABS_PATH_RE=re.compile(r'(?<![\w.-])(/(?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+)')
 MAX_STEPS=25
 VERIFY_START=19
+MAX_TOKENS=int(os.environ.get('ARBM_MAX_TOKENS','768'))
 
 class ArbmSovereignAgent(BaseAgent):
     @staticmethod
@@ -17,7 +18,7 @@ class ArbmSovereignAgent(BaseAgent):
 
     def _model(self,messages):
         payload={'model':self.model_name or 'arbm-qwen-sovereign','messages':messages,
-                 'temperature':0,'max_tokens':768,'stream':False}
+                 'temperature':0,'max_tokens':MAX_TOKENS,'stream':False}
         req=urllib.request.Request(ENDPOINT,data=json.dumps(payload).encode(),method='POST')
         req.add_header('content-type','application/json')
         req.add_header('authorization','Bearer local-dummy-key')
@@ -96,5 +97,5 @@ class ArbmSovereignAgent(BaseAgent):
         context.metadata={'arbmVersion':'11.2.0','scaffoldVersion':'v2-benchmark',
                           'model':self.model_name or 'arbm-qwen-sovereign','maxSteps':MAX_STEPS,
                           'verifyStart':VERIFY_START,'steps':steps,'zeroSpend':True,'scaffold':'ARBM',
-                          'requiredOutputs':required_outputs,'completionBlocks':blocked,
+                          'requiredOutputs':required_outputs,'completionBlocks':blocked,'modelMaxTokens':MAX_TOKENS,
                           'verificationSeen':verification_seen}

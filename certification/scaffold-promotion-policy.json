@@ -1,7 +1,13 @@
-﻿{
+{
   "schema": "arbm-scaffold-promotion-policy-v1",
   "failClosed": true,
-  "comparabilityRequired": ["sameModel", "sameTaskSet", "sameBudget", "sameHarness", "sameVerifier"],
+  "comparabilityRequired": [
+    "sameModel",
+    "sameTaskSet",
+    "sameBudget",
+    "sameHarness",
+    "sameVerifier"
+  ],
   "reproducibleGain": {
     "minDistinctTasks": 3,
     "minRepetitionsPerTask": 3,
@@ -10,7 +16,11 @@
     "maxExceptionRateIncrease": 0.0
   },
   "failureModeElimination": {
-    "requiredModes": ["premature_completion", "missing_required_output", "no_final_verification"],
+    "requiredModes": [
+      "premature_completion",
+      "missing_required_output",
+      "no_final_verification"
+    ],
     "candidateAllowedCountPerMode": 0,
     "maxMeanRewardRegression": 0.0,
     "maxExceptionRateIncrease": 0.0
@@ -19,7 +29,8 @@
     "allExistingGatesMustPass": true,
     "allowNewP0": 0,
     "allowNewP1": 0,
-    "allowNewP2": 0
+    "allowNewP2": 0,
+    "maxRegressedTaskFraction": 0.0
   },
   "promotionRule": "GAIN_REPRODUCIBLE_OR_FAILURE_MODES_ELIMINATED_AND_ZERO_REGRESSION"
 }

@@ -23,6 +23,8 @@ jobs:
         run: |
           set -euo pipefail
           node certification/scaffold-promotion-gate-test.mjs
+          node certification/scaffold-promotion-cli-test.mjs
+          python certification/tb3-evidence-test.py
           node --check certification/scaffold-promotion-gate.mjs
           test "$(jq -r '.failClosed' certification/scaffold-promotion-policy.json)" = "true"
           echo SCAFFOLD_PROMOTION_POLICY=ENFORCED

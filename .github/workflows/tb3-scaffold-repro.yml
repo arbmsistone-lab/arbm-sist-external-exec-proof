@@ -1,0 +1,150 @@
+name: TB3 Scaffold v1 vs v2 Reproducibility
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Benchmark branch regression gates
+        run: |
+          set -euo pipefail
+          python -m py_compile arbm_harbor_agent.py
+          node certification/scaffold-promotion-gate-test.mjs
+          node certification/scaffold-promotion-cli-test.mjs
+          python certification/tb3-evidence-test.py
+          node certification/capability-matcher-test.mjs
+          node certification/virtual-expert-panel.mjs >/dev/null
+          node shadow-evaluator-test.mjs
+
+  paired-task:
+    needs: regression
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - task: terminal-bench/atrx-vep-crispr
+            slug: atrx
+          - task: terminal-bench/batched-eval-parity
+            slug: batched
+          - task: terminal-bench/biped-contact-dynamics
+            slug: biped
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      HARBOR_COMMIT: c29f416af4b02ef593d6874f88b59d38bf164646
+      BASELINE_COMMIT: c0f2b5a378bb91f3feba2270627fee073ae4e09a
+      TB3_DATASET: terminal-bench/terminal-bench@3.0.0
+      MODEL_DIR: ${{ github.workspace }}/.cache/arbm-models
+      MODEL_FILE: qwen2.5-coder-14b-instruct-q4_k_m.gguf
+      MODEL_SHA256: c1e659736d89ac1065fb495330fb824d94001974a4bfa78e7270e43476a8d940
+      LLAMA_TAG: b10516
+      LLAMA_SHA256: f263a91280471b4c33c4999d7c76259c0f3a0a53a0b3e692b2c0b84380137a35
+      ARBM_MAX_TOKENS: 512
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - name: Freeze harness and v1 baseline
+        run: |
+          set -euo pipefail
+          git clone https://github.com/harbor-framework/harbor.git harbor-src
+          git -C harbor-src checkout "$HARBOR_COMMIT"
+          python -m pip install -e ./harbor-src
+          git show "$BASELINE_COMMIT:arbm_harbor_agent.py" > baseline_agent.py
+          python -m py_compile baseline_agent.py arbm_harbor_agent.py
+          python -c "from baseline_agent import ArbmSovereignAgent as B; from arbm_harbor_agent import ArbmSovereignAgent as C; print(B.version(None), C.version(None))"
+      - name: Restore sovereign model cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.MODEL_DIR }}/${{ env.MODEL_FILE }}
+          key: qwen25-coder-14b-q4km-${{ env.MODEL_SHA256 }}
+      - name: Start frozen sovereign inference
+        run: |
+          set -euo pipefail
+          mkdir -p "$MODEL_DIR"
+          MODEL="$MODEL_DIR/$MODEL_FILE"
+          if [ ! -f "$MODEL" ]; then curl -fL --retry 5 --retry-delay 5 -o "$MODEL" "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/resolve/main/$MODEL_FILE?download=true"; fi
+          echo "$MODEL_SHA256  $MODEL" | sha256sum -c -
+          curl -fL --retry 4 -o /tmp/llama.tgz "https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA_TAG/llama-$LLAMA_TAG-bin-ubuntu-x64.tar.gz"
+          echo "$LLAMA_SHA256  /tmp/llama.tgz" | sha256sum -c -
+          mkdir -p /tmp/llama && tar -xzf /tmp/llama.tgz -C /tmp/llama
+          LLAMA_SERVER=$(find /tmp/llama -type f -name llama-server -print -quit)
+          chmod +x "$LLAMA_SERVER"
+          "$LLAMA_SERVER" -m "$MODEL" --host 0.0.0.0 --port 8088 -c 4096 -np 1 -t 4 -ctk q8_0 -ctv q8_0 --no-warmup --no-webui -a arbm-qwen-sovereign > sovereign.log 2>&1 &
+          echo "ARBM_SOVEREIGN_SERVER_PID=$!" >> "$GITHUB_ENV"
+          for i in $(seq 1 90); do curl -fsS http://127.0.0.1:8088/health >/dev/null && break; sleep 2; done
+          curl -fsS http://127.0.0.1:8088/health
+      - name: Run v1 baseline three times
+        env:
+          ARBM_SOVEREIGN_BACKEND: http://127.0.0.1:8088
+        run: |
+          set -euo pipefail
+          harbor run -d "$TB3_DATASET" -i "${{ matrix.task }}" -a baseline_agent:ArbmSovereignAgent -m arbm-qwen-sovereign -o jobs-v1 -k 3 | tee v1.log
+      - name: Run v2 candidate three times
+        env:
+          ARBM_SOVEREIGN_BACKEND: http://127.0.0.1:8088
+        run: |
+          set -euo pipefail
+          harbor run -d "$TB3_DATASET" -i "${{ matrix.task }}" -a arbm_harbor_agent:ArbmSovereignAgent -m arbm-qwen-sovereign -o jobs-v2 -k 3 | tee v2.log
+      - name: Freeze paired evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          python certification/tb3-paired-evidence.py --task "${{ matrix.task }}" --output "evidence/${{ matrix.slug }}.json"
+          printf '%s\n' "TASK=${{ matrix.task }}" 'TRIALS_PER_VERSION=3' 'MODEL=Qwen2.5-Coder-14B-Instruct-Q4_K_M' 'MODEL_BUDGET_CALLS=25' 'MODEL_MAX_TOKENS=512' "BASELINE_COMMIT=$BASELINE_COMMIT" "CANDIDATE_COMMIT=$GITHUB_SHA" > "evidence/${{ matrix.slug }}.protocol.txt"
+          cp -f v1.log v2.log sovereign.log evidence/ 2>/dev/null || true
+          find evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > evidence/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tb3-repro-${{ matrix.slug }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Stop sovereign runtime
+        if: always()
+        run: kill "$ARBM_SOVEREIGN_SERVER_PID" 2>/dev/null || true
+
+  aggregate:
+    needs: [regression, paired-task]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: tb3-repro-*
+          path: repro-evidence
+      - name: Build promotion evidence
+        env:
+          REGRESSION_RESULT: ${{ needs.regression.result }}
+          PAIRED_RESULT: ${{ needs.paired-task.result }}
+        run: |
+          set -euo pipefail
+          mkdir -p promotion
+          python certification/tb3-aggregate-promotion-evidence.py --root repro-evidence --regression-result "$REGRESSION_RESULT" --paired-result "$PAIRED_RESULT" --output promotion/evidence.json
+      - name: Enforce Scaffold v2 promotion gate
+        run: |
+          set -euo pipefail
+          node certification/scaffold-promotion-gate.mjs promotion/evidence.json | tee promotion/gate-result.json
+      - name: Freeze promotion evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p promotion
+          find promotion -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > promotion/SHA256SUMS.txt || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tb3-scaffold-promotion-evidence
+          path: promotion/
+          if-no-files-found: error
+          retention-days: 30

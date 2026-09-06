@@ -13,6 +13,14 @@ const gainCase = evaluateScaffoldPromotion({comparability,regression,
 assert.equal(gainCase.pass,true);
 assert.equal(gainCase.reproducibleGain,true);
 
+const taskRegressionCase = evaluateScaffoldPromotion({comparability,regression,
+  baselineTrials:trials([[0,0,0],[0,0,0],[1,1,1]]),
+  candidateTrials:trials([[1,1,1],[1,1,1],[0,0,0]]),
+  failureModes:{baseline:modes(0,0,0),candidate:modes(0,0,0)}});
+assert.equal(taskRegressionCase.reproducibleGain,true);
+assert.equal(taskRegressionCase.zeroRegression,false);
+assert.equal(taskRegressionCase.pass,false);
+
 const repairCase = evaluateScaffoldPromotion({comparability,regression,
   baselineTrials:trials([[0,0,0],[0,0,0],[0,0,0]]),
   candidateTrials:trials([[0,0,0],[0,0,0],[0,0,0]]),

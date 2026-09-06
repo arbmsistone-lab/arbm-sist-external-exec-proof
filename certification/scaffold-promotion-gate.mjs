@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { pathToFileURL } from 'node:url';
 
 const readJson = p => JSON.parse(fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, ''));
 const defaultPolicy = readJson(new URL('./scaffold-promotion-policy.json', import.meta.url));
@@ -47,10 +48,14 @@ export function evaluateScaffoldPromotion(evidence, policy = defaultPolicy) {
   const baseTaskMeans = taskMeans(baseline);
   const candTaskMeans = taskMeans(candidate);
   let improvedTasks = 0;
+  let regressedTasks = 0;
   for (const [task, bMean] of baseTaskMeans) {
-    if ((candTaskMeans.get(task) ?? -Infinity) > bMean) improvedTasks += 1;
+    const cMean = candTaskMeans.get(task) ?? -Infinity;
+    if (cMean > bMean) improvedTasks += 1;
+    if (cMean < bMean) regressedTasks += 1;
   }
   const improvedTaskFraction = baseTaskMeans.size ? improvedTasks / baseTaskMeans.size : 0;
+  const regressedTaskFraction = baseTaskMeans.size ? regressedTasks / baseTaskMeans.size : 1;
   const gain = policy.reproducibleGain;
   const samplingPass = baseSampling.distinctTasks >= gain.minDistinctTasks &&
     candSampling.distinctTasks >= gain.minDistinctTasks &&
@@ -72,6 +77,7 @@ export function evaluateScaffoldPromotion(evidence, policy = defaultPolicy) {
 
   const regression = evidence.regression || {};
   const zeroRegression = regression.allExistingGatesPass === true &&
+    regressedTaskFraction <= policy.regression.maxRegressedTaskFraction &&
     Number(regression.newP0 || 0) <= policy.regression.allowNewP0 &&
     Number(regression.newP1 || 0) <= policy.regression.allowNewP1 &&
     Number(regression.newP2 || 0) <= policy.regression.allowNewP2;
@@ -79,10 +85,10 @@ export function evaluateScaffoldPromotion(evidence, policy = defaultPolicy) {
   const pass = errors.length === 0 && zeroRegression && (reproducibleGain || failureModeElimination);
   return {schema:'arbm-scaffold-promotion-gate-result-v1', pass, reproducibleGain,
     failureModeElimination, zeroRegression, metrics:{baseMean,candMean,absoluteMeanGain:candMean-baseMean,
-    baseExceptionRate:baseExc,candidateExceptionRate:candExc,improvedTaskFraction,baseSampling,candSampling}, errors};
+    baseExceptionRate:baseExc,candidateExceptionRate:candExc,improvedTaskFraction,regressedTaskFraction,baseSampling,candSampling}, errors};
 }
 
-if (process.argv[1] && import.meta.url === new URL(`file:///${process.argv[1].replace(/\\/g,'/')}`).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const evidencePath = process.argv[2];
   if (!evidencePath) throw new Error('usage: node scaffold-promotion-gate.mjs <evidence.json>');
   const result = evaluateScaffoldPromotion(readJson(evidencePath));
