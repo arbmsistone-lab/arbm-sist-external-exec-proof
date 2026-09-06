@@ -951,10 +951,12 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     indent=m.group(1)
                     fallback=lines[i+1].strip()
                     if not re.match(r'^\(str\s+'+re.escape(expr)+r'\)\)+$',fallback): continue
-                    new=(indent+'(if (and (zero? (mod '+expr+' 1))\n'
-                         +indent+'         (<= Integer/MIN_VALUE '+expr+' Integer/MAX_VALUE))\n'
-                         +indent+'  (str (int '+expr+'))\n'
-                         +indent+'  '+fallback)
+                    new=(indent+'(if (or (Double/isNaN (double '+expr+')) (Double/isInfinite (double '+expr+')))\n'
+                         +indent+'  (str '+expr+')\n'
+                         +indent+'  (if (and (zero? (mod '+expr+' 1))\n'
+                         +indent+'           (<= Integer/MIN_VALUE '+expr+' Integer/MAX_VALUE))\n'
+                         +indent+'    (str (int '+expr+'))\n'
+                         +indent+'    '+fallback+')')
                     ranked.append((score,rel,i,i+2,new))
                     continue
                 new=re.sub(r'\(str\s+\(int\s+[^)]+\)\)',lambda m:'(str (bigint '+expr+'))',line,count=1)

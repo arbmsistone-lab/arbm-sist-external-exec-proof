@@ -183,17 +183,14 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertEqual(len(edits), 1)
         self.assertEqual(edits[0]['start_line'], 2)
         self.assertEqual(edits[0]['end_line'], 4)
+        self.assertIn('(Double/isNaN (double x))', edits[0]['new'])
+        self.assertIn('(Double/isInfinite (double x))', edits[0]['new'])
         self.assertIn('(zero? (mod x 1))', edits[0]['new'])
         self.assertIn('(<= Integer/MIN_VALUE x Integer/MAX_VALUE)', edits[0]['new'])
         self.assertIn('(str (int x))', edits[0]['new'])
         self.assertIn('(str x)', edits[0]['new'])
         self.assertNotIn('(format "%.0f"', edits[0]['new'])
         self.assertNotIn('(bigint x)', edits[0]['new'])
-        self.assertEqual(
-            edits[0]['new'],
-            '    (if (and (zero? (mod x 1))\n             (<= Integer/MIN_VALUE x Integer/MAX_VALUE))\n      (str (int x))\n      (str x))))',
-        )
-
 
     def test_deterministic_fallback_resets_base_before_detection(self):
         source = Path(__file__).with_name('p8-swe-rebench-smoke.py').read_text(encoding='utf-8')
