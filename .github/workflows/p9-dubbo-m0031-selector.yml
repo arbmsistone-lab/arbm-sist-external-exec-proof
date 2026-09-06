@@ -1,0 +1,37 @@
+name: P9 Dubbo M003.1 Generator Selector Capture
+on:
+  push:
+    branches:
+      - p8/p9-dubbo-m0031-context
+    paths:
+      - '.github/workflows/p9-dubbo-m0031-selector.yml'
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      IMAGE_REF: hyd2apse/swe-milestone__apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__m003.1@sha256:236a1ca0c7560850cca946886d77c64f24adb0c82913bd6299262add5475f5f2
+    steps:
+      - name: Capture selector wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE_REF"
+          docker run --rm "$IMAGE_REF" bash -lc '
+            set -euo pipefail
+            /usr/local/bin/switch_state.sh start >/dev/null
+            cd /testbed
+            echo "===== GENERATOR_SELECTOR_REFERENCES ====="
+            grep -Rni --exclude-dir=target -E "dubboGenerateType|ReactorDubbo3TripleGenerator|Dubbo3TripleGenerator|protoc-gen-dubbo|generator type" . | head -n 1200 || true
+          ' > selector.txt
+          test -s selector.txt
+          sha256sum selector.txt > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: p9-dubbo-m0031-selector
+          path: |
+            selector.txt
+            SHA256SUMS.txt
+          retention-days: 30
