@@ -58,7 +58,7 @@ jobs:
           set -euo pipefail
           TASK=$(find deep-swe/tasks -mindepth 1 -maxdepth 1 -type d | sort | head -1)
           echo "SMOKE_TASK=$TASK"
-          pier run -p "$TASK" --agent mini-swe-agent --model openai/arbm-qwen-sovereign --agent-kwarg 'model_class=litellm_textbased' --agent-kwarg 'config_file=.github/config/arbm-mini-textbased.yaml' --agent-kwarg 'extra_python_packages=["fastapi","orjson"]' --agent-env OPENAI_BASE_URL=http://host.docker.internal:8088/v1 --agent-env OPENAI_API_KEY=local-dummy-key | tee deepswe-smoke.log
+          pier run -p "$TASK" --agent mini-swe-agent --model openai/arbm-qwen-sovereign --agent-kwarg 'model_class=litellm_textbased' --agent-kwarg 'config_file=.github/config/arbm-mini-textbased.yaml' --agent-kwarg 'extra_python_packages=["fastapi","orjson"]' --agent-env OPENAI_BASE_URL=http://host.docker.internal:8088/v1 --agent-env OPENAI_API_KEY=local-dummy-key --agent-env NO_PROXY=host.docker.internal,127.0.0.1,localhost --agent-env no_proxy=host.docker.internal,127.0.0.1,localhost | tee deepswe-smoke.log
       - name: Freeze smoke evidence
         if: always()
         run: |
