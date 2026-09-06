@@ -240,8 +240,12 @@ jobs:
             'benchmarkCommit':'6d8b31168fd0e2ad57c0d1daa3df1556df014320',
             'benchmarkVersion':'v1.0.2',
             'resolved':bool(data.get('resolved',False)),
-            'legacySnapshot':True,
+            'legacySnapshot':bool((data.get('snapshot_integrity') or {}).get('legacy_unverified',False)),
             'promotionGrade':False,
+            'patchSuccessfullyApplied':bool(data.get('patch_successfully_applied',False)),
+            'snapshotIntegrityOk':(data.get('snapshot_integrity') or {}).get('ok'),
+            'infraInvalid':bool(data.get('infra_invalid',False)),
+            'evalStatus':data.get('eval_status'),
             'zeroSpendMode':'HARD',
           }
           pathlib.Path('diagnostic-summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True))
