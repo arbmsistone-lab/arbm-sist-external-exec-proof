@@ -1,6 +1,12 @@
 name: TB3 ARBM vs mini-SWE Same Model
 on:
   workflow_dispatch:
+  push:
+    branches: [benchmark/deepswe-context-fix]
+    paths:
+      - '.github/workflows/tb3-arbm-vs-mini.yml'
+      - 'arbm_harbor_agent.py'
+      - 'sovereign-action-proxy.py'
 permissions:
   contents: read
 jobs:
