@@ -22,6 +22,16 @@ jobs:
           git clone https://github.com/datacurve-ai/deep-swe.git deep-swe
           git -C deep-swe checkout 0b9fabbb63b9104d678fe965e1632f2dd9eaa2ea
           uv tool install datacurve-pier
+          PIER_PY=$(head -n 1 "$(command -v pier)" | sed 's/^#!//')
+          "$PIER_PY" - <<'PY'
+from pathlib import Path
+import pier.environments.agent_setup as m
+p=Path(m.__file__)
+s=p.read_text()
+s=s.replace('"networks": ["pier-egress-internal", "default"],', '"networks": ["pier-egress-internal", "default"],\n                "extra_hosts": ["host.docker.internal:host-gateway"],', 1)
+s=s.replace('acl Safe_ports port 80 443', 'acl Safe_ports port 80 443 8088', 1)
+p.write_text(s)
+PY
       - name: Restore sovereign model cache
         uses: actions/cache@v4
         with:
@@ -45,12 +55,12 @@ jobs:
           for i in $(seq 1 90); do curl -fsS http://127.0.0.1:8088/health >/dev/null && break; sleep 2; done
           curl -fsS http://127.0.0.1:8088/health
       - name: Verify Docker bridge can reach inference
-        run: docker run --rm curlimages/curl:8.15.0 -fsS http://172.17.0.1:8088/health
+        run: docker run --rm --add-host host.docker.internal:host-gateway curlimages/curl:8.15.0 -fsS http://host.docker.internal:8088/health
       - name: Run deterministic DeepSWE sample 5
         timeout-minutes: 140
         run: |
           set -euo pipefail
-          pier run -p deep-swe/tasks --agent mini-swe-agent --model openai/arbm-qwen-sovereign --n-tasks 5 --sample-seed 0 --agent-env OPENAI_BASE_URL=http://172.17.0.1:8088/v1 --agent-env OPENAI_API_KEY=local-dummy-key | tee deepswe-sample5.log
+          pier run -p deep-swe/tasks --agent mini-swe-agent --model openai/arbm-qwen-sovereign --n-tasks 5 --sample-seed 0 --agent-kwarg 'model_class=litellm_textbased' --agent-kwarg 'config_file=.github/config/arbm-mini-textbased.yaml' --agent-kwarg 'extra_python_packages=["fastapi","orjson"]' --agent-env OPENAI_BASE_URL=http://host.docker.internal:8088/v1 --agent-env OPENAI_API_KEY=local-dummy-key | tee deepswe-sample5.log
       - name: Freeze sample evidence
         if: always()
         run: |
