@@ -202,6 +202,8 @@ jobs:
           name: p9-dubbo-m0031-solve-${{ inputs.request_id }}
           path: |
             SRS.md
+            tool-context.txt
+            known-paths.txt
             solution.json
             validated-ops.json
             solution.patch.txt
