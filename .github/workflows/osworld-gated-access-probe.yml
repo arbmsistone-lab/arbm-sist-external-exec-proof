@@ -1,0 +1,65 @@
+name: OSWorld V2 gated access probe
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Constitutional contract
+        run: |
+          echo REMOTE_ONLY_FOR_HEAVY
+          echo ZERO_SPEND_HARD
+      - name: Fetch exact release
+        run: |
+          git clone --filter=blob:none https://github.com/xlang-ai/OSWorld-V2.git src
+          git -C src checkout d578d2d4e0dc82b43e270fdaa7fa89d9708cd154
+          git -C src describe --tags --exact-match
+      - name: Probe gated task and asset endpoints unauthenticated
+        run: |
+          python - <<'PY'
+          import json, urllib.request, urllib.error
+          urls={
+            'tasks':'https://huggingface.co/api/datasets/xlangai/osworld_v2_tasks/revision/v2026.08.08',
+            'assets':'https://huggingface.co/api/datasets/xlangai/osworld_v2_assets_gated/revision/v2026.08.08'
+          }
+          out={}
+          for k,u in urls.items():
+            try:
+              with urllib.request.urlopen(u,timeout=20) as r:
+                out[k]={'http':r.status,'accessible':r.status==200}
+            except urllib.error.HTTPError as e:
+              out[k]={'http':e.code,'accessible':False}
+            except Exception as e:
+              out[k]={'http':0,'accessible':False,'error':type(e).__name__}
+          open('osworld-access.json','w').write(json.dumps(out,indent=2)+'\n')
+          print(json.dumps(out))
+          PY      - name: Freeze verdict
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open('osworld-access.json'))
+          blocked=not (d['tasks'].get('accessible') and d['assets'].get('accessible'))
+          summary={
+            'schema':'arbm-osworld-gated-access-probe-v1',
+            'release':'osworld-v2-2026.08.08',
+            'commit':'d578d2d4e0dc82b43e270fdaa7fa89d9708cd154',
+            'tasksHttp':d['tasks'].get('http'),
+            'assetsHttp':d['assets'].get('http'),
+            'completeFamilyCertified':False,
+            'classification':'BLOCKED_EXTERNAL_AUTH' if blocked else 'ACCESS_READY'
+          }
+          open('osworld-access-summary.json','w').write(json.dumps(summary,indent=2)+'\n')
+          print(json.dumps(summary))
+          PY
+          sha256sum osworld-access-summary.json > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: osworld-gated-access-probe
+          path: |
+            osworld-access.json
+            osworld-access-summary.json
+            SHA256SUMS.txt
