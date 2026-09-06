@@ -67,6 +67,7 @@ jobs:
           cp -f deepswe-smoke.log deepswe-smoke-evidence/ 2>/dev/null || true
           cp -f sovereign.log deepswe-smoke-evidence/ 2>/dev/null || true
           cp -f action-proxy.log deepswe-smoke-evidence/ 2>/dev/null || true
+          cp -r jobs deepswe-smoke-evidence/jobs 2>/dev/null || true
           printf '%s\n' 'NON_SCORING_SINGLE_TASK_SMOKE=true' > deepswe-smoke-evidence/metadata.txt
           printf '%s\n' 'FULL_SCORE_REQUIRES_978_TRIALS=true' >> deepswe-smoke-evidence/metadata.txt
           find deepswe-smoke-evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > deepswe-smoke-evidence/SHA256SUMS.txt || true
