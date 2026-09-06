@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/tb3-arbm-vs-mini-remote.yml'
       - 'arbm_harbor_agent_remote.py'
+      - '.github/config/arbm-mini-textbased.yaml'
 permissions:
   contents: read
   id-token: write
