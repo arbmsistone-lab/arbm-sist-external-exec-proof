@@ -1,4 +1,4 @@
-﻿name: P9 Dubbo M003.1 Cloud Solve
+name: P9 Dubbo M003.1 Cloud Solve
 on:
   workflow_dispatch:
     inputs:
@@ -173,4 +173,3 @@ jobs:
         if: always()
         shell: bash
         run: docker rm -f p9ctx >/dev/null 2>&1 || true
-
