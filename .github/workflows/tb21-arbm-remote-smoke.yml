@@ -1,0 +1,53 @@
+name: TB2.1 ARBM Remote Smoke
+on:
+  push:
+    branches: [benchmark/deepswe-context-fix]
+    paths:
+      - '.github/workflows/tb21-arbm-remote-smoke.yml'
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      HARBOR_COMMIT: c29f416af4b02ef593d6874f88b59d38bf164646
+      PYTHONPATH: ${{ github.workspace }}
+      DATASET: terminal-bench/terminal-bench-2-1
+      TASK: terminal-bench/adaptive-rejection-sampler
+      REMOTE_BASE: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-chat-v1
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install frozen Harbor
+        run: |
+          git clone https://github.com/harbor-framework/harbor.git harbor-src
+          git -C harbor-src checkout "$HARBOR_COMMIT"
+          python -m pip install -e ./harbor-src
+      - name: Acquire benchmark OIDC
+        id: oidc
+        run: |
+          TOKEN=$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+      - name: Run one TB2.1 task
+        env:
+          ARBM_REMOTE_ENDPOINT: ${{ env.REMOTE_BASE }}
+          ARBM_REMOTE_TOKEN: ${{ steps.oidc.outputs.token }}
+        run: |
+          harbor run -d "$DATASET" -i "$TASK" -a arbm_harbor_agent_remote:ArbmRemoteAgent -m gemini-3.7-flash -o jobs-tb21 -k 1 | tee tb21-smoke.log
+      - name: Freeze evidence
+        if: always()
+        run: |
+          mkdir -p evidence
+          cp -r jobs-tb21 evidence/ 2>/dev/null || true
+          cp -f tb21-smoke.log evidence/ 2>/dev/null || true
+          printf '%s\n' 'BENCHMARK=Terminal-Bench-2.1' 'TASK=terminal-bench/adaptive-rejection-sampler' 'MODEL=gemini-3.7-flash' 'ATTEMPTS=1' 'MANDATORY_COST_USD=0' > evidence/protocol.txt
+          find evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > evidence/SHA256SUMS.txt || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tb21-arbm-remote-smoke
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
