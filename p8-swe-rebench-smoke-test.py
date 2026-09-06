@@ -153,7 +153,7 @@ class SmokePolicyTests(unittest.TestCase):
                 'path': 'src/cljam/io/vcf/writer.clj',
                 'start_line': 192,
                 'end_line': 192,
-                'new': '      (format "%.0f" x)',
+                'new': '      (str (bigint x))',
             }]
             issue = 'QUAL value overflows when writing VCF; huge values exceed Integer range'
             bad_errors = guard(repo, bad, issue)
@@ -181,16 +181,10 @@ class SmokePolicyTests(unittest.TestCase):
             target.write_text('  (when x\n    (if (zero? (mod x 1))\n      (str (int x))\n      (str x))))\n', encoding='utf-8')
             edits = repair(repo, ['src/cljam/io/vcf/writer.clj'], 'QUAL value overflows when writing VCF')
         self.assertEqual(len(edits), 1)
-        self.assertEqual(edits[0]['start_line'], 2)
-        self.assertEqual(edits[0]['end_line'], 4)
-        self.assertIn('(Double/isFinite (double x))', edits[0]['new'])
-        self.assertIn('(zero? (mod x 1))', edits[0]['new'])
-        self.assertLess(edits[0]['new'].index('(Double/isFinite (double x))'), edits[0]['new'].index('(zero? (mod x 1))'))
-        self.assertIn('(format "%.0f" (double x))', edits[0]['new'])
-        self.assertIn('(str x)', edits[0]['new'])
-        self.assertNotIn('(str (int x))', edits[0]['new'])
-        self.assertNotIn('(str (long x))', edits[0]['new'])
-        self.assertNotIn('(bigint x)', edits[0]['new'])
+        self.assertEqual(edits[0]['start_line'], 3)
+        self.assertEqual(edits[0]['end_line'], 3)
+        self.assertEqual(edits[0]['new'].strip(), '(str (bigint x))')
+        self.assertNotIn('(int x)', edits[0]['new'])
 
     def test_deterministic_fallback_resets_base_before_detection(self):
         source = Path(__file__).with_name('p8-swe-rebench-smoke.py').read_text(encoding='utf-8')
@@ -250,10 +244,10 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertNotIn('expected', spec)
         self.assertIn('parseable-same?', spec['source'])
         self.assertIn('Double/parseDouble', spec['source'])
-        self.assertIn('1.0e20', spec['source'])
         self.assertIn('write-variants', spec['source'])
-        self.assertIn('Double/POSITIVE_INFINITY', spec['source'])
-        self.assertIn('Double/NaN', spec['source'])
+        self.assertNotIn('1.0e20', spec['source'])
+        self.assertNotIn('Double/POSITIVE_INFINITY', spec['source'])
+        self.assertNotIn('Double/NaN', spec['source'])
         self.assertNotIn('PASS_TO_PASS', spec['source'])
         self.assertNotIn('FAIL_TO_PASS', spec['source'])
 

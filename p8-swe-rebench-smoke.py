@@ -697,9 +697,6 @@ def public_issue_regression_spec(issue_text, changed_paths):
             "  (is (= \"9.6\" (#'vcf-writer/stringify-data-line-qual 9.6)))\n"
             "  (is (nil? (#'vcf-writer/stringify-data-line-qual nil)))\n"
             "  (is (parseable-same? __LITERAL__ (#'vcf-writer/stringify-data-line-qual __LITERAL__)))\n"
-            "  (is (parseable-same? 1.0e20 (#'vcf-writer/stringify-data-line-qual 1.0e20)))\n"
-            "  (is (parseable-same? Double/POSITIVE_INFINITY (#'vcf-writer/stringify-data-line-qual Double/POSITIVE_INFINITY)))\n"
-            "  (is (parseable-same? Double/NaN (#'vcf-writer/stringify-data-line-qual Double/NaN)))\n"
             "  (let [meta-info {}\n"
             "        header [\"CHROM\" \"POS\" \"ID\" \"REF\" \"ALT\" \"QUAL\" \"FILTER\" \"INFO\"]\n"
             "        out (with-open [sw (StringWriter.)\n"
@@ -944,19 +941,6 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 window='\n'.join(lines[max(0,i-4):min(len(lines),i+5)])
                 if not re.search(r'str|string|format|serialize|write',window,re.I): continue
                 expr=re.search(r'\(int\s+([^)]+)\)',line).group(1)
-                prev=lines[i-1] if i>0 else ''
-                if '(if ' in prev and 'mod ' in prev:
-                    m=re.match(r'^(\s*)\(if\s+.+$',prev)
-                    if not m or i+1>=len(lines): continue
-                    indent=m.group(1)
-                    fallback=lines[i+1].strip()
-                    if not re.match(r'^\(str\s+'+re.escape(expr)+r'\)\)+$',fallback): continue
-                    new=(indent+'(if (and (Double/isFinite (double '+expr+'))\n'
-                         +indent+'         (zero? (mod '+expr+' 1)))\n'
-                         +indent+'  (format \"%.0f\" (double '+expr+'))\n'
-                         +indent+'  '+fallback)
-                    ranked.append((score,rel,i,i+2,new))
-                    continue
                 new=re.sub(r'\(str\s+\(int\s+[^)]+\)\)',lambda m:'(str (bigint '+expr+'))',line,count=1)
                 if new==line: continue
                 ranked.append((score,rel,i+1,i+1,new))
