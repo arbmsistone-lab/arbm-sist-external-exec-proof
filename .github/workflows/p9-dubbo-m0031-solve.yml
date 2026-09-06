@@ -40,6 +40,16 @@ jobs:
             sed -i "s/ReactorDubbo3TripleGenerator/MutinyDubbo3TripleGenerator/g; s/ReactorDubbo3TripleStub.mustache/MutinyDubbo3TripleStub.mustache/g; s/ReactorDubbo3TripleInterfaceStub.mustache/MutinyDubbo3TripleInterfaceStub.mustache/g" "$dst"
             test "$(grep -c Reactor "$dst")" -eq 0
           '
+      - name: Warm exact Spotless formatter cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec p9solve bash -lc '
+            set -euo pipefail
+            cd /testbed
+            mvn -q -DskipTests spotless:check || true
+            test -f ~/.m2/repository/com/palantir/javaformat/palantir-java-format/2.39.0/palantir-java-format-2.39.0.jar
+          '
       - name: Enforce scope and formatting
         shell: bash
         run: |
