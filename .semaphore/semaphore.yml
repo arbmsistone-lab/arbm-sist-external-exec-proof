@@ -1,0 +1,22 @@
+version: v1.0
+name: ARBM SWEff Semaphore Probe
+agent:
+  machine:
+    type: r1-standard-8
+    os_image: ubuntu2404
+blocks:
+  - name: Resource Contract
+    task:
+      jobs:
+        - name: 8CPU 16GB Docker Probe
+          commands:
+            - checkout
+            - uname -m
+            - nproc
+            - grep MemTotal /proc/meminfo
+            - docker version
+            - docker info
+            - test "$(nproc)" -ge 8
+            - mem_kb=$(awk '/MemTotal/ {print $2}' /proc/meminfo); echo "MEM_KB=$mem_kb"; test "$mem_kb" -ge 16000000
+            - docker run --rm --memory-reservation=16g --memory=32g hello-world | grep -q 'Hello from Docker!'
+            - echo ARBM_SEMAPHORE_RESOURCE_PROBE=PASS
