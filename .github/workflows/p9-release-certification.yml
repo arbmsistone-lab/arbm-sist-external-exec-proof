@@ -11,9 +11,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
-      E2E_RUN: '34003442688'
-      E2E_ARTIFACT: p9-dubbo-m0031-solve-arbm-p9-m0031-e2e-20260905-01
-      E2E_ARTIFACT_SHA256: b23c00855b185de24d0e261f5537cace2cdf52e81e88c12fe1638898e85abf83
+      E2E_RUN: '34003981543'
+      E2E_ARTIFACT: p9-dubbo-m0031-solve-arbm-p9-m0031-e2e-20260905-03
+      E2E_ARTIFACT_SHA256: 6761bde5910b410ad1b4358112319ad72faec1d8fec2d1027543a6214f15751b
       BENCHMARK_VERSION: v1.0.2
       SRS_SHA256: aac87b7e8a66001512c9c54649b3e1571d252777177d52cbed197fc541dd164f
     steps:
@@ -32,7 +32,7 @@ jobs:
             34002711887:'8dc6a3a2625bb4f40fb567bed0418a218ab0bc61',
             34002951417:'2b7fbff07b62867fef3e32dd373bd3c8c3ad5996',
             34003310061:'c84e5af861950cb088167f0fd27a56a3169f9a7e',
-            34003442688:'2f69fa4e80828455aefd9bc837fa06b53877b130'}
+            34003981543:'917d777ae9d742c7940caaf5936874d28317a45c'}
           repo=os.environ['GITHUB_REPOSITORY']
           for run,sha in expected.items():
             raw=subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{run}'],text=True)
@@ -85,8 +85,8 @@ jobs:
             'srsSha256':os.environ['SRS_SHA256'],'zeroSpendMode':'HARD',
             'executionType':'remote','goldPatchExposed':False,
             'authoritativeRun':int(os.environ['E2E_RUN']),
-            'authoritativeWorkflowSha':'2f69fa4e80828455aefd9bc837fa06b53877b130',
-            'prerequisiteRuns':[34002099233,34002413162,34002711887,34002951417,34003310061,34003442688]}
+            'authoritativeWorkflowSha':'917d777ae9d742c7940caaf5936874d28317a45c',
+            'prerequisiteRuns':[34002099233,34002413162,34002711887,34002951417,34003310061,34003981543]}
           pathlib.Path('P9_RELEASE_CERTIFICATE.json').write_text(json.dumps(cert,sort_keys=True,indent=2)+'\n')
           print(json.dumps(cert,sort_keys=True))
           PY
