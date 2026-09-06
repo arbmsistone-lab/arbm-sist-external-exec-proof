@@ -146,6 +146,11 @@ jobs:
           test "$(cat candidate-paths.txt)" = dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/tri/reactive/MutinyDubbo3TripleGenerator.java
           docker cp p9evalprep:/testbed/dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/tri/reactive/MutinyDubbo3TripleGenerator.java candidate.java
           echo '01293a340b468308c581168f7141e9e26df4d008963dd199ac271fde11ea0eb7  candidate.java' | sha256sum -c -
+      - name: Resolve formatter dependencies and verify formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec p9evalprep bash -lc 'cd /testbed && mvn -q -DskipTests spotless:check -Dspotless.check.skip=false'
       - name: Build frozen candidate offline
         shell: bash
         run: |
