@@ -22,6 +22,8 @@ jobs:
       SOLVE_ARTIFACT: p9-dubbo-m0031-solve-arbm-p9-m0031-solve-20260905-07
       IMAGE_REF: hyd2apse/swe-milestone__apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__m003.1@sha256:236a1ca0c7560850cca946886d77c64f24adb0c82913bd6299262add5475f5f2
       LOCAL_IMAGE: swe-milestone/apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__m003.1:v1.0.2
+      BASE_OFFLINE_REF: hyd2apse/swe-milestone__apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__base-offline@sha256:f5c6fa1963515e4e04c9911c3df1979a920911ce9e7c19def9603a607a271dfe
+      LOCAL_BASE_OFFLINE: swe-milestone/apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__base-offline:v1.0.2
     steps:
       - uses: actions/checkout@v7
       - name: Download frozen solve artifact
@@ -71,6 +73,8 @@ jobs:
           set -euo pipefail
           docker pull "$IMAGE_REF"
           docker tag "$IMAGE_REF" "$LOCAL_IMAGE"
+          docker pull "$BASE_OFFLINE_REF"
+          docker tag "$BASE_OFFLINE_REF" "$LOCAL_BASE_OFFLINE"
       - name: Recreate exact frozen candidate
         shell: bash
         run: |
