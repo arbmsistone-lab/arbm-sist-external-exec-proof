@@ -1,0 +1,20 @@
+env:
+  ARBM_ZERO_SPEND_MODE: HARD
+
+cirrus_kvm_probe_task:
+  only_if: $CIRRUS_BRANCH == "cirrus-kvm-proof"
+  timeout_in: 20m
+  container:
+    image: ubuntu:24.04
+    cpu: 4
+    memory: 12G
+    kvm: true
+  install_script:
+    - apt-get update -qq
+    - DEBIAN_FRONTEND=noninteractive apt-get install -y -qq qemu-system-x86
+  verify_script:
+    - test -c /dev/kvm
+    - grep -Eq '(vmx|svm)' /proc/cpuinfo
+    - qemu-system-x86_64 -accel help | grep -q kvm
+    - timeout 5s qemu-system-x86_64 -machine accel=kvm -cpu host -m 128M -display none -nodefaults -no-reboot || test $? -eq 124
+    - echo CIRRUS_KVM_PROBE=PASS
