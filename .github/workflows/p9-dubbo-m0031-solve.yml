@@ -163,6 +163,27 @@ jobs:
           PY
           docker exec p9ctx bash -lc 'cd /testbed; git status --short; git diff --check; git diff --binary' > solution.patch.txt
           test -s solution.patch.txt
+      - name: Warm Spotless formatter cache for final offline gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec p9ctx bash -lc '
+            set -euo pipefail
+            cd /testbed
+            mvn -q -DskipTests spotless:check || true
+            test -f ~/.m2/repository/com/palantir/javaformat/palantir-java-format/2.39.0/palantir-java-format-2.39.0.jar
+          '
+      - name: Build solver output on pinned official image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec p9ctx bash -lc '
+            set -euo pipefail
+            cd /testbed
+            java -version
+            mvn -o -pl dubbo-plugin/dubbo-compiler,dubbo-plugin/dubbo-mutiny -am -DskipTests package
+            git diff --check
+          '
       - name: Freeze solve evidence
         shell: bash
         run: |
