@@ -38,7 +38,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.MODEL_DIR }}/${{ env.MODEL_FILE }}
-          key: tb3-qwen25-coder-14b-q4km-${{ env.MODEL_SHA256 }}
+          key: qwen25-coder-14b-q4km-${{ env.MODEL_SHA256 }}
           save-always: true
       - name: Start frozen sovereign inference
         run: |
@@ -61,7 +61,7 @@ jobs:
           ARBM_SOVEREIGN_BACKEND: http://127.0.0.1:8088
         run: |
           set -euo pipefail
-          harbor run -d "$TB3_DATASET" -t "$TB3_TASK" -a arbm_harbor_agent:ArbmSovereignAgent -m arbm-qwen-sovereign -o jobs-arbm -k 1 | tee tb3-arbm.log
+          harbor run -d "$TB3_DATASET" -i "$TB3_TASK" -a arbm_harbor_agent:ArbmSovereignAgent -m arbm-qwen-sovereign -o jobs-arbm -k 1 | tee tb3-arbm.log
       - name: Start mini-SWE format adapter
         run: |
           set -euo pipefail
@@ -72,7 +72,7 @@ jobs:
       - name: Run mini-SWE scaffold
         run: |
           set -euo pipefail
-          harbor run -d "$TB3_DATASET" -t "$TB3_TASK" -a mini-swe-agent -m openai/arbm-qwen-sovereign -o jobs-mini -k 1 --ae OPENAI_BASE_URL=http://172.17.0.1:8089/v1 --ae OPENAI_API_KEY=local-dummy-key | tee tb3-mini.log
+          harbor run -d "$TB3_DATASET" -i "$TB3_TASK" -a mini-swe-agent -m openai/arbm-qwen-sovereign -o jobs-mini -k 1 --ae OPENAI_BASE_URL=http://172.17.0.1:8089/v1 --ae OPENAI_API_KEY=local-dummy-key | tee tb3-mini.log
       - name: Freeze head-to-head evidence
         if: always()
         run: |
