@@ -1,0 +1,41 @@
+﻿name: ARBM Sovereign Continuity
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  sovereign-heartbeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Request ARBM OIDC token
+        id: oidc
+        shell: bash
+        run: |
+          token="$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-continuity" | jq -r '.value')"
+          test -n "$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+      - name: Register cloud heartbeat
+        shell: bash
+        env:
+          ARBM_OIDC: ${{ steps.oidc.outputs.token }}
+        run: |
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer $ARBM_OIDC" \
+            -H "Content-Type: application/json" \
+            -d '{"action":"heartbeat","healthy":true,"zeroSpendVerified":true,"capabilities":["git","tests","build","cloud"],"detail":{"source":"github-actions-oidc-runner"}}' \
+            https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-continuity-coordinator-v1
+      - name: Claim eligible mission
+        shell: bash
+        env:
+          ARBM_OIDC: ${{ steps.oidc.outputs.token }}
+        run: |
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer $ARBM_OIDC" \
+            -H "Content-Type: application/json" \
+            -d '{"action":"claim"}' \
+            https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-continuity-coordinator-v1
