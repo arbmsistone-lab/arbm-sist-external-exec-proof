@@ -1,7 +1,7 @@
 name: P9 Release Certification
 on:
   push:
-    branches: [p9/release-certification-20260905]
+    branches: [p9/release-certification-20260905, p9/certification-failclosed-20260906]
   workflow_dispatch:
 permissions:
   contents: read
@@ -18,6 +18,8 @@ jobs:
       SRS_SHA256: aac87b7e8a66001512c9c54649b3e1571d252777177d52cbed197fc541dd164f
     steps:
       - uses: actions/checkout@v7
+      - name: Test official evidence contract
+        run: python p9-official-evidence-gate-test.py
       - name: Verify prerequisite runs
         env:
           GH_TOKEN: ${{ github.token }}
@@ -62,6 +64,8 @@ jobs:
           test -s evidence/solve-evidence.json
           test -s evidence/SHA256SUMS.txt
           (cd evidence && sha256sum -c SHA256SUMS.txt)
+      - name: Require evaluator and clean official trial evidence
+        run: python p9-official-evidence-gate.py evidence
       - name: Validate P9 release contract
         shell: bash
         run: |
