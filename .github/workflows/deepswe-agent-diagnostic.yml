@@ -71,15 +71,15 @@ jobs:
           echo "ARBM_SOVEREIGN_SERVER_PID=$!" >> "$GITHUB_ENV"
           for i in $(seq 1 90); do curl -fsS http://127.0.0.1:8088/health >/dev/null && break; sleep 2; done
           curl -fsS http://127.0.0.1:8088/health
-      - name: Verify OpenAI tool calling
+      - name: Verify textbased command protocol
         run: |
           set -euo pipefail
-          cat > /tmp/tool-probe.json <<'JSON'
-          {"model":"arbm-qwen-sovereign","messages":[{"role":"user","content":"Call the shell tool with command echo TOOL_OK. Do not answer with plain text."}],"tools":[{"type":"function","function":{"name":"shell","description":"Run a shell command","parameters":{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}}}],"tool_choice":"required","temperature":0,"max_tokens":128}
+          cat > /tmp/text-probe.json <<'JSON'
+          {"model":"arbm-qwen-sovereign","messages":[{"role":"system","content":"Every response must contain exactly one bash command block using ```mswea_bash_command then the command then ```"},{"role":"user","content":"Run echo TOOL_OK"}],"temperature":0,"max_tokens":96}
           JSON
-          curl -fsS http://127.0.0.1:8088/v1/chat/completions -H 'Content-Type: application/json' --data-binary @/tmp/tool-probe.json > /tmp/tool-probe-response.json
-          cat /tmp/tool-probe-response.json
-          grep -q '"tool_calls"' /tmp/tool-probe-response.json
+          curl -fsS http://127.0.0.1:8088/v1/chat/completions -H 'Content-Type: application/json' --data-binary @/tmp/text-probe.json > /tmp/text-probe-response.json
+          cat /tmp/text-probe-response.json
+          grep -q 'mswea_bash_command' /tmp/text-probe-response.json
       - name: Verify Docker host gateway
         run: |
           set -euo pipefail
@@ -88,7 +88,7 @@ jobs:
         timeout-minutes: 55
         run: |
           set -o pipefail
-          pier run -p deep-swe/tasks --agent mini-swe-agent --model openai/arbm-qwen-sovereign --n-tasks 1 --sample-seed 0 --agent-kwarg 'extra_python_packages=["fastapi","orjson"]' --agent-env OPENAI_BASE_URL=http://host.docker.internal:8088/v1 --agent-env OPENAI_API_KEY=local-dummy-key | tee diagnostic.log
+          pier run -p deep-swe/tasks --agent mini-swe-agent --model openai/arbm-qwen-sovereign --n-tasks 1 --sample-seed 0 --agent-kwarg 'model_class=litellm_textbased' --agent-kwarg 'config_file=.github/config/arbm-mini-textbased.yaml' --agent-kwarg 'extra_python_packages=["fastapi","orjson"]' --agent-env OPENAI_BASE_URL=http://host.docker.internal:8088/v1 --agent-env OPENAI_API_KEY=local-dummy-key | tee diagnostic.log
           echo "PIER_EXIT=${PIPESTATUS[0]}" > diagnostic-exit.txt
       - name: Freeze full diagnostic evidence
         if: always()
@@ -103,7 +103,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: deepswe-toolcalling-fix
+          name: deepswe-textbased-fix
           path: diagnostic-evidence
       - name: Stop sovereign runtime
         if: always()
