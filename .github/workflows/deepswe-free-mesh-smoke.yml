@@ -1,10 +1,9 @@
-name: DeepSWE ARBM Free Mesh Smoke
+name: DeepSWE ARBM Free Mesh Direct HTTPS Smoke
 on:
   push:
     branches: [benchmark/deepswe-context-fix]
     paths:
       - '.github/workflows/deepswe-free-mesh-smoke.yml'
-      - 'oidc-chat-bridge.py'
 permissions:
   contents: read
   id-token: write
@@ -14,44 +13,68 @@ jobs:
     timeout-minutes: 60
     env:
       REMOTE_MESH: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-chat-mesh-v1
+      DEEPSWE_COMMIT: 0b9fabbb63b9104d678fe965e1632f2dd9eaa2ea
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
       - name: Freeze DeepSWE and install Pier
         run: |
+          set -euo pipefail
           git clone https://github.com/datacurve-ai/deep-swe.git deep-swe
-          git -C deep-swe checkout 0b9fabbb63b9104d678fe965e1632f2dd9eaa2ea
+          git -C deep-swe checkout "$DEEPSWE_COMMIT"
+          test "$(git -C deep-swe rev-parse HEAD)" = "$DEEPSWE_COMMIT"
           uv tool install datacurve-pier
-      - name: Start renewable OIDC chat bridge
+      - name: Acquire short-lived benchmark OIDC
+        id: oidc
+        run: |
+          set -euo pipefail
+          TOKEN=$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark" | \
+            python -c 'import json,sys; print(json.load(sys.stdin)["value"])')
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+      - name: Probe direct HTTPS route
         env:
-          ARBM_REMOTE_ENDPOINT: ${{ env.REMOTE_MESH }}
+          TOKEN: ${{ steps.oidc.outputs.token }}
         run: |
-          ARBM_OIDC_BRIDGE_PORT=8090 python oidc-chat-bridge.py > oidc-bridge.log 2>&1 &
-          echo "BRIDGE_PID=$!" >> "$GITHUB_ENV"
-          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8090/health >/dev/null && break; sleep 1; done
-          curl -fsS http://127.0.0.1:8090/health
-          docker run --rm --add-host host.docker.internal:host-gateway curlimages/curl:8.15.0 -fsS http://host.docker.internal:8090/health
-      - name: Run one deterministic DeepSWE task via Free Mesh
+          set -euo pipefail
+          BODY='{"model":"arbm-free-mesh-v1","messages":[{"role":"user","content":"Reply with one bash block containing pwd"}],"temperature":0,"max_tokens":64}'
+          CODE=$(curl -sS -o direct-probe.json -w '%{http_code}' \
+            -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+            --data "$BODY" "$REMOTE_MESH/v1/chat/completions")
+          echo "DIRECT_HTTPS_HTTP=$CODE"
+          test "$CODE" = 200
+      - name: Run one deterministic DeepSWE task direct HTTPS
         timeout-minutes: 45
+        env:
+          TOKEN: ${{ steps.oidc.outputs.token }}
         run: |
+          set -euo pipefail
           TASK=$(find deep-swe/tasks -mindepth 1 -maxdepth 1 -type d | sort | head -1)
           echo "SMOKE_TASK=$TASK"
-          pier run -p "$TASK" --agent mini-swe-agent --model openai/arbm-free-mesh-v1 --agent-kwarg 'model_class=litellm_textbased' --agent-kwarg 'config_file=.github/config/arbm-mini-textbased.yaml' --agent-kwarg 'extra_python_packages=["fastapi","orjson"]' --agent-env OPENAI_BASE_URL=http://172.17.0.1:8090/v1 --agent-env OPENAI_API_KEY=local-bridge --agent-env NO_PROXY=172.17.0.1,127.0.0.1,localhost --agent-env no_proxy=172.17.0.1,127.0.0.1,localhost | tee deepswe-mesh-smoke.log
+          pier run -p "$TASK" --agent mini-swe-agent --model openai/arbm-free-mesh-v1 \
+            --agent-kwarg 'model_class=litellm_textbased' \
+            --agent-kwarg 'config_file=.github/config/arbm-mini-textbased.yaml' \
+            --agent-kwarg 'extra_python_packages=["fastapi","orjson"]' \
+            --agent-env OPENAI_BASE_URL="$REMOTE_MESH/v1" \
+            --agent-env OPENAI_API_BASE="$REMOTE_MESH/v1" \
+            --agent-env OPENAI_API_KEY="$TOKEN" --agent-env MSWEA_API_KEY="$TOKEN" \
+            | tee deepswe-mesh-direct-smoke.log
       - name: Freeze evidence
         if: always()
         run: |
+          set -euo pipefail
           mkdir -p evidence
-          cp -f deepswe-mesh-smoke.log oidc-bridge.log evidence/ 2>/dev/null || true
+          cp -f deepswe-mesh-direct-smoke.log direct-probe.json evidence/ 2>/dev/null || true
           cp -r jobs evidence/ 2>/dev/null || true
-          printf '%s\n' 'BENCHMARK=DeepSWE-1.1' 'ROUTE=ARBM_FREE_MESH_V1_FIXED_ORDER' 'REFERENCE_SCAFFOLD=mini-swe-agent' 'ATTEMPTS=1' 'MANDATORY_COST_USD=0' 'NON_SCORING_SMOKE=true' > evidence/protocol.txt
+          printf '%s\n' 'BENCHMARK=DeepSWE-1.1' "BENCHMARK_COMMIT=$DEEPSWE_COMMIT" \
+            'ROUTE=ARBM_FREE_MESH_V1_DIRECT_HTTPS_OIDC' 'REFERENCE_SCAFFOLD=mini-swe-agent' \
+            'ATTEMPTS=1' 'MANDATORY_COST_USD=0' 'NON_SCORING_SMOKE=true' > evidence/protocol.txt
           find evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > evidence/SHA256SUMS.txt || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: deepswe-free-mesh-smoke
+          name: deepswe-free-mesh-direct-https-smoke
           path: evidence/
           if-no-files-found: error
           retention-days: 30
-      - name: Stop bridge
-        if: always()
-        run: kill "$BRIDGE_PID" 2>/dev/null || true
