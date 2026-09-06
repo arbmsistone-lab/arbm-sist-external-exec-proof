@@ -1,0 +1,80 @@
+name: SWE-Milestone materialize probe
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Constitutional contract
+        run: |
+          echo REMOTE_ONLY_FOR_HEAVY
+          echo ZERO_SPEND_HARD
+      - name: Fetch exact source
+        run: |
+          git clone --filter=blob:none https://github.com/DeepCommit-ai/SWE-Milestone.git src
+          git -C src checkout 6d8b31168fd0e2ad57c0d1daa3df1556df014320
+          test "$(cat src/manifests/BENCHMARK_VERSION)" = "v1.0.2"
+      - name: Materialize pinned workspace data
+        run: |
+          git clone --depth 1 --branch v1.0.2 https://huggingface.co/datasets/DeepCommit-ai/SWE-Milestone-data data
+          test "$(git -C data rev-parse HEAD)" = "3500478e740d42583277c2658aa7729eb36e10f4"
+          find data -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort > workspace-dirs.txt
+          cat workspace-dirs.txt
+      - name: Verify seven workspaces and digest manifest
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          dirs=[p.name for p in Path('data').iterdir() if p.is_dir() and not p.name.startswith('.')]
+          expected=['navidrome','apache_dubbo','BurntSushi_ripgrep','zeromicro_go-zero','nushell_nushell','element-hq_element-web','scikit-learn_scikit-learn']
+          missing=[x for x in expected if not any(d.startswith(x) for d in dirs)]
+          print({'workspaces':len(dirs),'missing':missing})
+          if missing: raise SystemExit(44)
+          manifest=Path('src/manifests/digests-v1.0.2.tsv')
+          if not manifest.is_file(): raise SystemExit(45)
+          rows=[x for x in manifest.read_text().splitlines() if x.strip() and not x.startswith('#')]
+          print({'digest_rows':len(rows)})
+          Path('digest-row-count.txt').write_text(str(len(rows))+'\n')
+          PY
+      - name: Probe Docker manifests by digest
+        run: |
+          set +e
+          python - <<'PY'
+          from pathlib import Path
+          rows=[]
+          for line in Path('src/manifests/digests-v1.0.2.tsv').read_text().splitlines():
+            if not line.strip() or line.startswith('#'): continue
+            rows.append(line)
+          Path('digest-sample.tsv').write_text('\n'.join(rows[:12])+'\n')
+          print('\n'.join(rows[:12]))
+          PY      - name: Freeze materialization verdict
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          summary={
+            'schema':'arbm-swemilestone-materialize-probe-v1',
+            'benchmark':'SWE-Milestone 1.0.2',
+            'codeCommit':'6d8b31168fd0e2ad57c0d1daa3df1556df014320',
+            'dataCommit':'3500478e740d42583277c2658aa7729eb36e10f4',
+            'dataMaterialized':True,
+            'digestManifestPresent':Path('src/manifests/digests-v1.0.2.tsv').is_file(),
+            'completeFamilyCertified':False,
+            'classification':'DATA_READY_IMAGES_PENDING'
+          }
+          Path('swemilestone-materialize-summary.json').write_text(json.dumps(summary,indent=2)+'\n')
+          print(json.dumps(summary))
+          PY
+          sha256sum swemilestone-materialize-summary.json > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: swemilestone-materialize-probe
+          path: |
+            swemilestone-materialize-summary.json
+            workspace-dirs.txt
+            digest-row-count.txt
+            digest-sample.tsv
+            SHA256SUMS.txt
