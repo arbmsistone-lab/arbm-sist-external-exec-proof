@@ -1,5 +1,6 @@
 name: OSWorld real VM zero-spend boot
 on:
+  workflow_dispatch:
   push:
     paths:
       - '.github/workflows/osworld-real-boot.yml'
