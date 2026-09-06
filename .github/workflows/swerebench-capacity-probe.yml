@@ -1,0 +1,102 @@
+name: SWE-rebench V2 Capacity Probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      SWE_REBENCH_COMMIT: c71902a8cf8d2b725f63d51f199f4d3e56f68d2d
+      SWE_REBENCH_REPO: https://github.com/SWE-rebench/SWE-rebench-V2.git
+      PRIMARY_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-agent-v17
+      FALLBACK_ENDPOINT: https://arbm-sist-p8-fallback.girolocal-rb.workers.dev
+    steps:
+      - name: Constitutional contract
+        run: |
+          set -euo pipefail
+          echo ZERO_SPEND_MODE=HARD
+          echo EXECUTION_POLICY=REMOTE_ONLY
+          echo LOCAL_HEAVY_ALLOWED=false
+      - name: Fetch exact evaluator
+        run: |
+          set -euo pipefail
+          git init swe-rebench-v2
+          cd swe-rebench-v2
+          git remote add origin "$SWE_REBENCH_REPO"
+          git fetch --depth=1 origin "$SWE_REBENCH_COMMIT"
+          git checkout --detach "$SWE_REBENCH_COMMIT"
+          test "$(git rev-parse HEAD)" = "$SWE_REBENCH_COMMIT"
+
+      - name: Install lightweight probe deps
+        run: |
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet datasets
+
+      - name: Probe public sample dataset
+        run: |
+          python - <<'PY'
+          from datasets import load_dataset
+          ds=load_dataset('ibragim-bad/SWE-rebench-V2-sample',split='train')
+          print('DATASET_ROWS='+str(len(ds)))
+          row=ds[0]
+          print('INSTANCE_ID='+str(row.get('instance_id','')))
+          print('REPO='+str(row.get('repo','')))
+          PY
+      - name: Acquire OIDC token
+        id: oidc
+        run: |
+          set -euo pipefail
+          TOKEN=$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Probe zero-cost providers
+        env:
+          TOKEN: ${{ steps.oidc.outputs.token }}
+        run: |
+          set +e
+          mkdir -p evidence
+          BODY='{"phase":"plan","issue":"public capacity probe only","repo_index":"TRACKED FILES:\nREADME.md","instance_id":"arbm-capacity-probe"}'
+          for NAME in primary fallback; do
+            if [ "$NAME" = primary ]; then URL="$PRIMARY_ENDPOINT"; else URL="$FALLBACK_ENDPOINT"; fi
+            CODE=$(curl -sS -o "evidence/$NAME-body.json" -w '%{http_code}' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data "$BODY" "$URL")
+            echo "$CODE" > "evidence/$NAME-http.txt"
+            echo "$NAME HTTP=$CODE"
+            head -c 1200 "evidence/$NAME-body.json" || true
+            echo
+          done
+      - name: Freeze probe summary
+        run: |
+          python - <<'PY'
+          import hashlib,json,pathlib
+          def read(name):
+              p=pathlib.Path('evidence')/name
+              return p.read_text(errors='replace').strip() if p.exists() else ''
+          out={'schema':'arbm-swerebench-capacity-probe-v1','benchmark':'SWE-rebench V2',
+               'commit':'c71902a8cf8d2b725f63d51f199f4d3e56f68d2d','completeFamilyCertified':False,
+               'primaryHttp':read('primary-http.txt'),'fallbackHttp':read('fallback-http.txt'),
+               'classification':'CAPACITY_PROBE_ONLY'}
+          p=pathlib.Path('evidence/swerebench-capacity-summary.json')
+          p.write_text(json.dumps(out,indent=2))
+          h=hashlib.sha256(p.read_bytes()).hexdigest()
+          pathlib.Path('evidence/SHA256SUMS.txt').write_text(f'{h}  swerebench-capacity-summary.json\n')
+          print(json.dumps(out,indent=2))
+          PY
+
+      - name: Upload immutable evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: swerebench-capacity-${{ inputs.request_id }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
