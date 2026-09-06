@@ -57,20 +57,23 @@ jobs:
           set -euo pipefail
           git clone --filter=blob:none --no-checkout https://github.com/DeepCommit-ai/SWE-Milestone.git harness-src
           git -C harness-src checkout "$BENCHMARK_COMMIT"
-          mkdir -p "data/$REPO_ID/test_results/$TASK_ID" "data/$REPO_ID/dockerfiles" data/config
+          mkdir -p "data/$REPO_ID/test_results/$TASK_ID" "data/$REPO_ID/dockerfiles/$TASK_ID" data/config
           base="https://huggingface.co/datasets/DeepCommit-ai/SWE-Milestone-data/resolve/$BENCHMARK_VERSION"
           curl -fsSL --retry 4 -o "data/$REPO_ID/metadata.json" "$base/$REPO_ID/metadata.json?download=true"
           curl -fsSL --retry 4 -o "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json" "$base/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json?download=true"
           curl -fsSL --retry 4 -o "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_filter_list.json" "$base/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_filter_list.json?download=true"
           curl -fsSL --retry 4 -o "data/config/$REPO_ID.yaml" "$base/config/$REPO_ID.yaml?download=true"
           curl -fsSL --retry 4 -o "data/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh" "https://huggingface.co/datasets/DeepCommit-ai/SWE-Milestone-data/resolve/main/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh?download=true"
+          curl -fsSL --retry 4 -o "data/$REPO_ID/dockerfiles/$TASK_ID/test_config.json" "$base/$REPO_ID/dockerfiles/$TASK_ID/test_config.json?download=true"
           test -s "data/$REPO_ID/metadata.json"
           test -s "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json"
           test -s "data/config/$REPO_ID.yaml"
           test -s "data/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh"
+          test -s "data/$REPO_ID/dockerfiles/$TASK_ID/test_config.json"
+          test "$(sha256sum "data/$REPO_ID/dockerfiles/$TASK_ID/test_config.json" | awk '{print $1}')" = "c8c792767923855a158fd1cd759553077bf7b4f71ec12e2939f213ba7ddb200c"
           test "$(sha256sum "data/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh" | awk '{print $1}')" = "6869ee39355d4ddfca7dfb5bddf9f1b32e9651c94a31b522a8435d3810f2d099"
           chmod +x "data/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh"
-          sha256sum "data/$REPO_ID/metadata.json" "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json" "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_filter_list.json" "data/config/$REPO_ID.yaml" "data/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh" > public-data-SHA256SUMS.txt
+          sha256sum "data/$REPO_ID/metadata.json" "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json" "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_filter_list.json" "data/config/$REPO_ID.yaml" "data/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh" "data/$REPO_ID/dockerfiles/$TASK_ID/test_config.json" > public-data-SHA256SUMS.txt
           python -m pip install -q -e ./harness-src
       - name: Adapt diagnostic CPU quota to hosted runner
         shell: bash
