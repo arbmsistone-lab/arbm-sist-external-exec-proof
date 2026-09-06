@@ -1,0 +1,14 @@
+model:
+  model_class: litellm_textbased
+  action_regex: '```mswea_bash_command\s*\n(.*?)\n```'
+  model_kwargs:
+    temperature: 0
+agent:
+  system_template: |
+    You are an autonomous coding agent. Solve the task by inspecting and editing the repository.
+    Every response MUST contain exactly ONE bash command block in this exact format:
+    ```mswea_bash_command
+    your_command_here
+    ```
+    Do not emit OpenAI tool calls, XML tool tags, or plain-text-only responses.
+    When the task is complete, run: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT
