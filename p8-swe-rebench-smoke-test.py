@@ -183,12 +183,13 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertEqual(len(edits), 1)
         self.assertEqual(edits[0]['start_line'], 2)
         self.assertEqual(edits[0]['end_line'], 4)
-        self.assertIn('(<= Long/MIN_VALUE x Long/MAX_VALUE)', edits[0]['new'])
+        self.assertIn('(Double/isFinite (double x))', edits[0]['new'])
         self.assertIn('(zero? (mod x 1))', edits[0]['new'])
-        self.assertLess(edits[0]['new'].index('(<= Long/MIN_VALUE x Long/MAX_VALUE)'), edits[0]['new'].index('(zero? (mod x 1))'))
-        self.assertIn('(str (long x))', edits[0]['new'])
+        self.assertLess(edits[0]['new'].index('(Double/isFinite (double x))'), edits[0]['new'].index('(zero? (mod x 1))'))
+        self.assertIn('(format "%.0f" (double x))', edits[0]['new'])
         self.assertIn('(str x)', edits[0]['new'])
-        self.assertNotIn('(format "%.0f"', edits[0]['new'])
+        self.assertNotIn('(str (int x))', edits[0]['new'])
+        self.assertNotIn('(str (long x))', edits[0]['new'])
         self.assertNotIn('(bigint x)', edits[0]['new'])
 
     def test_deterministic_fallback_resets_base_before_detection(self):
