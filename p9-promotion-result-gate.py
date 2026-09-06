@@ -16,7 +16,7 @@ def failures(d):
     }
     e = d.get('evaluation_environment') or {}
     checks.update({
-        'repo_config_pinned': e.get('repo_config_binding_mode') == 'trial-pinned' and e.get('repo_config_sha256') == 'ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356',
+        'repo_config_pinned': e.get('repo_config_binding_mode') == 'trial-pinned' and e.get('repo_config_sha256') == 'cae899cadf1732eefa3c36a057540838ea3ca61739a1267a7da25986c27facec',
         'runtime_policy_pinned': e.get('runtime_policy_binding_mode') == 'trial-pinned' and e.get('runtime_policy_mode') == 'protected' and e.get('runtime_policy_sha256') == 'aa7ec051587f229ac4ac9d3822f2b90790cac551f61a1c284d5664ad45728f1f',
     })
     s = d.get('test_summary') or {}

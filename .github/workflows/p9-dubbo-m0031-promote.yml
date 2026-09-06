@@ -270,7 +270,14 @@ jobs:
           }
           pathlib.Path('promotion-summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True))
           PY
-          sha256sum solve-artifact/solution.json solve-artifact/solve-evidence.json source_snapshot.tar public-data-SHA256SUMS.txt promotion-summary.json > evaluation-SHA256SUMS.txt
+          python - <<'PY'
+          import hashlib, pathlib
+          files = [pathlib.Path(n) for n in ['evaluation_result.json','evaluator.log','eval-exit.txt','candidate.java','start-commit.txt','candidate-paths.txt','source_snapshot.tar','source_snapshot.integrity.json','public-data-SHA256SUMS.txt','promotion-summary.json']]
+          for root in ['p9-bindings','solve-artifact','data']:
+            files.extend(pathlib.Path(root).rglob('*'))
+          lines = [hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.as_posix() for p in sorted(set(files)) if p.is_file()]
+          pathlib.Path('evaluation-SHA256SUMS.txt').write_text('\n'.join(lines)+'\n')
+          PY
       - name: Upload promotion evaluation evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -288,6 +295,8 @@ jobs:
             promotion-summary.json
             evaluation-SHA256SUMS.txt
             public-data-SHA256SUMS.txt
+            source_snapshot.tar
+            data/
             source_snapshot.tar.sha256
             source_snapshot.integrity.json
           retention-days: 90

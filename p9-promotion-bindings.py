@@ -31,7 +31,7 @@ p.write_text(json.dumps(effective, indent=2)+'\n')
 (out/'runtime-capacity.json').write_text(json.dumps({'requested':requested, 'available':available, 'effective':effective['docker_cpus'], 'changed_fields':['docker_cpus'], 'original_sha256':hashlib.sha256(raw).hexdigest(), 'effective_sha256':hashlib.sha256(p.read_bytes()).hexdigest()}, indent=2)+'\n')
 rc = resolve_repo_config(os.environ['REPO_ID'], root, project_root=Path('harness-src'))
 rp = resolve_runtime_policy(os.environ['REPO_ID'], Path('harness-src'), unprotected=False)
-assert hashlib.sha256(rc.raw_bytes).hexdigest() == 'ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356'
+assert hashlib.sha256(rc.raw_bytes).hexdigest() == 'cae899cadf1732eefa3c36a057540838ea3ca61739a1267a7da25986c27facec'
 rp_sha = hashlib.sha256(rp.raw_bytes).hexdigest()
 assert rp_sha == 'aa7ec051587f229ac4ac9d3822f2b90790cac551f61a1c284d5664ad45728f1f'
 assert rp.mode == 'protected'
