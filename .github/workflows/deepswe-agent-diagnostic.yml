@@ -1,4 +1,4 @@
-name: DeepSWE Port 8088 Fix
+name: DeepSWE Tool Calling Fix
 on:
   workflow_dispatch:
 permissions:
@@ -59,10 +59,19 @@ jobs:
           mkdir -p /tmp/llama && tar -xzf /tmp/llama.tgz -C /tmp/llama
           LLAMA_SERVER=$(find /tmp/llama -type f -name llama-server -print -quit)
           chmod +x "$LLAMA_SERVER"
-          "$LLAMA_SERVER" -m "$MODEL" --host 0.0.0.0 --port 8088 -c 4096 -np 1 -t 4 -ctk q8_0 -ctv q8_0 --no-warmup --no-webui -a arbm-qwen-sovereign > sovereign.log 2>&1 &
+          "$LLAMA_SERVER" -m "$MODEL" --host 0.0.0.0 --port 8088 -c 4096 -np 1 -t 4 -ctk q8_0 -ctv q8_0 --jinja --no-warmup --no-webui -a arbm-qwen-sovereign > sovereign.log 2>&1 &
           echo "ARBM_SOVEREIGN_SERVER_PID=$!" >> "$GITHUB_ENV"
           for i in $(seq 1 90); do curl -fsS http://127.0.0.1:8088/health >/dev/null && break; sleep 2; done
           curl -fsS http://127.0.0.1:8088/health
+      - name: Verify OpenAI tool calling
+        run: |
+          set -euo pipefail
+          cat > /tmp/tool-probe.json <<'JSON'
+          {"model":"arbm-qwen-sovereign","messages":[{"role":"user","content":"Call the shell tool with command echo TOOL_OK. Do not answer with plain text."}],"tools":[{"type":"function","function":{"name":"shell","description":"Run a shell command","parameters":{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}}}],"tool_choice":"required","temperature":0,"max_tokens":128}
+          JSON
+          curl -fsS http://127.0.0.1:8088/v1/chat/completions -H 'Content-Type: application/json' --data-binary @/tmp/tool-probe.json > /tmp/tool-probe-response.json
+          cat /tmp/tool-probe-response.json
+          grep -q '"tool_calls"' /tmp/tool-probe-response.json
       - name: Verify Docker host gateway
         run: |
           set -euo pipefail
@@ -86,7 +95,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: deepswe-port8088-fix
+          name: deepswe-toolcalling-fix
           path: diagnostic-evidence
       - name: Stop sovereign runtime
         if: always()
