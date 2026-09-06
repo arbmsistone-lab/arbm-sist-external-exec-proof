@@ -1,0 +1,26 @@
+version: 2.1
+jobs:
+  sweff_docker_xlarge_probe:
+    docker:
+      - image: cimg/base:current
+    resource_class: xlarge
+    steps:
+      - setup_remote_docker:
+          version: default
+      - run:
+          name: Probe primary executor and remote Docker
+          command: |
+            set -euo pipefail
+            echo ARBM_CIRCLECI_DOCKER_XLARGE=START
+            uname -m
+            nproc
+            grep '^MemTotal:' /proc/meminfo
+            lscpu -p=CPU,CORE,SOCKET | grep -v '^#' | head -40
+            docker version
+            docker info
+            docker run --rm --memory-reservation=16g --memory=32g alpine:3.20 sh -c 'uname -m; echo REMOTE_DOCKER_CONTRACT_PASS'
+            echo ARBM_CIRCLECI_DOCKER_XLARGE=PASS
+workflows:
+  sweff_docker_xlarge_probe:
+    jobs:
+      - sweff_docker_xlarge_probe
