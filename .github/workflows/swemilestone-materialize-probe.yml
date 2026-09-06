@@ -49,7 +49,8 @@ jobs:
             rows.append(line)
           Path('digest-sample.tsv').write_text('\n'.join(rows[:12])+'\n')
           print('\n'.join(rows[:12]))
-          PY      - name: Freeze materialization verdict
+          PY
+      - name: Freeze materialization verdict
         run: |
           python - <<'PY'
           import json
