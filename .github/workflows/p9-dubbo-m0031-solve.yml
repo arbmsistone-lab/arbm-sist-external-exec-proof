@@ -26,7 +26,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          case "$GITHUB_REF" in refs/heads/p9/*) ;; *) echo 'P9_REF_REQUIRED'; exit 64;; esac          test -n '${{ inputs.request_id }}'
+          case "$GITHUB_REF" in refs/heads/p9/*) ;; *) echo 'P9_REF_REQUIRED'; exit 64;; esac
+          test -n '${{ inputs.request_id }}'
       - name: Fetch pinned public SRS
         shell: bash
         run: |
@@ -127,7 +128,8 @@ jobs:
             for i in range(len(items)-1):
               if items[i+1][1] >= items[i][0]: raise SystemExit('OVERLAP:'+p)
           open('validated-ops.json','w').write(json.dumps({'edits':grouped,'creates':creates}))
-          PY          python - <<'PY'
+          PY
+          python - <<'PY'
           import json, subprocess
           x=json.load(open('validated-ops.json'))
           for p,new in x['creates']:
