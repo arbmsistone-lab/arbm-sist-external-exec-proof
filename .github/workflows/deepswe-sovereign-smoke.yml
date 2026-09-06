@@ -1,0 +1,75 @@
+name: DeepSWE Sovereign Smoke
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      MODEL_DIR: ${{ github.workspace }}/.cache/arbm-models
+      MODEL_FILE: qwen2.5-coder-14b-instruct-q4_k_m.gguf
+      MODEL_SHA256: c1e659736d89ac1065fb495330fb824d94001974a4bfa78e7270e43476a8d940
+      LLAMA_TAG: b10516
+      LLAMA_SHA256: f263a91280471b4c33c4999d7c76259c0f3a0a53a0b3e692b2c0b84380137a35
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
+      - name: Freeze DeepSWE and install Pier
+        run: |
+          set -euo pipefail
+          git clone https://github.com/datacurve-ai/deep-swe.git deep-swe
+          git -C deep-swe checkout 0b9fabbb63b9104d678fe965e1632f2dd9eaa2ea
+          uv tool install datacurve-pier
+      - name: Restore sovereign model cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.MODEL_DIR }}/${{ env.MODEL_FILE }}
+          key: qwen25-coder-14b-q4km-${{ env.MODEL_SHA256 }}
+          save-always: true
+      - name: Prepare verified sovereign runtime
+        run: |
+          set -euo pipefail
+          mkdir -p "$MODEL_DIR"
+          MODEL="$MODEL_DIR/$MODEL_FILE"
+          if [ ! -f "$MODEL" ]; then curl -fL --retry 5 --retry-delay 5 -o "$MODEL" "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/resolve/main/$MODEL_FILE?download=true"; fi
+          echo "$MODEL_SHA256  $MODEL" | sha256sum -c -
+          curl -fL --retry 4 -o /tmp/llama.tgz "https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA_TAG/llama-$LLAMA_TAG-bin-ubuntu-x64.tar.gz"
+          echo "$LLAMA_SHA256  /tmp/llama.tgz" | sha256sum -c -
+          mkdir -p /tmp/llama && tar -xzf /tmp/llama.tgz -C /tmp/llama
+          LLAMA_SERVER=$(find /tmp/llama -type f -name llama-server -print -quit)
+          chmod +x "$LLAMA_SERVER"
+          "$LLAMA_SERVER" -m "$MODEL" --host 0.0.0.0 --port 8088 -c 4096 -np 1 -t 4 -ctk q8_0 -ctv q8_0 --no-warmup --no-webui -a arbm-qwen-sovereign > sovereign.log 2>&1 &
+          echo "ARBM_SOVEREIGN_SERVER_PID=$!" >> "$GITHUB_ENV"
+          for i in $(seq 1 90); do curl -fsS http://127.0.0.1:8088/health >/dev/null && break; sleep 2; done
+          curl -fsS http://127.0.0.1:8088/health
+      - name: Verify Docker bridge can reach inference
+        run: |
+          set -euo pipefail
+          docker run --rm curlimages/curl:8.15.0 -fsS http://172.17.0.1:8088/health
+      - name: Run one deterministic DeepSWE smoke task
+        timeout-minutes: 55
+        run: |
+          set -euo pipefail
+          TASK=$(find deep-swe/tasks -mindepth 1 -maxdepth 1 -type d | sort | head -1)
+          echo "SMOKE_TASK=$TASK"
+          pier run -p "$TASK" --agent mini-swe-agent --model openai/arbm-qwen-sovereign --agent-env OPENAI_BASE_URL=http://172.17.0.1:8088/v1 --agent-env OPENAI_API_KEY=local-dummy-key | tee deepswe-smoke.log
+      - name: Freeze smoke evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p deepswe-smoke-evidence
+          cp -f deepswe-smoke.log deepswe-smoke-evidence/ 2>/dev/null || true
+          cp -f sovereign.log deepswe-smoke-evidence/ 2>/dev/null || true
+          printf '%s\n' 'NON_SCORING_SINGLE_TASK_SMOKE=true' > deepswe-smoke-evidence/metadata.txt
+          printf '%s\n' 'FULL_SCORE_REQUIRES_978_TRIALS=true' >> deepswe-smoke-evidence/metadata.txt
+          find deepswe-smoke-evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > deepswe-smoke-evidence/SHA256SUMS.txt || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: deepswe-sovereign-single-task-smoke
+          path: deepswe-smoke-evidence
+      - name: Stop sovereign runtime
+        if: always()
+        run: kill "$ARBM_SOVEREIGN_SERVER_PID" 2>/dev/null || true
