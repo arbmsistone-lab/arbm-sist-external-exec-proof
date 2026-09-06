@@ -1,0 +1,28 @@
+name: Scaffold Promotion Policy
+on:
+  push:
+    branches: [benchmark/deepswe-context-fix]
+    paths:
+      - 'certification/scaffold-promotion-*.mjs'
+      - 'certification/scaffold-promotion-*.json'
+      - '.github/workflows/scaffold-promotion-policy.yml'
+  pull_request:
+    paths:
+      - 'certification/scaffold-promotion-*.mjs'
+      - 'certification/scaffold-promotion-*.json'
+      - '.github/workflows/scaffold-promotion-policy.yml'
+permissions:
+  contents: read
+jobs:
+  policy-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate promotion gate
+        run: |
+          set -euo pipefail
+          node certification/scaffold-promotion-gate-test.mjs
+          node --check certification/scaffold-promotion-gate.mjs
+          test "$(jq -r '.failClosed' certification/scaffold-promotion-policy.json)" = "true"
+          echo SCAFFOLD_PROMOTION_POLICY=ENFORCED
