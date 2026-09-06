@@ -3,8 +3,10 @@ on:
   push:
     branches:
       - p8/p9-dubbo-m0031-eval
+      - p9/docker-stderr-20260906
     paths:
       - 'p9-dubbo-m0031.patch'
+      - 'p9-evaluator-observe.py'
       - '.github/workflows/p9-dubbo-m0031-eval.yml'
 permissions:
   contents: read
@@ -25,6 +27,12 @@ jobs:
       BASE_OFFLINE_LOCAL: swe-milestone/apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__base-offline:v1.0.2
     steps:
       - uses: actions/checkout@v7
+      - name: Verify free hosted capacity
+        env:
+          REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
+        run: |
+          test "$REPOSITORY_VISIBILITY" = public || { echo WAITING_FREE_CAPACITY; exit 1; }
+          test "$RUNNER_ENVIRONMENT" = github-hosted || { echo WAITING_FREE_CAPACITY; exit 1; }
       - name: Verify frozen patch
         shell: bash
         run: |
@@ -114,7 +122,7 @@ jobs:
           set -euo pipefail
           mkdir -p "$GITHUB_WORKSPACE/p9-eval"
           cd swe-milestone
-          python -m harness.e2e.evaluator \
+          python "$GITHUB_WORKSPACE/p9-evaluator-observe.py" \
             --workspace-root "$GITHUB_WORKSPACE/workspace-data/$REPO_ID" \
             --milestone-id "$MILESTONE_ID" \
             --patch-file "$GITHUB_WORKSPACE/p9-dubbo-m0031.patch" \
