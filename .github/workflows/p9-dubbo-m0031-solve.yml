@@ -50,6 +50,7 @@ jobs:
           planned=[
             'dubbo-plugin/dubbo-mutiny/pom.xml',
             'dubbo-plugin/dubbo-compiler/pom.xml',
+            'dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/AbstractGenerator.java',
             'dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/DubboGeneratorPlugin.java',
             'dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/tri/reactive/ReactorDubbo3TripleGenerator.java',
             'dubbo-plugin/dubbo-compiler/src/main/resources/ReactorDubbo3TripleInterfaceStub.mustache',
@@ -86,8 +87,10 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           import json, os, urllib.error, urllib.request
+          issue=open('SRS.md',encoding='utf-8').read()
+          module_facts='''\n\nPUBLIC REPOSITORY MODULE FACTS (derived from known paths/context):\n- org.apache.dubbo.gen.AbstractGenerator is defined under dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/AbstractGenerator.java.\n- org.apache.dubbo.gen.DubboGeneratorPlugin is defined under dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/DubboGeneratorPlugin.java.\n- Preserve module ownership: source importing compiler-generator infrastructure belongs with dubbo-compiler, not under dubbo-mutiny/src/main/java/org/apache/dubbo/gen/.\n'''
           body={
-            'issue':open('SRS.md',encoding='utf-8').read(),
+            'issue':issue+module_facts,
             'tool_context':open('tool-context.txt',encoding='utf-8').read(),
             'known_paths':open('known-paths.txt',encoding='utf-8').read().splitlines(),
           }
@@ -120,6 +123,10 @@ jobs:
             p=str(p).replace('\\','/').removeprefix('./')
             if not p or p.startswith('/') or '..' in p.split('/') or (len(p)>2 and p[1]==':'): raise SystemExit('PATH_INVALID:'+p)
             if not any(p==r or p.startswith(r+'/') for r in roots): raise SystemExit('PATH_SCOPE_FAIL:'+p)
+            if p.startswith('dubbo-plugin/dubbo-mutiny/src/main/java/org/apache/dubbo/gen/'):
+              raise SystemExit('MODULE_AFFINITY_FAIL:'+p)
+            if p.endswith('/MutinyDubbo3TripleGenerator.java') and not p.startswith('dubbo-plugin/dubbo-compiler/'):
+              raise SystemExit('GENERATOR_MODULE_FAIL:'+p)
             return p
           grouped={}
           creates=[]
