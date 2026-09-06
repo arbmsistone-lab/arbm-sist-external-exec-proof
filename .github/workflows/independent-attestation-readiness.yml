@@ -28,7 +28,8 @@ jobs:
           assert d['benchmarkPolicy']['finalAttestationRequiresAllFamilies'] is True
           assert d['benchmarkPolicy']['thisDocumentIsReadinessProofOnly'] is True
           print('READINESS_SUBJECT_PASS')
-          PY      - name: Generate public SLSA provenance attestation
+          PY
+      - name: Generate public SLSA provenance attestation
         id: attest
         uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d
         with:
