@@ -1,0 +1,104 @@
+name: OSWorld gated official preflight
+run-name: OSWorld gated preflight ${{ inputs.request_id }}
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: ARBM request id
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  gated-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    steps:
+      - name: Fail closed without gated token
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${HF_TOKEN:-}" || { echo 'WAITING_HF_GATED_ACCESS'; exit 78; }
+      - name: Checkout pinned OSWorld release
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v2026.08.08 https://github.com/xlang-ai/OSWorld-V2.git osworld
+          test "$(git -C osworld rev-parse HEAD)" = "d578d2d4e0dc82b43e270fdaa7fa89d9708cd154"
+      - name: Install official release dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd osworld
+          python -m pip install --disable-pip-version-check -q -U uv huggingface_hub
+          uv sync --frozen
+      - name: Download gated task classes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd osworld
+          export HF_TOKEN
+          uv run scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
+      - name: Download gated task assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd osworld
+          export HF_TOKEN
+          uv run scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 --target-dir cache/osworld_v2_assets --clean
+      - name: Verify pinned task manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd osworld
+          test -f evaluation_examples/task_class/task_hashes.json || true
+          test -d cache/osworld_v2_assets
+          echo 'OSWORLD_GATED_RELEASE_ACCESS=PASS' | tee gated-preflight.txt
+      - name: Verify task hash manifest and all 108 task files
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd osworld
+          export HF_TOKEN
+          export HF_XET_HIGH_PERFORMANCE=1
+          hf download xlangai/osworld_v2_tasks manifests/task_hashes.json --repo-type dataset --revision v2026.08.08 --local-dir gated-meta
+          manifest=gated-meta/manifests/task_hashes.json
+          test "$(sha256sum "$manifest" | awk '{print $1}')" = "42f8f6f8939b8712997d5891456a575f8a2a5f53465e9e3e6747af5d6efd0915"
+          python - "$manifest" <<'PY'
+          import hashlib,json,pathlib,sys
+          manifest=json.load(open(sys.argv[1],encoding='utf-8'))
+          rows=manifest.get('files',manifest)
+          if isinstance(rows,dict): rows=[{'path':k,'sha256':v} for k,v in rows.items()]
+          assert len(rows)==108, len(rows)
+          root=pathlib.Path('evaluation_examples/task_class')
+          for row in rows:
+              p=root/pathlib.Path(row['path']).name
+              got=hashlib.sha256(p.read_bytes()).hexdigest()
+              exp=str(row['sha256']).removeprefix('sha256:')
+              assert got==exp,(p.name,got,exp)
+          print('OSWORLD_TASK_HASHES=PASS count=108')
+          PY
+      - name: Freeze gated preflight evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd osworld
+          printf '%s\n' \
+            'schema=arbm-osworld-gated-preflight-v1' \
+            'release=osworld-v2-2026.08.08' \
+            'task_count=108' \
+            'task_hashes=PASS' \
+            'assets_download=PASS' \
+            'zero_spend_mode=HARD' > gated-preflight.txt
+          sha256sum gated-preflight.txt > gated-preflight.sha256
+      - name: Upload non-secret evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: osworld-gated-preflight-evidence
+          path: |
+            osworld/gated-preflight.txt
+            osworld/gated-preflight.sha256
+          if-no-files-found: error
+          retention-days: 1
