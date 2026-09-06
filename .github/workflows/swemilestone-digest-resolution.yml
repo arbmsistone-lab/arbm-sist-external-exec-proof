@@ -1,0 +1,70 @@
+name: SWE-Milestone Digest Resolution
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  digest-resolution:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Constitutional contract
+        run: |
+          echo REMOTE_ONLY_FOR_HEAVY
+          echo ZERO_SPEND_HARD
+      - name: Fetch exact benchmark source
+        run: |
+          git clone --filter=blob:none https://github.com/DeepCommit-ai/SWE-Milestone.git src
+          git -C src checkout 6d8b31168fd0e2ad57c0d1daa3df1556df014320
+          test "$(cat src/manifests/BENCHMARK_VERSION)" = "v1.0.2"
+      - name: Resolve every pinned digest
+        run: |
+          python - <<'PY'
+          import json, subprocess
+          from pathlib import Path
+          rows=[]
+          for line in Path('src/manifests/digests-v1.0.2.tsv').read_text().splitlines():
+            if line.strip() and not line.startswith('#'):
+              logical, ref=line.split('\t',1)
+              rows.append((logical,ref))
+          results=[]
+          for logical,ref in rows:
+            p=subprocess.run(['docker','manifest','inspect',ref],stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,text=True,timeout=45)
+            results.append({'logical':logical,'ref':ref,'ok':p.returncode==0,'error':p.stderr[-300:]})
+          failed=[r for r in results if not r['ok']]
+          summary={
+            'schema':'arbm-swemilestone-digest-resolution-v1',
+            'benchmark':'SWE-Milestone 1.0.2',
+            'codeCommit':'6d8b31168fd0e2ad57c0d1daa3df1556df014320',
+            'digestRows':len(results),
+            'resolved':len(results)-len(failed),
+            'failed':len(failed),
+            'completeFamilyCertified':False,
+            'classification':'DIGESTS_READY' if not failed else 'DIGESTS_PARTIAL'
+          }
+          Path('digest-resolution-results.json').write_text(json.dumps(results,indent=2)+'\n')
+          Path('digest-resolution-summary.json').write_text(json.dumps(summary,indent=2)+'\n')
+          print(json.dumps(summary))
+          if failed:
+            print(json.dumps(failed[:20],indent=2))
+          PY
+      - name: Freeze evidence
+        if: always()
+        run: |
+          sha256sum digest-resolution-summary.json digest-resolution-results.json > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: swemilestone-digest-resolution
+          path: |
+            digest-resolution-summary.json
+            digest-resolution-results.json
+            SHA256SUMS.txt
+      - name: Resolution gate
+        run: |
+          python - <<'PY'
+          import json
+          s=json.load(open('digest-resolution-summary.json'))
+          if s['failed']:
+            raise SystemExit(51)
+          PY
