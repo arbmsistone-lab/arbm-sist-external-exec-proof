@@ -1,21 +1,2 @@
-import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import {validatePayload,executePayload} from './universal-remote-runner.mjs';
-
-const sha='a'.repeat(40),payload={schema:'arbm-universal-remote-mission-v1',requestId:'arbm-1234567890abcdef',source:{repo:'example/demo',ref:sha,visibility:'public'},mission:{objective:'validate repo',requiredCapabilities:['git','tests'],commands:['npm ci','npm test'],artifacts:['test-results.json'],timeoutMinutes:5,evidenceRequired:true}};
-assert.equal(validatePayload(payload).source.ref,sha);
-assert.throws(()=>validatePayload({...payload,source:{...payload.source,visibility:'private'}}),/public_source_required/);
-assert.throws(()=>validatePayload({...payload,mission:{...payload.mission,commands:['sudo bash']}}),/blocked_command/);
-assert.throws(()=>validatePayload({...payload,mission:{...payload.mission,commands:['echo a\necho b']}}),/blocked_command/);
-const root=fs.mkdtempSync(path.join(os.tmpdir(),'arbm-universal-'));
-const runner=(cmd,args,opts={})=>{
-  if(cmd==='git'&&args[0]==='rev-parse')return {status:0,stdout:sha+'\n',stderr:''};
-  if(cmd==='bash'){if(args[1]==='npm test')fs.writeFileSync(path.join(opts.cwd,'test-results.json'),'PASS\n');return {status:0,stdout:'ok\n',stderr:''};}
-  return {status:0,stdout:'',stderr:''};
-};
-const report=executePayload(payload,{root,runner});
-assert.equal(report.success,true);assert.equal(report.steps.length,2);assert.deepEqual(report.artifacts,['test-results.json']);
-assert.equal(fs.existsSync(path.join(root,'evidence','report.json')),true);assert.equal(fs.existsSync(path.join(root,'evidence','report.sha256')),true);
-console.log(JSON.stringify({suite:'UNIVERSAL_REMOTE_RUNNER',pass:10,total:10,state:'PASS'}));
+﻿import assert from 'node:assert/strict';import fs from 'node:fs';import os from 'node:os';import path from 'node:path';import {validatePayload,executePayload} from './universal-remote-runner.mjs';
+const sha='a'.repeat(40),diff='diff --git a/a.js b/a.js\n--- a/a.js\n+++ b/a.js\n@@ -1 +1 @@\n-a\n+b\n',payload={schema:'arbm-universal-remote-mission-v1',requestId:'arbm-1234567890abcdef',source:{repo:'example/demo',ref:sha,visibility:'public'},mission:{objective:'validate repo',requiredCapabilities:['git','tests'],commands:['npm test'],artifacts:['test-results.json'],timeoutMinutes:5,evidenceRequired:true,patchProposal:{baseSha:sha,diff,sha256:'f'.repeat(64)}}};assert.equal(validatePayload(payload).mission.patchProposal.files[0],'a.js');assert.throws(()=>validatePayload({...payload,source:{...payload.source,visibility:'private'}}),/public_source_required/);assert.throws(()=>validatePayload({...payload,mission:{...payload.mission,commands:['sudo bash']}}),/blocked_command/);assert.throws(()=>validatePayload({...payload,mission:{...payload.mission,commands:['rm -rf /']}}),/blocked_command/);assert.throws(()=>validatePayload({...payload,mission:{...payload.mission,patchProposal:{...payload.mission.patchProposal,baseSha:'b'.repeat(40)}}}),/patch_base_sha_mismatch/);const root=fs.mkdtempSync(path.join(os.tmpdir(),'arbm-universal-'));const runner=(cmd,args,opts={})=>{if(cmd==='git'&&args[0]==='rev-parse')return {status:0,stdout:sha+'\n',stderr:''};if(cmd==='git'&&args[0]==='diff'&&args.includes('--name-only'))return {status:0,stdout:'a.js\n',stderr:''};if(cmd==='git'&&args[0]==='diff')return {status:0,stdout:diff,stderr:''};if(cmd==='bash'){if(args[1]==='npm test')fs.writeFileSync(path.join(opts.cwd,'test-results.json'),'PASS\n');return {status:0,stdout:'ok\n',stderr:''};}return {status:0,stdout:'',stderr:''};};const report=executePayload(payload,{root,runner});assert.equal(report.success,true);assert.equal(report.schema,'arbm-universal-remote-evidence-v2');assert.deepEqual(report.changedFiles,['a.js']);assert.equal(report.patch.files[0],'a.js');assert.equal(fs.existsSync(path.join(root,'evidence','final.diff')),true);assert.equal(fs.existsSync(path.join(root,'evidence','report.sha256')),true);console.log(JSON.stringify({suite:'UNIVERSAL_REMOTE_RUNNER_V2',pass:11,total:11,state:'PASS'}));
