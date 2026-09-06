@@ -1,6 +1,12 @@
 name: OSWorld real VM zero-spend boot
+run-name: OSWorld boot ${{ inputs.request_id || github.sha }}
 on:
   workflow_dispatch:
+    inputs:
+      request_id:
+        description: ARBM request id
+        required: true
+        type: string
   push:
     paths:
       - '.github/workflows/osworld-real-boot.yml'
