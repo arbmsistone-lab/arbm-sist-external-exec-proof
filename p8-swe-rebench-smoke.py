@@ -964,7 +964,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
         _,rel,start_line,end_line,new=ranked[0]
         return [{'path':rel,'start_line':start_line,'end_line':end_line,'new':new}]
     latency=round((time.time()-started)*1000)
-    allow_deterministic=os.environ.get('ARBM_ALLOW_DETERMINISTIC_PUBLIC_REPAIR')=='1'
+    allow_deterministic=(os.environ.get('ARBM_ALLOW_DETERMINISTIC_PUBLIC_REPAIR')=='1' or os.environ.get('ARBM_SOVEREIGN_ONLY')=='1')
     if not cand_a and not cand_b and (code!=0 or bcode!=0):
         deterministic=public_deterministic_overflow_repair(td,allowed_paths,problem) if allow_deterministic else []
         if deterministic:
