@@ -1,0 +1,34 @@
+{
+  "schema": "arbm-provider-candidate-evidence-v1",
+  "capturedAt": "2026-09-06",
+  "policy": {
+    "zeroSpendHard": true,
+    "heavyExecution": "REMOTE_ONLY",
+    "failClosed": true,
+    "candidateLifecycle": ["DISCOVERED", "QUALIFIED_CANDIDATE", "LIVE_PROVED", "ACTIVE"]
+  },
+  "candidates": [
+    {
+      "id": "latchkey-oss-16core",
+      "state": "QUALIFIED_CANDIDATE",
+      "documented": {"cpu": 16, "memoryGB": 64, "diskGB": 200, "freeMinutesPerMonth": 6000, "cardRequired": false, "cardlessHardStopAtFreeLimit": true},
+      "prerequisites": ["public repository", "open source license", "manual OSS approval"],
+      "unresolved": ["live ARBM runner proof", "Docker quota proof", "benchmark compatibility"],
+      "sources": ["https://latchkey.dev/open-source", "https://www.latchkey.dev/documentation/runner-usage-and-free-minutes", "https://www.latchkey.dev/documentation/runners-overview"]
+    },
+    {
+      "id": "blacksmith-ubuntu-x64",
+      "state": "QUALIFIED_CANDIDATE",
+      "documented": {"maxCpu": 32, "freeMinutesPerMonthBase2Cpu": 3000, "cardRequired": false},
+      "unresolved": ["organization/account prerequisite", "free-quota hard-stop behavior", "max job duration", "live ARBM runner proof", "GPU availability"],
+      "sources": ["https://www.blacksmith.sh/pricing"]
+    },
+    {
+      "id": "harness-ci-cloud",
+      "state": "QUALIFIED_CANDIDATE",
+      "documented": {"maxCpu": 16, "freeBuildMinutesPerMonth": 2000, "cardRequired": false},
+      "unresolved": ["memory per 16-CPU shape", "disk per shape", "free-quota hard-stop behavior", "Docker/KVM compatibility", "live ARBM proof"],
+      "sources": ["https://www.harness.io/products/continuous-integration/harness-cloud", "https://www.harness.io/products/continuous-integration/ci-cloud"]
+    }
+  ]
+}
