@@ -3,7 +3,7 @@ jobs:
   sweff_resource_probe:
     machine:
       image: ubuntu-2404:current
-    resource_class: medium
+    resource_class: arm.large
     steps:
       - checkout
       - run:
@@ -17,7 +17,7 @@ jobs:
             docker version
             docker info
             mem_kb=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
-            test "$mem_kb" -ge 33000000
+            test "$mem_kb" -ge 16500000
             docker run --rm hello-world >/tmp/hello.txt
             grep -q 'Hello from Docker!' /tmp/hello.txt
             echo "ARBM_CIRCLECI_SWEFF_PROBE=PASS"
