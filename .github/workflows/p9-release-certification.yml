@@ -1,5 +1,7 @@
 name: P9 Release Certification
 on:
+  push:
+    branches: [p9/release-certification-20260905]
   workflow_dispatch:
 permissions:
   contents: read
