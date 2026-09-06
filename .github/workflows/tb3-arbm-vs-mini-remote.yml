@@ -64,7 +64,7 @@ jobs:
           mkdir -p evidence
           cp -r jobs-arbm jobs-mini evidence/ 2>/dev/null || true
           cp -f tb3-arbm-remote.log tb3-mini-remote.log remote-probe.json evidence/ 2>/dev/null || true
-          printf '%s\n' 'BENCHMARK=Terminal-Bench-3.0' 'TASK=terminal-bench/atrx-vep-crispr' 'MODEL=gemini-3.7-flash' 'MODEL_BUDGET_CALLS=25' 'TEMPERATURE=0' 'MANDATORY_COST_USD=0' 'ARBM_VERSION=11.2.0' > evidence/protocol.txt
+          printf '%s\n' 'BENCHMARK=Terminal-Bench-3.0' 'TASK=terminal-bench/atrx-vep-crispr' 'MODEL=gemini-3.7-flash' 'MODEL_BUDGET_CALLS=25' 'TEMPERATURE=0' 'MANDATORY_COST_USD=0' 'INFERENCE_ENDPOINT_VERSION=2' 'ARBM_VERSION=11.2.0' > evidence/protocol.txt
           find evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > evidence/SHA256SUMS.txt || true
       - uses: actions/upload-artifact@v4
         if: always()

@@ -42,7 +42,7 @@ jobs:
           mkdir -p evidence
           cp -r jobs-tb21 evidence/ 2>/dev/null || true
           cp -f tb21-smoke.log evidence/ 2>/dev/null || true
-          printf '%s\n' 'BENCHMARK=Terminal-Bench-2.1' 'TASK=terminal-bench/adaptive-rejection-sampler' 'MODEL=gemini-3.7-flash' 'ATTEMPTS=1' 'MANDATORY_COST_USD=0' > evidence/protocol.txt
+          printf '%s\n' 'BENCHMARK=Terminal-Bench-2.1' 'TASK=terminal-bench/adaptive-rejection-sampler' 'MODEL=gemini-3.7-flash' 'ATTEMPTS=1' 'MANDATORY_COST_USD=0' 'INFERENCE_ENDPOINT_VERSION=2' > evidence/protocol.txt
           find evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > evidence/SHA256SUMS.txt || true
       - uses: actions/upload-artifact@v4
         if: always()
