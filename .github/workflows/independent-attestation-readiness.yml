@@ -1,0 +1,52 @@
+name: Independent Attestation Readiness
+on:
+  push:
+    paths:
+      - 'certification/attestation-readiness-subject.json'
+      - '.github/workflows/independent-attestation-readiness.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+jobs:
+  attest-and-verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate readiness subject is fail-closed
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          p='certification/attestation-readiness-subject.json'
+          d=json.load(open(p))
+          assert d['policy']['zeroSpendHard'] is True
+          assert d['policy']['heavyExecution']=='REMOTE_ONLY'
+          assert d['policy']['failClosed'] is True
+          assert d['benchmarkPolicy']['finalAttestationRequiresAllFamilies'] is True
+          assert d['benchmarkPolicy']['thisDocumentIsReadinessProofOnly'] is True
+          print('READINESS_SUBJECT_PASS')
+          PY
+      - name: Generate public SLSA provenance attestation
+        id: attest
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d
+        with:
+          subject-path: certification/attestation-readiness-subject.json
+      - name: Verify attestation through GitHub CLI
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh attestation verify certification/attestation-readiness-subject.json \
+            --repo "$GITHUB_REPOSITORY"
+          sha256sum certification/attestation-readiness-subject.json | tee attestation-readiness-sha256.txt
+          echo "ATTESTATION_READINESS_PASS"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: independent-attestation-readiness
+          path: |
+            certification/attestation-readiness-subject.json
+            attestation-readiness-sha256.txt
