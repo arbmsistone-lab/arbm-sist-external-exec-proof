@@ -1,0 +1,97 @@
+name: P9 Dubbo M003.1 Cloud Plan Smoke
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: ARBM request id
+        required: true
+        type: string
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  plan-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      TASK_ID: M003.1
+      REPO_ID: apache_dubbo_dubbo-3.3.3_dubbo-3.3.6
+      BENCHMARK_COMMIT: 6d8b31168fd0e2ad57c0d1daa3df1556df014320
+      BENCHMARK_VERSION: v1.0.2
+      SRS_SHA256: 5cbb7e308d284ea177e3c4c5c258fd2b17ada41943e012569cebbbb7c7b45b2d
+      IMAGE_REF: hyd2apse/swe-milestone__apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__m003.1@sha256:236a1ca0c7560850cca946886d77c64f24adb0c82913bd6299262add5475f5f2
+      ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-agent-v17
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate bridge ref and request
+        shell: bash
+        run: |
+          set -euo pipefail          case "$GITHUB_REF" in refs/heads/p8/*) ;; *) echo 'P9_BRIDGE_REQUIRES_OIDC_ALLOWED_P8_REF'; exit 64;; esac
+          test -n '${{ inputs.request_id }}'
+      - name: Fetch and pin public SRS
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 4 -o SRS.md "https://huggingface.co/datasets/DeepCommit-ai/SWE-Milestone-data/resolve/${BENCHMARK_VERSION}/${REPO_ID}/srs/${TASK_ID}/SRS.md?download=true"
+          echo "$SRS_SHA256  SRS.md" | sha256sum -c -
+      - name: Pull pinned official milestone image and build public repository index
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE_REF"
+          docker tag "$IMAGE_REF" p9-dubbo-m0031:v1.0.2
+          docker run --rm p9-dubbo-m0031:v1.0.2 bash -lc '
+            set -euo pipefail
+            /usr/local/bin/switch_state.sh start >/dev/null
+            cd /testbed
+            echo "PUBLIC_START_HEAD=$(git rev-parse HEAD)"
+            echo "AUTHORIZED_MODULE_TRACKED_FILES:"
+            git ls-files "dubbo-plugin/dubbo-mutiny/**" "dubbo-plugin/dubbo-compiler/**" | head -n 300
+            echo "ROOT_MAVEN_SIGNALS:"
+            grep -n -E "dubbo-(reactive|mutiny)|<modules>|<module>" pom.xml | head -n 120 || true
+          ' > repo-index.txt
+          test -s repo-index.txt
+      - name: Acquire GitHub OIDC token
+        id: oidc
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN=$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+      - name: Ask ARBM remote brain for public-only plan
+        env:
+          ARBM_BENCHMARK_OIDC: ${{ steps.oidc.outputs.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, urllib.request
+          issue=open('SRS.md',encoding='utf-8').read()
+          index=open('repo-index.txt',encoding='utf-8',errors='replace').read()
+          body=json.dumps({'phase':'plan','instance_id':'apache_dubbo_dubbo-3.3.3_dubbo-3.3.6::M003.1','issue':issue,'repo_index':index}).encode()
+          req=urllib.request.Request(os.environ['ENDPOINT'],data=body,method='POST',headers={'Authorization':'Bearer '+os.environ['ARBM_BENCHMARK_OIDC'],'Content-Type':'application/json','Accept':'application/json','User-Agent':'arbm-p9-cloud-plan/1'})
+          with urllib.request.urlopen(req,timeout=150) as r: data=json.loads(r.read().decode())
+          if not data.get('ok') or data.get('status')!='PASS': raise SystemExit('ARBM_PLAN_NOT_PASS:'+json.dumps(data)[:1200])
+          plan=data.get('plan') or {}
+          paths=[str(x).replace('\\','/').lstrip('/') for x in plan.get('paths',[])]
+          roots=('dubbo-plugin/dubbo-mutiny','dubbo-plugin/dubbo-compiler')
+          root_manifests={'pom.xml'}
+          bad=[p for p in paths if p not in root_manifests and not any(p==r or p.startswith(r+'/') for r in roots)]
+          if bad: raise SystemExit('ARBM_PLAN_SCOPE_VIOLATION:'+','.join(bad))
+          open('plan.json','w',encoding='utf-8').write(json.dumps(data,ensure_ascii=False,indent=2))          evidence={'schema':'arbm-p9-cloud-plan-v1','requestId':'${{ inputs.request_id }}','task':'dubbo/M003.1','benchmarkCommit':os.environ['BENCHMARK_COMMIT'],'benchmarkVersion':os.environ['BENCHMARK_VERSION'],'srsSha256':os.environ['SRS_SHA256'],'imageRef':os.environ['IMAGE_REF'],'endpoint':'arbm-benchmark-agent-v17','scopePass':True,'plannedPaths':paths,'zeroSpendMode':'HARD','executionType':'remote','state':'SUCCEEDED'}
+          open('evidence.json','w',encoding='utf-8').write(json.dumps(evidence,sort_keys=True,indent=2))
+          PY
+          sha256sum SRS.md repo-index.txt plan.json evidence.json > SHA256SUMS.txt
+          cat evidence.json
+      - name: Upload immutable smoke evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: p9-dubbo-m0031-plan-${{ inputs.request_id }}
+          path: |
+            SRS.md
+            repo-index.txt
+            plan.json
+            evidence.json
+            SHA256SUMS.txt
+          retention-days: 90
