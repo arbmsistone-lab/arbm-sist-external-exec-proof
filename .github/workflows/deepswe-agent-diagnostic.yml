@@ -1,4 +1,4 @@
-name: DeepSWE Host Gateway Fix
+name: DeepSWE Port 8088 Fix
 on:
   workflow_dispatch:
 permissions:
@@ -33,8 +33,14 @@ jobs:
           new='"networks": ["pier-egress-internal", "default"],\n                "extra_hosts": ["host.docker.internal:host-gateway"],'
           if old not in s:
               raise SystemExit('pier_proxy_patch_target_missing')
-          p.write_text(s.replace(old,new,1))
+          s=s.replace(old,new,1)
+          old_port='acl Safe_ports port 80 443'
+          new_port='acl Safe_ports port 80 443 8088'
+          if old_port not in s:
+              raise SystemExit('pier_safe_ports_patch_target_missing')
+          p.write_text(s.replace(old_port,new_port,1))
           print('PIER_HOST_GATEWAY_PATCH=APPLIED')
+          print('PIER_SAFE_PORT_8088=APPLIED')
           PY
       - name: Restore sovereign model cache
         uses: actions/cache@v4
@@ -80,7 +86,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: deepswe-host-gateway-fix
+          name: deepswe-port8088-fix
           path: diagnostic-evidence
       - name: Stop sovereign runtime
         if: always()
