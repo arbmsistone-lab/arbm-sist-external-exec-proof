@@ -1,0 +1,54 @@
+name: SWE-Milestone Classification Image Coverage
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  coverage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Constitutional contract
+        run: |
+          echo REMOTE_ONLY_FOR_HEAVY
+          echo ZERO_SPEND_HARD
+      - name: Fetch exact benchmark source and data
+        run: |
+          git clone --filter=blob:none https://github.com/DeepCommit-ai/SWE-Milestone.git src
+          git -C src checkout 6d8b31168fd0e2ad57c0d1daa3df1556df014320
+          git clone --depth 1 --branch v1.0.2 https://huggingface.co/datasets/DeepCommit-ai/SWE-Milestone-data data
+          test "$(git -C data rev-parse HEAD)" = "3500478e740d42583277c2658aa7729eb36e10f4"
+      - name: Compare classifications to pinned milestone images
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          manifest=[]
+          for line in Path('src/manifests/digests-v1.0.2.tsv').read_text().splitlines():
+              if not line.strip() or line.startswith('#'): continue
+              local=line.split('\t',1)[0].split(':v1.0.2')[0]
+              payload=local.split('swe-milestone/',1)[1]
+              repo,mid=payload.split('__',1)
+              manifest.append((repo.lower(),mid.lower()))
+          images=set(manifest)
+          classifications=[]
+          for ws in Path('data').iterdir():
+              if not ws.is_dir(): continue
+              for f in ws.glob('test_results/*/*_classification.json'):
+                  classifications.append((ws.name.lower(),f.parent.name.lower()))
+          cls=set(classifications)
+          missing=sorted(cls-images)
+          milestone_images={x for x in images if x[1] not in {'base','base-offline'}}
+          extra=sorted(milestone_images-cls)
+          out={'schema':'arbm-swemilestone-classification-image-coverage-v1','classifications':len(cls),'manifestRows':len(images),'milestoneImageRows':len(milestone_images),'coveredClassifications':len(cls & images),'missingImageForClassification':missing,'extraMilestoneImages':extra,'completeFamilyCertified':False,'classification':'COVERAGE_PROBE_ONLY'}
+          Path('coverage.json').write_text(json.dumps(out,indent=2)+'\n')
+          print(json.dumps({'classifications':len(cls),'milestoneImageRows':len(milestone_images),'covered':len(cls&images),'missing':len(missing),'extra':len(extra)}))
+          PY
+      - name: Freeze hashes
+        run: sha256sum coverage.json > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: swemilestone-classification-image-coverage
+          path: |
+            coverage.json
+            SHA256SUMS.txt
