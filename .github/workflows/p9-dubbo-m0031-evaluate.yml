@@ -89,6 +89,7 @@ jobs:
           docker create --name p9evalprep "$LOCAL_IMAGE" sleep infinity >/dev/null
           docker start p9evalprep >/dev/null
           docker exec p9evalprep bash -lc '/usr/local/bin/switch_state.sh start >/dev/null'
+          docker exec p9evalprep bash -lc 'cd /testbed; git rev-parse HEAD' > start-commit.txt
           python - <<'PY'
           import json, pathlib, subprocess, tempfile
           sol=json.load(open('solve-artifact/solution.json'))
@@ -147,6 +148,33 @@ jobs:
           tar -cf source_snapshot.tar -C snapshot-tree .
           test -s source_snapshot.tar
           sha256sum source_snapshot.tar > source_snapshot.tar.sha256
+      - name: Create pinned snapshot integrity sidecar
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -q -e ./harness-src
+          python - <<'PY'
+          import hashlib,json,pathlib,sys,yaml
+          sys.path.insert(0,'harness-src')
+          from harness.e2e.evaluator import resolve_residue_prune_config
+          from harness.e2e.residue_prune import capture_filter_config
+          from harness.e2e.repo_config_binding import RepoConfigIdentity
+          from harness.utils.snapshot import ManifestOverlay, make_snapshot_metadata
+          repo='apache_dubbo_dubbo-3.3.3_dubbo-3.3.6'
+          cfgp=pathlib.Path('data/config')/(repo+'.yaml')
+          metap=pathlib.Path('data')/repo/'metadata.json'
+          cfg_raw=cfgp.read_bytes(); cfg_sha=hashlib.sha256(cfg_raw).hexdigest()
+          cfg=yaml.safe_load(cfg_raw) or {}; metadata=json.loads(metap.read_text())
+          resolved=resolve_residue_prune_config(cfg,metadata,repo_config_binding_mode='trial-pinned',repo_config_sha256=cfg_sha)
+          assert resolved.src_filter is not None
+          start=pathlib.Path('start-commit.txt').read_text().strip()
+          assert len(start) >= 40
+          overlay=ManifestOverlay.create(start)
+          data=make_snapshot_metadata(tag='agent-workdir-M003.1',snapshot_file=pathlib.Path('source_snapshot.tar'),manifest_overlay=overlay,extra={'ok':True,'capture_filter':capture_filter_config(resolved.src_filter),'repo_config_binding':RepoConfigIdentity(repo_name=repo,sha256=cfg_sha).to_dict(),'capture_mode':'frozen-solve-replay','gold_patch_exposed':False})
+          pathlib.Path('source_snapshot.integrity.json').write_text(json.dumps(data,indent=2,sort_keys=True))
+          print('SNAPSHOT_SIDECAR_PASS',data['snapshot_sha256'])
+          PY
+          test -s source_snapshot.integrity.json
       - name: Run official evaluator diagnostic
         shell: bash
         env:
@@ -164,7 +192,6 @@ jobs:
             --baseline-classification "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json" \
             --repo-config "$cfg" \
             --repo-config-sha256 "$cfg_sha" \
-            --allow-legacy-snapshot \
             --output evaluation_result.json
           rc=$?
           set -e
@@ -207,6 +234,7 @@ jobs:
             public-data-SHA256SUMS.txt
             diagnostic-resource-override.json
             source_snapshot.tar.sha256
+            source_snapshot.integrity.json
           retention-days: 90
       - name: Cleanup
         if: always()
