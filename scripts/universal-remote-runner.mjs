@@ -1,69 +1,11 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import {spawnSync} from 'node:child_process';
-import crypto from 'node:crypto';
-
-const SAFE_REPO=/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-const SAFE_SHA=/^[a-f0-9]{40}$/i;
-const SAFE_CAP=/^[a-z0-9][a-z0-9._:-]{0,63}$/i;
-const SAFE_ARTIFACT=/^[A-Za-z0-9._\-/]{1,180}$/;
-const FORBIDDEN=/(?:\bgit\s+clean\b|\bgit\s+reset\s+--hard\b|\bshutdown\b|\brm\s+-rf\s+\/\b|\bsudo\b)/i;
-const MAX_OUTPUT=64*1024;
-
-function fail(code){const e=new Error(code);e.code=code;throw e;}
-function decode(raw){try{return JSON.parse(Buffer.from(String(raw||''),'base64url').toString('utf8'));}catch{fail('invalid_mission_payload');}}
-function uniq(xs=[]){return [...new Set(xs.map(String).map(x=>x.trim()).filter(Boolean))];}
-function safeText(v=''){const s=String(v);return s.length>MAX_OUTPUT?s.slice(0,MAX_OUTPUT)+'\n[TRUNCATED]':s;}
-function run(cmd,args,opts={}){return spawnSync(cmd,args,{cwd:opts.cwd,encoding:'utf8',windowsHide:true,shell:false,timeout:opts.timeout||120000,env:opts.env||process.env});}
-
-export function validatePayload(input={}){
-  if(input.schema!=='arbm-universal-remote-mission-v1')fail('invalid_schema');
-  if(!/^arbm-[a-f0-9]{16}$/i.test(String(input.requestId||'')))fail('invalid_request_id');
-  const source=input.source||{};if(!SAFE_REPO.test(String(source.repo||'')))fail('invalid_source_repo');
-  if(!SAFE_SHA.test(String(source.ref||'')))fail('invalid_source_ref');
-  if(source.visibility!=='public')fail('public_source_required');
-  const mission=input.mission||{},commands=uniq(mission.commands||[]),caps=uniq(mission.requiredCapabilities||[]),artifacts=uniq(mission.artifacts||[]);
-  if(!String(mission.objective||'').trim())fail('objective_required');
-  if(!commands.length||commands.length>24)fail('invalid_commands');
-  if(commands.some(c=>c.length>500||/[\r\n]/.test(c)||FORBIDDEN.test(c)))fail('blocked_command');
-  if(!caps.length||caps.some(c=>!SAFE_CAP.test(c)))fail('invalid_capabilities');
-  if(artifacts.length>32||artifacts.some(a=>!SAFE_ARTIFACT.test(a)||a.includes('..')))fail('invalid_artifacts');
-  const timeout=Number(mission.timeoutMinutes);if(!Number.isFinite(timeout)||timeout<1||timeout>60)fail('invalid_timeout');
-  if(mission.evidenceRequired!==true)fail('evidence_required');
-  return {...input,mission:{...mission,commands,requiredCapabilities:caps,artifacts,timeoutMinutes:timeout}};
-}
-export function executePayload(input,{root=process.cwd(),runner=run}={}){
-  const payload=validatePayload(input),workspace=path.join(root,'workspace'),evidence=path.join(root,'evidence');
-  fs.rmSync(workspace,{recursive:true,force:true});fs.rmSync(evidence,{recursive:true,force:true});fs.mkdirSync(workspace,{recursive:true});fs.mkdirSync(evidence,{recursive:true});
-  const remote=`https://github.com/${payload.source.repo}.git`;
-  let r=runner('git',['init'],{cwd:workspace});if(r.status!==0)fail('git_init_failed');
-  r=runner('git',['remote','add','origin',remote],{cwd:workspace});if(r.status!==0)fail('git_remote_failed');
-  r=runner('git',['fetch','--depth','1','origin',payload.source.ref],{cwd:workspace,timeout:120000});if(r.status!==0)fail('git_fetch_failed');
-  r=runner('git',['checkout','--detach','FETCH_HEAD'],{cwd:workspace});if(r.status!==0)fail('git_checkout_failed');
-  r=runner('git',['rev-parse','HEAD'],{cwd:workspace});if(r.status!==0||String(r.stdout).trim().toLowerCase()!==payload.source.ref.toLowerCase())fail('source_ref_mismatch');
-
-  const started=Date.now(),deadline=started+payload.mission.timeoutMinutes*60_000,steps=[];
-  for(const command of payload.mission.commands){
-    const before=Date.now(),remaining=Math.max(1000,deadline-before);
-    const out=runner('bash',['-lc',command],{cwd:workspace,timeout:remaining});
-    const row={command,exitCode:Number.isInteger(out.status)?out.status:null,durationMs:Date.now()-before,stdout:safeText(out.stdout),stderr:safeText(out.stderr),timedOut:Boolean(out.error?.code==='ETIMEDOUT')};
-    steps.push(row);
-    if(row.timedOut)break;
-    if(row.exitCode!==0)break;
-    if(Date.now()>=deadline)break;
-  }
-  const success=steps.length===payload.mission.commands.length&&steps.every(s=>s.exitCode===0&&!s.timedOut);
-  const copied=[];for(const rel of payload.mission.artifacts){
-    const src=path.resolve(workspace,rel),prefix=workspace+path.sep;if(src!==workspace&&!src.startsWith(prefix))fail('artifact_escape');
-    if(!fs.existsSync(src)||!fs.statSync(src).isFile())continue;
-    const dst=path.join(evidence,'artifacts',rel);fs.mkdirSync(path.dirname(dst),{recursive:true});fs.copyFileSync(src,dst);copied.push(rel);
-  }
-  const report={schema:'arbm-universal-remote-evidence-v1',requestId:payload.requestId,source:payload.source,objective:payload.mission.objective,success,startedAt:new Date(started).toISOString(),finishedAt:new Date().toISOString(),steps,artifacts:copied};
-  const json=JSON.stringify(report,null,2)+'\n';fs.writeFileSync(path.join(evidence,'report.json'),json,'utf8');fs.writeFileSync(path.join(evidence,'report.sha256'),crypto.createHash('sha256').update(json).digest('hex')+'  report.json\n','utf8');
-  return report;
-}
-
-if(import.meta.url===new URL(`file://${process.argv[1].replaceAll('\\','/')}`).href){
-  try{const payload=decode(process.env.MISSION_B64);const report=executePayload(payload,{root:process.env.ARBM_RUN_ROOT||process.cwd()});console.log(JSON.stringify({ok:report.success,requestId:report.requestId,steps:report.steps.length}));process.exitCode=report.success?0:2;}
-  catch(error){console.error(JSON.stringify({ok:false,error:String(error?.code||error?.message||error)}));process.exitCode=1;}
-}
+﻿import fs from 'node:fs';import path from 'node:path';import {spawnSync} from 'node:child_process';import crypto from 'node:crypto';
+const SAFE_REPO=/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/,SAFE_SHA=/^[a-f0-9]{40}$/i,SAFE_CAP=/^[a-z0-9][a-z0-9._:-]{0,63}$/i,SAFE_ARTIFACT=/^[A-Za-z0-9._\-/]{1,180}$/;
+const SAFE_PATCH_PATH=/^[A-Za-z0-9._\-/]{1,220}$/,BLOCKED_PATH=/(^|\/)(?:\.env(?:\.|$)|id_rsa(?:\.|$)|credentials?(?:\.|$)|.*\.(?:pem|p12|pfx)$|service-account.*\.json$)/i;
+const FORBIDDEN=/(?:\bgit\s+clean\b|\bgit\s+reset\s+--hard\b|\bshutdown\b|\brm\s+-rf\s+\/(?:\s|$)|\bsudo\b)/i,MAX_OUTPUT=64*1024;
+function fail(code){const e=new Error(code);e.code=code;throw e;}function decode(raw){try{return JSON.parse(Buffer.from(String(raw||''),'base64url').toString('utf8'));}catch{fail('invalid_mission_payload');}}function uniq(xs=[]){return [...new Set(xs.map(String).map(x=>x.trim()).filter(Boolean))];}function safeText(v=''){const s=String(v);return s.length>MAX_OUTPUT?s.slice(0,MAX_OUTPUT)+'\n[TRUNCATED]':s;}function run(cmd,args,opts={}){return spawnSync(cmd,args,{cwd:opts.cwd,encoding:'utf8',windowsHide:true,shell:false,timeout:opts.timeout||120000,env:opts.env||process.env});}
+function patchFiles(diff=''){const out=[];for(const line of String(diff).split(/\r?\n/)){const m=line.match(/^diff --git a\/(.+) b\/(.+)$/);if(!m)continue;for(const f of [m[1],m[2]]){if(!SAFE_PATCH_PATH.test(f)||f.includes('..')||BLOCKED_PATH.test(f))fail('invalid_patch_path');out.push(f);}}return uniq(out);}
+function validatePatch(patch,sourceRef){if(!patch)return null;if(String(patch.baseSha||'').toLowerCase()!==String(sourceRef).toLowerCase())fail('patch_base_sha_mismatch');const diff=String(patch.diff||'');if(!diff.trim()||diff.length>512*1024)fail('invalid_patch_diff');if(/(^|\n)(?:Binary files .* differ|GIT binary patch)/m.test(diff))fail('binary_patch_forbidden');const files=patchFiles(diff);if(!files.length||files.length>24)fail('invalid_patch_files');return {baseSha:String(patch.baseSha).toLowerCase(),diff,files,sha256:String(patch.sha256||crypto.createHash('sha256').update(diff).digest('hex'))};}
+export function validatePayload(input={}){if(input.schema!=='arbm-universal-remote-mission-v1')fail('invalid_schema');if(!/^arbm-[a-f0-9]{16}$/i.test(String(input.requestId||'')))fail('invalid_request_id');const source=input.source||{};if(!SAFE_REPO.test(String(source.repo||'')))fail('invalid_source_repo');if(!SAFE_SHA.test(String(source.ref||'')))fail('invalid_source_ref');if(source.visibility!=='public')fail('public_source_required');const mission=input.mission||{},commands=uniq(mission.commands||[]),caps=uniq(mission.requiredCapabilities||[]),artifacts=uniq(mission.artifacts||[]);if(!String(mission.objective||'').trim())fail('objective_required');if(!commands.length||commands.length>24)fail('invalid_commands');if(commands.some(c=>c.length>500||/[\r\n]/.test(c)||FORBIDDEN.test(c)))fail('blocked_command');if(!caps.length||caps.some(c=>!SAFE_CAP.test(c)))fail('invalid_capabilities');if(artifacts.length>32||artifacts.some(a=>!SAFE_ARTIFACT.test(a)||a.includes('..')))fail('invalid_artifacts');const timeout=Number(mission.timeoutMinutes);if(!Number.isFinite(timeout)||timeout<1||timeout>60)fail('invalid_timeout');if(mission.evidenceRequired!==true)fail('evidence_required');const patchProposal=validatePatch(mission.patchProposal,source.ref);return {...input,mission:{...mission,commands,requiredCapabilities:caps,artifacts,timeoutMinutes:timeout,patchProposal}};}
+export function executePayload(input,{root=process.cwd(),runner=run}={}){const payload=validatePayload(input),workspace=path.join(root,'workspace'),evidence=path.join(root,'evidence');fs.rmSync(workspace,{recursive:true,force:true});fs.rmSync(evidence,{recursive:true,force:true});fs.mkdirSync(workspace,{recursive:true});fs.mkdirSync(evidence,{recursive:true});const remote=`https://github.com/${payload.source.repo}.git`;let r=runner('git',['init'],{cwd:workspace});if(r.status!==0)fail('git_init_failed');r=runner('git',['remote','add','origin',remote],{cwd:workspace});if(r.status!==0)fail('git_remote_failed');r=runner('git',['fetch','--depth','1','origin',payload.source.ref],{cwd:workspace,timeout:120000});if(r.status!==0)fail('git_fetch_failed');r=runner('git',['checkout','--detach','FETCH_HEAD'],{cwd:workspace});if(r.status!==0)fail('git_checkout_failed');r=runner('git',['rev-parse','HEAD'],{cwd:workspace});if(r.status!==0||String(r.stdout).trim().toLowerCase()!==payload.source.ref.toLowerCase())fail('source_ref_mismatch');let patchEvidence=null;if(payload.mission.patchProposal){const pf=path.join(workspace,'.arbm-proposal.patch');fs.writeFileSync(pf,payload.mission.patchProposal.diff,'utf8');const check=runner('git',['apply','--check',pf],{cwd:workspace});if(check.status!==0)fail('patch_apply_check_failed');const applied=runner('git',['apply',pf],{cwd:workspace});if(applied.status!==0)fail('patch_apply_failed');fs.rmSync(pf,{force:true});patchEvidence={sha256:payload.mission.patchProposal.sha256,files:payload.mission.patchProposal.files};}
+const started=Date.now(),deadline=started+payload.mission.timeoutMinutes*60_000,steps=[];for(const command of payload.mission.commands){const before=Date.now(),remaining=Math.max(1000,deadline-before),out=runner('bash',['-lc',command],{cwd:workspace,timeout:remaining});const row={command,exitCode:Number.isInteger(out.status)?out.status:null,durationMs:Date.now()-before,stdout:safeText(out.stdout),stderr:safeText(out.stderr),timedOut:Boolean(out.error?.code==='ETIMEDOUT')};steps.push(row);if(row.timedOut||row.exitCode!==0||Date.now()>=deadline)break;}const success=steps.length===payload.mission.commands.length&&steps.every(s=>s.exitCode===0&&!s.timedOut);const diffRun=runner('git',['diff','--binary','--no-ext-diff'],{cwd:workspace}),namesRun=runner('git',['diff','--name-only'],{cwd:workspace});const finalDiff=String(diffRun.stdout||''),changedFiles=String(namesRun.stdout||'').split(/\r?\n/).filter(Boolean);fs.writeFileSync(path.join(evidence,'final.diff'),finalDiff,'utf8');fs.writeFileSync(path.join(evidence,'changed-files.txt'),changedFiles.join('\n')+(changedFiles.length?'\n':''),'utf8');const copied=[];for(const rel of payload.mission.artifacts){const src=path.resolve(workspace,rel),prefix=workspace+path.sep;if(src!==workspace&&!src.startsWith(prefix))fail('artifact_escape');if(!fs.existsSync(src)||!fs.statSync(src).isFile())continue;const dst=path.join(evidence,'artifacts',rel);fs.mkdirSync(path.dirname(dst),{recursive:true});fs.copyFileSync(src,dst);copied.push(rel);}const report={schema:'arbm-universal-remote-evidence-v2',requestId:payload.requestId,source:payload.source,objective:payload.mission.objective,success,startedAt:new Date(started).toISOString(),finishedAt:new Date().toISOString(),steps,artifacts:copied,patch:patchEvidence,changedFiles,diffSha256:crypto.createHash('sha256').update(finalDiff).digest('hex')};const json=JSON.stringify(report,null,2)+'\n';fs.writeFileSync(path.join(evidence,'report.json'),json,'utf8');fs.writeFileSync(path.join(evidence,'report.sha256'),crypto.createHash('sha256').update(json).digest('hex')+'  report.json\n','utf8');return report;}
+if(import.meta.url===new URL(`file://${process.argv[1].replaceAll('\\','/')}`).href){try{const payload=decode(process.env.MISSION_B64),report=executePayload(payload,{root:process.env.ARBM_RUN_ROOT||process.cwd()});console.log(JSON.stringify({ok:report.success,requestId:report.requestId,steps:report.steps.length}));process.exitCode=report.success?0:2;}catch(error){console.error(JSON.stringify({ok:false,error:String(error?.code||error?.message||error)}));process.exitCode=1;}}
