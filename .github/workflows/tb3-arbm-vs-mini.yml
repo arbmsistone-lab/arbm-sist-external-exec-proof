@@ -17,7 +17,7 @@ jobs:
       HARBOR_COMMIT: c29f416af4b02ef593d6874f88b59d38bf164646
       PYTHONPATH: ${{ github.workspace }}
       TB3_DATASET: terminal-bench/terminal-bench@3.0.0
-      TB3_TASK: atrx-vep-crispr
+      TB3_TASK: terminal-bench/atrx-vep-crispr
       MODEL_DIR: ${{ github.workspace }}/.cache/arbm-models
       MODEL_FILE: qwen2.5-coder-14b-instruct-q4_k_m.gguf
       MODEL_SHA256: c1e659736d89ac1065fb495330fb824d94001974a4bfa78e7270e43476a8d940

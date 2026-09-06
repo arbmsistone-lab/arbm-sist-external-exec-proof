@@ -51,14 +51,14 @@ jobs:
       - name: Verify Docker bridge can reach inference
         run: |
           set -euo pipefail
-          docker run --rm curlimages/curl:8.15.0 -fsS http://172.17.0.1:8089/health
+          docker run --rm --add-host host.docker.internal:host-gateway curlimages/curl:8.15.0 -fsS http://host.docker.internal:8088/health
       - name: Run one deterministic DeepSWE smoke task
         timeout-minutes: 55
         run: |
           set -euo pipefail
           TASK=$(find deep-swe/tasks -mindepth 1 -maxdepth 1 -type d | sort | head -1)
           echo "SMOKE_TASK=$TASK"
-          pier run -p "$TASK" --agent mini-swe-agent --model openai/arbm-qwen-sovereign --agent-env OPENAI_BASE_URL=http://172.17.0.1:8089/v1 --agent-env OPENAI_API_KEY=local-dummy-key | tee deepswe-smoke.log
+          pier run -p "$TASK" --agent mini-swe-agent --model openai/arbm-qwen-sovereign --agent-kwarg 'model_class=litellm_textbased' --agent-kwarg 'config_file=.github/config/arbm-mini-textbased.yaml' --agent-kwarg 'extra_python_packages=["fastapi","orjson"]' --agent-env OPENAI_BASE_URL=http://host.docker.internal:8088/v1 --agent-env OPENAI_API_KEY=local-dummy-key | tee deepswe-smoke.log
       - name: Freeze smoke evidence
         if: always()
         run: |
