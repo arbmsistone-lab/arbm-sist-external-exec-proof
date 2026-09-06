@@ -5,30 +5,108 @@
     "zeroSpendHard": true,
     "heavyExecution": "REMOTE_ONLY",
     "failClosed": true,
-    "candidateLifecycle": ["DISCOVERED", "QUALIFIED_CANDIDATE", "LIVE_PROVED", "ACTIVE"]
+    "candidateLifecycle": [
+      "DISCOVERED",
+      "QUALIFIED_CANDIDATE",
+      "LIVE_PROVED",
+      "ACTIVE"
+    ]
   },
   "candidates": [
     {
       "id": "latchkey-oss-16core",
       "state": "QUALIFIED_CANDIDATE",
-      "documented": {"cpu": 16, "memoryGB": 64, "diskGB": 200, "freeMinutesPerMonth": 6000, "cardRequired": false, "cardlessHardStopAtFreeLimit": true},
-      "prerequisites": ["public repository", "open source license", "manual OSS approval"],
-      "unresolved": ["live ARBM runner proof", "Docker quota proof", "benchmark compatibility"],
-      "sources": ["https://latchkey.dev/open-source", "https://www.latchkey.dev/documentation/runner-usage-and-free-minutes", "https://www.latchkey.dev/documentation/runners-overview"]
+      "documented": {
+        "cpu": 16,
+        "memoryGB": 64,
+        "diskGB": 200,
+        "freeMinutesPerMonth": 6000,
+        "cardRequired": false,
+        "cardlessHardStopAtFreeLimit": true
+      },
+      "prerequisites": [
+        "public repository",
+        "open source license",
+        "manual OSS approval"
+      ],
+      "unresolved": [
+        "live ARBM runner proof",
+        "Docker quota proof",
+        "benchmark compatibility"
+      ],
+      "sources": [
+        "https://latchkey.dev/open-source",
+        "https://www.latchkey.dev/documentation/runner-usage-and-free-minutes",
+        "https://www.latchkey.dev/documentation/runners-overview"
+      ]
     },
     {
       "id": "blacksmith-ubuntu-x64",
       "state": "QUALIFIED_CANDIDATE",
-      "documented": {"maxCpu": 32, "freeMinutesPerMonthBase2Cpu": 3000, "cardRequired": false},
-      "unresolved": ["organization/account prerequisite", "free-quota hard-stop behavior", "max job duration", "live ARBM runner proof", "GPU availability"],
-      "sources": ["https://www.blacksmith.sh/pricing"]
+      "documented": {
+        "maxCpu": 32,
+        "freeMinutesPerMonthBase2Cpu": 3000,
+        "cardRequired": false
+      },
+      "unresolved": [
+        "organization/account prerequisite",
+        "free-quota hard-stop behavior",
+        "max job duration",
+        "live ARBM runner proof",
+        "GPU availability"
+      ],
+      "sources": [
+        "https://www.blacksmith.sh/pricing"
+      ]
     },
     {
       "id": "harness-ci-cloud",
       "state": "QUALIFIED_CANDIDATE",
-      "documented": {"maxCpu": 16, "freeBuildMinutesPerMonth": 2000, "cardRequired": false},
-      "unresolved": ["memory per 16-CPU shape", "disk per shape", "free-quota hard-stop behavior", "Docker/KVM compatibility", "live ARBM proof"],
-      "sources": ["https://www.harness.io/products/continuous-integration/harness-cloud", "https://www.harness.io/products/continuous-integration/ci-cloud"]
+      "documented": {
+        "maxCpu": 16,
+        "freeBuildMinutesPerMonth": 2000,
+        "cardRequired": false
+      },
+      "unresolved": [
+        "memory per 16-CPU shape",
+        "disk per shape",
+        "current free-plan card requirement conflict between marketing and historical release notes",
+        "free-quota hard-stop behavior",
+        "Docker/KVM live proof",
+        "live ARBM proof"
+      ],
+      "sources": [
+        "https://www.harness.io/products/continuous-integration/harness-cloud",
+        "https://www.harness.io/products/continuous-integration/ci-cloud"
+      ]
+    },
+    {
+      "id": "hyperbolic-h100-on-demand",
+      "state": "QUALIFIED_CANDIDATE",
+      "documented": {
+        "gpu": "H100 80GB",
+        "h100UsdPerHour": 1.39,
+        "newUserCreditsUsd": 10,
+        "cardRequiredForSignup": "CONFLICTING_DOCS",
+        "onboardStorageTB": "10-24"
+      },
+      "computed": {
+        "maxH100HoursFromInitialCredit": 7.19,
+        "tb4WorstCaseHours": 8,
+        "worstCaseGuaranteedByInitialCredit": false
+      },
+      "unresolved": [
+        "live ARBM account proof",
+        "current payment-method requirement conflict between quickstart/billing pages",
+        "CPU/RAM shape attached to H100",
+        "credit hard-stop proof on ARBM account",
+        "additional zero-spend credits sufficient for 8h worst case"
+      ],
+      "sources": [
+        "https://docs.hyperbolic.ai/docs/getting-started/quickstart",
+        "https://docs.hyperbolic.ai/docs/compute/pricing",
+        "https://docs.hyperbolic.ai/docs/compute/storage"
+      ]
     }
   ]
 }
