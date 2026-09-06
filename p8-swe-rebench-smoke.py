@@ -1090,9 +1090,9 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     else: cand_b=repaired
             repair_unusable=(not repaired) or bool(rec.get('errors')) or (bool(rec.get('validationAttempted')) and int(rec.get('validationCode',0)) != 0)
             if repair_unusable:
+                run(['git','reset','--hard',base],td,60)
                 deterministic=public_deterministic_overflow_repair(td,allowed_paths,problem) if allow_deterministic else []
                 if deterministic:
-                    run(['git','reset','--hard',base],td,60)
                     derrs,dmeta,dapplied=apply_candidate(td,deterministic,allowed_paths)
                     dattempted=False; dvcode=125; dvout='NOT_RUN'
                     if dapplied>0 and not derrs:

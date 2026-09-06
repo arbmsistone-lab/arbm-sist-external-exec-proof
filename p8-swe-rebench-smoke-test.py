@@ -194,6 +194,13 @@ class SmokePolicyTests(unittest.TestCase):
         )
 
 
+    def test_deterministic_fallback_resets_base_before_detection(self):
+        source = Path(__file__).with_name('p8-swe-rebench-smoke.py').read_text(encoding='utf-8')
+        block = source.split('repair_unusable=', 1)[1].split('repair_records[label]=rec', 1)[0]
+        reset_pos = block.index("run(['git','reset','--hard',base],td,60)")
+        detect_pos = block.index('public_deterministic_overflow_repair(td,allowed_paths,problem)')
+        self.assertLess(reset_pos, detect_pos)
+
     def test_public_validation_compaction_keeps_public_failure_signal(self):
         compact = load_function('_compact_public_validation_output', {'re': re})
         raw = ('stack frame\n' * 400
