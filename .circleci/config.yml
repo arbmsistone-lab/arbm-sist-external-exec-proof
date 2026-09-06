@@ -1,0 +1,58 @@
+version: 2.1
+jobs:
+  sweff_arm_official_smoke:
+    machine:
+      image: ubuntu-2404:current
+    resource_class: arm.large
+    steps:
+      - checkout
+      - run:
+          name: Fetch exact SWEfficiency pin
+          command: |
+            set -euo pipefail
+            git clone https://github.com/SWEfficiency/SWEfficiency.git /tmp/sweff
+            cd /tmp/sweff
+            git checkout 12d32a2d6800824a7d84bdb6797b5708e7b7957f
+            test "$(git rev-parse HEAD)" = "12d32a2d6800824a7d84bdb6797b5708e7b7957f"
+            python3 - <<'PY'
+            import json
+            src='predictions/converted/oh_gpt5mini.jsonl'
+            rows=[json.loads(x) for x in open(src,encoding='utf-8') if x.strip()]
+            hit=[x for x in rows if x.get('instance_id')=='pandas-dev__pandas-28447']
+            assert len(hit)==1
+            open('/tmp/prediction.jsonl','w',encoding='utf-8').write(json.dumps(hit[0])+'\n')
+            PY
+      - run:
+          name: Install exact harness dependencies
+          command: |
+            set -euo pipefail
+            cd /tmp/sweff
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            export PATH="$HOME/.local/bin:$PATH"
+            uv venv --python 3.12 .venv
+            . .venv/bin/activate
+            uv sync
+      - run:
+          name: Run one official ARM evaluator instance
+          no_output_timeout: 30m
+          command: |
+            set -euo pipefail
+            cd /tmp/sweff
+            export PATH="$HOME/.local/bin:$PATH"
+            . .venv/bin/activate
+            python swefficiency/harness/run_validation.py --dataset_name swefficiency/swefficiency --run_id arbm_arm_smoke --cache_level env --max_build_workers 1 --max_workers 1 --timeout 7_200 --run_perf true --run_correctness true --use_dockerhub_images true --instance_ids pandas-dev__pandas-28447 --model_predictions /tmp/prediction.jsonl
+      - run:
+          name: Freeze smoke evidence
+          when: always
+          command: |
+            mkdir -p /tmp/arbm-evidence
+            cp -R /tmp/sweff/logs/run_evaluation/arbm_arm_smoke /tmp/arbm-evidence/logs 2>/dev/null || true
+            printf '%s\n' 'benchmark=12d32a2d6800824a7d84bdb6797b5708e7b7957f' 'instance=pandas-dev__pandas-28447' 'route=CircleCI arm.large' > /tmp/arbm-evidence/route.txt
+            find /tmp/arbm-evidence -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/arbm-evidence/SHA256SUMS.txt || true
+      - store_artifacts:
+          path: /tmp/arbm-evidence
+          destination: sweff-arm-official-smoke
+workflows:
+  sweff_arm_official_smoke:
+    jobs:
+      - sweff_arm_official_smoke
