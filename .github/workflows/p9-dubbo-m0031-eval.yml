@@ -69,6 +69,33 @@ jobs:
               allow_patterns=[repo+'/**'],
               local_dir='workspace-data')
           PY
+      - name: Bind runtime CPU budget to verified free runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p p9-eval
+          python - <<'PY'
+          import hashlib, json, os, subprocess
+          from pathlib import Path
+          p=Path('workspace-data')/os.environ['REPO_ID']/'metadata.json'
+          original=p.read_bytes()
+          data=json.loads(original)
+          before=dict(data)
+          available=int(subprocess.check_output(['docker','info','--format','{{.NCPU}}'],text=True).strip())
+          assert available > 0, 'WAITING_FREE_CAPACITY'
+          requested=data.get('docker_cpus',16)
+          data['docker_cpus']=min(requested,available)
+          assert {k:v for k,v in data.items() if k!='docker_cpus'} == {k:v for k,v in before.items() if k!='docker_cpus'}
+          p.write_text(json.dumps(data,indent=2)+'\n')
+          out=Path('p9-eval')
+          (out/'metadata-original.json').write_bytes(original)
+          (out/'metadata-effective.json').write_bytes(p.read_bytes())
+          (out/'runtime-capacity.json').write_text(json.dumps({
+              'requested_cpus':requested,'daemon_cpus':available,'effective_cpus':data['docker_cpus'],
+              'changed_fields':['docker_cpus'],'diagnostic_run':34004956025,
+              'original_sha256':hashlib.sha256(original).hexdigest(),
+              'effective_sha256':hashlib.sha256(p.read_bytes()).hexdigest()},indent=2)+'\n')
+          PY
       - name: Freeze promotion-grade evaluator bindings
         shell: bash
         run: |
@@ -89,6 +116,9 @@ jobs:
           (out/'runtime_policy.yaml').write_bytes(rp.raw_bytes)
           rch=hashlib.sha256(rc.raw_bytes).hexdigest()
           rph=hashlib.sha256(rp.raw_bytes).hexdigest()
+          assert rch=='ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356'
+          assert rph=='aa7ec051587f229ac4ac9d3822f2b90790cac551f61a1c284d5664ad45728f1f'
+          assert rp.mode=='protected'
           with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as f:
               f.write('REPO_CONFIG_SHA256='+rch+'\n')
               f.write('RUNTIME_POLICY_SHA256='+rph+'\n')
@@ -122,7 +152,7 @@ jobs:
           set -euo pipefail
           mkdir -p "$GITHUB_WORKSPACE/p9-eval"
           cd swe-milestone
-          python "$GITHUB_WORKSPACE/p9-evaluator-observe.py" \
+          python -m harness.e2e.evaluator \
             --workspace-root "$GITHUB_WORKSPACE/workspace-data/$REPO_ID" \
             --milestone-id "$MILESTONE_ID" \
             --patch-file "$GITHUB_WORKSPACE/p9-dubbo-m0031.patch" \
@@ -134,7 +164,7 @@ jobs:
             --runtime-policy "$GITHUB_WORKSPACE/p9-bindings/runtime_policy.yaml" \
             --runtime-policy-sha256 "$RUNTIME_POLICY_SHA256" \
             --runtime-policy-mode "$RUNTIME_POLICY_MODE" \
-            --fail-closed-build-reports
+            --fail-closed-build-reports 2>&1 | tee "$GITHUB_WORKSPACE/p9-eval/evaluator.log"
       - name: Enforce official PASS contract
         shell: bash
         run: |
@@ -150,6 +180,9 @@ jobs:
           assert (d.get('build_failure_policy') or {}).get('fail_closed') is True, d
           assert not d.get('infrastructure_failure'), d
           assert not d.get('infra_invalid_reason'), d
+          assert s.get('pass_to_pass_required')==6954, s
+          assert s.get('none_to_pass_required')==1, s
+          assert s.get('fail_to_pass_required')==0, s
           assert s.get('fail_to_pass_achieved')==s.get('fail_to_pass_required'), s
           assert s.get('none_to_pass_achieved')==s.get('none_to_pass_required'), s
           assert s.get('pass_to_pass_achieved')==s.get('pass_to_pass_required'), s
