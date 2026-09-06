@@ -1,0 +1,22 @@
+{
+  "schema": "arbm-independent-attestation-readiness-v1",
+  "project": "ARBM SIST",
+  "purpose": "prove public Sigstore/GitHub attestation path before final certification",
+  "policy": {
+    "zeroSpendHard": true,
+    "heavyExecution": "REMOTE_ONLY",
+    "failClosed": true
+  },
+  "p9": {
+    "state": "GO",
+    "runId": 34003981543,
+    "certificationRunId": 34004140424,
+    "artifactDigest": "sha256:f3ee7b1914edfa4af0376207a4776dca88f821deb104b5b826a8ba728486fda6"
+  },
+  "benchmarkPolicy": {
+    "requiredCompleteFamilies": 5,
+    "finalAttestationRequiresAllFamilies": true,
+    "thisDocumentIsReadinessProofOnly": true
+  },
+  "releaseZipSha256": "70F233FA2AD84B66468CCB4789E3628A171ABA97A6C5C188C01A1EF56659B4E0"
+}
