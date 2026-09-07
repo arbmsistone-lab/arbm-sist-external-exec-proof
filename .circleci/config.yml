@@ -1,12 +1,23 @@
 version: 2.1
 jobs:
-  zero_spend_sentinel:
+  live_quorum_probe:
     docker:
       - image: cimg/base:stable
+    resource_class: small
     steps:
-      - run: echo ARBM_CIRCLECI_NOOP
+      - run:
+          name: Prove live zero-spend executor
+          command: |
+            set -e
+            echo ARBM_CIRCLECI_LIVE_PROBE=PASS
+            echo PROVIDER_DOMAIN=circleci
+            echo ZERO_SPEND_MODE=HARD
+            nproc
+            grep MemTotal /proc/meminfo
 workflows:
-  arbm_zero_spend_noop:
-    when: false
+  arbm_live_quorum_probe:
     jobs:
-      - zero_spend_sentinel
+      - live_quorum_probe:
+          filters:
+            branches:
+              only: probe/circleci-live-quorum-20260907
