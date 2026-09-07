@@ -1,0 +1,12 @@
+version: 2.1
+jobs:
+  zero_spend_sentinel:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - run: echo ARBM_CIRCLECI_NOOP
+workflows:
+  arbm_zero_spend_noop:
+    when: false
+    jobs:
+      - zero_spend_sentinel
