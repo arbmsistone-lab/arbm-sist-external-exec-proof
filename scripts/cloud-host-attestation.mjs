@@ -18,7 +18,7 @@ export async function collectCloudAttestation(vendor,{fetchImpl=fetch}={}){
     const d=await json(OCI_URL,{Authorization:'Bearer Oracle'},fetchImpl);
     const profile=String(d.shape||'');
     const ocpus=Number(d.shapeConfig?.ocpus||0),memoryGB=Number(d.shapeConfig?.memoryInGB||0);
-    const eligible=profile==='VM.Standard.E2.1.Micro'||(profile==='VM.Standard.A1.Flex'&&ocpus>0&&ocpus<=4&&memoryGB>0&&memoryGB<=24);
+    const eligible=profile==='VM.Standard.E2.1.Micro'||(profile==='VM.Standard.A1.Flex'&&ocpus>0&&ocpus<=2&&memoryGB>0&&memoryGB<=12);
     return {cloudVendor:'oci',instanceId:String(d.id||''),profile,region:String(d.region||''),profileEligible:eligible,ocpus,memoryGB,requiresBillingVerification:true};
   }
   if(v==='gcp'){

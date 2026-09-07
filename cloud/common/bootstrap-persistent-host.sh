@@ -2,7 +2,12 @@
 set -euo pipefail
 HOST_ID="${ARBM_HOST_ID:-}"
 CLOUD_VENDOR="${ARBM_CLOUD_VENDOR:-}"
+TOKEN_FILE="${ARBM_HOST_TOKEN_FILE:-}"
 TOKEN="${ARBM_HOST_TOKEN:-}"
+if [[ -n "$TOKEN_FILE" ]]; then
+  [[ -f "$TOKEN_FILE" ]] || { echo token_file_not_found >&2; exit 5; }
+  TOKEN="$(tr -d '\r\n' < "$TOKEN_FILE")"
+fi
 CONTROL_SHA="${ARBM_CONTROL_SHA:-}"
 REPO_URL="${ARBM_REPO_URL:-https://github.com/arbmsistone-lab/arbm-sist-external-exec-proof.git}"
 INSTALL_DIR="/opt/arbm-continuity"
@@ -47,6 +52,7 @@ ARBM_RUN_ROOT=$STATE_DIR/run
 EOF
 chmod 0600 "$ENV_FILE"
 unset TOKEN ARBM_HOST_TOKEN
+if [[ -n "$TOKEN_FILE" ]]; then rm -f -- "$TOKEN_FILE"; fi
 CPU_QUOTA=80%
 MEMORY_MAX=768M
 if [[ "$CLOUD_VENDOR" == oci ]]; then CPU_QUOTA=180%; MEMORY_MAX=2G; fi

@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import {collectCloudAttestation} from './cloud-host-attestation.mjs';
 
 function response(body){return {ok:true,text:async()=>String(body),json:async()=>body};}
-const ociFetch=async()=>response({id:'ocid1.instance.test',region:'us-ashburn-1',shape:'VM.Standard.A1.Flex',shapeConfig:{ocpus:4,memoryInGB:24}});
+const ociFetch=async()=>response({id:'ocid1.instance.test',region:'us-ashburn-1',shape:'VM.Standard.A1.Flex',shapeConfig:{ocpus:2,memoryInGB:12}});
 const oci=await collectCloudAttestation('oci',{fetchImpl:ociFetch});
 assert.equal(oci.instanceId,'ocid1.instance.test');
 assert.equal(oci.profileEligible,true);
 assert.equal(oci.requiresBillingVerification,true);
 
-const badOciFetch=async()=>response({id:'bad',region:'x',shape:'VM.Standard.A1.Flex',shapeConfig:{ocpus:5,memoryInGB:30}});
+const badOciFetch=async()=>response({id:'bad',region:'x',shape:'VM.Standard.A1.Flex',shapeConfig:{ocpus:3,memoryInGB:13}});
 const badOci=await collectCloudAttestation('oci',{fetchImpl:badOciFetch});
 assert.equal(badOci.profileEligible,false);
 

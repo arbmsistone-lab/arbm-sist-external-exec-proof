@@ -1,0 +1,18 @@
+region              = "YOUR_OCI_HOME_REGION"
+availability_domain = "YOUR_AVAILABILITY_DOMAIN"
+compartment_id       = "ocid1.compartment.REPLACE"
+subnet_id            = "ocid1.subnet.REPLACE"
+image_ocid           = "ocid1.image.REPLACE"
+ssh_public_key       = "ssh-ed25519 REPLACE_WITH_PUBLIC_KEY"
+
+shape         = "VM.Standard.A1.Flex"
+ocpus         = 1
+memory_in_gbs = 6
+nsg_ids       = []
+
+# Both must be independently verified from the OCI account before apply.
+home_region_verified          = false
+always_free_inventory_verified = false
+
+# Deliberately blocked in the example. Never commit a real override.
+apply_guard = "BLOCKED"
