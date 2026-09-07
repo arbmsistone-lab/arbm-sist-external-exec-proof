@@ -1,12 +1,28 @@
 version: 2.1
 jobs:
-  zero_spend_sentinel:
+  sweff_32g_probe:
     docker:
       - image: cimg/base:stable
+    resource_class: 2xlarge
     steps:
-      - run: echo ARBM_CIRCLECI_NOOP
+      - setup_remote_docker
+      - run:
+          name: Prove SWEfficiency-compatible compute envelope
+          command: |
+            set -e
+            echo ZERO_SPEND_MODE=HARD
+            echo EXECUTION_POLICY=REMOTE_ONLY
+            echo RESOURCE_CLASS=2xlarge
+            nproc
+            grep MemTotal /proc/meminfo
+            docker version
+            docker info
+            docker run --rm --memory-reservation=16g --memory=32g alpine:3.22 true
+            echo ARBM_CIRCLECI_SWEFF_32G_PROBE=PASS
 workflows:
-  arbm_zero_spend_noop:
-    when: false
+  sweff_32g_probe:
     jobs:
-      - zero_spend_sentinel
+      - sweff_32g_probe:
+          filters:
+            branches:
+              only: probe/circleci-32g-sweff-20260907
