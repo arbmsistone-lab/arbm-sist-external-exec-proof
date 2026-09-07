@@ -26,4 +26,4 @@ jobs:
 workflows:
   sweff_runtime_probe:
     jobs:
-      - sweff_runtime_probe:
+      - sweff_runtime_probe
