@@ -1,0 +1,28 @@
+name: SWEfficiency Docker Runtime Contract Probe
+on:
+  push:
+    branches:
+      - probe/sweff-docker-runtime-contract-20260907
+permissions:
+  contents: read
+jobs:
+  runtime-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Verify exact evaluator Docker envelope
+        run: |
+          set -euo pipefail
+          echo ZERO_SPEND_MODE=HARD
+          echo EXECUTION_POLICY=REMOTE_ONLY
+          nproc
+          grep MemTotal /proc/meminfo
+          docker version
+          id=$(docker create --memory-reservation=16g --memory=32g --memory-swap=32g --oom-kill-disable alpine:3.22 true)
+          docker inspect "$id" --format '{{json .HostConfig}}' > hostconfig.json
+          grep -q '"Memory":34359738368' hostconfig.json
+          grep -q '"MemoryReservation":17179869184' hostconfig.json
+          grep -q '"MemorySwap":34359738368' hostconfig.json
+          docker start -a "$id"
+          docker rm "$id"
+          echo ARBM_SWEFF_DOCKER_RUNTIME_CONTRACT=PASS
