@@ -1,23 +1,29 @@
 version: 2.1
 jobs:
-  sweff_32g_probe:
+  sweff_runtime_probe:
     docker:
       - image: cimg/base:stable
-    resource_class: 2xlarge
+    resource_class: xlarge
     steps:
+      - setup_remote_docker
       - run:
-          name: Isolate 32GB resource-class access
+          name: Prove SWEfficiency runtime fidelity
           command: |
             set -e
             echo ZERO_SPEND_MODE=HARD
-            echo RESOURCE_CLASS=2xlarge
+            echo RESOURCE_CLASS=xlarge
             nproc
             grep MemTotal /proc/meminfo
-            echo ARBM_CIRCLECI_32G_CLASS_ACCESS=PASS
+            id=$(docker create --memory-reservation=16g --memory=32g --memory-swap=32g --oom-kill-disable alpine:3.22 true)
+            docker inspect "$id" --format '{{.HostConfig.Memory}} {{.HostConfig.MemoryReservation}} {{.HostConfig.MemorySwap}} {{.HostConfig.OomKillDisable}}'
+            test "$(docker inspect "$id" --format '{{.HostConfig.Memory}}')" = "34359738368"
+            test "$(docker inspect "$id" --format '{{.HostConfig.MemoryReservation}}')" = "17179869184"
+            test "$(docker inspect "$id" --format '{{.HostConfig.MemorySwap}}')" = "34359738368"
+            test "$(docker inspect "$id" --format '{{.HostConfig.OomKillDisable}}')" = "true"
+            docker start -a "$id"
+            docker rm "$id"
+            echo ARBM_CIRCLECI_SWEFF_RUNTIME=PASS
 workflows:
-  sweff_32g_probe:
+  sweff_runtime_probe:
     jobs:
-      - sweff_32g_probe:
-          filters:
-            branches:
-              only: probe/circleci-32g-sweff-20260907
+      - sweff_runtime_probe:
