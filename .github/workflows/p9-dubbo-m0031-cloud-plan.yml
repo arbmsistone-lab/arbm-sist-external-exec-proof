@@ -18,7 +18,7 @@ jobs:
       REPO_ID: apache_dubbo_dubbo-3.3.3_dubbo-3.3.6
       BENCHMARK_COMMIT: 6d8b31168fd0e2ad57c0d1daa3df1556df014320
       BENCHMARK_VERSION: v1.0.2
-      SRS_SHA256: 5cbb7e308d284ea177e3c4c5c258fd2b17ada41943e012569cebbbb7c7b45b2d
+      SRS_SHA256: aac87b7e8a66001512c9c54649b3e1571d252777177d52cbed197fc541dd164f
       IMAGE_REF: hyd2apse/swe-milestone__apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__m003.1@sha256:236a1ca0c7560850cca946886d77c64f24adb0c82913bd6299262add5475f5f2
       ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-agent-v17
     steps:
@@ -80,7 +80,8 @@ jobs:
           root_manifests={'pom.xml'}
           bad=[p for p in paths if p not in root_manifests and not any(p==r or p.startswith(r+'/') for r in roots)]
           if bad: raise SystemExit('ARBM_PLAN_SCOPE_VIOLATION:'+','.join(bad))
-          open('plan.json','w',encoding='utf-8').write(json.dumps(data,ensure_ascii=False,indent=2))          evidence={'schema':'arbm-p9-cloud-plan-v1','requestId':'${{ inputs.request_id }}','task':'dubbo/M003.1','benchmarkCommit':os.environ['BENCHMARK_COMMIT'],'benchmarkVersion':os.environ['BENCHMARK_VERSION'],'srsSha256':os.environ['SRS_SHA256'],'imageRef':os.environ['IMAGE_REF'],'endpoint':'arbm-benchmark-agent-v17','scopePass':True,'plannedPaths':paths,'zeroSpendMode':'HARD','executionType':'remote','state':'SUCCEEDED'}
+          open('plan.json','w',encoding='utf-8').write(json.dumps(data,ensure_ascii=False,indent=2))
+          evidence={'schema':'arbm-p9-cloud-plan-v1','requestId':'${{ inputs.request_id }}','task':'dubbo/M003.1','benchmarkCommit':os.environ['BENCHMARK_COMMIT'],'benchmarkVersion':os.environ['BENCHMARK_VERSION'],'srsSha256':os.environ['SRS_SHA256'],'imageRef':os.environ['IMAGE_REF'],'endpoint':'arbm-benchmark-agent-v17','scopePass':True,'plannedPaths':paths,'zeroSpendMode':'HARD','executionType':'remote','state':'SUCCEEDED'}
           open('evidence.json','w',encoding='utf-8').write(json.dumps(evidence,sort_keys=True,indent=2))
           PY
           sha256sum SRS.md repo-index.txt plan.json evidence.json > SHA256SUMS.txt

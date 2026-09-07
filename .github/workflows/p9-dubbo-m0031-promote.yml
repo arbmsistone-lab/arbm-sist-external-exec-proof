@@ -14,6 +14,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 55
     env:
+      ZERO_SPEND_MODE: HARD
+      ARBM_ALLOW_LOCAL_AI: "0"
+      DATA_COMMIT: 3500478e740d42583277c2658aa7729eb36e10f4
       TASK_ID: M003.1
       REPO_ID: apache_dubbo_dubbo-3.3.3_dubbo-3.3.6
       BENCHMARK_COMMIT: 6d8b31168fd0e2ad57c0d1daa3df1556df014320
@@ -26,6 +29,16 @@ jobs:
       LOCAL_BASE_OFFLINE: swe-milestone/apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__base-offline:v1.0.2
     steps:
       - uses: actions/checkout@v7
+      - name: Verify free remote capacity
+        env:
+          REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
+        run: |
+          test "$REPOSITORY_VISIBILITY" = public
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$ZERO_SPEND_MODE" = HARD
+          test "$ARBM_ALLOW_LOCAL_AI" = 0
+      - name: Verify independent result-gate rejection tests
+        run: python -m unittest discover -s tests -p 'test_p9_*.py'
       - name: Download frozen solve artifact
         uses: actions/download-artifact@v7
         with:
@@ -58,12 +71,12 @@ jobs:
           git clone --filter=blob:none --no-checkout https://github.com/DeepCommit-ai/SWE-Milestone.git harness-src
           git -C harness-src checkout "$BENCHMARK_COMMIT"
           mkdir -p "data/$REPO_ID/test_results/$TASK_ID" "data/$REPO_ID/dockerfiles/$TASK_ID" data/config
-          base="https://huggingface.co/datasets/DeepCommit-ai/SWE-Milestone-data/resolve/$BENCHMARK_VERSION"
+          base="https://huggingface.co/datasets/DeepCommit-ai/SWE-Milestone-data/resolve/$DATA_COMMIT"
           curl -fsSL --retry 4 -o "data/$REPO_ID/metadata.json" "$base/$REPO_ID/metadata.json?download=true"
           curl -fsSL --retry 4 -o "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json" "$base/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json?download=true"
           curl -fsSL --retry 4 -o "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_filter_list.json" "$base/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_filter_list.json?download=true"
           curl -fsSL --retry 4 -o "data/config/$REPO_ID.yaml" "$base/config/$REPO_ID.yaml?download=true"
-          curl -fsSL --retry 4 -o "data/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh" "https://huggingface.co/datasets/DeepCommit-ai/SWE-Milestone-data/resolve/main/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh?download=true"
+          curl -fsSL --retry 4 -o "data/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh" "https://huggingface.co/datasets/DeepCommit-ai/SWE-Milestone-data/resolve/$DATA_COMMIT/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh?download=true"
           curl -fsSL --retry 4 -o "data/$REPO_ID/dockerfiles/$TASK_ID/test_config.json" "$base/$REPO_ID/dockerfiles/$TASK_ID/test_config.json?download=true"
           test -s "data/$REPO_ID/metadata.json"
           test -s "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json"
@@ -75,6 +88,26 @@ jobs:
           chmod +x "data/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh"
           sha256sum "data/$REPO_ID/metadata.json" "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json" "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_filter_list.json" "data/config/$REPO_ID.yaml" "data/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh" "data/$REPO_ID/dockerfiles/$TASK_ID/test_config.json" > public-data-SHA256SUMS.txt
           python -m pip install -q -e ./harness-src
+      - name: Bind verified CPU capacity and protected runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python p9-promotion-bindings.py
+      - name: Preflight trial-pinned runtime policy contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json, os, pathlib, sys
+          sys.path.insert(0,'harness-src')
+          from harness.e2e.runtime_policy_binding import RuntimePolicyIdentity
+          p=pathlib.Path('p9-bindings/runtime_policy.yaml')
+          actual=hashlib.sha256(p.read_bytes()).hexdigest()
+          assert actual == os.environ['RUNTIME_POLICY_SHA256']
+          ident=RuntimePolicyIdentity(repo_name=os.environ['REPO_ID'],sha256=actual,mode='protected').to_dict()
+          pathlib.Path('p9-bindings/runtime-policy-identity.json').write_text(json.dumps(ident,indent=2,sort_keys=True)+'\n')
+          print('RUNTIME_POLICY_PREFLIGHT=PASS', actual)
+          PY
       - name: Pull pinned official image
         shell: bash
         run: |
@@ -124,6 +157,15 @@ jobs:
           open('candidate-paths.txt','w').write('\n'.join(valid(o['path']) for o in ops)+'\n')
           PY
           docker exec p9evalprep bash -lc 'cd /testbed; git diff --check'
+          test "$(wc -l < candidate-paths.txt)" -eq 1
+          test "$(cat candidate-paths.txt)" = dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/tri/reactive/MutinyDubbo3TripleGenerator.java
+          docker cp p9evalprep:/testbed/dubbo-plugin/dubbo-compiler/src/main/java/org/apache/dubbo/gen/tri/reactive/MutinyDubbo3TripleGenerator.java candidate.java
+          echo '01293a340b468308c581168f7141e9e26df4d008963dd199ac271fde11ea0eb7  candidate.java' | sha256sum -c -
+      - name: Resolve formatter dependencies and verify formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec p9evalprep bash -lc 'cd /testbed && mvn -q -DskipTests spotless:check -Dspotless.check.skip=false'
       - name: Build frozen candidate offline
         shell: bash
         run: |
@@ -131,7 +173,7 @@ jobs:
           docker exec p9evalprep bash -lc '
             set -euo pipefail
             cd /testbed
-            mvn -q -DskipTests spotless:check || true
+            mvn -o -q -DskipTests spotless:check
             mvn -o -pl dubbo-plugin/dubbo-compiler,dubbo-plugin/dubbo-mutiny -am -DskipTests package
             git diff --check
           '
@@ -173,11 +215,12 @@ jobs:
           set -euo pipefail
           python -m pip install -q -e ./harness-src
           python - <<'PY'
-          import hashlib,json,pathlib,sys,yaml
+          import hashlib,json,os,pathlib,sys,yaml
           sys.path.insert(0,'harness-src')
           from harness.e2e.evaluator import resolve_residue_prune_config
           from harness.e2e.residue_prune import capture_filter_config
           from harness.e2e.repo_config_binding import RepoConfigIdentity
+          from harness.e2e.runtime_policy_binding import RuntimePolicyIdentity
           from harness.utils.snapshot import ManifestOverlay, make_snapshot_metadata
           repo='apache_dubbo_dubbo-3.3.3_dubbo-3.3.6'
           cfgp=pathlib.Path('data/config')/(repo+'.yaml')
@@ -189,7 +232,7 @@ jobs:
           start=pathlib.Path('start-commit.txt').read_text().strip()
           assert len(start) >= 40
           overlay=ManifestOverlay.create(start)
-          data=make_snapshot_metadata(tag='agent-workdir-M003.1',snapshot_file=pathlib.Path('source_snapshot.tar'),manifest_overlay=overlay,extra={'ok':True,'capture_filter':capture_filter_config(resolved.src_filter),'repo_config_binding':RepoConfigIdentity(repo_name=repo,sha256=cfg_sha).to_dict(),'capture_mode':'frozen-solve-replay','gold_patch_exposed':False})
+          data=make_snapshot_metadata(tag='agent-workdir-M003.1',snapshot_file=pathlib.Path('source_snapshot.tar'),manifest_overlay=overlay,extra={'ok':True,'capture_filter':capture_filter_config(resolved.src_filter),'repo_config_binding':RepoConfigIdentity(repo_name=repo,sha256=cfg_sha).to_dict(),'runtime_policy_binding':RuntimePolicyIdentity(repo_name=repo,sha256=os.environ['RUNTIME_POLICY_SHA256'],mode='protected').to_dict(),'capture_mode':'frozen-solve-replay','gold_patch_exposed':False})
           pathlib.Path('source_snapshot.integrity.json').write_text(json.dumps(data,indent=2,sort_keys=True))
           print('SNAPSHOT_SIDECAR_PASS',data['snapshot_sha256'])
           PY
@@ -211,8 +254,12 @@ jobs:
             --baseline-classification "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json" \
             --repo-config "$cfg" \
             --repo-config-sha256 "$cfg_sha" \
-            --output evaluation_result.json
-          rc=$?
+            --runtime-policy p9-bindings/runtime_policy.yaml \
+            --runtime-policy-sha256 "$RUNTIME_POLICY_SHA256" \
+            --runtime-policy-mode protected \
+            --fail-closed-build-reports \
+            --output evaluation_result.json 2>&1 | tee evaluator.log
+          rc=${PIPESTATUS[0]}
           set -e
           echo "$rc" > eval-exit.txt
           test -s evaluation_result.json
@@ -222,7 +269,8 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json, pathlib
+          import json, pathlib, runpy
+          verify=runpy.run_path('p9-promotion-result-gate.py')['failures']
           p=pathlib.Path('evaluation_result.json')
           data=json.loads(p.read_text()) if p.exists() else {}
           summary={
@@ -234,7 +282,7 @@ jobs:
             'benchmarkVersion':'v1.0.2',
             'resolved':bool(data.get('resolved',False)),
             'legacySnapshot':bool((data.get('snapshot_integrity') or {}).get('legacy_unverified',False)),
-            'promotionGrade':True,
+            'promotionGrade':not verify(data),
             'patchSuccessfullyApplied':bool(data.get('patch_successfully_applied',False)),
             'snapshotIntegrityOk':(data.get('snapshot_integrity') or {}).get('ok'),
             'infraInvalid':bool(data.get('infra_invalid',False)),
@@ -243,7 +291,14 @@ jobs:
           }
           pathlib.Path('promotion-summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True))
           PY
-          sha256sum solve-artifact/solution.json solve-artifact/solve-evidence.json source_snapshot.tar public-data-SHA256SUMS.txt promotion-summary.json > evaluation-SHA256SUMS.txt
+          python - <<'PY'
+          import hashlib, pathlib
+          files = [pathlib.Path(n) for n in ['evaluation_result.json','evaluator.log','eval-exit.txt','candidate.java','start-commit.txt','candidate-paths.txt','source_snapshot.tar','source_snapshot.integrity.json','public-data-SHA256SUMS.txt','promotion-summary.json']]
+          for root in ['p9-bindings','solve-artifact','data']:
+            files.extend(pathlib.Path(root).rglob('*'))
+          lines = [hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.as_posix() for p in sorted(set(files)) if p.is_file()]
+          pathlib.Path('evaluation-SHA256SUMS.txt').write_text('\n'.join(lines)+'\n')
+          PY
       - name: Upload promotion evaluation evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -251,10 +306,18 @@ jobs:
           name: p9-dubbo-m0031-official-promotion-${{ inputs.request_id }}
           path: |
             evaluation_result.json
+            evaluator.log
+            candidate.java
+            p9-bindings/
+            solve-artifact/
+            start-commit.txt
+            candidate-paths.txt
             eval-exit.txt
             promotion-summary.json
             evaluation-SHA256SUMS.txt
             public-data-SHA256SUMS.txt
+            source_snapshot.tar
+            data/
             source_snapshot.tar.sha256
             source_snapshot.integrity.json
           retention-days: 90
@@ -271,3 +334,4 @@ jobs:
           rc=$(cat eval-exit.txt)
           echo "OFFICIAL_PROMOTION_EVALUATOR_RC=$rc"
           test "$rc" = "0"
+          python p9-promotion-result-gate.py evaluation_result.json
