@@ -1,6 +1,6 @@
 {
   "schema": "arbm-global-release-readiness-v1",
-  "capturedAt": "2026-09-07T22:26:48Z",
+  "capturedAt": "2026-09-07T23:39:00Z",
   "policy": {
     "zeroSpendHard": true,
     "heavyExecution": "REMOTE_ONLY",
@@ -40,10 +40,19 @@
     },
     "swefficiency": {
       "status": "BLOCKED_EXTERNAL_COMPUTE",
-      "runId": 34031754739,
-      "artifactId": 9988839545,
-      "requiredMemoryMB": 16384,
-      "observedMemoryMB": 15989,
+      "runId": 34170734054,
+      "artifactId": 10035610512,
+      "artifactSha256": "c277b573ba366aa9e9eaff9ad8badaa8a3a10b27ca03f4fb6f8db892ac699d68",
+      "officialContainerContract": {
+        "memLimit": "32g",
+        "memReservation": "16g",
+        "memswapLimit": "32g"
+      },
+      "requiredReservationMiB": 16384,
+      "requiredLimitMiB": 32768,
+      "observedMemoryMiB": 15989,
+      "reservationCompatible": false,
+      "hardLimitCompatible": false,
       "memoryCompatible": false
     },
     "terminalBench4": {
@@ -68,5 +77,5 @@
     }
   },
   "releaseRule": "Overall release can be CERTIFIED only when every required gate is CERTIFIED or PASS with immutable evidence; diagnostic workflow success is not certification.",
-  "evidenceBaselineSha": "fb36924dc768510b4167cbe184a09e6592f84a81"
+  "evidenceBaselineSha": "569e4038f4088201fa299de4340af464428eb85e"
 }
