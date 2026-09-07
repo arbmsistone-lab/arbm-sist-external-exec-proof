@@ -1,0 +1,5 @@
+version: 2.1
+workflows:
+  arbm_zero_spend_noop:
+    when: false
+    jobs: []
