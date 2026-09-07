@@ -6,6 +6,10 @@ import { executePayloadSupervised } from './continuity-execution-supervisor.mjs'
 const URL=process.env.ARBM_CONTINUITY_URL||'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-continuity-coordinator-v1';
 const TOKEN=String(process.env.ARBM_OIDC||'').trim();
 const ROOT=process.env.ARBM_RUN_ROOT||path.join(process.cwd(),'.arbm-run');
+const PROVIDER_ID=String(process.env.ARBM_PROVIDER_ID||(process.env.GITLAB_CI==='true'?'gitlab-free-private':process.env.GITHUB_ACTIONS==='true'?'github-public-standard':'oidc-remote')).trim();
+const EXTRA_CAPS=String(process.env.ARBM_EXTRA_CAPABILITIES||'').split(',').map(x=>x.trim()).filter(Boolean);
+if(EXTRA_CAPS.some(x=>!/^[a-z0-9][a-z0-9._:-]{0,63}$/i.test(x)))throw new Error('invalid_extra_capability');
+const CAPS=[...new Set(['git','tests','build','cloud',...EXTRA_CAPS])];
 if(!TOKEN)throw new Error('arbm_oidc_required');
 
 async function call(action,payload={}){
@@ -19,21 +23,21 @@ function errorText(error){return String(error?.code||error?.message||error).slic
 
 let leased=null;
 try{
-  await call('heartbeat',{healthy:true,zeroSpendVerified:true,capabilities:['git','tests','build','cloud'],detail:{source:'github-actions-oidc-runner',mode:'autonomous-continuity-worker'}});
+  await call('heartbeat',{healthy:true,zeroSpendVerified:true,capabilities:CAPS,detail:{source:'oidc-continuity-worker',providerLabel:PROVIDER_ID,mode:'autonomous-continuity-worker'}});
   const claim=await call('claim');
-  if(!claim.claimed){output('claimed','false');console.log(JSON.stringify({ok:true,claimed:false,state:'IDLE'}));process.exit(0);}
+  if(!claim.claimed){output('claimed','false');console.log(JSON.stringify({ok:true,claimed:false,state:'IDLE',provider:PROVIDER_ID}));process.exit(0);}
   leased=claim.mission;
   if(leased?.mission_kind!=='universal-remote-v1')throw new Error('unsupported_claimed_mission_kind');
   const payload=validatePayload(leased.payload||{});
   if(payload.source.repo!==leased.source_repo||payload.source.ref.toLowerCase()!==String(leased.source_sha||'').toLowerCase())throw new Error('claimed_source_binding_mismatch');
   const report=await executePayloadSupervised(payload,{root:ROOT,renew:()=>call('renew',{missionId:leased.mission_id}),renewEveryMs:60000,maxRenewMisses:2});
   fs.mkdirSync(path.join(ROOT,'evidence'),{recursive:true});
-  fs.writeFileSync(path.join(ROOT,'evidence','continuity-claim.json'),JSON.stringify({missionId:leased.mission_id,leaseUntil:leased.lease_until,provider:'github-public-standard',supervisedLease:true},null,2)+'\n');
+  fs.writeFileSync(path.join(ROOT,'evidence','continuity-claim.json'),JSON.stringify({missionId:leased.mission_id,leaseUntil:leased.lease_until,provider:PROVIDER_ID,supervisedLease:true},null,2)+'\n');
   const state=report.success?'SUCCEEDED':'FAILED_FINAL';
   const done=await call('complete',{missionId:leased.mission_id,state,error:report.success?null:'mission_result_failed'});
   if(done.ok!==true)throw new Error('continuity_complete_rejected');
   output('claimed','true');output('mission_id',leased.mission_id);output('mission_state',state);
-  console.log(JSON.stringify({ok:report.success,claimed:true,missionId:leased.mission_id,state,steps:report.steps.length,supervisedLease:true}));
+  console.log(JSON.stringify({ok:report.success,claimed:true,missionId:leased.mission_id,state,steps:report.steps.length,supervisedLease:true,provider:PROVIDER_ID}));
   process.exitCode=report.success?0:2;
 }catch(error){
   const message=errorText(error);
