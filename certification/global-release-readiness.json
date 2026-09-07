@@ -1,6 +1,6 @@
 {
   "schema": "arbm-global-release-readiness-v1",
-  "capturedAt": "2026-09-07T23:39:00Z",
+  "capturedAt": "2026-09-07T23:53:00.780091Z",
   "policy": {
     "zeroSpendHard": true,
     "heavyExecution": "REMOTE_ONLY",
@@ -16,17 +16,31 @@
       "certificate": "certification/p9-dubbo-m0031-official-promotion.json"
     },
     "providerOperationalQuorum": {
-      "status": "BLOCKED",
+      "status": "PASS",
       "requiredIndependentDomains": 3,
-      "activeIndependentDomains": 2,
+      "activeIndependentDomains": 3,
       "activeDomains": [
         "github",
-        "gitlab"
+        "gitlab",
+        "circleci"
       ],
       "preparedNotLive": [
         "oci-always-free-persistent"
       ],
-      "gate": "certification/provider-operational-quorum.mjs"
+      "gate": "certification/provider-operational-quorum.mjs",
+      "activeProviders": [
+        "github-public-standard",
+        "gitlab-free-private",
+        "circleci-free-small-live"
+      ],
+      "circleciLiveProbe": {
+        "commit": "6dd89240ad123788962d19723e0b46f8398e8e37",
+        "context": "ci/circleci: live_quorum_probe",
+        "status": "success",
+        "resourceClass": "small",
+        "cpu": 1,
+        "memoryMB": 2048
+      }
     },
     "osworldV2Content": {
       "status": "BLOCKED_EXTERNAL_AUTH",
