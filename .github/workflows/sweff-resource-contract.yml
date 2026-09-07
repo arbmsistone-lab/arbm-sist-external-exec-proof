@@ -18,7 +18,8 @@ jobs:
     env:
       SWEFF_COMMIT: 12d32a2d6800824a7d84bdb6797b5708e7b7957f
       SWEFF_REPO: https://github.com/swefficiency/swefficiency.git
-      REQUIRED_MEMORY_MB: '16384'
+      REQUIRED_RESERVATION_MIB: '16384'
+      REQUIRED_LIMIT_MIB: '32768'
     steps:
       - name: Constitutional contract
         run: |
@@ -36,15 +37,23 @@ jobs:
           git checkout --detach "$SWEFF_COMMIT"
           test "$(git rev-parse HEAD)" = "$SWEFF_COMMIT"
 
+      - name: Verify official evaluator memory contract
+        run: |
+          set -euo pipefail
+          grep -F 'mem_limit="32g"' sweff/swefficiency/harness/docker_build.py
+          grep -F 'mem_reservation="16g"' sweff/swefficiency/harness/docker_build.py
+          grep -F 'memswap_limit="32g"' sweff/swefficiency/harness/docker_build.py
+
       - name: Measure runner capacity
         run: |
           set -euo pipefail
           mkdir -p evidence
           mem_kb="$(awk '/MemTotal/{print $2}' /proc/meminfo)"
-          mem_mb="$((mem_kb/1024))"
+          mem_bytes="$((mem_kb*1024))"
+          mem_mib="$((mem_kb/1024))"
           cpus="$(nproc)"
           disk_kb="$(df -Pk . | awk 'NR==2{print $4}')"
-          printf '{"cpus":%s,"memoryMB":%s,"diskAvailableKB":%s}\n' "$cpus" "$mem_mb" "$disk_kb" > evidence/runner-capacity.json
+          printf '{"cpus":%s,"memoryBytes":%s,"memoryMiB":%s,"diskAvailableKB":%s}\n' "$cpus" "$mem_bytes" "$mem_mib" "$disk_kb" > evidence/runner-capacity.json
           cat evidence/runner-capacity.json
       - name: Freeze compatibility verdict
         run: |
@@ -52,13 +61,19 @@ jobs:
           python - <<'PY'
           import hashlib, json, pathlib
           cap=json.loads(pathlib.Path('evidence/runner-capacity.json').read_text())
-          required=16384
-          compatible=cap['memoryMB'] >= required
-          out={'schema':'arbm-sweff-resource-contract-v1','benchmark':'SWEfficiency',
+          reservation_mib=16384
+          limit_mib=32768
+          observed_mib=cap['memoryMiB']
+          reservation_ok=observed_mib >= reservation_mib
+          limit_ok=observed_mib >= limit_mib
+          out={'schema':'arbm-sweff-resource-contract-v2','benchmark':'SWEfficiency',
                'commit':'12d32a2d6800824a7d84bdb6797b5708e7b7957f',
-               'requiredMemoryMB':required,'observedMemoryMB':cap['memoryMB'],
-               'memoryCompatible':compatible,'completeFamilyCertified':False,
-               'classification':'RESOURCE_CONTRACT_ONLY' if compatible else 'BLOCKED_EXTERNAL_COMPUTE'}
+               'officialContainerContract':{'memLimit':'32g','memReservation':'16g','memswapLimit':'32g'},
+               'requiredReservationMiB':reservation_mib,'requiredLimitMiB':limit_mib,
+               'observedMemoryBytes':cap['memoryBytes'],'observedMemoryMiB':observed_mib,
+               'reservationCompatible':reservation_ok,'hardLimitCompatible':limit_ok,
+               'memoryCompatible':reservation_ok and limit_ok,'completeFamilyCertified':False,
+               'classification':'RESOURCE_CONTRACT_ONLY' if reservation_ok and limit_ok else 'BLOCKED_EXTERNAL_COMPUTE'}
           p=pathlib.Path('evidence/sweff-resource-summary.json')
           p.write_text(json.dumps(out,indent=2))
           d=hashlib.sha256(p.read_bytes()).hexdigest()
