@@ -64,6 +64,24 @@
       "operationalEvidence": "zero-spend-config-only:no-workload-proof"
     },
     {
+      "id": "circleci-free-small-live",
+      "state": "ACTIVE",
+      "zeroCostVerified": true,
+      "cpu": 1,
+      "memoryMB": 2048,
+      "diskMB": 0,
+      "docker": true,
+      "kvm": false,
+      "gpu": 0,
+      "maxTaskSeconds": 3600,
+      "authorizedDataset": false,
+      "providerDomain": "circleci",
+      "liveExecutionProven": true,
+      "operationalEvidence": "github-status:ci/circleci: live_quorum_probe:commit:6dd89240ad123788962d19723e0b46f8398e8e37:success",
+      "resourceEvidence": "circleci-docs:docker-small=1cpu-2gb",
+      "zeroCostEvidence": "circleci-free-plan-public-oss-credits"
+    },
+    {
       "id": "circleci-free-arm-large",
       "state": "CONFIGURED_DORMANT",
       "zeroCostVerified": true,

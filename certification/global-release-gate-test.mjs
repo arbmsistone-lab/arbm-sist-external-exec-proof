@@ -4,7 +4,9 @@ const out=execFileSync(process.execPath,['certification/global-release-gate.mjs'
 const r=JSON.parse(out);
 assert.equal(r.failClosed,true);
 assert.equal(r.pass,false);
-assert.ok(r.blockers.includes('providerOperationalQuorum:2/3'));
+assert.ok(!r.blockers.some(x=>x.startsWith('providerOperationalQuorum:')));
+assert.equal(r.providerQuorum.activeIndependentDomains,3);
+assert.equal(r.providerQuorum.pass,true);
 assert.ok(r.blockers.includes('osworldV2Content:BLOCKED_EXTERNAL_AUTH'));
 assert.ok(r.blockers.includes('swefficiency:BLOCKED_EXTERNAL_COMPUTE'));
 assert.ok(r.blockers.includes('terminalBench4:BLOCKED_EXTERNAL_COMPUTE'));
