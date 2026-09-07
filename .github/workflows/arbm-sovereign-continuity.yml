@@ -1,4 +1,4 @@
-﻿name: ARBM Sovereign Continuity
+name: ARBM Sovereign Continuity
 
 on:
   workflow_dispatch:
@@ -10,10 +10,16 @@ permissions:
   id-token: write
 
 jobs:
-  sovereign-heartbeat:
+  sovereign-continuity:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 65
     steps:
+      - name: Checkout control plane
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Validate universal runner
+        run: node scripts/universal-remote-runner.test.mjs
       - name: Request ARBM OIDC token
         id: oidc
         shell: bash
@@ -21,13 +27,17 @@ jobs:
           token="$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-continuity" | jq -r '.value')"
           test -n "$token"
           echo "token=$token" >> "$GITHUB_OUTPUT"
-      - name: Register cloud heartbeat
-        shell: bash
+      - name: Heartbeat, claim and execute safe mission
+        id: worker
         env:
           ARBM_OIDC: ${{ steps.oidc.outputs.token }}
-        run: |
-          curl --fail-with-body --silent --show-error \
-            -H "Authorization: Bearer $ARBM_OIDC" \
-            -H "Content-Type: application/json" \
-            -d '{"action":"heartbeat","healthy":true,"zeroSpendVerified":true,"capabilities":["git","tests","build","cloud"],"detail":{"source":"github-actions-oidc-runner"}}' \
-            https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-continuity-coordinator-v1
+          ARBM_RUN_ROOT: ${{ github.workspace }}/.arbm-run
+        run: node scripts/sovereign-continuity-worker.mjs
+      - name: Upload continuity evidence
+        if: always() && steps.worker.outputs.claimed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: continuity-${{ steps.worker.outputs.mission_id }}-${{ github.run_id }}
+          path: ${{ github.workspace }}/.arbm-run/evidence
+          if-no-files-found: error
+          retention-days: 7
