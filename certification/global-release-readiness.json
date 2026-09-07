@@ -1,0 +1,72 @@
+{
+  "schema": "arbm-global-release-readiness-v1",
+  "capturedAt": "2026-09-07T22:26:48Z",
+  "policy": {
+    "zeroSpendHard": true,
+    "heavyExecution": "REMOTE_ONLY",
+    "failClosed": true
+  },
+  "overall": "BLOCKED",
+  "gates": {
+    "p9DubboM0031": {
+      "status": "CERTIFIED",
+      "runId": 34157503111,
+      "artifactId": 10031987044,
+      "artifactSha256": "26511c4d54ac113f0c4c71385f803e5039d2c2e4b56ae0cce93b7863ca93489a",
+      "certificate": "certification/p9-dubbo-m0031-official-promotion.json"
+    },
+    "providerOperationalQuorum": {
+      "status": "BLOCKED",
+      "requiredIndependentDomains": 3,
+      "activeIndependentDomains": 2,
+      "activeDomains": [
+        "github",
+        "gitlab"
+      ],
+      "preparedNotLive": [
+        "oci-always-free-persistent"
+      ],
+      "gate": "certification/provider-operational-quorum.mjs"
+    },
+    "osworldV2Content": {
+      "status": "BLOCKED_EXTERNAL_AUTH",
+      "runId": 34166685912,
+      "artifactId": 10034371645,
+      "artifactSha256": "9a2b52b31662f6d0d38926b4f36e25f467e1895b689d27483804a86b16c0e97f",
+      "hfTokenPresent": false,
+      "tasksHttp": 401,
+      "assetsHttp": 401,
+      "release": "osworld-v2-2026.08.08"
+    },
+    "swefficiency": {
+      "status": "BLOCKED_EXTERNAL_COMPUTE",
+      "runId": 34031754739,
+      "artifactId": 9988839545,
+      "requiredMemoryMB": 16384,
+      "observedMemoryMB": 15989,
+      "memoryCompatible": false
+    },
+    "terminalBench4": {
+      "status": "BLOCKED_EXTERNAL_COMPUTE",
+      "runId": 34030748088,
+      "artifactId": 9988510120,
+      "tasksTotal": 66,
+      "runnerCompatibleTasks": 0,
+      "runnerBlockedTasks": 66,
+      "blockers": {
+        "JOB_TIMEOUT_CEILING": 66,
+        "CPU_CAPACITY": 8,
+        "MEMORY_CAPACITY": 9,
+        "GPU_REQUIRED": 3,
+        "DISK_CAPACITY": 1
+      },
+      "gpuTasks": [
+        "fp8-rmsnorm-gemm",
+        "jax-speedrun-gpu",
+        "math-eval-grader"
+      ]
+    }
+  },
+  "releaseRule": "Overall release can be CERTIFIED only when every required gate is CERTIFIED or PASS with immutable evidence; diagnostic workflow success is not certification.",
+  "evidenceBaselineSha": "fb36924dc768510b4167cbe184a09e6592f84a81"
+}
