@@ -1,0 +1,56 @@
+{
+  "schema": "arbm-p9-official-promotion-certification-v1",
+  "scope": "dubbo/M003.1",
+  "status": "CERTIFIED",
+  "certifiedAt": "2026-09-07T20:22:14Z",
+  "evaluatedSourceSha": "070f48a6321fe165c8cbd63ec22c6607daa54cb0",
+  "benchmarkCommit": "6d8b31168fd0e2ad57c0d1daa3df1556df014320",
+  "benchmarkVersion": "v1.0.2",
+  "solveRunId": 34003310061,
+  "promotionRunId": 34157503111,
+  "promotionRequestId": "arbm-p9-promotion-20260907-01",
+  "artifact": {
+    "id": 10031987044,
+    "name": "p9-dubbo-m0031-official-promotion-arbm-p9-promotion-20260907-01",
+    "sha256": "26511c4d54ac113f0c4c71385f803e5039d2c2e4b56ae0cce93b7863ca93489a",
+    "expiresAt": "2026-12-06T19:56:49Z"
+  },
+  "officialEvaluator": {
+    "exitCode": 0,
+    "resolved": true,
+    "promotionContractPass": true,
+    "promotionGrade": true,
+    "patchExists": true,
+    "patchSuccessfullyApplied": true,
+    "snapshotIntegrityOk": true,
+    "legacySnapshot": false,
+    "infrastructureFailure": false,
+    "infraInvalid": false
+  },
+  "requiredScoring": {
+    "passToPass": {"required": 6954, "achieved": 6954, "failed": 0, "missing": 0},
+    "noneToPass": {"required": 1, "achieved": 1, "missing": 0},
+    "failToPass": {"required": 0, "achieved": 0}
+  },
+  "rawTestSummary": {
+    "total": 7110,
+    "passed": 6956,
+    "failed": 1,
+    "error": 0,
+    "skipped": 153,
+    "note": "Raw non-scored outcomes do not alter the official required-scoring contract; all required stable classifications passed."
+  },
+  "bindings": {
+    "repoConfigMode": "trial-pinned",
+    "repoConfigSha256": "cae899cadf1732eefa3c36a057540838ea3ca61739a1267a7da25986c27facec",
+    "runtimePolicyBindingMode": "trial-pinned",
+    "runtimePolicyMode": "protected",
+    "runtimePolicySha256": "aa7ec051587f229ac4ac9d3822f2b90790cac551f61a1c284d5664ad45728f1f"
+  },
+  "executionPolicy": {
+    "zeroSpendMode": "HARD",
+    "allowLocalAi": false,
+    "runnerClass": "github-hosted"
+  },
+  "scopeGuard": "This certifies the P9 Dubbo M003.1 official-promotion front and the evaluated source SHA, not unrelated later commits or the entire ARBM SIST product."
+}
