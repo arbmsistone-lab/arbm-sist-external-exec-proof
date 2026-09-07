@@ -3,10 +3,10 @@ locals {
 }
 
 resource "oci_core_instance" "arbm_persistent" {
-  availability_domain = var.availability_domain
-  compartment_id      = var.compartment_id
-  display_name        = var.display_name
-  shape               = var.shape
+  availability_domain  = var.availability_domain
+  compartment_id       = var.compartment_id
+  display_name         = var.display_name
+  shape                = var.shape
   preserve_boot_volume = false
 
   dynamic "shape_config" {
