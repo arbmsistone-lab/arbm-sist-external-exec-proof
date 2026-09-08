@@ -1,0 +1,49 @@
+name: ARBM ONE Cloud Runner PSQL
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner_name:
+        description: Ephemeral runner name
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Prepare Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install PostgreSQL client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          psql --version
+      - name: Register ephemeral private runner
+        shell: bash
+        env:
+          ARBM_ONE_RUNNER_TOKEN: ${{ secrets.ARBM_ONE_RUNNER_TOKEN }}
+          REQUESTED_RUNNER_NAME: ${{ inputs.runner_name }}
+        run: |
+          set -euo pipefail
+          test -n "$ARBM_ONE_RUNNER_TOKEN"
+          mkdir -p "$RUNNER_TEMP/arbm-one-runner"
+          cd "$RUNNER_TEMP/arbm-one-runner"
+          version="2.337.0"
+          curl -fsSL -o runner.tgz "https://github.com/actions/runner/releases/download/v${version}/actions-runner-linux-x64-${version}.tar.gz"
+          tar xzf runner.tgz
+          ./config.sh --unattended --ephemeral --disableupdate \
+            --url https://github.com/arbmsistone-lab/ARBM-one \
+            --token "$ARBM_ONE_RUNNER_TOKEN" \
+            --name "$REQUESTED_RUNNER_NAME" \
+            --labels "arbm-cloud,arbm-final,arbm-free,arbm-core"
+          ./run.sh
