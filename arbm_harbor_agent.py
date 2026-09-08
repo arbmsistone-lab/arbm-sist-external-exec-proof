@@ -5,7 +5,6 @@ import urllib.request
 from typing import override
 
 from harbor.agents.base import BaseAgent
-from harbor.agents.capabilities import AgentCapabilities
 from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
 
@@ -17,8 +16,6 @@ BLOCKED = (
 )
 
 class ArbMSistAgent(BaseAgent):
-    capabilities = AgentCapabilities()
-
     @staticmethod
     @override
     def name() -> str:

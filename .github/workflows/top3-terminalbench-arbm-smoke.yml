@@ -28,7 +28,7 @@ jobs:
           test "$RUNNER_ENVIRONMENT" = "github-hosted"
           docker info >/dev/null
           curl -LsSf https://astral.sh/uv/install.sh | sh
-          "$HOME/.local/bin/uv" tool install harbor
+          "$HOME/.local/bin/uv" tool install harbor==0.22.0
       - name: Mint benchmark OIDC
         shell: bash
         run: |
@@ -46,7 +46,7 @@ jobs:
           mkdir -p top3-evidence/arbm-terminalbench
           "$HOME/.local/bin/harbor" run \
             -d terminal-bench/terminal-bench-2-1 \
-            --agent-import-path arbm_harbor_agent:ArbMSistAgent \
+            --agent arbm_harbor_agent:ArbMSistAgent \
             -n 1 -l 1 \
             2>&1 | tee top3-evidence/arbm-terminalbench/harbor.log
       - name: Freeze evidence
