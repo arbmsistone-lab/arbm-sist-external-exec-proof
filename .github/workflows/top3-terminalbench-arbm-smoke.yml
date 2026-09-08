@@ -1,0 +1,68 @@
+name: Top3 TerminalBench ARBM Smoke
+
+on:
+  push:
+    branches:
+      - p3/terminal-bench-arbm-v1
+    paths:
+      - 'arbm_harbor_agent.py'
+      - '.github/workflows/top3-terminalbench-arbm-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  arbm_terminalbench_smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ZERO_SPEND_MODE: HARD
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Prove runner and install Harbor
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = "github-hosted"
+          docker info >/dev/null
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          "$HOME/.local/bin/uv" tool install harbor
+      - name: Mint benchmark OIDC
+        shell: bash
+        run: |
+          set -euo pipefail
+          token=$(curl -fsSL \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark" \
+            | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')
+          test -n "$token"
+          echo "::add-mask::$token"
+          echo "ARBM_OIDC_TOKEN=$token" >> "$GITHUB_ENV"
+      - name: Run ARBM on official Terminal-Bench 2.1
+        run: |
+          set -euo pipefail
+          mkdir -p top3-evidence/arbm-terminalbench
+          "$HOME/.local/bin/harbor" run \
+            -d terminal-bench/terminal-bench-2-1 \
+            --agent-import-path arbm_harbor_agent:ArbMSistAgent \
+            -n 1 -l 1 \
+            2>&1 | tee top3-evidence/arbm-terminalbench/harbor.log
+      - name: Freeze evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$GITHUB_SHA" > top3-evidence/arbm-terminalbench/candidate-sha.txt
+          printf '%s\n' "$ZERO_SPEND_MODE" > top3-evidence/arbm-terminalbench/zero-spend-mode.txt
+          find jobs -type f -maxdepth 6 -print > top3-evidence/arbm-terminalbench/job-files.txt 2>/dev/null || true
+          find jobs -type f \( -name 'result.json' -o -name 'job.json' -o -name 'trajectory.json' \) -exec cp --parents {} top3-evidence/arbm-terminalbench/ \; 2>/dev/null || true
+          find top3-evidence/arbm-terminalbench -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > top3-evidence/arbm-terminalbench/SHA256SUMS.txt
+      - name: Upload ARBM benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: top3-terminalbench-arbm-smoke
+          path: top3-evidence/arbm-terminalbench
+          if-no-files-found: error
+          retention-days: 30
