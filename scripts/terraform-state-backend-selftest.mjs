@@ -1,11 +1,17 @@
 import crypto from 'node:crypto';
 
 const BASE=process.env.ARBM_TF_STATE_URL||'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terraform-state-v1';
-const SECRET=String(process.env.ARBM_TF_STATE_SECRET||'');
-if(SECRET.length<40)throw new Error('tf_state_secret_required');
+const requestUrl=process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
+const requestToken=process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+if(!requestUrl||!requestToken)throw new Error('github_oidc_environment_required');
+const oidcUrl=new URL(requestUrl);oidcUrl.searchParams.set('audience','arbm-terraform-state');
+const oidcRes=await fetch(oidcUrl,{headers:{authorization:`Bearer ${requestToken}`},signal:AbortSignal.timeout(15000)});
+if(!oidcRes.ok)throw new Error(`oidc_http_${oidcRes.status}`);
+const oidc=String((await oidcRes.json()).value||'');if(!oidc)throw new Error('oidc_token_missing');
+
 const key=`selftest-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
 const url=`${BASE}/${key}`;
-const auth=`Basic ${Buffer.from(`arbm:${SECRET}`).toString('base64')}`;
+const auth=`Basic ${Buffer.from(`github-oidc:${oidc}`).toString('base64')}`;
 const lock1={ID:crypto.randomUUID(),Operation:'selftest',Who:'github-actions',Version:'1.16.1',Created:new Date().toISOString()};
 const lock2={...lock1,ID:crypto.randomUUID()};
 const state={version:4,terraform_version:'1.16.1',serial:1,lineage:crypto.randomUUID(),outputs:{},resources:[],check_results:null};
@@ -27,7 +33,7 @@ try{
   expect((await req('UNLOCK','',lock1)).status,200,'unlock');locked=false;
   expect((await req('DELETE')).status,200,'delete');
   expect((await req('GET')).status,404,'final_get');
-  console.log(JSON.stringify({suite:'TERRAFORM_HTTP_STATE_BACKEND',state:'PASS',key}));
+  console.log(JSON.stringify({suite:'TERRAFORM_HTTP_STATE_BACKEND',state:'PASS',key,auth:'github-oidc'}));
 } finally {
   if(locked)await req('UNLOCK','',lock1).catch(()=>{});
   await req('DELETE').catch(()=>{});
