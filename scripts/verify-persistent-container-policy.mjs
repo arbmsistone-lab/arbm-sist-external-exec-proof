@@ -30,7 +30,7 @@ assert.equal(back.activation,'fail-closed-until-independent-billing-verification
 
 assert.equal(hostless.providerId,'hostless-free-persistent');
 assert.equal(hostless.cpuCoresMax,0.25);
-assert.equal(hostless.memoryMiBMax,1024);
+assert.equal(hostless.memoryMiBMax,256);
 assert.equal(hostless.costPolicy,'zero-spend-only');
 assert.equal(hostless.activation,'fail-closed-until-independent-billing-verification');
 

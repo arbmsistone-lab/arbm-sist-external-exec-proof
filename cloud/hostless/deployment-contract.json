@@ -7,9 +7,9 @@
   "dockerfile": "Dockerfile",
   "profile": "hostless-free-container",
   "cpuCoresMax": 0.25,
-  "memoryMiBMax": 1024,
+  "memoryMiBMax": 256,
   "port": 8000,
-  "autoDeploy": false,
+  "autoDeploy": true,
   "continuityUrl": "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-persistent-continuity-v1",
   "requiredEnvironment": [
     "ARBM_HOST_TOKEN",
@@ -23,7 +23,7 @@
     "ARBM_CLOUD_VENDOR": "hostless",
     "ARBM_HOST_ID": "hostless-free-persistent",
     "ARBM_CPU_CORES": "0.25",
-    "ARBM_MEMORY_MIB": "1024"
+    "ARBM_MEMORY_MIB": "256"
   },
   "costPolicy": "zero-spend-only",
   "activation": "fail-closed-until-independent-billing-verification"
