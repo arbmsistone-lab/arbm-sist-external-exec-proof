@@ -75,7 +75,7 @@ class ARBMHarborAgent(BaseAgent):
                 if exc.code == 503:
                     waits = []
                     for item in safe.get("provider_attempts", []):
-                        if item.get("route") == "groq" and item.get("status") == 429:
+                        if str(item.get("route") or "").startswith("groq") and item.get("status") == 429:
                             raw = str(item.get("retry_after") or "").strip().lower()
                             try:
                                 waits.append(float(raw.rstrip("s")))
