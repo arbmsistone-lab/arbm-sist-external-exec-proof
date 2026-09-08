@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import {appendEvidence,verifyLedger,findEvidence,validLedgerHash} from './universal-radar-evidence-ledger.mjs';
 import {validProposalHash} from './proposal-integrity.mjs';
 import {withFileLock} from './file-mutation-lock.mjs';
+import {promotionHashOf,rollbackHashOf} from './core-operation-integrity.mjs';
 const path='incumbent-registry.json';
 const lockPath=path+'.mutation.lock';
 const sha=x=>'sha256:'+crypto.createHash('sha256').update(String(x)).digest('hex');
@@ -28,7 +29,7 @@ export function promoteReplacement(args){return withFileLock(lockPath,()=>{
   const ledgerCheck=verifyLedger(); if(!ledgerCheck.ok) reasons.push('EVIDENCE_LEDGER_INVALID');
   if(reasons.length) return {schema:'arbm-incumbent-promotion-v1',promoted:false,reasons};
   const original=structuredClone(reg); const previous=structuredClone(slot.active); const now=new Date().toISOString();
-  const promotionHash=sha(JSON.stringify({domain,previous,challengerIdentity,proposalHash:proposal.proposalHash,evidenceHash:certification.evidenceHash,now}));
+  const promotionHash=promotionHashOf({domain,previous,next:challengerIdentity,proposalHash:proposal.proposalHash,evidenceHash:certification.evidenceHash,at:now});
   slot.history=Array.isArray(slot.history)?slot.history:[];
   slot.history.push({type:'PROMOTION',at:now,promotionHash,previous,next:challengerIdentity,proposalHash:proposal.proposalHash,evidenceHash:certification.evidenceHash});
   slot.history=slot.history.slice(-100); slot.active=challengerIdentity; slot.status='VERIFIED'; slot.verifiedAt=now; slot.usableForReplacementProposal=true; slot.lastPromotionHash=promotionHash; reg.updatedAt=now;
@@ -47,7 +48,7 @@ export function rollbackReplacement(args){return withFileLock(lockPath,()=>{
   if(!rollbackEvidence.ok||rollbackPayload?.type!=='ROLLBACK_VALIDATED'||rollbackPayload?.status!=='PASS'||rollbackPayload?.domain!==domain||rollbackPayload?.promotionHash!==promotionHash) reasons.push('ROLLBACK_EVIDENCE_MISMATCH');
   const ledgerCheck=verifyLedger(); if(!ledgerCheck.ok) reasons.push('EVIDENCE_LEDGER_INVALID');
   if(reasons.length) return {schema:'arbm-incumbent-rollback-v1',rolledBack:false,reasons};
-  const original=structuredClone(reg); const now=new Date().toISOString(); const failed=structuredClone(slot.active); const rollbackHash=sha(JSON.stringify({domain,promotionHash,failed,restored:promotion.previous,reason,evidenceHash,now}));
+  const original=structuredClone(reg); const now=new Date().toISOString(); const failed=structuredClone(slot.active); const rollbackHash=rollbackHashOf({domain,promotionHash,failed,restored:promotion.previous,reason,evidenceHash,at:now});
   slot.active=promotion.previous; slot.status='VERIFIED'; slot.verifiedAt=now; slot.usableForReplacementProposal=true; slot.lastRollbackHash=rollbackHash; slot.lastPromotionHash=null;
   slot.history.push({type:'ROLLBACK',at:now,rollbackHash,promotionHash,failed,restored:promotion.previous,reason,evidenceHash}); slot.history=slot.history.slice(-100); reg.updatedAt=now;
   atomicWrite(reg); let ev; try{ev=appendEvidence({type:'INCUMBENT_ROLLED_BACK',domain,rollbackHash,promotionHash,proposalHash:promotion.proposalHash,reason,evidenceHash});}catch(e){atomicWrite(original);throw e;}

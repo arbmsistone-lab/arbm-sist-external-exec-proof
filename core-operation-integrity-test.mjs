@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {promotionHashOf,rollbackHashOf,validPromotionHistory,validRollbackHistory} from './core-operation-integrity.mjs';
+const d=c=>'sha256:'+c.repeat(64);
+const previous={id:'a',version:'1',artifactSha256:d('a'),activatedAt:'2026-09-01T00:00:00Z',zeroSpendVerified:true};
+const next={id:'b',version:'2',artifactSha256:d('b'),activatedAt:'2026-09-08T00:00:00Z',zeroSpendVerified:true};
+const at='2026-09-08T20:00:00.000Z',proposalHash=d('c'),evidenceHash='a'.repeat(64);
+const promotionHash=promotionHashOf({domain:'ai-providers',previous,next,proposalHash,evidenceHash,at});
+const p={type:'PROMOTION',at,promotionHash,previous,next,proposalHash,evidenceHash};
+assert.equal(validPromotionHistory('ai-providers',p),true);
+assert.equal(validPromotionHistory('ai-providers',{...p,proposalHash:d('d')}),false);
+const rbAt='2026-09-08T20:01:00.000Z',reason='regression',rbEvidence='b'.repeat(64);
+const rollbackHash=rollbackHashOf({domain:'ai-providers',promotionHash,failed:next,restored:previous,reason,evidenceHash:rbEvidence,at:rbAt});
+const rb={type:'ROLLBACK',at:rbAt,rollbackHash,promotionHash,failed:next,restored:previous,reason,evidenceHash:rbEvidence};
+assert.equal(validRollbackHistory('ai-providers',rb,p),true);
+assert.equal(validRollbackHistory('ai-providers',{...rb,reason:'tampered'},p),false);
+assert.equal(validRollbackHistory('ai-providers',{...rb,restored:next},p),false);
+console.log('CORE_OPERATION_INTEGRITY_PASS');

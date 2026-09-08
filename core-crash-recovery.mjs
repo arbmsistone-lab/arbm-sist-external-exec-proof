@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import {appendEvidence,verifyLedger,findEvidence} from './universal-radar-evidence-ledger.mjs';
+import {validPromotionHistory,validRollbackHistory} from './core-operation-integrity.mjs';
 const regPath='incumbent-registry.json';
 const queuePath='replacement-proposals.json';
 const ledgerPath='universal-radar-evidence-ledger.jsonl';
@@ -18,11 +19,14 @@ function rollbackValid(hash,promotionHash,domain){
  const reg=loadJson(regPath,{domains:{}}),q=loadJson(queuePath,{items:[]}); let recovered=0; const reasons=[];
  for(const [domain,slot] of Object.entries(reg.domains||{})) for(const h of slot.history||[]){
   if(h.type==='PROMOTION'&&!hasEvent('INCUMBENT_PROMOTED','promotionHash',h.promotionHash)){
+   if(!validPromotionHistory(domain,h)){reasons.push('PROMOTION_HISTORY_HASH_INVALID:'+h.promotionHash);continue;}
    const laterRollback=(slot.history||[]).some(x=>x.type==='ROLLBACK'&&x.promotionHash===h.promotionHash);
    if((slot.active?.artifactSha256!==h.next?.artifactSha256&&!laterRollback)||!certValid(h.evidenceHash,h.proposalHash,domain,h.next?.artifactSha256)){reasons.push('PROMOTION_RECOVERY_UNPROVEN:'+h.promotionHash);continue;}
    appendEvidence({type:'INCUMBENT_PROMOTED',domain,promotionHash:h.promotionHash,proposalHash:h.proposalHash,evidenceHash:h.evidenceHash,recoveredAfterCrash:true}); recovered++;
   }
   if(h.type==='ROLLBACK'&&!hasEvent('INCUMBENT_ROLLED_BACK','rollbackHash',h.rollbackHash)){
+   const promotion=(slot.history||[]).find(x=>x.type==='PROMOTION'&&x.promotionHash===h.promotionHash);
+   if(!validRollbackHistory(domain,h,promotion)){reasons.push('ROLLBACK_HISTORY_HASH_INVALID:'+h.rollbackHash);continue;}
    if(slot.active?.artifactSha256!==h.restored?.artifactSha256||!rollbackValid(h.evidenceHash,h.promotionHash,domain)){reasons.push('ROLLBACK_RECOVERY_UNPROVEN:'+h.rollbackHash);continue;}
    appendEvidence({type:'INCUMBENT_ROLLED_BACK',domain,rollbackHash:h.rollbackHash,promotionHash:h.promotionHash,proposalHash:(slot.history||[]).find(x=>x.promotionHash===h.promotionHash)?.proposalHash,reason:h.reason,evidenceHash:h.evidenceHash,recoveredAfterCrash:true}); recovered++;
   }

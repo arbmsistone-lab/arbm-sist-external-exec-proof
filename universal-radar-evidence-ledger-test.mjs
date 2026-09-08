@@ -15,5 +15,7 @@ try{
   let blocked=false;
   try{appendEvidence({run:'must-not-append'});}catch(e){blocked=String(e.message).includes('EVIDENCE_LEDGER_HEAD_PARSE_ERROR');}
   if(!blocked) throw new Error('LEDGER_CORRUPT_HEAD_APPEND_NOT_BLOCKED');
+  const lockPath=path+'.lock'; fs.rmSync(lockPath,{recursive:true,force:true}); fs.mkdirSync(lockPath); let lockBlocked=false; try{appendEvidence({run:'lock-active'});}catch(e){lockBlocked=String(e.message).includes('FILE_MUTATION_LOCK_TIMEOUT');} if(!lockBlocked) throw new Error('LEDGER_ACTIVE_LOCK_NOT_BLOCKED'); fs.rmSync(lockPath,{recursive:true,force:true});
+  fs.writeFileSync(path,''); fs.mkdirSync(lockPath); const old=new Date(Date.now()-700000); fs.utimesSync(lockPath,old,old); const recovered=appendEvidence({run:'stale-lock-recovered'}); if(!recovered.entryHash) throw new Error('LEDGER_STALE_LOCK_NOT_RECOVERED');
   console.log('UNIVERSAL_RADAR_EVIDENCE_LEDGER_PASS');
-} finally { if(backup===null) fs.rmSync(path,{force:true}); else fs.writeFileSync(path,backup); }
+} finally { fs.rmSync(path+'.lock',{recursive:true,force:true}); if(backup===null) fs.rmSync(path,{force:true}); else fs.writeFileSync(path,backup); }
