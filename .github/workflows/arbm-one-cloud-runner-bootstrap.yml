@@ -16,14 +16,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
+      - name: Prepare Node 24 for nested runner
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
       - name: Register ephemeral private runner
         shell: bash
         env:
           ARBM_ONE_RUNNER_TOKEN: ${{ secrets.ARBM_ONE_RUNNER_TOKEN }}
-          RUNNER_NAME: ${{ inputs.runner_name }}
+          REQUESTED_RUNNER_NAME: ${{ inputs.runner_name }}
         run: |
           set -euo pipefail
           test -n "$ARBM_ONE_RUNNER_TOKEN"
+          test "$(node -p "process.versions.node.split('.')[0]")" = "24"
           mkdir -p "$RUNNER_TEMP/arbm-one-runner"
           cd "$RUNNER_TEMP/arbm-one-runner"
           version="2.337.0"
@@ -32,6 +38,6 @@ jobs:
           ./config.sh --unattended --ephemeral --disableupdate \
             --url https://github.com/arbmsistone-lab/ARBM-one \
             --token "$ARBM_ONE_RUNNER_TOKEN" \
-            --name "$RUNNER_NAME" \
+            --name "$REQUESTED_RUNNER_NAME" \
             --labels "arbm-cloud,arbm-final"
           ./run.sh
