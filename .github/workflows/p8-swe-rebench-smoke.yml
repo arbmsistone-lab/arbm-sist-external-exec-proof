@@ -53,6 +53,9 @@ jobs:
           ARBM_BENCHMARK_OIDC: ${{ steps.oidc.outputs.token }}
           ARBM_BENCHMARK_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-agent-v17
           ARBM_BENCHMARK_FALLBACK_ENDPOINT: https://arbm-sist-p8-fallback.girolocal-rb.workers.dev
+          ARBM_SOVEREIGN_ENDPOINT: https://arbm-p0-free-proof.zevanory.workers.dev
+          ARBM_SOVEREIGN_AUTH: github-oidc
+          ARBM_SOVEREIGN_TIMEOUT_SECONDS: '120'
           ARBM_BENCHMARK_JUDGE_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-judge-v15
           ARBM_BENCHMARK_JUDGE_FALLBACK_ENDPOINT: https://arbm-sist-p8-fallback.girolocal-rb.workers.dev
           MODEL_LABEL: ARBM-Federated-Free-Mesh-v22

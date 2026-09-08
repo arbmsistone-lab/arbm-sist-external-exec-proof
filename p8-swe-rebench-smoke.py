@@ -406,13 +406,22 @@ def _sovereign_json(payload):
         schema={'type':'object','additionalProperties':False,'required':['edits'],'properties':{'edits':{'type':'array','maxItems':4,'items':{'type':'object','additionalProperties':False,'required':['path','start_line','end_line','new'],'properties':{'path':{'type':'string','minLength':1,'maxLength':240},'start_line':{'type':'integer','minimum':1},'end_line':{'type':'integer','minimum':1},'new':{'type':'string','minLength':1,'maxLength':4000}}}}}}
     else:
         schema={'type':'object','additionalProperties':False,'required':['choice','reason'],'properties':{'choice':{'type':'string','enum':['A','B','NONE']},'reason':{'type':'string','minLength':1,'maxLength':1200}}}
-    body=json.dumps({'model':'arbm-qwen-sovereign','messages':[{'role':'system','content':'You are a precise software repair agent. Output valid JSON only.'},{'role':'user','content':prompt}],
-                     'temperature':0,'max_tokens':max_tokens,'stream':False,'cache_prompt':True,'response_format':{'type':'json_object','schema':schema}}).encode('utf-8')
+    cf_oidc=os.environ.get('ARBM_SOVEREIGN_AUTH','')=='github-oidc'
+    if cf_oidc:
+        body=json.dumps({'model':'@cf/nvidia/nemotron-3-120b-a12b','messages':[{'role':'system','content':'You are a precise software repair agent. Output valid JSON only.'},{'role':'user','content':prompt}]}).encode('utf-8')
+    else:
+        body=json.dumps({'model':'arbm-qwen-sovereign','messages':[{'role':'system','content':'You are a precise software repair agent. Output valid JSON only.'},{'role':'user','content':prompt}],
+                         'temperature':0,'max_tokens':max_tokens,'stream':False,'cache_prompt':True,'response_format':{'type':'json_object','schema':schema}}).encode('utf-8')
     try:
         req=urllib.request.Request(endpoint,data=body,method='POST'); req.add_header('Content-Type','application/json')
-        sovereign_timeout=max(180,min(600,int(os.environ.get('ARBM_SOVEREIGN_TIMEOUT_SECONDS','420'))))
+        if cf_oidc:
+            token=fresh_oidc()
+            if not token: return 126,None,'NO_OIDC_PROVIDER_TOKEN',False
+            req.add_header('Authorization','Bearer '+token)
+        sovereign_timeout=max(60,min(600,int(os.environ.get('ARBM_SOVEREIGN_TIMEOUT_SECONDS','420'))))
         with urllib.request.urlopen(req,timeout=sovereign_timeout) as r: outer=json.loads(r.read().decode('utf-8'))
-        content=outer['choices'][0]['message'].get('content','')
+        source=outer.get('result',outer) if cf_oidc else outer
+        content=source['choices'][0]['message'].get('content','')
         if isinstance(content,list): content=''.join(str(x.get('text','')) if isinstance(x,dict) else str(x) for x in content)
         text=str(content).strip()
         if text.startswith('```'):
@@ -421,8 +430,12 @@ def _sovereign_json(payload):
             a=text.find('{'); b=text.rfind('}')
             if a>=0 and b>a: text=text[a:b+1]
         data=json.loads(text)
-        data['model']='Qwen2.5-Coder-14B-Instruct-Q4_K_M'; data['pipeline']='sovereign-github-public-runner'
-        data['attempts']=[{'provider':'local-llama-server','status':'ok'}]
+        if cf_oidc:
+            data['model']='@cf/nvidia/nemotron-3-120b-a12b'; data['pipeline']='cloudflare-workers-ai-free-oidc'
+            data['attempts']=[{'provider':'cloudflare-workers-ai','status':'ok','mandatory_cost_usd':0}]
+        else:
+            data['model']='Qwen2.5-Coder-14B-Instruct-Q4_K_M'; data['pipeline']='sovereign-github-public-runner'
+            data['attempts']=[{'provider':'local-llama-server','status':'ok'}]
         return 0,data,'',False
     except Exception as exc:
         return 125,None,'SOVEREIGN_ERROR:'+type(exc).__name__+': '+str(exc)[:800],False
@@ -463,6 +476,10 @@ def remote_endpoint_json(endpoint, payload):
         c,d,e,t=_remote_json_one(fallback,payload,(0,))
         if c==0: return c,d,e,t
         errors.append('fallback='+e[:800])
+    if os.environ.get('ARBM_SOVEREIGN_ENDPOINT'):
+        q=dict(payload); q['phase']='judge'; c,d,e,t=_sovereign_json(q)
+        if c==0: return c,d,e,t
+        errors.append('sovereign='+e[:800])
     return 125,None,' | '.join(errors) or 'NO_JUDGE_ENDPOINT',False
 
 def repo_index(repo, problem):

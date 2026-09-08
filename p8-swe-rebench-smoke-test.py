@@ -279,5 +279,29 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertIn("range(1,public_repair_limit+1)", source)
 
 
+    def test_cloudflare_sovereign_uses_oidc_and_openai_result(self):
+        compact_issue=load_function('_compact_public_issue',{})
+        compact_output=load_function('_compact_public_validation_output',{'re':re})
+        headers={}
+        class Response:
+            def __enter__(self): return self
+            def __exit__(self,*args): pass
+            def read(self): return json.dumps({'result':{'choices':[{'message':{'content':'{"edits":[{"path":"src/a.py","start_line":1,"end_line":1,"new":"x=2"}]}'}}]}}).encode()
+        def request(url,data,method):
+            return SimpleNamespace(data=data,add_header=lambda k,v:headers.__setitem__(k,v))
+        sovereign=load_function('_sovereign_json',{
+            'json':json,'re':re,'os':SimpleNamespace(environ={'ARBM_SOVEREIGN_ENDPOINT':'https://worker.invalid','ARBM_SOVEREIGN_AUTH':'github-oidc'}),
+            'urllib':SimpleNamespace(request=SimpleNamespace(Request=request,urlopen=lambda req,timeout:Response())),
+            'fresh_oidc':lambda:'oidc-token','_compact_public_issue':compact_issue,
+            '_compact_public_context':lambda *args:'FILE: src/a.py\n000001|x=1',
+            '_compact_public_validation_output':compact_output,
+        })
+        code,data,err,_=sovereign({'phase':'solve','issue':'fix x','tool_context':'FILE: src/a.py\n000001|x=1'})
+        self.assertEqual((code,err),(0,''))
+        self.assertEqual(headers.get('Authorization'),'Bearer oidc-token')
+        self.assertEqual(data['pipeline'],'cloudflare-workers-ai-free-oidc')
+        self.assertEqual(data['attempts'][0]['mandatory_cost_usd'],0)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

@@ -1,0 +1,26 @@
+name: P3 Cloudflare SWE Dev Smoke
+on:
+  push:
+    branches:
+      - p3/cloudflare-free-dev-swe-candidate-20260908
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  dev-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Run public synthetic solver smoke
+        run: python p3-cloudflare-swe-dev-smoke.py
+      - name: Validate evidence
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open('p3-cloudflare-swe-dev-evidence.json'))
+          assert d['state']=='PASS' and d['scoreable'] is False
+          assert d['mandatoryCostUsd']==0 and d['paidFallbackUsed'] is False
+          assert d['pipeline']=='cloudflare-workers-ai-free-oidc'
+          print('ARBM_P3_CLOUDFLARE_SWE_DEV=PASS')
+          PY
