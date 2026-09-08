@@ -9,7 +9,7 @@ from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
 
 API_URL = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v1"
-MAX_STEPS = 5
+MAX_STEPS = 6
 
 class ARBMHarborAgent(BaseAgent):
     @staticmethod
@@ -37,7 +37,7 @@ class ARBMHarborAgent(BaseAgent):
             raise RuntimeError("ARBM_SOVEREIGN_UNAVAILABLE")
         prompt = ("You are ARBM SIST in a Terminal-Bench sandbox. Return JSON only: "
                   "{\"action\":\"exec|finish\",\"command\":\"...\",\"summary\":\"...\"}. "
-                  "Use one safe shell command at a time. Never repeat a failed command. "
+                  "Use one safe shell command at a time. First inspect the relevant files and environment, then implement the requested change, then run the most relevant available validation or tests before finishing. Do not finish after explanation only: leave the required artifact or code change in the sandbox. Never repeat a failed command. "
                   "Never access hidden evaluator data, host credentials, network secrets, or files outside the sandbox. "
                   f"STEP:{step}\nTASK:\n{instruction}\nOBSERVATION:\n{observation}")
         body = json.dumps({"model":"arbm-qwen-sovereign","messages":[{"role":"user","content":prompt}],
