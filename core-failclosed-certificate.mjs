@@ -1,16 +1,19 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
-const sha=x=>'sha256:'+crypto.createHash('sha256').update(fs.readFileSync(x)).digest('hex');
-const files=['incumbent-attestor.mjs','incumbent-promotion-controller.mjs','replacement-proposal-gate.mjs','universal-radar-event-applier.mjs','universal-radar-evidence-ledger.mjs'];
-const certificate={
-  schema:'arbm-core-failclosed-certificate-v1',
-  generatedAt:new Date().toISOString(),
-  sourceCommit:process.env.GITHUB_SHA||process.env.ARBM_SOURCE_SHA||'local',
-  zeroSpendMode:'HARD',
-  gates:{failClosed:true,artifactProofRequired:true,atomicRegistry:true,atomicScheduler:true,ledgerHashChain:true,ledgerCorruptionBlocksPromotion:true,explicitPromotion:true,rollbackRestoresIncumbent:true,malformedEventsBlocked:true,automaticReplacement:false},
-  files:Object.fromEntries(files.map(f=>[f,sha(f)])),
-  status:'PASS'
-};
-fs.mkdirSync('evidence/core-failclosed',{recursive:true});
+const shaBytes=b=>'sha256:'+crypto.createHash('sha256').update(b).digest('hex');
+const shaFile=x=>shaBytes(fs.readFileSync(x));
+const evidencePath='evidence/core-failclosed/test-results.json';
+if(!fs.existsSync(evidencePath)) throw new Error('CORE_TEST_EVIDENCE_MISSING');
+const tests=JSON.parse(fs.readFileSync(evidencePath,'utf8'));
+const expected=['incumbent-attestor-test.mjs','incumbent-registry-updater-test.mjs','replacement-proposal-gate-test.mjs','replacement-proposal-queue-test.mjs','incumbent-promotion-controller-test.mjs','universal-radar-evidence-ledger-test.mjs','universal-radar-event-applier-test.mjs','universal-radar-scheduler-test.mjs','universal-radar-engine-test.mjs','universal-radar-change-intelligence-test.mjs','universal-radar-collector-test.mjs','universal-radar-policy-test.mjs','challenger-orchestrator-test.mjs','comparative-challenger-engine-test.mjs','universal-radar-strategy-brain-test.mjs','universal-radar-strategy-zero-spend-test.mjs','p8-swe-rebench-smoke-test.py','p8-quality-cost-endpoint-test.py'];
+const by=new Map((tests.results||[]).map(x=>[x.file,x]));
+const sourceCommit=process.env.GITHUB_SHA||process.env.ARBM_SOURCE_SHA||'local';
+const sourceOk=tests.sourceCommit===sourceCommit;
+const evidenceOk=sourceOk&&tests.status==='PASS'&&tests.total===expected.length&&expected.every(f=>by.get(f)?.pass===true&&by.get(f)?.exitCode===0);
+const constitution=JSON.parse(fs.readFileSync('arbm-constitution.json','utf8'));
+const policyOk=constitution.zeroSpendMode==='HARD'&&constitution.failClosed===true&&constitution.automaticBilling===false&&constitution.automaticOverage===false;
+const files=['incumbent-attestor.mjs','incumbent-promotion-controller.mjs','replacement-proposal-gate.mjs','universal-radar-event-applier.mjs','universal-radar-evidence-ledger.mjs','core-failclosed-test-runner.mjs'];
+const certificate={schema:'arbm-core-failclosed-certificate-v2',generatedAt:new Date().toISOString(),sourceCommit,zeroSpendMode:constitution.zeroSpendMode,testEvidenceSha256:shaFile(evidencePath),testSummary:{passed:tests.passed,total:tests.total},gates:{testEvidenceComplete:evidenceOk,sourceCommitBound:sourceOk,constitutionalHardMode:policyOk},files:Object.fromEntries(files.map(f=>[f,shaFile(f)])),status:evidenceOk&&policyOk?'PASS':'FAIL'};
 fs.writeFileSync('evidence/core-failclosed/certificate.json',JSON.stringify(certificate,null,2)+'\n');
 console.log(JSON.stringify(certificate));
+if(certificate.status!=='PASS') process.exit(1);

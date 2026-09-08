@@ -21,11 +21,15 @@ try{
   assert.deepEqual(restored.active,before); assert.equal(restored.history.at(-1).type,'ROLLBACK');
   const repeat=rollbackReplacement({domain:'ai-providers',promotionHash:p.promotionHash,reason:'repeat',evidenceHash:d('f')});
   assert.equal(repeat.rolledBack,false); assert.equal(repeat.reasons.includes('PROMOTION_NOT_CURRENT'),true);
+  const lockPath=registryPath+'.mutation.lock'; const lockBefore=fs.readFileSync(registryPath,'utf8'); fs.mkdirSync(lockPath);
+  assert.throws(()=>promoteReplacement({domain:'ai-providers',proposal,challengerIdentity:challenger,certification}),/INCUMBENT_MUTATION_LOCK_TIMEOUT/);
+  fs.rmSync(lockPath,{recursive:true,force:true}); assert.equal(fs.readFileSync(registryPath,'utf8'),lockBefore);
   const stableBefore=fs.readFileSync(registryPath,'utf8'); fs.writeFileSync(ledgerPath,'{corrupt\n');
   const blocked=promoteReplacement({domain:'ai-providers',proposal,challengerIdentity:challenger,certification});
   assert.equal(blocked.promoted,false); assert.equal(blocked.reasons.includes('EVIDENCE_LEDGER_INVALID'),true); assert.equal(fs.readFileSync(registryPath,'utf8'),stableBefore);
   console.log('INCUMBENT_PROMOTION_ROLLBACK_PASS');
 } finally {
   fs.writeFileSync(registryPath,registryBackup);
+  fs.rmSync(registryPath+'.mutation.lock',{recursive:true,force:true});
   if(ledgerBackup===null) fs.rmSync(ledgerPath,{force:true}); else fs.writeFileSync(ledgerPath,ledgerBackup);
 }

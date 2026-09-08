@@ -1,7 +1,7 @@
 name: Core Fail-Closed Certification
 on:
   push:
-    branches: [codex/core-failclosed-final-20260908, p8/constitution-source-context-20260905]
+    branches: [codex/core-failclosed-final-20260908, codex/core-defense-depth-20260908, p8/constitution-source-context-20260905]
   workflow_dispatch:
 permissions:
   contents: read
@@ -11,28 +11,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - name: Node core certification
-        run: |
-          node incumbent-attestor-test.mjs
-          node incumbent-registry-updater-test.mjs
-          node replacement-proposal-gate-test.mjs
-          node replacement-proposal-queue-test.mjs
-          node incumbent-promotion-controller-test.mjs
-          node universal-radar-evidence-ledger-test.mjs
-          node universal-radar-event-applier-test.mjs
-          node universal-radar-scheduler-test.mjs
-          node universal-radar-engine-test.mjs
-          node universal-radar-change-intelligence-test.mjs
-          node universal-radar-collector-test.mjs
-          node universal-radar-policy-test.mjs
-          node challenger-orchestrator-test.mjs
-          node comparative-challenger-engine-test.mjs
-          node universal-radar-strategy-brain-test.mjs
-          node universal-radar-strategy-zero-spend-test.mjs
-      - name: P8 regression suite
-        run: |
-          python p8-swe-rebench-smoke-test.py
-          python p8-quality-cost-endpoint-test.py
+      - name: Execute evidence-driven core suite
+        run: node core-failclosed-test-runner.mjs
+      - name: Verify clean patch format
+        run: git diff --check
       - name: Build core evidence certificate
         run: node core-failclosed-certificate.mjs
       - name: Freeze evidence hashes
