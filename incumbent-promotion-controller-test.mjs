@@ -1,14 +1,20 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import {promoteReplacement,rollbackReplacement} from './incumbent-promotion-controller.mjs';
+import {evaluateReplacementProposal} from './replacement-proposal-gate.mjs';
 const registryPath='incumbent-registry.json', ledgerPath='universal-radar-evidence-ledger.jsonl';
 const registryBackup=fs.readFileSync(registryPath,'utf8'); const ledgerBackup=fs.existsSync(ledgerPath)?fs.readFileSync(ledgerPath,'utf8'):null;
 const d=c=>'sha256:'+c.repeat(64);
 try{
   const before=JSON.parse(registryBackup).domains['ai-providers'].active;
   const challenger={id:'candidate-x',version:'2',artifactSha256:d('b'),activatedAt:'2026-09-08T16:00:00Z',zeroSpendVerified:true};
-  const proposal={approved:true,action:'OPEN_P9_REPLACEMENT_PROPOSAL',proposalHash:d('c'),incumbentIdentity:before,challengerIdentity:challenger};
+  const challengerResult={grade:'replacementGrade',decision:'REPLACEMENT_CANDIDATE',replacementApplied:false,gates:{sampleOk:true,pairedOk:true,integrityOk:true}};
+  const proposal=evaluateReplacementProposal({domain:'ai-providers',challengerResult,challengerIdentity:challenger});
+  assert.equal(proposal.approved,true);
   const certification={status:'PASS',rollbackReady:true,evidenceHash:d('d')};
+  const tampered={...proposal,domain:'coding-models'};
+  const tamperedResult=promoteReplacement({domain:'ai-providers',proposal:tampered,challengerIdentity:challenger,certification});
+  assert.equal(tamperedResult.promoted,false); assert.equal(tamperedResult.reasons.includes('PROPOSAL_HASH_MISMATCH'),true);
   const p=promoteReplacement({domain:'ai-providers',proposal,challengerIdentity:challenger,certification});
   assert.equal(p.promoted,true); assert.equal(JSON.parse(fs.readFileSync(registryPath,'utf8')).domains['ai-providers'].active.id,'candidate-x');
   const stale=promoteReplacement({domain:'ai-providers',proposal,challengerIdentity:challenger,certification});
@@ -22,8 +28,11 @@ try{
   const repeat=rollbackReplacement({domain:'ai-providers',promotionHash:p.promotionHash,reason:'repeat',evidenceHash:d('f')});
   assert.equal(repeat.rolledBack,false); assert.equal(repeat.reasons.includes('PROMOTION_NOT_CURRENT'),true);
   const lockPath=registryPath+'.mutation.lock'; const lockBefore=fs.readFileSync(registryPath,'utf8'); fs.mkdirSync(lockPath);
-  assert.throws(()=>promoteReplacement({domain:'ai-providers',proposal,challengerIdentity:challenger,certification}),/INCUMBENT_MUTATION_LOCK_TIMEOUT/);
+  assert.throws(()=>promoteReplacement({domain:'ai-providers',proposal,challengerIdentity:challenger,certification}),/FILE_MUTATION_LOCK_TIMEOUT/);
   fs.rmSync(lockPath,{recursive:true,force:true}); assert.equal(fs.readFileSync(registryPath,'utf8'),lockBefore);
+  fs.mkdirSync(lockPath); const old=new Date(Date.now()-700000); fs.utimesSync(lockPath,old,old);
+  const recovered=promoteReplacement({domain:'ai-providers',proposal,challengerIdentity:challenger,certification});
+  assert.equal(recovered.promoted,true); const recoveredRb=rollbackReplacement({domain:'ai-providers',promotionHash:recovered.promotionHash,reason:'stale lock recovery',evidenceHash:d('9')}); assert.equal(recoveredRb.rolledBack,true);
   const stableBefore=fs.readFileSync(registryPath,'utf8'); fs.writeFileSync(ledgerPath,'{corrupt\n');
   const blocked=promoteReplacement({domain:'ai-providers',proposal,challengerIdentity:challenger,certification});
   assert.equal(blocked.promoted,false); assert.equal(blocked.reasons.includes('EVIDENCE_LEDGER_INVALID'),true); assert.equal(fs.readFileSync(registryPath,'utf8'),stableBefore);

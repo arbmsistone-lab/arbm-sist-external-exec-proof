@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
+import {challengerResultHashOf,proposalHashOf} from './proposal-integrity.mjs';
 const loadRegistry=()=>JSON.parse(fs.readFileSync('incumbent-registry.json','utf8'));
 const sha=x=>'sha256:'+crypto.createHash('sha256').update(String(x)).digest('hex');
 const digest=x=>/^sha256:[0-9a-f]{64}$/i.test(String(x||''));
@@ -19,6 +20,7 @@ export function evaluateReplacementProposal({domain,challengerResult,challengerI
   if(!['REPLACEMENT_CANDIDATE','NON_INFERIOR_CANDIDATE'].includes(challengerResult?.decision)) reasons.push('CHALLENGER_DECISION_INSUFFICIENT');
   if(challengerResult?.gates?.sampleOk!==true||challengerResult?.gates?.pairedOk!==true||challengerResult?.gates?.integrityOk!==true) reasons.push('CHALLENGER_GATES_INCOMPLETE');
   if(challengerResult?.replacementApplied!==false) reasons.push('AUTOMATIC_REPLACEMENT_FORBIDDEN');
-  const approved=reasons.length===0;
-  return {schema:'arbm-replacement-proposal-gate-v1',approved,action:approved?'OPEN_P9_REPLACEMENT_PROPOSAL':'BLOCK',domain,reasons,incumbentIdentity:incumbent||null,challengerIdentity:challengerIdentity||null,proposalHash:sha(JSON.stringify({domain,incumbent,challengerIdentity,challengerResult}))};
+  const approved=reasons.length===0; const challengerResultHash=challengerResultHashOf(challengerResult);
+  const proposalHash=proposalHashOf({domain,incumbentIdentity:incumbent||null,challengerIdentity:challengerIdentity||null,challengerResultHash});
+  return {schema:'arbm-replacement-proposal-gate-v1',approved,action:approved?'OPEN_P9_REPLACEMENT_PROPOSAL':'BLOCK',domain,reasons,incumbentIdentity:incumbent||null,challengerIdentity:challengerIdentity||null,challengerResultHash,proposalHash};
 }

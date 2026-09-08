@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import {spawnSync} from 'node:child_process';
-const nodeTests=['incumbent-attestor-test.mjs','incumbent-registry-updater-test.mjs','replacement-proposal-gate-test.mjs','replacement-proposal-queue-test.mjs','incumbent-promotion-controller-test.mjs','universal-radar-evidence-ledger-test.mjs','universal-radar-event-applier-test.mjs','universal-radar-scheduler-test.mjs','universal-radar-engine-test.mjs','universal-radar-change-intelligence-test.mjs','universal-radar-collector-test.mjs','universal-radar-policy-test.mjs','challenger-orchestrator-test.mjs','comparative-challenger-engine-test.mjs','universal-radar-strategy-brain-test.mjs','universal-radar-strategy-zero-spend-test.mjs'];
+const nodeTests=['p8-external-proof-attestor-test.mjs','incumbent-attestor-test.mjs','incumbent-registry-updater-test.mjs','replacement-proposal-gate-test.mjs','replacement-proposal-queue-test.mjs','incumbent-promotion-controller-test.mjs','universal-radar-evidence-ledger-test.mjs','universal-radar-event-applier-test.mjs','universal-radar-scheduler-test.mjs','universal-radar-engine-test.mjs','universal-radar-change-intelligence-test.mjs','universal-radar-collector-test.mjs','universal-radar-policy-test.mjs','challenger-orchestrator-test.mjs','comparative-challenger-engine-test.mjs','universal-radar-strategy-brain-test.mjs','universal-radar-strategy-zero-spend-test.mjs'];
 const pythonTests=['p8-swe-rebench-smoke-test.py','p8-quality-cost-endpoint-test.py'];
 const results=[];
 function run(kind,file){

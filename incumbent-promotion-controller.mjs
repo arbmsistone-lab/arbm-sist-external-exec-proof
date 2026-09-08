@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import {appendEvidence,verifyLedger} from './universal-radar-evidence-ledger.mjs';
+import {validProposalHash} from './proposal-integrity.mjs';
+import {withFileLock} from './file-mutation-lock.mjs';
 const path='incumbent-registry.json';
 const lockPath=path+'.mutation.lock';
-const sleepMs=ms=>Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,ms);
-function withMutationLock(fn){let held=false;for(let i=0;i<200&&!held;i++){try{fs.mkdirSync(lockPath);held=true;}catch(e){if(e?.code!=='EEXIST') throw e;sleepMs(10);}}if(!held) throw new Error('INCUMBENT_MUTATION_LOCK_TIMEOUT');try{return fn();}finally{fs.rmSync(lockPath,{recursive:true,force:true});}}
 const sha=x=>'sha256:'+crypto.createHash('sha256').update(String(x)).digest('hex');
 const digest=x=>/^sha256:[0-9a-f]{64}$/i.test(String(x||''));
 const validTime=x=>Number.isFinite(Date.parse(String(x||'')));
@@ -12,11 +12,12 @@ const validIdentity=x=>!!x&&typeof x==='object'&&['id','version','artifactSha256
 const stable=x=>JSON.stringify(x,Object.keys(x||{}).sort());
 function atomicWrite(reg){const tmp=path+'.tmp-'+process.pid;const fd=fs.openSync(tmp,'w');try{fs.writeFileSync(fd,JSON.stringify(reg,null,2));fs.fsyncSync(fd);}finally{fs.closeSync(fd);}fs.renameSync(tmp,path);}
 const load=()=>JSON.parse(fs.readFileSync(path,'utf8'));
-export function promoteReplacement(args){return withMutationLock(()=>{
+export function promoteReplacement(args){return withFileLock(lockPath,()=>{
   const {domain,proposal,challengerIdentity,certification}=args; const reg=load(); const slot=reg.domains?.[domain]; const reasons=[];
   if(!slot) reasons.push('DOMAIN_NOT_REGISTERED');
   if(slot?.status!=='VERIFIED'||!validIdentity(slot?.active)) reasons.push('INCUMBENT_NOT_VERIFIED');
   if(proposal?.approved!==true||proposal?.action!=='OPEN_P9_REPLACEMENT_PROPOSAL'||!digest(proposal?.proposalHash)) reasons.push('PROPOSAL_NOT_APPROVED');
+  if(!validProposalHash(proposal)) reasons.push('PROPOSAL_HASH_MISMATCH');
   if(stable(proposal?.incumbentIdentity)!==stable(slot?.active)) reasons.push('INCUMBENT_CHANGED_SINCE_PROPOSAL');
   if(!validIdentity(challengerIdentity)) reasons.push('CHALLENGER_IDENTITY_INVALID');
   if(stable(proposal?.challengerIdentity)!==stable(challengerIdentity)) reasons.push('CHALLENGER_IDENTITY_MISMATCH');
@@ -31,7 +32,7 @@ export function promoteReplacement(args){return withMutationLock(()=>{
   atomicWrite(reg); let ev; try{ev=appendEvidence({type:'INCUMBENT_PROMOTED',domain,promotionHash,proposalHash:proposal.proposalHash,evidenceHash:certification.evidenceHash});}catch(e){atomicWrite(original);throw e;}
   return {schema:'arbm-incumbent-promotion-v1',promoted:true,domain,promotionHash,previous,active:challengerIdentity,evidenceHash:ev.entryHash};
 });}
-export function rollbackReplacement(args){return withMutationLock(()=>{
+export function rollbackReplacement(args){return withFileLock(lockPath,()=>{
   const {domain,promotionHash,reason,evidenceHash}=args; const reg=load(); const slot=reg.domains?.[domain]; const reasons=[]; const history=slot?.history||[]; const promotion=[...history].reverse().find(x=>x.type==='PROMOTION'&&x.promotionHash===promotionHash);
   if(!slot) reasons.push('DOMAIN_NOT_REGISTERED');
   if(!promotion) reasons.push('PROMOTION_NOT_FOUND');
