@@ -13,7 +13,10 @@ jobs:
           TARGET_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          cat > query.json <<EOF
-          {"query":"query BuildBySHAQuery($owner: String!, $name: String!, $SHA: String) { searchBuilds(repositoryOwner: $owner, repositoryName: $name, SHA: $SHA) { id status branch } }","variables":{"owner":"arbmsistone-lab","name":"arbm-sist-external-exec-proof","SHA":"${TARGET_SHA}"}}
-          EOF
+          python3 - <<'PY'
+          import json, os
+          q = 'query BuildBySHAQuery($owner: String!, $name: String!, $SHA: String) { searchBuilds(repositoryOwner: $owner, repositoryName: $name, SHA: $SHA) { id status branch } }'
+          p = {'query': q, 'variables': {'owner': 'arbmsistone-lab', 'name': 'arbm-sist-external-exec-proof', 'SHA': os.environ['TARGET_SHA']}}
+          open('query.json','w',encoding='utf-8').write(json.dumps(p))
+          PY
           curl -fsS -H 'Content-Type: application/json' --data @query.json https://api.cirrus-ci.com/graphql | tee response.json
