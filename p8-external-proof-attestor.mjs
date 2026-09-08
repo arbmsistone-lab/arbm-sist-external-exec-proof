@@ -15,6 +15,6 @@ export function attestationFromEnvelope(path='p8-external-proof-envelope.json'){
   if(!e.sourceCommit||!e.artifactCreatedAt) bad.push('PROVENANCE_INCOMPLETE');
   if(bad.length) throw new Error('P8_EXTERNAL_PROOF_INVALID:'+bad.join(','));
   const d=discoverIncumbents();
-  d.evidence={sourceCommit:e.sourceCommit,observedAt:e.artifactCreatedAt,providerCostUsd:0,validPatch:true,status:'',modelArtifactSha256:sha(e.artifactDigest),providerCallLedger:[{route:e.actualRoute,status:'ok',model:null,pipeline:e.actualPipeline,costUsd:0}]};
+  d.evidence={sourceCommit:e.sourceCommit,observedAt:e.artifactCreatedAt,providerCostUsd:0,validPatch:true,status:'',modelArtifactSha256:e.artifactDigest,providerCallLedger:[{route:e.actualRoute,status:'ok',model:null,pipeline:e.actualPipeline,costUsd:0}]};
   return attestDiscovery(d,new Date(e.artifactCreatedAt));
 }

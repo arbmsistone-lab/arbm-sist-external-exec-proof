@@ -6,6 +6,7 @@ const original=JSON.parse(fs.readFileSync(path,'utf8'));
 const good=attestationFromEnvelope(path);
 assert.equal(good.verifiedCount,1);
 assert.equal(good.routes.find(x=>x.id==='free-primary').state,'VERIFIED');
+assert.equal(good.routes.find(x=>x.id==='free-primary').identity.proofArtifactDigest,original.artifactDigest);
 assert.equal(good.routes.find(x=>x.id==='quality-cost').state!=='VERIFIED',true);
 const bad={...original,providerCostUsd:1};
 fs.writeFileSync('_bad-envelope.json',JSON.stringify(bad));

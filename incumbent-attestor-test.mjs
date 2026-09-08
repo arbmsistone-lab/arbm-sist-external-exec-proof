@@ -5,7 +5,7 @@ const routes=[{id:'free-primary',configured:true,endpoint:'x'},{id:'free-fallbac
 const configured=attestDiscovery({routes,evidence:null},now);
 assert.equal(configured.verifiedCount,0);
 assert.equal(configured.routes[0].state,'CONFIGURED_UNATTESTED');
-const evidence={providerCostUsd:0,sourceCommit:'abc123',observedAt:'2026-09-08T12:00:00Z',validPatch:true,providerCallLedger:[{route:'free-primary',status:'ok',model:'model-free',pipeline:'mesh-v1',costUsd:0}]};
+const evidence={providerCostUsd:0,sourceCommit:'abc123',observedAt:'2026-09-08T12:00:00Z',validPatch:true,modelArtifactSha256:'sha256:'+'a'.repeat(64),providerCallLedger:[{route:'free-primary',status:'ok',model:'model-free',pipeline:'mesh-v1',costUsd:0}]};
 const good=attestDiscovery({routes,evidence},now);
 assert.equal(good.verifiedCount,1);
 assert.equal(good.routes[0].state,'VERIFIED');
@@ -13,8 +13,12 @@ assert.equal(good.routes[0].identity.zeroSpendVerified,true);
 const meshOnly=attestDiscovery({routes,evidence:{...evidence,providerCallLedger:[{route:'free-primary',status:'ok',model:null,pipeline:'provider-mesh-v17',costUsd:0}]}},now);
 assert.equal(meshOnly.routes[0].state,'VERIFIED');
 assert.equal(meshOnly.routes[0].identity.version,'provider-mesh-v17');
-assert.equal(meshOnly.routes[0].identity.proofArtifactDigest,null);
+assert.equal(meshOnly.routes[0].identity.proofArtifactDigest,'sha256:'+'a'.repeat(64));
 assert.ok(meshOnly.routes[0].identity.identityDigest.startsWith('sha256:'));
+
+const missingArtifact=attestDiscovery({routes,evidence:{...evidence,modelArtifactSha256:null}},now);
+assert.notEqual(missingArtifact.routes[0].state,'VERIFIED');
+assert.equal(missingArtifact.routes[0].reasons.includes('ARTIFACT_HASH_MISSING'),true);
 const missingAggregate=attestDiscovery({routes,evidence:{...evidence,providerCostUsd:undefined}},now);
 assert.notEqual(missingAggregate.routes[0].state,'VERIFIED');
 assert.equal(missingAggregate.routes[0].reasons.includes('AGGREGATE_COST_MISSING'),true);

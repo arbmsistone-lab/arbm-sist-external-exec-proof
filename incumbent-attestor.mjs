@@ -24,6 +24,8 @@ export function attestDiscovery(discovery,now=new Date()){
       if(runtime.timestampAmbiguous) reasons.push('EVIDENCE_TIMESTAMP_AMBIGUOUS');
       if(constitution.automaticBilling!==false||constitution.automaticOverage!==false) reasons.push('HARD_COST_GUARD_NOT_ENFORCED');
       if(!known(runtime.pipeline)||!known(runtime.sourceCommit)) reasons.push('RUNTIME_IDENTITY_INCOMPLETE');
+      const artifactOk=known(runtime.modelArtifactSha256)&&String(runtime.modelArtifactSha256).startsWith('sha256:');
+      if(!artifactOk) reasons.push('ARTIFACT_HASH_MISSING');
       const aggregateCost=discovery?.evidence?.providerCostUsd;
       const zeroCost=runtime.providerCostUsd!==null&&runtime.providerCostUsd!==undefined&&aggregateCost!==null&&aggregateCost!==undefined&&Number(runtime.providerCostUsd)===0&&Number(aggregateCost)===0;
       if(aggregateCost===null||aggregateCost===undefined) reasons.push('AGGREGATE_COST_MISSING');
@@ -34,7 +36,7 @@ export function attestDiscovery(discovery,now=new Date()){
       else if(!fresh){state='ATTESTED_STALE';reasons.push('EVIDENCE_STALE');}
       const identityOk=known(runtime.pipeline)&&known(runtime.sourceCommit);
       const successOk=runtime.validPatch===true&&!runtime.timestampAmbiguous&&constitution.automaticBilling===false&&constitution.automaticOverage===false;
-      if(!hardBlocked&&identityOk&&zeroCost&&fresh&&known(runtime.observedAt)&&successOk) state='VERIFIED';
+      if(!hardBlocked&&identityOk&&artifactOk&&zeroCost&&fresh&&known(runtime.observedAt)&&successOk) state='VERIFIED';
     }
     const generatedIdentityDigest=active?sha(JSON.stringify({route:runtime.route,model:runtime.model,pipeline:runtime.pipeline,sourceCommit:runtime.sourceCommit})):null;
     const proofArtifactDigest=active&&runtime.modelArtifactSha256&&runtime.modelArtifactSha256!=='unknown'?runtime.modelArtifactSha256:null;
