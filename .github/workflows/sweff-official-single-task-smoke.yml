@@ -1,0 +1,78 @@
+name: SWEfficiency Official Single Task Smoke
+on:
+  push:
+    branches:
+      - probe/sweff-official-single-task-20260907
+permissions:
+  contents: read
+jobs:
+  official-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SWEFF_SHA: 12d32a2d6800824a7d84bdb6797b5708e7b7957f
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch exact official source
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none https://github.com/swefficiency/swefficiency.git sweff
+          git -C sweff checkout --detach "$SWEFF_SHA"
+          test "$(git -C sweff rev-parse HEAD)" = "$SWEFF_SHA"
+      - name: Install official package
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -e ./sweff
+      - name: Select one public dataset task
+        id: task
+        working-directory: sweff
+        run: |
+          set -euo pipefail
+          python - <<'PY' > /tmp/instance.txt
+          from swefficiency.harness.utils import load_swefficiency_dataset
+          data=load_swefficiency_dataset('swefficiency/swefficiency','test')
+          ids=[x['instance_id'] for x in data if str(x['instance_id']).lower().startswith('numpy')]
+          assert ids, 'no_numpy_instance_found'
+          print(ids[0])
+          PY
+          id="$(tail -n1 /tmp/instance.txt)"
+          echo "instance_id=$id" >> "$GITHUB_OUTPUT"
+          echo "SELECTED_INSTANCE=$id"
+      - name: Run official gold evaluation smoke
+        id: eval
+        working-directory: sweff
+        continue-on-error: true
+        run: |
+          set +e
+          mkdir -p ../evidence
+          timeout 20m swefficiency eval --run_id arbm_single_smoke --num_workers 1 --instances_regex "^${{ steps.task.outputs.instance_id }}$" > ../evidence/eval.log 2>&1
+          rc=$?
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          echo "$rc" > ../evidence/exit-code.txt
+          exit "$rc"
+      - name: Freeze smoke evidence
+        if: always()
+        working-directory: sweff
+        run: |
+          set -euo pipefail
+          mkdir -p ../evidence
+          printf '%s\n' "${{ steps.task.outputs.instance_id }}" > ../evidence/instance-id.txt
+          nproc > ../evidence/nproc.txt
+          grep MemTotal /proc/meminfo > ../evidence/memory.txt
+          docker version > ../evidence/docker-version.txt 2>&1 || true
+          find logs/run_evaluation/arbm_single_smoke -maxdepth 5 -type f -print > ../evidence/result-files.txt 2>/dev/null || true
+          tail -n 200 ../evidence/eval.log > ../evidence/eval-tail.txt 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sweff-official-single-task-smoke
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Enforce official smoke
+        if: always()
+        run: |
+          test "${{ steps.eval.outputs.exit_code }}" = "0"
