@@ -22,8 +22,8 @@
       "state": "ACTIVE",
       "zeroCostVerified": true,
       "cpu": 2,
-      "memoryMB": 16006,
-      "diskMB": 100000,
+      "memoryMB": 7954,
+      "diskMB": 18891,
       "docker": true,
       "kvm": false,
       "gpu": 0,
@@ -31,7 +31,7 @@
       "authorizedDataset": false,
       "providerDomain": "gitlab",
       "liveExecutionProven": true,
-      "operationalEvidence": "mission:sovereign-chaos-20260906-1804"
+      "operationalEvidence": "mission:gitlab-universal-capacity-20260907-01"
     },
     {
       "id": "latchkey-oss-16core",

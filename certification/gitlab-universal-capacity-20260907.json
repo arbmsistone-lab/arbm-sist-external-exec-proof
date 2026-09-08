@@ -1,0 +1,28 @@
+{
+  "schema": "arbm-gitlab-universal-capacity-proof-v1",
+  "state": "CERTIFIED",
+  "missionId": "gitlab-universal-capacity-20260907-01",
+  "missionState": "SUCCEEDED",
+  "attempts": 1,
+  "providerId": "gitlab-free-private",
+  "providerDomain": "gitlab",
+  "zeroSpendVerified": true,
+  "requiredCapabilities": [
+    "git",
+    "tests",
+    "gitlab-runner"
+  ],
+  "workloadClass": "light",
+  "executionPolicy": "REMOTE_ONLY",
+  "sourceSha": "3c6e3faaf009180fcb6dff66f97a253ca0c3d2e9",
+  "heartbeat": {
+    "pipelineId": "2827844667",
+    "jobId": "16355607115",
+    "cpuCount": 2,
+    "memoryMB": 7954,
+    "diskAvailableMB": 18891,
+    "runnerDescription": "7-green.saas-linux-small-amd64.runners-manager.gitlab.com/default",
+    "observedAt": "2026-09-08T00:02:41.052946Z"
+  },
+  "capturedAt": "2026-09-08T00:02:41.052946Z"
+}
