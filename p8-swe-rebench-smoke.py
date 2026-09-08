@@ -439,7 +439,7 @@ def _sovereign_json(payload):
         prompt=('PUBLIC REPOSITORY CONTEXT:\n'+ctx+'\n\nPUBLIC ISSUE AND CONTRACT:\n'+issue+
                 '\n\nReturn ONLY a JSON object with key "edits". edits is a list of objects with path, start_line, end_line, new. '
                 'Use only supplied public context. start_line and end_line MUST be exact line numbers printed before each source line; never guess or renumber them. Make the smallest causally sufficient edit: when a fixed-width conversion inside existing guards/branches causes serialization overflow, prefer editing only that causal expression and preserve enclosing control flow verbatim. Preserve existing ordinary output formatting unless the public issue requires changing it. No markdown, hidden tests, gold patches, evaluator output, or solution PRs.')
-        max_tokens=112
+        max_tokens=384
         if feedback:
             prompt+='\n\nREJECTED CANDIDATE (failed public tests):\n'+json.dumps(payload.get('rejected_edits',[]),ensure_ascii=False)[:700]
             prompt+='\n\nPUBLIC VALIDATION FAILURES:\n'+_compact_public_validation_output(feedback,700)
@@ -450,7 +450,7 @@ def _sovereign_json(payload):
             hints=payload.get('public_causal_hints',[])
             if hints: prompt+='\n\nPUBLIC CAUSAL HINTS:\n'+json.dumps(hints,ensure_ascii=False)[:700]
             prompt+='\nRevise the rejected candidate; do not repeat it or any semantically equivalent failed candidate. Fix every accumulated public constraint while preserving the original public invariants. Return a complete candidate against the original numbered source, including all necessary edits, not an incremental patch against the rejected candidate.'
-            max_tokens=224
+            max_tokens=448
     elif phase=='judge':
         ctx=str(payload.get('tool_context',''))[:3500]
         issue=str(payload.get('issue',''))[:2200]
@@ -458,7 +458,7 @@ def _sovereign_json(payload):
         cb=json.dumps(payload.get('candidate_b',{}),ensure_ascii=False)[:2200]
         prompt=('PUBLIC CONTEXT:\n'+ctx+'\n\nISSUE:\n'+issue+'\n\nCANDIDATE A:\n'+ca+'\n\nCANDIDATE B:\n'+cb+
                 '\n\nReturn ONLY JSON with choice as A, B, or NONE and reason. Choose only from public evidence.')
-        max_tokens=220
+        max_tokens=256
     else:
         return 126,None,'SOVEREIGN_UNSUPPORTED_PHASE:'+phase,False
     if phase=='solve':
@@ -848,6 +848,10 @@ def public_validation(repo, changed_paths, issue_text='', full=False):
             r=run(['go','test','./...'],repo,600 if full else 300); return True,r.returncode,((r.stdout or '')+'\n'+(r.stderr or ''))[-8000:]
         if Path(repo,'Cargo.toml').is_file() and shutil.which('cargo'):
             r=run(['cargo','test','--quiet'],repo,600 if full else 300); return True,r.returncode,((r.stdout or '')+'\n'+(r.stderr or ''))[-8000:]
+        if shutil.which('dotnet') and (list(Path(repo).glob('*.sln')) or list(Path(repo).glob('*.csproj'))):
+            targets=[str(x.name) for x in Path(repo).glob('*.sln')] or [str(x.name) for x in Path(repo).glob('*.csproj')]
+            r=run(['dotnet','test',targets[0],'--nologo','--verbosity','quiet'],repo,900 if full else 480)
+            return True,r.returncode,((r.stdout or '')+'\n'+(r.stderr or ''))[-10000:]
         py=[x for x in changed_paths if str(x).endswith('.py')]
         if py:
             r=run([sys.executable,'-m','py_compile',*py],repo,120); return True,r.returncode,((r.stdout or '')+'\n'+(r.stderr or ''))[-6000:]

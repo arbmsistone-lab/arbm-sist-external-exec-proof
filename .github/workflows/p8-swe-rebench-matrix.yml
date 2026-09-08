@@ -31,6 +31,8 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install datasets
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends leiningen
       - name: Restore sovereign model cache once
         uses: actions/cache@v4
         with:
@@ -71,7 +73,7 @@ jobs:
           set +e
           mkdir -p p8-matrix-artifacts
           FAILS=0
-          for OFFSET in 1 2 3 4 5; do
+          for OFFSET in 6 7 8 9 10; do
             echo "=== GENERATE SWE offset $OFFSET ==="
             rm -rf p8-swe-artifact
             HF_OFFSET="$OFFSET" python p8-swe-rebench-smoke.py
@@ -103,7 +105,7 @@ jobs:
           import json
           from pathlib import Path
           failures=[]
-          for offset in (1,2,3,4,5):
+          for offset in (6,7,8,9,10):
               d=Path('p8-matrix-artifacts')/f'offset-{offset}'
               try:
                   ev=json.loads((d/'agent-evidence.json').read_text(encoding='utf-8'))
@@ -124,7 +126,7 @@ jobs:
         run: |
           set +e
           EVAL_FAILS=0
-          for OFFSET in 1 2 3 4 5; do
+          for OFFSET in 6 7 8 9 10; do
             DIR="p8-matrix-artifacts/offset-$OFFSET"
             if [ ! -s "$DIR/patches.json" ]; then
               echo "missing patches for offset $OFFSET"
@@ -146,7 +148,7 @@ jobs:
           from pathlib import Path
           failures=[]
           root=Path('p8-matrix-artifacts')
-          for offset in (1,2,3,4,5):
+          for offset in (6,7,8,9,10):
               d=root/f'offset-{offset}'
               try:
                   ev=json.load(open(d/'agent-evidence.json',encoding='utf-8'))
