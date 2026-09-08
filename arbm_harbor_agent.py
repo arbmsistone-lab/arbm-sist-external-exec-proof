@@ -9,6 +9,7 @@ from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
 
 API_URL = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v1"
+SOVEREIGN_URL = os.environ.get("ARBM_SOVEREIGN_URL", "http://127.0.0.1:8088/v1/chat/completions")
 MAX_STEPS = 20
 
 class ARBMHarborAgent(BaseAgent):
@@ -31,6 +32,21 @@ class ARBMHarborAgent(BaseAgent):
         req = urllib.request.Request(url + sep + "audience=arbm-sist-benchmark", headers={"Authorization": "Bearer " + token})
         with urllib.request.urlopen(req, timeout=20) as r:
             return json.loads(r.read().decode())["value"]
+    def _sovereign_decide(self, instruction: str, observation: str, step: int) -> dict:
+        prompt = f"""You are ARBM SIST inside a Terminal-Bench sandbox. Return JSON only with action, command, summary. action must be exec or finish. Use one safe bash command for exec. Never access evaluator secrets, credentials, or files outside the sandbox. Do not repeat failed commands. Finish only after verification succeeds.\nSTEP:{step}\nTASK:{instruction}\nRECENT HISTORY:{observation}"""
+        body = {"model":"arbm-qwen-sovereign","messages":[{"role":"user","content":prompt}],"temperature":0,"max_tokens":900}
+        req = urllib.request.Request(SOVEREIGN_URL, data=json.dumps(body).encode(), method="POST", headers={"Authorization":"Bearer local-dummy-key","Content-Type":"application/json"})
+        with urllib.request.urlopen(req, timeout=240) as r:
+            raw=json.loads(r.read().decode())
+        text=str((((raw.get("choices") or [{}])[0].get("message") or {}).get("content") or "")).strip()
+        text=text.removeprefix("```json").removesuffix("```").strip()
+        start=text.find("{"); end=text.rfind("}")
+        if start >= 0 and end > start: text=text[start:end+1]
+        action=json.loads(text)
+        if action.get("action") not in ("exec","finish") or (action.get("action")=="exec" and not str(action.get("command","")).strip()):
+            raise RuntimeError("ARBM_SOVEREIGN_INVALID_ACTION")
+        return {"ok":True,"status":"PASS","action":action,"model":"arbm-qwen-sovereign","provider":"sovereign-qwen-github","provider_attempts":[{"route":"sovereign","status":200,"model":"arbm-qwen-sovereign"}],"mandatory_cost_usd":0,"paid_fallback_used":False}
+
     def _decide(self, instruction: str, observation: str, step: int) -> dict:
         payload = json.dumps({"instruction": instruction, "observation": observation, "step": step}).encode()
         last_error = None
@@ -73,6 +89,11 @@ class ARBMHarborAgent(BaseAgent):
                 last_error = type(exc).__name__
             if attempt < 3:
                 time.sleep((0.7 * (2 ** attempt)) + random.uniform(0.05, 0.25))
+        if os.environ.get("ARBM_ENABLE_SOVEREIGN_FALLBACK") == "1":
+            try:
+                return self._sovereign_decide(instruction, observation, step)
+            except Exception as exc:
+                raise RuntimeError("ARBM_DECISION_ALL_FREE_ROUTES_EXHAUSTED:remote=%s;sovereign=%s" % (last_error, type(exc).__name__))
         raise RuntimeError("ARBM_DECISION_RETRY_EXHAUSTED:" + str(last_error))
 
     async def run(self, instruction: str, environment: BaseEnvironment, context: AgentContext) -> None:
