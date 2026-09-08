@@ -606,6 +606,11 @@ def public_static_hotspots(repo, paths, issue_text, limit=10, radius=6):
         if len(blocks)>=limit: break
     return '\n\n'.join(blocks)
 
+def public_editable_paths(paths, issue_text):
+    explicit=bool(re.search(r'\b(test|tests|testing|spec|specs|coverage|fixture|fixtures)\b',str(issue_text),re.I))
+    if explicit: return list(paths)
+    return [p for p in paths if not re.search(r'(^|/)(test|tests|spec)(/|_|$)',str(p).replace('\\','/'),re.I)]
+
 def numbered_file(repo, rel, center=None, radius=120):
     f=Path(repo,rel)
     if not f.is_file(): return ''
@@ -829,6 +834,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     allowed_paths=[]
     for rel in re.findall(r'(?m)^FILE:\s+([^\s]+)',context):
         if rel not in allowed_paths: allowed_paths.append(rel)
+    allowed_paths=public_editable_paths(allowed_paths,problem)
     resume_public={}
     if os.environ.get('ARBM_SOVEREIGN_ONLY')=='1' and os.environ.get('ARBM_RESUME_PUBLIC_EVIDENCE')=='1':
         ep=Path(OUT,'agent-evidence.json')

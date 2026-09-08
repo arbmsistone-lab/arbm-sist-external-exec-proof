@@ -55,6 +55,12 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertNotIn('obsolete focus',prompt)
         self.assertEqual(requests[0]['max_tokens'],512)
 
+    def test_public_editable_paths_blocks_tests_unless_requested(self):
+        editable=load_function('public_editable_paths',{'re':re})
+        paths=['src/core.py','test/core_test.py','tests/unit.py','spec/core_spec.py']
+        self.assertEqual(editable(paths,'fix parser behavior'),['src/core.py'])
+        self.assertEqual(editable(paths,'add regression test coverage for parser'),paths)
+
     def test_context_compaction_deduplicates_files(self):
         compact = load_function('_compact_public_context', {'re': re})
         context = (
