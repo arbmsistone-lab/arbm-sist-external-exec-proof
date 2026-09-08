@@ -133,7 +133,7 @@ async function callGroq(prompt: string, step = 1, modelHint = "") {
   }
   return { result: null, attempts };
 }
-async function callCloudflare(prompt: string) {
+async function callCloudflare(prompt: string, modelHint = "") {
   const url = String(Deno.env.get("ARBM_CF_AI_URL") || "").trim();
   const secret = String(Deno.env.get("ARBM_CF_AI_SHARED_SECRET") || "").trim();
   if (!url || !secret) return { result: null, attempts: [{ route: "cloudflare", status: "not_configured" }] };
@@ -145,7 +145,8 @@ async function callCloudflare(prompt: string) {
         system: "You are ARBM SIST inside a Terminal-Bench sandbox. Return only JSON matching the supplied schema.",
         input: prompt,
         mode: "json",
-        schema
+        schema,
+        ...(modelHint ? { model: modelHint } : {})
       }),
       signal: AbortSignal.timeout(25000)
     });
@@ -182,23 +183,24 @@ Deno.serve(async (req: Request) => {
     const diagnosticBranch = oidc.ref.startsWith("refs/heads/codex/terminal-capacity-") || oidc.ref.startsWith("refs/heads/codex/free-capacity-");
     const forceGroq = body?.provider_hint === "groq" && diagnosticBranch;
     const forceGoogle = body?.provider_hint === "google" && diagnosticBranch;
+    const forceCloudflare = body?.provider_hint === "cloudflare" && diagnosticBranch;
     const modelHint = diagnosticBranch ? String(body?.model_hint || "") : "";
-    const groqFirst = !forceGoogle && (forceGroq || step >= 3);
+    const groqFirst = !forceGoogle && !forceCloudflare && (forceGroq || step >= 3);
     if (groqFirst) {
       const groq = await callGroq(prompt, step, forceGroq ? modelHint : "");
       attempts.push(...groq.attempts); result = groq.result;
     }
-    if (!result && !forceGroq) {
+    if (!result && !forceGroq && !forceCloudflare) {
       const google = await callGemini(prompt, step, forceGoogle ? modelHint : "");
       attempts.push(...google.attempts); result = google.result;
     }
-    if (!result && !forceGoogle && !groqFirst) {
+    if (!result && !forceGoogle && !forceCloudflare && !groqFirst) {
       const groq = await callGroq(prompt, step, "");
       attempts.push(...groq.attempts); result = groq.result;
     }
 
     if (!result && !forceGroq && !forceGoogle) {
-      const cloudflare = await callCloudflare(prompt);
+      const cloudflare = await callCloudflare(prompt, forceCloudflare ? modelHint : "");
       attempts.push(...cloudflare.attempts);
       result = cloudflare.result;
     }
@@ -232,7 +234,7 @@ Deno.serve(async (req: Request) => {
       model: result.model,
       provider: result.provider,
       provider_attempts: attempts,
-      pipeline: "terminal-agent-v11-reserve-aware-free-capacity-mesh",
+      pipeline: "terminal-agent-v12-cloudflare-capacity-discovery",
       mandatory_cost_usd: 0,
       paid_fallback_used: false,
       scoreable: false,
