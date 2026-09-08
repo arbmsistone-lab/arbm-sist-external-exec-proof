@@ -383,6 +383,11 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertIn('PUBLIC NUMERIC PRECISION EVIDENCE', compact)
         self.assertIn('FILE: src/cljam/io/vcf/writer.clj', compact)
 
+    def test_workflow_enables_deterministic_public_repair(self):
+        workflow = SCRIPT.with_name('.github').joinpath('workflows', 'p8-swe-rebench-smoke.yml')
+        source = workflow.read_text(encoding='utf-8')
+        self.assertIn("ARBM_ALLOW_DETERMINISTIC_PUBLIC_REPAIR: '1'", source)
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

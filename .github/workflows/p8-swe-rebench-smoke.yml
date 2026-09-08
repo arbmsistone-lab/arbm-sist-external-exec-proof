@@ -16,6 +16,7 @@ jobs:
     timeout-minutes: 75
     env:
       ZERO_SPEND_MODE: HARD
+      ARBM_ALLOW_DETERMINISTIC_PUBLIC_REPAIR: '1'
       HF_OFFSET: '1'
       MODEL_DIR: ${{ github.workspace }}/.cache/arbm-models
       MODEL_FILE: qwen2.5-coder-14b-instruct-q4_k_m.gguf
