@@ -1,0 +1,31 @@
+{
+  "schema": "arbm-clawcloud-persistent-v1",
+  "providerId": "clawcloud-free-persistent",
+  "providerDomain": "clawcloud",
+  "branch": "master",
+  "rootDirectory": ".",
+  "dockerfile": "Dockerfile",
+  "profile": "clawcloud-free-container",
+  "cpuCoresMax": 0.25,
+  "memoryMiBMax": 1024,
+  "port": 8000,
+  "autoDeploy": true,
+  "continuityUrl": "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-persistent-continuity-v1",
+  "requiredEnvironment": [
+    "ARBM_HOST_TOKEN",
+    "ARBM_CONTINUITY_URL",
+    "ARBM_CLOUD_VENDOR",
+    "ARBM_HOST_ID",
+    "ARBM_CPU_CORES",
+    "ARBM_MEMORY_MIB"
+  ],
+  "expectedEnvironment": {
+    "ARBM_CONTINUITY_URL": "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-persistent-continuity-v1",
+    "ARBM_CLOUD_VENDOR": "clawcloud",
+    "ARBM_HOST_ID": "clawcloud-free-persistent",
+    "ARBM_CPU_CORES": "0.25",
+    "ARBM_MEMORY_MIB": "1024"
+  },
+  "costPolicy": "zero-spend-only",
+  "activation": "fail-closed-until-independent-billing-verification"
+}

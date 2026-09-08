@@ -1,18 +1,19 @@
-import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { validatePayload } from './universal-remote-runner.mjs';
 import { executePayloadSupervised } from './continuity-execution-supervisor.mjs';
 import { collectCloudAttestation } from './cloud-host-attestation.mjs';
 
-const URL=process.env.ARBM_CONTINUITY_URL||'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-continuity-coordinator-v1';
+const URL=process.env.ARBM_CONTINUITY_URL||'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-persistent-continuity-v1';
 const HOST_ID=String(process.env.ARBM_HOST_ID||'').trim();
 const TOKEN=String(process.env.ARBM_HOST_TOKEN||'').trim();
 const CLOUD_VENDOR=String(process.env.ARBM_CLOUD_VENDOR||'').trim().toLowerCase();
 const ROOT=process.env.ARBM_RUN_ROOT||'/tmp/arbm-continuity/run';
 const CAPS=String(process.env.ARBM_CAPABILITIES||'git,tests,cloud,persistent').split(',').map(x=>x.trim()).filter(Boolean);
+const BOOT_ID=randomUUID();
 if(!HOST_ID)throw new Error('persistent_host_id_required');
 if(TOKEN.length<40)throw new Error('persistent_host_token_required');
-if(!['modal','back4app','gcp'].includes(CLOUD_VENDOR))throw new Error('persistent_cloud_vendor_required');
+if(!['modal','back4app','clawcloud','gcp'].includes(CLOUD_VENDOR))throw new Error('persistent_cloud_vendor_required');
 
 async function call(action,payload={}){
   const res=await fetch(URL,{method:'POST',headers:{authorization:`Bearer ${TOKEN}`,'x-arbm-host-id':HOST_ID,'content-type':'application/json'},body:JSON.stringify({action,...payload}),signal:AbortSignal.timeout(15000)});
@@ -21,10 +22,32 @@ async function call(action,payload={}){
   return body;
 }
 function err(error){return String(error?.code||error?.message||error).slice(0,1800);}
+async function latency(url){const t=performance.now();try{const r=await fetch(url,{method:'HEAD',redirect:'follow',signal:AbortSignal.timeout(10000)});return {ok:r.ok||r.status<500,ms:Math.round((performance.now()-t)*10)/10};}catch{return {ok:false,ms:null};}}
 async function probe(){
   const a=await collectCloudAttestation(CLOUD_VENDOR);
-  if(!a.instanceId||!a.profileEligible)throw new Error('cloud_profile_not_free_tier_eligible');  const r=await call('probe',{instanceId:a.instanceId,cloudVendor:a.cloudVendor,profile:a.profile,detail:a});
+  if(!a.instanceId||!a.profileEligible)throw new Error('cloud_profile_not_free_tier_eligible');
+  const r=await call('probe',{instanceId:a.instanceId,cloudVendor:a.cloudVendor,profile:a.profile,detail:a});
   return {attestation:a,control:r};
+}
+async function benchmark(attestation){
+  const [supabase,github]=await Promise.all([
+    latency('https://pvkpkqwdnnpkgvllwqbc.supabase.co'),
+    latency('https://github.com')
+  ]);
+  const m=process.memoryUsage();
+  const sample={
+    bootId:BOOT_ID,
+    uptimeSeconds:Math.round(process.uptime()*10)/10,
+    rssMiB:Math.round((m.rss/1048576)*10)/10,
+    heapUsedMiB:Math.round((m.heapUsed/1048576)*10)/10,
+    supabaseLatencyMs:supabase.ms,
+    githubLatencyMs:github.ms,
+    outboundHttpsOk:supabase.ok&&github.ok,
+    throttlingHint:false,
+    detail:{vendor:CLOUD_VENDOR,node:process.version}
+  };
+  await call('benchmark',{instanceId:attestation.instanceId,sample});
+  return sample;
 }
 async function runOne(attestation){
   const instanceId=attestation.instanceId;
@@ -42,26 +65,26 @@ async function runOne(attestation){
     if(done.ok!==true)throw new Error('continuity_complete_rejected');
     console.log(JSON.stringify({event:'mission_complete',missionId:leased.mission_id,state,steps:report.steps.length}));
   }catch(error){
-    const message=err(error);
-    const transient=/lease_renewal_failed|fetch failed|timeout|ECONN|ENOTFOUND|EAI_AGAIN/i.test(message);
-    try{
-      if(transient)await call('failover',{instanceId,missionId:leased.mission_id,failureClass:'persistent_host_failure',error:message});
-      else await call('complete',{instanceId,missionId:leased.mission_id,state:'FAILED_FINAL',error:message});
-    }catch{}
+    const message=err(error),transient=/lease_renewal_failed|fetch failed|timeout|ECONN|ENOTFOUND|EAI_AGAIN/i.test(message);
+    try{if(transient)await call('failover',{instanceId,missionId:leased.mission_id,failureClass:'persistent_host_failure',error:message});else await call('complete',{instanceId,missionId:leased.mission_id,state:'FAILED_FINAL',error:message});}catch{}
     console.error(JSON.stringify({event:'mission_error',missionId:leased.mission_id,transient,error:message}));
   }
   return true;
 }
-let backoffMs=5000;
+let backoffMs=5000,lastBenchmarkAt=0;
 for(;;){
   try{
     const {attestation,control}=await probe();
+    const now=Date.now();
+    if(now-lastBenchmarkAt>=60000){
+      const sample=await benchmark(attestation);lastBenchmarkAt=now;
+      console.log(JSON.stringify({event:'benchmark_sample',provider:HOST_ID,instanceId:attestation.instanceId,...sample}));
+    }
     if(control.configured!==true||control.zeroSpendVerified!==true){
       console.log(JSON.stringify({event:'awaiting_activation',provider:HOST_ID,instanceId:attestation.instanceId,profile:attestation.profile,configured:control.configured,zeroSpendVerified:control.zeroSpendVerified}));
       await sleep(60000);continue;
     }
-    const worked=await runOne(attestation);
-    backoffMs=5000;
+    const worked=await runOne(attestation);backoffMs=5000;
     await sleep(worked?1000:20000);
   }catch(error){
     console.error(JSON.stringify({event:'agent_cycle_error',error:err(error),backoffMs}));

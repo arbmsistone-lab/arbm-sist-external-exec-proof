@@ -6,8 +6,8 @@ on:
     paths:
       - 'Dockerfile'
       - '.dockerignore'
-      - 'cloud/modal/**'
       - 'cloud/back4app/**'
+      - 'cloud/clawcloud/**'
       - 'scripts/persistent-continuity-agent.mjs'
       - 'scripts/persistent-container-health.mjs'
       - 'scripts/cloud-host-attestation*'
@@ -40,7 +40,8 @@ jobs:
         run: node scripts/continuity-execution-supervisor.test.mjs
       - name: Universal runner tests
         run: node scripts/universal-remote-runner.test.mjs
-      - name: Modal manifest syntax
-        run: python -m py_compile cloud/modal/app.py
+      - name: Benchmark contract
+        run: |
+          node -e "const fs=require('fs');for(const p of ['cloud/back4app/deployment-contract.json','cloud/clawcloud/deployment-contract.json'])JSON.parse(fs.readFileSync(p,'utf8'));"
       - name: Docker build
         run: docker build -t armb-continuity-persistent:test .

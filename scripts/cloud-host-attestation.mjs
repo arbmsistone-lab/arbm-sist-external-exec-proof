@@ -7,6 +7,8 @@ async function text(url,headers,fetchImpl){
   return (await r.text()).trim();
 }
 function envNumber(name,def){const n=Number(process.env[name]??def);return Number.isFinite(n)?n:NaN;}
+function containerIdentity(){return String(process.env.ARBM_INSTANCE_ID||process.env.K_REVISION||process.env.HOSTNAME||'').trim();}
+
 export async function collectCloudAttestation(vendor,{fetchImpl=fetch}={}){
   const v=String(vendor||'').trim().toLowerCase();
   if(v==='modal'){
@@ -17,11 +19,18 @@ export async function collectCloudAttestation(vendor,{fetchImpl=fetch}={}){
     return {cloudVendor:'modal',instanceId,profile,profileEligible:eligible,cpuCores,memoryMiB,requiresBillingVerification:true};
   }
   if(v==='back4app'){
-    const instanceId=String(process.env.ARBM_INSTANCE_ID||process.env.HOSTNAME||'').trim();
+    const instanceId=containerIdentity();
     const cpuCores=envNumber('ARBM_CPU_CORES',0.25),memoryMiB=envNumber('ARBM_MEMORY_MIB',256);
     const profile='back4app-free-container';
     const eligible=!!instanceId&&cpuCores>0&&cpuCores<=0.25&&memoryMiB>0&&memoryMiB<=256;
     return {cloudVendor:'back4app',instanceId,profile,profileEligible:eligible,cpuCores,memoryMiB,requiresBillingVerification:true};
+  }
+  if(v==='clawcloud'){
+    const instanceId=containerIdentity();
+    const cpuCores=envNumber('ARBM_CPU_CORES',0.25),memoryMiB=envNumber('ARBM_MEMORY_MIB',1024);
+    const profile='clawcloud-free-container';
+    const eligible=!!instanceId&&cpuCores>0&&cpuCores<=0.25&&memoryMiB>0&&memoryMiB<=1024;
+    return {cloudVendor:'clawcloud',instanceId,profile,profileEligible:eligible,cpuCores,memoryMiB,requiresBillingVerification:true};
   }
   if(v==='gcp'){
     const h={'Metadata-Flavor':'Google'};
