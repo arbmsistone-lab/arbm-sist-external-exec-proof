@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import {analyzeStrategy} from './universal-radar-strategy-brain.mjs';
-const path='universal-radar-registry.json'; const backup=fs.readFileSync(path,'utf8');
+const path='universal-radar-registry.json'; const existed=fs.existsSync(path); const backup=existed?fs.readFileSync(path,'utf8'):null;
 const keyOf=x=>crypto.createHash('sha256').update([x.sourceId,x.externalId,x.name,x.domain].join('|')).digest('hex');
 const mk=(id,pricing)=>({sourceId:'test',externalId:id,name:id+' release capability reasoning tool',domain:'ai-providers',primarySource:true,summary:'release capability',rawMeta:{pricing}});
 try{
@@ -12,4 +12,4 @@ try{
   if(by.free!=='BENCHMARK_NOW') throw new Error('FREE_NOT_BENCHMARKED');
   if(by.paid!=='IGNORE') throw new Error('PAID_NOT_BLOCKED');
   console.log('UNIVERSAL_RADAR_STRATEGY_ZERO_SPEND_PASS');
-} finally { fs.writeFileSync(path,backup); }
+} finally { if(existed) fs.writeFileSync(path,backup); else fs.rmSync(path,{force:true}); }

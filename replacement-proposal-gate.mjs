@@ -2,9 +2,12 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 const registry=JSON.parse(fs.readFileSync('incumbent-registry.json','utf8'));
 const sha=x=>'sha256:'+crypto.createHash('sha256').update(String(x)).digest('hex');
+const digest=x=>/^sha256:[0-9a-f]{64}$/i.test(String(x||''));
+const validTime=x=>Number.isFinite(Date.parse(String(x||'')));
 function validIdentity(x){
-  return !!x&&typeof x==='object'&&registry.requiredIdentity.every(k=>x[k]!==undefined&&x[k]!==null&&x[k]!=='');
+  return !!x&&typeof x==='object'&&registry.requiredIdentity.every(k=>x[k]!==undefined&&x[k]!==null&&x[k]!=='')&&digest(x.artifactSha256)&&validTime(x.activatedAt)&&x.zeroSpendVerified===true;
 }
+
 export function evaluateReplacementProposal({domain,challengerResult,challengerIdentity}){
   const slot=registry.domains?.[domain]; const incumbent=slot?.active;
   const reasons=[];
