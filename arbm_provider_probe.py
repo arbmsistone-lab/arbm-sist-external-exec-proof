@@ -1,6 +1,6 @@
-import json, os, urllib.request, urllib.error
+﻿import json, os, urllib.request, urllib.error
 
-API_URL = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v1"
+API_URL = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v2"
 
 def oidc():
     url = os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"]
@@ -11,7 +11,7 @@ def oidc():
         return json.loads(r.read().decode())["value"]
 
 def main():
-    body = {"instruction":"Inspect the sandbox with pwd and report one safe first command as JSON.","observation":"No commands executed yet.","step":1}
+    body = {"instruction":"Inspect the sandbox with pwd and report one safe first command as JSON.","observation":"No commands executed yet.","step":1,"provider_hint":"groq"}
     req = urllib.request.Request(API_URL, data=json.dumps(body).encode(), method="POST", headers={"Authorization":"Bearer "+oidc(),"Content-Type":"application/json"})
     try:
         with urllib.request.urlopen(req, timeout=40) as r:
@@ -28,3 +28,4 @@ def main():
 if __name__ == "__main__": main()
 # groq-probe-20260908 
 # groq-json-only-probe-2 
+
