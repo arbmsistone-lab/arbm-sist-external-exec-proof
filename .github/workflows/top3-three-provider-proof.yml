@@ -36,9 +36,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p top3-evidence/three-provider
-          gh api repos/$GITHUB_REPOSITORY/actions/jobs/$GROQ_JOB/logs > top3-evidence/three-provider/groq.log
-          gh api repos/$GITHUB_REPOSITORY/actions/jobs/$CF_JOB/logs > top3-evidence/three-provider/cloudflare.log
-          gh api repos/$GITHUB_REPOSITORY/actions/jobs/$GEMINI_JOB/logs > top3-evidence/three-provider/gemini.log
+          gh api --allow-escape-sequences repos/$GITHUB_REPOSITORY/actions/jobs/$GROQ_JOB/logs > top3-evidence/three-provider/groq.log
+          gh api --allow-escape-sequences repos/$GITHUB_REPOSITORY/actions/jobs/$CF_JOB/logs > top3-evidence/three-provider/cloudflare.log
+          gh api --allow-escape-sequences repos/$GITHUB_REPOSITORY/actions/jobs/$GEMINI_JOB/logs > top3-evidence/three-provider/gemini.log
           grep -F '"provider":"groqcloud-free"' top3-evidence/three-provider/groq.log
           grep -F '"model":"openai/gpt-oss-120b"' top3-evidence/three-provider/groq.log
           grep -F '"mandatory_cost_usd":0' top3-evidence/three-provider/groq.log
