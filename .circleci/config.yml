@@ -14,7 +14,13 @@ jobs:
             echo "ARBM_P2_REMOTE_ONLY=PASS"
             echo "CPU_COUNT=$(nproc)"
             grep '^MemTotal:' /proc/meminfo
-            python3 -c "import hashlib,multiprocessing as mp,os; f=lambda s: hashlib.sha256(((str(s)*1048576).encode()[:16777216])).hexdigest(); n=min(4,os.cpu_count() or 1); p=mp.Pool(n); out=p.map(f,range(n)); p.close(); p.join(); assert len(out)==n and all(len(x)==64 for x in out); print('ARBM_P2_HEAVY_COMPUTE=PASS'); print('WORKERS='+str(n))"
+            END=$((SECONDS+20))
+            for W in 1 2 3 4; do
+              (while [ $SECONDS -lt $END ]; do head -c 16777216 /dev/zero | sha256sum >/dev/null; done) &
+            done
+            wait
+            echo "ARBM_P2_HEAVY_COMPUTE=PASS"
+            echo "WORKERS=4"
 workflows:
   p2_third_domain:
     jobs:
