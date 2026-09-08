@@ -1,0 +1,12 @@
+{
+  "schema": "arbm-p3-public-suite-v1",
+  "phase": "P3.5",
+  "state": "FROZEN_BEFORE_PUBLIC_RUN",
+  "cases": ["multi-repo", "recovery", "quota-resilience", "end-to-end"],
+  "passRule": "all four cases PASS",
+  "scoreable": false,
+  "scoreablePromotionRule": "requires direct binding to P2 certified runtime and a new frozen manifest before execution",
+  "paidFallbackAllowed": false,
+  "mandatorySpend": 0,
+  "criteriaMutationAfterExecution": "FORBIDDEN"
+}

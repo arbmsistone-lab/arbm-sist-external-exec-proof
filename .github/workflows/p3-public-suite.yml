@@ -1,0 +1,27 @@
+name: P3 Public Protocol Suite
+on:
+  workflow_dispatch:
+  push:
+    branches: ['p3/public-suite-*']
+    paths:
+      - 'p3-public-suite.mjs'
+      - '.github/workflows/p3-public-suite.yml'
+permissions:
+  contents: read
+jobs:
+  protocol-suite:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run frozen public protocol suite
+        run: node p3-public-suite.mjs
+      - name: Freeze evidence hash
+        run: sha256sum p3-public-suite-evidence.json > p3-public-suite-evidence.sha256
+      - uses: actions/upload-artifact@v7
+        with:
+          name: p3-public-suite-evidence
+          path: |
+            p3-public-suite-evidence.json
+            p3-public-suite-evidence.sha256
+          retention-days: 90
