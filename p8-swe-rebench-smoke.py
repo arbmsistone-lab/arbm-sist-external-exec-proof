@@ -762,6 +762,8 @@ def apply_candidate(repo, edits, allowed_paths):
             if start_line<1 or end_line<start_line or end_line>len(lines) or (end_line-start_line+1)>160: errors.append(f'line_range_out_of_bounds:{rel}:{start_line}:{end_line}:{len(lines)}'); continue
             old=''.join(lines[start_line-1:end_line]); new=str(edit.get('new',''))
             if not new.strip() or new.strip() in {'...','TODO','FIXME'}: errors.append('invalid_new:'+rel); continue
+            if start_line==end_line and len(new.splitlines())>12:
+                errors.append('suspicious_single_line_block_replacement:'+rel); continue
             boundary_normalized=False
             new_parts=new.splitlines()
             if start_line>1 and new_parts and new_parts[0].strip()==lines[start_line-2].rstrip('\r\n').strip():
@@ -960,12 +962,8 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     code,data,err,timed_out=remote_json(solve_payload)
     cand_a=(data or {}).get('edits',[]) if code==0 else []
     alt_issue=solver_problem+'\n\nGenerate an INDEPENDENT ALTERNATIVE solution. The first candidate was: '+json.dumps(cand_a)[:4000]+' Do not repeat it; test a different plausible root cause or more complete behavioral invariant using only supplied public context.'
-    if os.environ.get('ARBM_SOVEREIGN_ONLY')=='1' and cand_a:
-        bcode,bdata,berr,btimed=204,{'edits':[],'model':'sovereign-single-candidate','pipeline':'sovereign-fast-path'},'',False
-        cand_b=[]
-    else:
-        bcode,bdata,berr,btimed=remote_json({'phase':'solve','issue':alt_issue,'tool_context':context,'instance_id':iid,'model_offset':1,'review_model_offset':1})
-        cand_b=(bdata or {}).get('edits',[]) if bcode==0 else []
+    bcode,bdata,berr,btimed=remote_json({'phase':'solve','issue':alt_issue,'tool_context':context,'instance_id':iid,'model_offset':1,'review_model_offset':1})
+    cand_b=(bdata or {}).get('edits',[]) if bcode==0 else []
     def provider_meta(d):
         d=d or {}
         return {'model':d.get('model'),'pipeline':d.get('pipeline'),'attempts':(d.get('attempts') or [])[:16]}
