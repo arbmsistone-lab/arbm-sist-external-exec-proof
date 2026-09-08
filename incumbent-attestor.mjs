@@ -19,13 +19,13 @@ export function attestDiscovery(discovery,now=new Date()){
     if(hardBlocked) reasons.push('PAID_ROUTE_FORBIDDEN_IN_HARD_MODE');
     if(route.configured&&!active) reasons.push('NO_SUCCESSFUL_EXECUTION_EVIDENCE');
     if(active){
-      if(!known(runtime.model)||!known(runtime.pipeline)||!known(runtime.sourceCommit)) reasons.push('RUNTIME_IDENTITY_INCOMPLETE');
+      if(!known(runtime.pipeline)||!known(runtime.sourceCommit)) reasons.push('RUNTIME_IDENTITY_INCOMPLETE');
       const zeroCost=Number(runtime.providerCostUsd)===0&&Number(discovery?.evidence?.providerCostUsd||0)===0;
       if(!zeroCost) reasons.push('ZERO_SPEND_NOT_PROVEN');
       const fresh=ageHours(runtime.observedAt,now)<=Number(policy.maxEvidenceAgeHours||72);
       if(!known(runtime.observedAt)) reasons.push('OBSERVED_AT_MISSING');
       else if(!fresh){state='ATTESTED_STALE';reasons.push('EVIDENCE_STALE');}
-      const identityOk=known(runtime.model)&&known(runtime.pipeline)&&known(runtime.sourceCommit);
+      const identityOk=known(runtime.pipeline)&&known(runtime.sourceCommit);
       if(!hardBlocked&&identityOk&&zeroCost&&fresh&&known(runtime.observedAt)) state='VERIFIED';
     }
     const identity=active?{

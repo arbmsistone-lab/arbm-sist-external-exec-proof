@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {attestationFromEnvelope} from './p8-external-proof-attestor.mjs';
+const path='p8-external-proof-envelope.json';
+const original=JSON.parse(fs.readFileSync(path,'utf8'));
+const good=attestationFromEnvelope(path);
+assert.equal(good.verifiedCount,1);
+assert.equal(good.routes.find(x=>x.id==='free-primary').state,'VERIFIED');
+assert.equal(good.routes.find(x=>x.id==='quality-cost').state!=='VERIFIED',true);
+const bad={...original,providerCostUsd:1};
+fs.writeFileSync('_bad-envelope.json',JSON.stringify(bad));
+assert.throws(()=>attestationFromEnvelope('_bad-envelope.json'),/ZERO_SPEND_NOT_PROVEN/);
+fs.unlinkSync('_bad-envelope.json');
+console.log('P8_EXTERNAL_PROOF_ATTESTOR_PASS');

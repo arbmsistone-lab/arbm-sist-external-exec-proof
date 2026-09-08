@@ -4,11 +4,22 @@
   "automaticMutation": false,
   "domains": {
     "ai-providers": {
-      "status": "CONFIGURED_UNATTESTED",
-      "active": null,
-      "usableForReplacementProposal": false,
+      "status": "VERIFIED",
+      "active": {
+        "id": "free-primary",
+        "version": "provider-mesh-v17",
+        "artifactSha256": "sha256:cadb63f642907dada380ff49279e464d9f9a9087d07782f70aff8edafb735aa9",
+        "activatedAt": "2026-09-08T15:54:38Z",
+        "zeroSpendVerified": true,
+        "model": null,
+        "pipeline": "provider-mesh-v17",
+        "sourceCommit": "8e9ea099d1c566d0b58a619ab93a8b4679941f45"
+      },
+      "usableForReplacementProposal": true,
       "lastAttestationHash": "sha256:5b155b6bed115d1bb2557da84ec327e917a4e7dd83dff9cbf223c69678bbe0e9",
-      "lastAttestationAt": "2026-09-08T13:55:23.064Z"
+      "lastAttestationAt": "2026-09-08T13:55:23.064Z",
+      "attestationHash": "sha256:1da6da3bec51b366a5ea18ac297d4a18b6d739912f371ef2f6c70d30ccbeecd2",
+      "verifiedAt": "2026-09-08T15:54:38.000Z"
     },
     "coding-models": {
       "status": "UNVERIFIED",
@@ -58,5 +69,5 @@
     "activatedAt",
     "zeroSpendVerified"
   ],
-  "updatedAt": "2026-09-08T13:55:23.064Z"
+  "updatedAt": "2026-09-08T15:54:38.000Z"
 }

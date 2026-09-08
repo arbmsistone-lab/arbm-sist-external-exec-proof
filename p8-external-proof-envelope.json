@@ -1,0 +1,20 @@
+{
+  "schema": "arbm-p8-external-proof-envelope-v1",
+  "runId": 34247124511,
+  "jobId": 102131865040,
+  "artifactId": 10064696209,
+  "artifactDigest": "sha256:9d7e29f6864e760d35a437e71b06a5fc6b02fce80326397ccefbe7a4eabe4737",
+  "artifactCreatedAt": "2026-09-08T15:54:38Z",
+  "sourceCommit": "8e9ea099d1c566d0b58a619ab93a8b4679941f45",
+  "workflowConclusion": "success",
+  "zeroSpendMode": "HARD",
+  "providerCostUsd": 0.0,
+  "actualRoute": "free-primary",
+  "actualPipeline": "provider-mesh-v17",
+  "sovereignSkipped": true,
+  "validPatch": true,
+  "officialEvaluatorAllOk": true,
+  "agentEvidenceSha256": "67037747e61e0714f4e27ea8e9318f0cabaf4c7d5ef9d495c78b476a1f005ed7",
+  "evalReportSha256": "7b4629e3b2c0408dcea32fa5d6f34400d3c920996053435000ed9d2f74421549",
+  "patchesSha256": "36c569501137a418b9c891a55e3b01ab5abeae3695ded073208622d209681223"
+}
