@@ -275,6 +275,15 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertEqual(fp(a), fp(b))
         self.assertNotEqual(fp(a), fp(c))
 
+    def test_equivalent_passing_candidates_skip_semantic_arbiter(self):
+        fp = load_function('_semantic_candidate_fingerprint', {'json': json})
+        choose = load_function('_equivalent_passing_choice', {'_semantic_candidate_fingerprint': fp})
+        edit={'path':'src/cljam/io/vcf/writer.clj','start_line':2,'end_line':4,'new':'(format "%.0f" (double x))'}
+        results={'A':{'edits':[edit]},'B':{'edits':[dict(edit)]}}
+        self.assertEqual(choose(results,['A','B']),'A')
+        results['B']['edits'][0]['new']='(str x)'
+        self.assertIsNone(choose(results,['A','B']))
+
     def test_public_constraint_ledger_is_cumulative_and_deduplicated(self):
         ledger_fn = load_function('_extract_public_constraint_ledger', {})
         first = 'FAIL in (ordinary)\nexpected: (= output "10")\nactual: (= output "10.0")\n'

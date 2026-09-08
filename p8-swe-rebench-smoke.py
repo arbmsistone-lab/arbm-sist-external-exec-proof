@@ -402,6 +402,13 @@ def _semantic_candidate_fingerprint(edits):
     raw=json.dumps(normalized,sort_keys=True,separators=(',',':'),ensure_ascii=False)
     return __import__('hashlib').sha256(raw.encode('utf-8')).hexdigest()
 
+def _equivalent_passing_choice(candidate_results, passing):
+    if len(passing) != 2: return None
+    a,b=passing[0],passing[1]
+    ea=candidate_results.get(a,{}).get('edits',[])
+    eb=candidate_results.get(b,{}).get('edits',[])
+    return a if _semantic_candidate_fingerprint(ea)==_semantic_candidate_fingerprint(eb) else None
+
 def _extract_public_constraint_ledger(raw, existing=None, max_items=16):
     ledger=list(existing or []); seen=set(ledger); current=''
     for line in (x.strip() for x in str(raw).splitlines() if x.strip()):
@@ -1200,8 +1207,11 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     passing=[x for x in ('A','B') if candidate_results[x]['applied']>0 and not candidate_results[x]['errors'] and (not candidate_results[x]['validationAttempted'] or candidate_results[x]['validationCode']==0)]
     judge_ep=os.environ.get('ARBM_BENCHMARK_JUDGE_ENDPOINT','')
     jcode,jdata,jerr,jtimed=(125,None,('NO_PASSING_PUBLIC_CANDIDATE' if not passing else 'NO_JUDGE_ENDPOINT'),False)
+    equivalent_choice=_equivalent_passing_choice(candidate_results,passing)
     single_provider_fallback=(bool(cand_a) ^ bool(cand_b)) and len(passing)==1
-    if single_provider_fallback:
+    if equivalent_choice:
+        choice=equivalent_choice; judge_reason='equivalent_valid_candidates'; judge_edits=[]; jcode=204; jerr=''
+    elif single_provider_fallback:
         choice=passing[0]; judge_reason='single_valid_candidate_provider_fallback'; judge_edits=[]; jcode=204; jerr=''
     else:
         if judge_ep:
