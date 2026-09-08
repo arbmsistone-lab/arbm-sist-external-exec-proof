@@ -46,6 +46,20 @@ jobs:
         if: always()
         run: |
           python -c "import glob,json; files=glob.glob('jobs/**/result.json',recursive=True); print('RESULT_FILES',len(files)); [print(json.dumps({'task':d.get('task_name'),'reward':((d.get('verifier_result') or {}).get('rewards') or {}).get('reward'),'exception':d.get('exception_info')},default=str)[:6000]) for d in [json.load(open(f,encoding='utf-8')) for f in files] if d.get('task_name')]"
+      - name: Enforce scored Terminal-Bench gate
+        run: |
+          python - <<'PY'
+          import glob,json
+          rows=[json.load(open(f,encoding='utf-8')) for f in glob.glob('jobs/**/result.json',recursive=True)]
+          trials=[r for r in rows if r.get('task_name')]
+          errors=[r for r in trials if r.get('exception_info')]
+          rewards=[((r.get('verifier_result') or {}).get('rewards') or {}).get('reward') for r in trials]
+          rewards=[float(x) for x in rewards if isinstance(x,(int,float))]
+          assert trials, 'NO_SCORED_TRIALS'
+          assert not errors, f'TRIAL_ERRORS:{len(errors)}'
+          assert rewards and max(rewards)>0.0, 'ZERO_SCORE_RUN'
+          print({'trials':len(trials),'errors':len(errors),'max_reward':max(rewards)})
+          PY
       - name: Freeze ARBM evidence
         if: always()
         run: |
