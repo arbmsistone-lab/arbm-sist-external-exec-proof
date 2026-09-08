@@ -437,6 +437,9 @@ def _sovereign_json(payload):
             data['model']='Qwen2.5-Coder-14B-Instruct-Q4_K_M'; data['pipeline']='sovereign-github-public-runner'
             data['attempts']=[{'provider':'local-llama-server','status':'ok'}]
         return 0,data,'',False
+    except urllib.error.HTTPError as exc:
+        body=exc.read().decode('utf-8','ignore')[:500]
+        return 125,None,'SOVEREIGN_HTTP_'+str(exc.code)+':'+body,False
     except Exception as exc:
         return 125,None,'SOVEREIGN_ERROR:'+type(exc).__name__+': '+str(exc)[:800],False
 
