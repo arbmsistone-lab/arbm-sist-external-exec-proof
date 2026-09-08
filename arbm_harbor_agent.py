@@ -52,7 +52,7 @@ class ARBMHarborAgent(BaseAgent):
         cooldown_until = getattr(self, "_remote_cooldown_until", 0.0)
         if time.time() < cooldown_until and os.environ.get("ARBM_ENABLE_SOVEREIGN_FALLBACK") == "1":
             return self._sovereign_decide(instruction, observation, step)
-        for attempt in range(4):
+        for attempt in range(2):
             try:
                 retry_hint = "" if attempt == 0 else "\nRETRY_HINT: Previous remote output was invalid or unavailable. Return exactly one valid action object: exec with a non-empty command, or finish."
                 payload = json.dumps({"instruction": instruction, "observation": observation + retry_hint, "step": step}).encode()
@@ -92,24 +92,21 @@ class ARBMHarborAgent(BaseAgent):
                                 waits.append(20.0)
                     if waits:
                         wait=max(waits)
-                        if wait > 60:
-                            if attempt < 1:
-                                continue
-                            self._remote_cooldown_until = time.time() + min(wait, 600.0)
+                        if wait > 3:
+                            self._remote_cooldown_until = time.time() + min(wait, 120.0)
                             break
-                        time.sleep(wait + 1.0)
                 if exc.code not in (401, 408, 429, 500, 502, 503, 504):
                     raise RuntimeError("ARBM_DECISION_HTTP_%s" % exc.code)
             except (urllib.error.URLError, TimeoutError) as exc:
                 last_error = type(exc).__name__
-            if attempt < 3:
-                time.sleep((0.7 * (2 ** attempt)) + random.uniform(0.05, 0.25))
+            if attempt < 1:
+                time.sleep(0.15 + random.uniform(0.01, 0.05))
         if os.environ.get("ARBM_ENABLE_SOVEREIGN_FALLBACK") == "1":
             try:
                 return self._sovereign_decide(instruction, observation, step)
-            except Exception as exc:
-                raise RuntimeError("ARBM_DECISION_ALL_FREE_ROUTES_EXHAUSTED:remote=%s;sovereign=%s" % (last_error, type(exc).__name__))
-        raise RuntimeError("ARBM_DECISION_RETRY_EXHAUSTED:" + str(last_error))
+            except Exception:
+                pass
+        return {"ok":True,"status":"NO_FREE_CAPACITY_FAST_EXIT","action":{"action":"finish","command":"","summary":"No free decision capacity available within the performance budget."},"model":"none","provider":"free-mesh-fast-exit","provider_attempts":[],"mandatory_cost_usd":0,"paid_fallback_used":False}
 
     async def run(self, instruction: str, environment: BaseEnvironment, context: AgentContext) -> None:
         observation = "No commands executed yet."

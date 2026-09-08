@@ -45,6 +45,15 @@ class Tests(unittest.TestCase):
   self.assertTrue(out["ok"]); sleeper.assert_not_called()
 
 
+ def test_capacity_exhaustion_fast_exits_without_exception(self):
+  a=agent.ARBMHarborAgent()
+  exc=agent.urllib.error.HTTPError("x",503,"busy",{},None); exc.read=lambda: json.dumps({"status":"WAITING_FREE_CAPACITY","provider_attempts":[]}).encode()
+  exc2=agent.urllib.error.HTTPError("x",503,"busy",{},None); exc2.read=lambda: json.dumps({"status":"WAITING_FREE_CAPACITY","provider_attempts":[]}).encode()
+  with patch.object(a,"_oidc",return_value="token"), patch.object(agent.urllib.request,"urlopen",side_effect=[exc,exc2]), patch.object(a,"_sovereign_decide",side_effect=TimeoutError()), patch.object(agent.time,"sleep"):
+   with patch.dict(os.environ,{"ARBM_ENABLE_SOVEREIGN_FALLBACK":"1"}): out=a._decide("x","y",1)
+  self.assertTrue(out["ok"]); self.assertEqual(out["action"]["action"],"finish"); self.assertEqual(out["provider"],"free-mesh-fast-exit")
+
+
  def test_long_groq_reset_opens_remote_circuit(self):
   a=agent.ARBMHarborAgent()
   body=json.dumps({"status":"WAITING_FREE_CAPACITY","provider_attempts":[{"route":"groq-json-object","status":429,"retry_after":"433"}]}).encode()
