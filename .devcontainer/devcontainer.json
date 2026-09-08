@@ -1,0 +1,12 @@
+{
+  "name": "ARBM SWEfficiency capacity probe",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "hostRequirements": {
+    "cpus": 32,
+    "memory": "120gb",
+    "storage": "128gb"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  }
+}
