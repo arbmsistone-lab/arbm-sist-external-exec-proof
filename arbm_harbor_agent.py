@@ -121,7 +121,7 @@ class ARBMHarborAgent(BaseAgent):
                 history.append(observation)
                 trace.append({"step": step, "action": "rejected_repeat", "command": command, "summary": action.get("summary", "")})
                 continue
-            result = await environment.exec(command=command, timeout_sec=60)
+            result = await environment.exec(command=command, timeout_sec=180)
             recent_commands.append(command)
             observation = "RETURN_CODE: %s\nSTDOUT:\n%s\nSTDERR:\n%s" % (
                 result.return_code, (result.stdout or "")[-10000:], (result.stderr or "")[-10000:]
