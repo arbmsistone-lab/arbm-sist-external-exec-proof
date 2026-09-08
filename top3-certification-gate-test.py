@@ -18,7 +18,26 @@ class Top3CertificationGateTests(unittest.TestCase):
         failures = GATE.validate_manifest(self.manifest())
         self.assertIn("gate_not_pass:terminal_benchmark:PENDING_EXTERNAL_PROOF", failures)
         self.assertIn("gate_not_pass:computer_use_benchmark:PENDING_EXTERNAL_PROOF", failures)
-        self.assertIn("gate_not_pass:ai_three_independent_providers:PENDING_3X_LIVE_PROOF", failures)
+        self.assertNotIn("gate_not_pass:ai_three_independent_providers:PASS", failures)
+
+    def test_ai_three_provider_proof_is_fail_closed(self):
+        manifest = self.manifest()
+        ai = manifest["gates"]["ai_three_independent_providers"]
+        self.assertEqual(ai["status"], "PASS")
+        self.assertEqual(ai["independent_providers"], 3)
+        self.assertEqual(len(set(ai["providers"])), 3)
+        self.assertEqual(ai["mandatory_cost_usd"], 0)
+        self.assertTrue(ai["fail_closed"])
+        self.assertNotIn("ai_artifact_digest", GATE.validate_manifest(manifest))
+
+    def test_ai_proof_regression_blocks(self):
+        manifest = self.manifest()
+        ai = manifest["gates"]["ai_three_independent_providers"]
+        ai["providers"] = ["same", "same", "same"]
+        ai["artifact_digest"] = "bad"
+        failures = GATE.validate_manifest(manifest)
+        self.assertIn("ai_provider_identity", failures)
+        self.assertIn("ai_artifact_digest", failures)
 
     def test_engineering_official_proof_is_accepted(self):
         failures = GATE.validate_manifest(self.manifest())

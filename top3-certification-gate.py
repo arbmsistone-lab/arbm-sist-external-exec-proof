@@ -47,6 +47,23 @@ def validate_manifest(manifest: dict) -> list[str]:
     digest = str(engineering.get("artifact_digest") or "")
     if not digest.startswith("sha256:") or len(digest) != 71:
         failures.append("engineering_artifact_digest")
+
+    ai = gates.get("ai_three_independent_providers") or {}
+    if ai.get("status") == "PASS":
+        if ai.get("independent_providers") != 3:
+            failures.append("ai_independent_provider_count")
+        providers = ai.get("providers") or []
+        if len(set(providers)) != 3:
+            failures.append("ai_provider_identity")
+        if ai.get("mandatory_cost_usd") != 0:
+            failures.append("ai_mandatory_cost_usd")
+        if ai.get("fail_closed") is not True:
+            failures.append("ai_fail_closed")
+        ai_digest = str(ai.get("artifact_digest") or "")
+        if not ai_digest.startswith("sha256:") or len(ai_digest) != 71:
+            failures.append("ai_artifact_digest")
+        if not isinstance(ai.get("proof_run_id"), int) or not isinstance(ai.get("artifact_id"), int):
+            failures.append("ai_proof_ids")
     return failures
 
 

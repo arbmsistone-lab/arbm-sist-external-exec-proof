@@ -15,14 +15,43 @@
       "none_to_pass": "1/1",
       "fail_closed": true
     },
-    "terminal_benchmark": {"status": "PENDING_EXTERNAL_PROOF"},
-    "computer_use_benchmark": {"status": "PENDING_EXTERNAL_PROOF"},
-    "ai_three_independent_providers": {"status": "PENDING_3X_LIVE_PROOF"},
-    "three_independent_runners": {"status": "PENDING_3X_E2E_PROOF"},
-    "distributed_recovery": {"status": "PENDING_FAULT_INJECTION_PROOF"},
-    "remote_cancel_preempt": {"status": "PENDING_DISTRIBUTED_PROOF"},
-    "context_isolation": {"status": "PENDING_ADVERSARIAL_PROOF"},
-    "long_missions": {"status": "PENDING_REAL_WORKLOAD_PROOF"},
-    "universal_evidence_pack": {"status": "PENDING_INTEGRATED_PROOF"}
+    "terminal_benchmark": {
+      "status": "PENDING_EXTERNAL_PROOF"
+    },
+    "computer_use_benchmark": {
+      "status": "PENDING_EXTERNAL_PROOF"
+    },
+    "ai_three_independent_providers": {
+      "status": "PASS",
+      "proof_run_id": 34256266094,
+      "artifact_id": 10067975050,
+      "artifact_digest": "sha256:f380a6616581ec85da14c596f150ea19966da396681386697d6dc3cc413b3c25",
+      "independent_providers": 3,
+      "providers": [
+        "google-gemini",
+        "cloudflare-workers-ai",
+        "groqcloud-free"
+      ],
+      "mandatory_cost_usd": 0,
+      "fail_closed": true
+    },
+    "three_independent_runners": {
+      "status": "PENDING_3X_E2E_PROOF"
+    },
+    "distributed_recovery": {
+      "status": "PENDING_FAULT_INJECTION_PROOF"
+    },
+    "remote_cancel_preempt": {
+      "status": "PENDING_DISTRIBUTED_PROOF"
+    },
+    "context_isolation": {
+      "status": "PENDING_ADVERSARIAL_PROOF"
+    },
+    "long_missions": {
+      "status": "PENDING_REAL_WORKLOAD_PROOF"
+    },
+    "universal_evidence_pack": {
+      "status": "PENDING_INTEGRATED_PROOF"
+    }
   }
 }
