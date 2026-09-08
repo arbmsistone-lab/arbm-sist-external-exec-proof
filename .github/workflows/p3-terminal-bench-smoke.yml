@@ -17,7 +17,7 @@ jobs:
     env:
       TB_COMMIT: 452bf305c6daa62fc59061d22133a7cbc7c1572e
       TB_TASK: ontology-kg-querying
-      ARBM_TERMINAL_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v1
+      ARBM_TERMINAL_ENDPOINT: https://arbm-p0-free-proof.zevanory.workers.dev
       ARBM_TERMINAL_MAX_STEPS: '3'
       ARBM_TERMINAL_EVIDENCE_PATH: ${{ github.workspace }}/arbm-terminal-smoke-agent-evidence.json
       PYTHONPATH: ${{ github.workspace }}
@@ -59,7 +59,7 @@ jobs:
           import json
           p='arbm-terminal-smoke-agent-evidence.json'
           d=json.load(open(p,encoding='utf-8'))
-          assert d['pipeline']=='terminal-agent-v1'
+          assert d['pipeline']=='terminal-cloudflare-dev-v1'
           assert d['scoreable'] is False
           assert d['mandatorySpendUsd']==0
           assert d['paidFallbackUsed'] is False
