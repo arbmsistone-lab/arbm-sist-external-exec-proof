@@ -40,12 +40,13 @@ jobs:
           set -euo pipefail
           mkdir -p top3-evidence/terminalbench-arbm
           "$HOME/.local/bin/harbor" run -d terminal-bench/terminal-bench-2-1 \
-            --agent-import-path arbm_harbor_agent:ARBMHarborAgent -l 5 \
+            --agent arbm_harbor_agent:ARBMHarborAgent -l 5 \
             2>&1 | tee top3-evidence/terminalbench-arbm/harbor-arbm-smoke.log
       - name: Print sanitized trial diagnostics
         if: always()
         run: |
-          python -c "import glob,json; files=glob.glob('jobs/**/result.json',recursive=True); print('RESULT_FILES',len(files)); [print(json.dumps({'task':d.get('task_name'),'reward':((d.get('verifier_result') or {}).get('rewards') or {}).get('reward'),'exception':d.get('exception_info')},default=str)[:6000]) for d in [json.load(open(f,encoding='utf-8')) for f in files] if d.get('task_name')]"      - name: Freeze ARBM evidence
+          python -c "import glob,json; files=glob.glob('jobs/**/result.json',recursive=True); print('RESULT_FILES',len(files)); [print(json.dumps({'task':d.get('task_name'),'reward':((d.get('verifier_result') or {}).get('rewards') or {}).get('reward'),'exception':d.get('exception_info')},default=str)[:6000]) for d in [json.load(open(f,encoding='utf-8')) for f in files] if d.get('task_name')]"
+      - name: Freeze ARBM evidence
         if: always()
         run: |
           set -euo pipefail
