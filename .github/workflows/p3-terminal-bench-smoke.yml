@@ -1,0 +1,75 @@
+name: P3 Terminal-Bench Harbor Smoke
+on:
+  workflow_dispatch:
+  push:
+    branches: ['p3/terminal-bench-*']
+    paths:
+      - 'arbm_terminal_harbor_agent.py'
+      - 'test_arbm_terminal_harbor_agent.py'
+      - '.github/workflows/p3-terminal-bench-smoke.yml'
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  terminal-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      TB_COMMIT: 452bf305c6daa62fc59061d22133a7cbc7c1572e
+      TB_TASK: ontology-kg-querying
+      ARBM_TERMINAL_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v1
+      ARBM_TERMINAL_MAX_STEPS: '3'
+      ARBM_TERMINAL_EVIDENCE_PATH: ${{ github.workspace }}/arbm-terminal-smoke-agent-evidence.json
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Unit contract
+        run: python test_arbm_terminal_harbor_agent.py
+      - name: Install Harbor
+        run: |
+          python -m pip install --disable-pip-version-check uv
+          uv tool install harbor
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Checkout frozen Terminal-Bench
+        run: |
+          git clone --filter=blob:none https://github.com/harbor-framework/terminal-bench.git terminal-bench
+          git -C terminal-bench checkout "$TB_COMMIT"
+          test "$(git -C terminal-bench rev-parse HEAD)" = "$TB_COMMIT"
+      - name: Acquire GitHub OIDC token
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark"
+          token="$(curl -fsSL -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "$url" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')"
+          echo "::add-mask::$token"
+          echo "ARBM_TERMINAL_OIDC=$token" >> "$GITHUB_ENV"
+      - name: Run official task infrastructure smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          harbor run -p "terminal-bench/tasks/$TB_TASK" --agent arbm_terminal_harbor_agent:ARBMTerminalAgent
+      - name: Verify non-scoreable evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          p='arbm-terminal-smoke-agent-evidence.json'
+          d=json.load(open(p,encoding='utf-8'))
+          assert d['pipeline']=='terminal-agent-v1'
+          assert d['scoreable'] is False
+          assert d['mandatorySpendUsd']==0
+          assert d['paidFallbackUsed'] is False
+          assert d['remoteOnly'] is True
+          assert len(d['steps']) >= 1
+          print(json.dumps({'state':'PASS','scoreable':False,'steps':len(d['steps']),'mandatorySpendUsd':0}))
+          PY
+          sha256sum arbm-terminal-smoke-agent-evidence.json > arbm-terminal-smoke-agent-evidence.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p3-terminal-bench-smoke-evidence
+          path: |
+            arbm-terminal-smoke-agent-evidence.json
+            arbm-terminal-smoke-agent-evidence.sha256
