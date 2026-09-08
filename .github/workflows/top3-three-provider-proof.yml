@@ -1,0 +1,75 @@
+name: Top3 Three Provider Proof
+on:
+  push:
+    branches: [p3/terminal-bench-harbor-arbm-20260908]
+    paths: [.github/workflows/top3-three-provider-proof.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  prove_three:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      ZERO_SPEND_MODE: HARD
+      GROQ_RUN: '34253403348'
+      GROQ_JOB: '102153078069'
+      CF_RUN: '34180405896'
+      CF_JOB: '101918159947'
+      GEMINI_RUN: '34064110908'
+      GEMINI_JOB: '101569747092'
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify authoritative successful runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = HARD
+          for run in "$GROQ_RUN" "$CF_RUN" "$GEMINI_RUN"; do
+            test "$(gh api repos/$GITHUB_REPOSITORY/actions/runs/$run --jq .conclusion)" = success
+          done
+      - name: Verify provider identity and zero spend in authoritative logs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p top3-evidence/three-provider
+          gh api repos/$GITHUB_REPOSITORY/actions/jobs/$GROQ_JOB/logs > top3-evidence/three-provider/groq.log
+          gh api repos/$GITHUB_REPOSITORY/actions/jobs/$CF_JOB/logs > top3-evidence/three-provider/cloudflare.log
+          gh api repos/$GITHUB_REPOSITORY/actions/jobs/$GEMINI_JOB/logs > top3-evidence/three-provider/gemini.log
+          grep -F '"provider":"groqcloud-free"' top3-evidence/three-provider/groq.log
+          grep -F '"model":"openai/gpt-oss-120b"' top3-evidence/three-provider/groq.log
+          grep -F '"mandatory_cost_usd":0' top3-evidence/three-provider/groq.log
+          grep -F '"paid_fallback_used":false' top3-evidence/three-provider/groq.log
+          grep -F '"provider": "cloudflare"' top3-evidence/three-provider/cloudflare.log
+          grep -F '"model": "@cf/nvidia/nemotron-3-120b-a12b"' top3-evidence/three-provider/cloudflare.log
+          grep -F '"mandatory_cost_usd": 0' top3-evidence/three-provider/cloudflare.log
+          grep -F 'DIRECT_HTTPS_HTTP=200' top3-evidence/three-provider/gemini.log
+          grep -F 'MANDATORY_COST_USD=0' top3-evidence/three-provider/gemini.log
+      - name: Bind Gemini-only deployed route
+        run: |
+          set -euo pipefail
+          printf '%s\n' 'endpoint=arbm-benchmark-chat-mesh-v1' 'provider=google-gemini-only' 'deployed_function_sha256=c30a9ef54a8f40a0971b4b1259541d212b51995d4c94b67cc86e5496c038f417' > top3-evidence/three-provider/gemini-route-binding.txt
+      - name: Freeze three-provider evidence
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib
+          p=pathlib.Path('top3-evidence/three-provider')
+          ev={'schema':'arbm-top3-three-provider-v1','zeroSpendMode':'HARD','mandatoryCostUsd':0,
+              'providers':[{'provider':'google-gemini','run':34064110908},
+                           {'provider':'cloudflare-workers-ai','run':34180405896},
+                           {'provider':'groqcloud-free','run':34253403348}],
+              'independentProviders':3,'state':'PASS'}
+          (p/'evidence.json').write_text(json.dumps(ev,sort_keys=True,indent=2)+'\n',encoding='utf-8')
+          PY
+          find top3-evidence/three-provider -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > top3-evidence/three-provider/SHA256SUMS.txt
+          (cd top3-evidence/three-provider && sha256sum -c SHA256SUMS.txt)
+      - name: Upload immutable three-provider proof
+        uses: actions/upload-artifact@v7
+        with:
+          name: top3-three-provider-proof
+          path: top3-evidence/three-provider
+          retention-days: 90
