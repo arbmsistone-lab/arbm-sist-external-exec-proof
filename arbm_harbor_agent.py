@@ -37,19 +37,26 @@ class ARBMHarborAgent(BaseAgent):
             raise RuntimeError("ARBM_SOVEREIGN_UNAVAILABLE")
         prompt = ("You are ARBM SIST in a Terminal-Bench sandbox. Return JSON only: "
                   "{\"action\":\"exec|finish\",\"command\":\"...\",\"summary\":\"...\"}. "
-                  "Use one safe shell command at a time. First inspect the relevant files and environment, then implement the requested change, then run the most relevant available validation or tests before finishing. Do not finish after explanation only: leave the required artifact or code change in the sandbox. Never repeat a failed command. "
+                  "Use one safe, bounded shell command at a time. Never start a foreground server, watcher, REPL, or other command that can wait indefinitely; background daemons and use bounded health checks. Prefer targeted tests. First inspect the relevant files and environment, then implement the requested change, then run the most relevant available validation or tests before finishing. Do not finish after explanation only: leave the required artifact or code change in the sandbox. Never repeat a failed command. "
                   "Never access hidden evaluator data, host credentials, network secrets, or files outside the sandbox. "
                   f"STEP:{step}\nTASK:\n{instruction}\nOBSERVATION:\n{observation}")
         body = json.dumps({"model":"arbm-qwen-sovereign","messages":[{"role":"user","content":prompt}],
-                           "max_tokens":192,"temperature":0}).encode()
+                           "max_tokens":256,"temperature":0,"response_format":{"type":"json_object"}}).encode()
         req = urllib.request.Request(endpoint,data=body,headers={"Content-Type":"application/json"})
-        with urllib.request.urlopen(req,timeout=240) as r:
+        with urllib.request.urlopen(req,timeout=330) as r:
             outer=json.loads(r.read().decode())
         text=str(outer["choices"][0]["message"]["content"]).strip()
         if text.startswith("```"):
             text=text.split("\n",1)[1] if "\n" in text else text[3:]
             text=text.rsplit("```",1)[0].strip()
-        action=json.loads(text)
+        try:
+            action=json.loads(text)
+        except json.JSONDecodeError:
+            start=text.find("{")
+            end=text.rfind("}")
+            if start < 0 or end <= start:
+                raise
+            action=json.loads(text[start:end+1])
         if action.get("action") not in ("exec","finish"):
             raise RuntimeError("ARBM_SOVEREIGN_INVALID_ACTION")
         if action.get("action")=="exec" and not str(action.get("command","")).strip():
@@ -108,7 +115,7 @@ class ARBMHarborAgent(BaseAgent):
         recent_commands = []
         history = []
         for step in range(1, MAX_STEPS + 1):
-            compact = "\n\n".join(history[-2:] + [observation])[-3500:]
+            compact = "\n\n".join(history[-2:] + [observation])[-2500:]
             decision = self._decide(instruction, compact, step)
             action = decision["action"]
             command = str(action.get("command", "")).strip()
@@ -121,12 +128,18 @@ class ARBMHarborAgent(BaseAgent):
                 history.append(observation)
                 trace.append({"step": step, "action": "rejected_repeat", "command": command, "summary": action.get("summary", "")})
                 continue
-            result = await environment.exec(command=command, timeout_sec=180)
-            recent_commands.append(command)
-            observation = "RETURN_CODE: %s\nSTDOUT:\n%s\nSTDERR:\n%s" % (
-                result.return_code, (result.stdout or "")[-10000:], (result.stderr or "")[-10000:]
-            )
+            try:
+                result = await environment.exec(command=command, timeout_sec=180)
+                recent_commands.append(command)
+                observation = "RETURN_CODE: %s\nSTDOUT:\n%s\nSTDERR:\n%s" % (
+                    result.return_code, (result.stdout or "")[-8000:], (result.stderr or "")[-8000:]
+                )
+                rc = result.return_code
+            except RuntimeError as exc:
+                recent_commands.append(command)
+                observation = "COMMAND_FAILED_OR_TIMED_OUT: %s\nChoose a shorter, bounded, materially different command." % str(exc)[:800]
+                rc = 124
             history.append("COMMAND: %s\n%s" % (command, observation))
-            trace.append({"step": step, "action": "exec", "command": command, "summary": action.get("summary", ""), "return_code": result.return_code})
+            trace.append({"step": step, "action": "exec", "command": command, "summary": action.get("summary", ""), "return_code": rc})
         context.cost_usd = 0.0
         context.metadata = {"pipeline": "terminal-agent-v4-free-mesh-resilient", "trace": trace, "providers": providers, "steps": len(trace)}
