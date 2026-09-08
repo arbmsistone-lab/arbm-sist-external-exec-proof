@@ -2,10 +2,10 @@ name: Top3 TerminalBench ARBM Smoke
 
 on:
   push:
-    branches:
-      - p3/terminal-bench-arbm-v1
+    branches: [p3/terminal-bench-arbm-v1]
     paths:
       - 'arbm_harbor_agent.py'
+      - 'supabase/functions/arbm-terminal-agent-v1/index.ts'
       - '.github/workflows/top3-terminalbench-arbm-smoke.yml'
   workflow_dispatch:
 
@@ -49,6 +49,19 @@ jobs:
             --agent arbm_harbor_agent:ArbMSistAgent \
             -n 1 -l 1 \
             2>&1 | tee top3-evidence/arbm-terminalbench/harbor.log
+      - name: Enforce scored trial
+        run: |
+          set -euo pipefail
+          result=$(find jobs -mindepth 2 -maxdepth 2 -name result.json | sort | tail -n 1)
+          test -n "$result"
+          python - "$result" <<'PY'
+import json,sys
+p=sys.argv[1]; d=json.load(open(p,encoding='utf-8'))
+s=d['stats']; ev=next(iter(s['evals'].values()))
+assert s['n_errored_trials']==0, s
+assert ev['n_trials']>=1 and ev['n_errors']==0, ev
+assert s['cost_usd']==0, s['cost_usd']
+PY
       - name: Freeze evidence
         if: always()
         run: |

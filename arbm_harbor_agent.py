@@ -48,7 +48,7 @@ class ArbMSistAgent(BaseAgent):
             },
         )
         try:
-            with urllib.request.urlopen(req, timeout=25) as res:
+            with urllib.request.urlopen(req, timeout=70) as res:
                 return json.loads(res.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", "replace")[:800]
