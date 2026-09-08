@@ -1,0 +1,24 @@
+{
+  "schema": "arbm-p3-external-security-audit-sources-v1",
+  "frozenBeforeAudit": true,
+  "scope": "public P3 execution code",
+  "sources": {
+    "swe": {
+      "commit": "49647e0b4e990ee7341f4ea5df3f914b1f5d17bc",
+      "files": ["p8-swe-rebench-smoke.py", "p8-swe-rebench-smoke-test.py"]
+    },
+    "terminal": {
+      "commit": "8011fdd0a7ff9dd21054d48247c42db9e1193124",
+      "files": ["arbm_terminal_harbor_agent.py", "test_arbm_terminal_harbor_agent.py"]
+    },
+    "publicSuite": {
+      "commit": "4702cc1c4450a97d553ddbfacf85b3b12f3c4cf3",
+      "files": ["p3-public-suite.mjs", "p3-public-suite-manifest.json"]
+    }
+  },
+  "gate": {
+    "openCriticalAllowed": 0,
+    "openHighAllowed": 0,
+    "apiFailure": "FAIL_CLOSED"
+  }
+}

@@ -380,7 +380,7 @@ def _sovereign_json(payload):
         prompt=('PUBLIC REPOSITORY CONTEXT:\n'+ctx+'\n\nPUBLIC ISSUE AND CONTRACT:\n'+issue+
                 '\n\nReturn ONLY a JSON object with key "edits". edits is a list of objects with path, start_line, end_line, new. '
                 'Use only supplied public context. start_line and end_line MUST be exact line numbers printed before each source line; never guess or renumber them. Make the smallest causally sufficient edit: when a fixed-width conversion inside existing guards/branches causes serialization overflow, prefer editing only that causal expression and preserve enclosing control flow verbatim. Preserve existing ordinary output formatting unless the public issue requires changing it. No markdown, hidden tests, gold patches, evaluator output, or solution PRs.')
-        max_tokens=112
+        max_tokens=384
         if feedback:
             prompt+='\n\nREJECTED CANDIDATE (failed public tests):\n'+json.dumps(payload.get('rejected_edits',[]),ensure_ascii=False)[:700]
             prompt+='\n\nPUBLIC VALIDATION FAILURES:\n'+_compact_public_validation_output(feedback,700)
@@ -391,7 +391,7 @@ def _sovereign_json(payload):
             hints=payload.get('public_causal_hints',[])
             if hints: prompt+='\n\nPUBLIC CAUSAL HINTS:\n'+json.dumps(hints,ensure_ascii=False)[:700]
             prompt+='\nRevise the rejected candidate; do not repeat it or any semantically equivalent failed candidate. Fix every accumulated public constraint while preserving the original public invariants. Return a complete candidate against the original numbered source, including all necessary edits, not an incremental patch against the rejected candidate.'
-            max_tokens=224
+            max_tokens=512
     elif phase=='judge':
         ctx=str(payload.get('tool_context',''))[:3500]
         issue=str(payload.get('issue',''))[:2200]
@@ -605,6 +605,11 @@ def public_static_hotspots(repo, paths, issue_text, limit=10, radius=6):
         blocks.append(f'FILE: {rel}\nPUBLIC_STATIC_HOTSPOT: affinity={score}; public_matches={matches}; derived only from public issue + source\n'+body)
         if len(blocks)>=limit: break
     return '\n\n'.join(blocks)
+
+def public_editable_paths(paths, issue_text):
+    explicit=bool(re.search(r'\b(test|tests|testing|spec|specs|coverage|fixture|fixtures)\b',str(issue_text),re.I))
+    if explicit: return list(paths)
+    return [p for p in paths if not re.search(r'(^|/)(test|tests|spec)(/|_|$)',str(p).replace('\\','/'),re.I)]
 
 def numbered_file(repo, rel, center=None, radius=120):
     f=Path(repo,rel)
@@ -829,6 +834,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     allowed_paths=[]
     for rel in re.findall(r'(?m)^FILE:\s+([^\s]+)',context):
         if rel not in allowed_paths: allowed_paths.append(rel)
+    allowed_paths=public_editable_paths(allowed_paths,problem)
     resume_public={}
     if os.environ.get('ARBM_SOVEREIGN_ONLY')=='1' and os.environ.get('ARBM_RESUME_PUBLIC_EVIDENCE')=='1':
         ep=Path(OUT,'agent-evidence.json')
