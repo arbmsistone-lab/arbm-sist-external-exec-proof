@@ -13,7 +13,7 @@ const CAPS=String(process.env.ARBM_CAPABILITIES||'git,tests,cloud,persistent').s
 const BOOT_ID=randomUUID();
 if(!HOST_ID)throw new Error('persistent_host_id_required');
 if(TOKEN.length<40)throw new Error('persistent_host_token_required');
-if(!['modal','back4app','clawcloud','gcp'].includes(CLOUD_VENDOR))throw new Error('persistent_cloud_vendor_required');
+if(!['modal','back4app','hostless','gcp'].includes(CLOUD_VENDOR))throw new Error('persistent_cloud_vendor_required');
 
 async function call(action,payload={}){
   const res=await fetch(URL,{method:'POST',headers:{authorization:`Bearer ${TOKEN}`,'x-arbm-host-id':HOST_ID,'content-type':'application/json'},body:JSON.stringify({action,...payload}),signal:AbortSignal.timeout(15000)});

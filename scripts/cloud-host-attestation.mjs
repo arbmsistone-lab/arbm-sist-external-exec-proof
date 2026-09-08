@@ -25,12 +25,12 @@ export async function collectCloudAttestation(vendor,{fetchImpl=fetch}={}){
     const eligible=!!instanceId&&cpuCores>0&&cpuCores<=0.25&&memoryMiB>0&&memoryMiB<=256;
     return {cloudVendor:'back4app',instanceId,profile,profileEligible:eligible,cpuCores,memoryMiB,requiresBillingVerification:true};
   }
-  if(v==='clawcloud'){
+  if(v==='hostless'){
     const instanceId=containerIdentity();
     const cpuCores=envNumber('ARBM_CPU_CORES',0.25),memoryMiB=envNumber('ARBM_MEMORY_MIB',1024);
-    const profile='clawcloud-free-container';
+    const profile='hostless-free-container';
     const eligible=!!instanceId&&cpuCores>0&&cpuCores<=0.25&&memoryMiB>0&&memoryMiB<=1024;
-    return {cloudVendor:'clawcloud',instanceId,profile,profileEligible:eligible,cpuCores,memoryMiB,requiresBillingVerification:true};
+    return {cloudVendor:'hostless',instanceId,profile,profileEligible:eligible,cpuCores,memoryMiB,requiresBillingVerification:true};
   }
   if(v==='gcp'){
     const h={'Metadata-Flavor':'Google'};
