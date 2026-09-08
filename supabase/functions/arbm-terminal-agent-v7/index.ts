@@ -13,7 +13,7 @@ const GROQ_EFFICIENT = ["qwen/qwen3.6-27b", "openai/gpt-oss-20b"];
 const GROQ_MODELS = [...GROQ_STRONG, ...GROQ_EFFICIENT];
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const LIGHTNING_URL = "https://lightning.ai/api/v1/chat/completions";
-const LIGHTNING_MODELS = ["lightning-ai/nvidia-nemotron-3-nano-omni-30b-a3b", "lightning-ai/nvidia-nemotron-3-super-120b-a12b"];
+const LIGHTNING_MODELS = ["lightning-ai/gpt-oss-20b", "lightning-ai/gpt-oss-120b", "lightning-ai/nemotron-3-ultra-550b-a55b"];
 const COOLDOWN = new Map<string, number>();
 const cooling = (k:string) => (COOLDOWN.get(k) || 0) > Date.now();
 const waitMs = (v:string|null, fallback=60) => { const m=/([0-9.]+)/.exec(String(v||"")); return Math.max(1000, (m ? Number(m[1]) : fallback) * 1000); };
@@ -136,7 +136,8 @@ async function callGroq(prompt: string, step = 1, modelHint = "") {
   return { result: null, attempts };
 }
 async function callLightning(prompt: string, modelHint = "") {
-  const key = String(Deno.env.get("LIGHTNING_API_KEY") || "").trim();
+  const storedKey = String(Deno.env.get("LIGHTNING_API_KEY") || "").trim();
+  const key = storedKey.split("/")[0];
   const hardFree = String(Deno.env.get("ARBM_LIGHTNING_ZERO_SPEND_CONFIRMED") || "") === "1";
   if (!key) return { result: null, attempts: [{ route: "lightning", status: "not_configured" }] };
   if (!hardFree) return { result: null, attempts: [{ route: "lightning", status: "zero_spend_unconfirmed" }] };
