@@ -32,6 +32,19 @@ class Tests(unittest.TestCase):
    with patch.dict(os.environ,{'ARBM_ENABLE_SOVEREIGN_FALLBACK':'1'}): self.assertTrue(a._decide('x','y',1)['ok'])
    sovereign.assert_called_once()
 
+ def test_http_422_is_retried_immediately(self):
+  a=agent.ARBMHarborAgent()
+  bad=agent.urllib.error.HTTPError("x",422,"invalid",{},None); bad.read=lambda: json.dumps({"status":"INVALID_ACTION","provider_attempts":[]}).encode()
+  good_payload=json.dumps({"ok":True,"action":{"action":"finish","command":"","summary":"ok"},"mandatory_cost_usd":0,"paid_fallback_used":False}).encode()
+  class Response:
+   def __enter__(self): return self
+   def __exit__(self,*a): return False
+   def read(self): return good_payload
+  with patch.object(a,"_oidc",return_value="token"), patch.object(agent.urllib.request,"urlopen",side_effect=[bad,Response()]), patch.object(agent.time,"sleep") as sleeper:
+   out=a._decide("x","y",1)
+  self.assertTrue(out["ok"]); sleeper.assert_not_called()
+
+
  def test_long_groq_reset_opens_remote_circuit(self):
   a=agent.ARBMHarborAgent()
   body=json.dumps({"status":"WAITING_FREE_CAPACITY","provider_attempts":[{"route":"groq-json-object","status":429,"retry_after":"433"}]}).encode()

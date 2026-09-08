@@ -48,13 +48,14 @@ class ARBMHarborAgent(BaseAgent):
         return {"ok":True,"status":"PASS","action":action,"model":"arbm-qwen-sovereign","provider":"sovereign-qwen-github","provider_attempts":[{"route":"sovereign","status":200,"model":"arbm-qwen-sovereign"}],"mandatory_cost_usd":0,"paid_fallback_used":False}
 
     def _decide(self, instruction: str, observation: str, step: int) -> dict:
-        payload = json.dumps({"instruction": instruction, "observation": observation, "step": step}).encode()
         last_error = None
         cooldown_until = getattr(self, "_remote_cooldown_until", 0.0)
         if time.time() < cooldown_until and os.environ.get("ARBM_ENABLE_SOVEREIGN_FALLBACK") == "1":
             return self._sovereign_decide(instruction, observation, step)
         for attempt in range(4):
             try:
+                retry_hint = "" if attempt == 0 else "\nRETRY_HINT: Previous remote output was invalid or unavailable. Return exactly one valid action object: exec with a non-empty command, or finish."
+                payload = json.dumps({"instruction": instruction, "observation": observation + retry_hint, "step": step}).encode()
                 oidc = self._oidc()
                 req = urllib.request.Request(API_URL, data=payload, method="POST", headers={
                     "Authorization": "Bearer " + oidc,
@@ -69,12 +70,17 @@ class ARBMHarborAgent(BaseAgent):
                 return body
             except urllib.error.HTTPError as exc:
                 body_text = exc.read().decode("utf-8", "replace")[:4000]
+                safe = {}
                 try:
                     safe = json.loads(body_text)
                     detail = json.dumps({"status": safe.get("status"), "error": safe.get("error"), "provider_attempts": safe.get("provider_attempts", [])}, separators=(",", ":"))
                 except Exception:
                     detail = "unparsed"
                 last_error = "HTTP_%s:%s" % (exc.code, detail)
+                if exc.code == 422:
+                    if attempt < 3:
+                        continue
+                    break
                 if exc.code == 503:
                     waits = []
                     for item in safe.get("provider_attempts", []):
