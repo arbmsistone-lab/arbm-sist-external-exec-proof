@@ -5,7 +5,7 @@ const routes=[{id:'free-primary',configured:true,endpoint:'x'},{id:'free-fallbac
 const configured=attestDiscovery({routes,evidence:null},now);
 assert.equal(configured.verifiedCount,0);
 assert.equal(configured.routes[0].state,'CONFIGURED_UNATTESTED');
-const evidence={providerCostUsd:0,sourceCommit:'abc123',observedAt:'2026-09-08T12:00:00Z',providerCallLedger:[{route:'free-primary',status:'ok',model:'model-free',pipeline:'mesh-v1',costUsd:0}]};
+const evidence={providerCostUsd:0,sourceCommit:'abc123',observedAt:'2026-09-08T12:00:00Z',validPatch:true,providerCallLedger:[{route:'free-primary',status:'ok',model:'model-free',pipeline:'mesh-v1',costUsd:0}]};
 const good=attestDiscovery({routes,evidence},now);
 assert.equal(good.verifiedCount,1);
 assert.equal(good.routes[0].state,'VERIFIED');
@@ -29,6 +29,13 @@ const paid=attestDiscovery({routes,evidence:{...evidence,providerCostUsd:1,provi
 assert.notEqual(paid.routes[0].state,'VERIFIED');
 const stale=attestDiscovery({routes,evidence:{...evidence,observedAt:'2026-09-01T00:00:00Z'}},now);
 assert.equal(stale.routes[0].state,'ATTESTED_STALE');
+
+const notSuccessful=attestDiscovery({routes,evidence:{...evidence,validPatch:false}},now);
+assert.notEqual(notSuccessful.routes[0].state,'VERIFIED');
+assert.equal(notSuccessful.routes[0].reasons.includes('SUCCESS_NOT_PROVEN'),true);
+const ambiguousTime=attestDiscovery({routes,evidence:{...evidence,generatedAt:'2026-09-08T11:59:00Z'}},now);
+assert.notEqual(ambiguousTime.routes[0].state,'VERIFIED');
+assert.equal(ambiguousTime.routes[0].reasons.includes('EVIDENCE_TIMESTAMP_AMBIGUOUS'),true);
 const incomplete=attestDiscovery({routes,evidence:{...evidence,sourceCommit:'unknown'}},now);
 assert.notEqual(incomplete.routes[0].state,'VERIFIED');
 console.log('INCUMBENT_ATTESTOR_PASS');

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import {runtimeRouteFromEvidence} from './incumbent-discovery.mjs';
 const policy=JSON.parse(fs.readFileSync('incumbent-attestation-policy.json','utf8'));
+const constitution=JSON.parse(fs.readFileSync('arbm-constitution.json','utf8'));
 const sha=v=>'sha256:'+crypto.createHash('sha256').update(String(v)).digest('hex');
 const known=x=>x!==null&&x!==undefined&&String(x).trim()!==''&&String(x).toLowerCase()!=='unknown';
 function ageHours(ts,now){
@@ -19,6 +20,9 @@ export function attestDiscovery(discovery,now=new Date()){
     if(hardBlocked) reasons.push('PAID_ROUTE_FORBIDDEN_IN_HARD_MODE');
     if(route.configured&&!active) reasons.push('NO_SUCCESSFUL_EXECUTION_EVIDENCE');
     if(active){
+      if(runtime.validPatch!==true) reasons.push('SUCCESS_NOT_PROVEN');
+      if(runtime.timestampAmbiguous) reasons.push('EVIDENCE_TIMESTAMP_AMBIGUOUS');
+      if(constitution.automaticBilling!==false||constitution.automaticOverage!==false) reasons.push('HARD_COST_GUARD_NOT_ENFORCED');
       if(!known(runtime.pipeline)||!known(runtime.sourceCommit)) reasons.push('RUNTIME_IDENTITY_INCOMPLETE');
       const aggregateCost=discovery?.evidence?.providerCostUsd;
       const zeroCost=runtime.providerCostUsd!==null&&runtime.providerCostUsd!==undefined&&aggregateCost!==null&&aggregateCost!==undefined&&Number(runtime.providerCostUsd)===0&&Number(aggregateCost)===0;
@@ -29,7 +33,8 @@ export function attestDiscovery(discovery,now=new Date()){
       if(!known(runtime.observedAt)) reasons.push('OBSERVED_AT_MISSING');
       else if(!fresh){state='ATTESTED_STALE';reasons.push('EVIDENCE_STALE');}
       const identityOk=known(runtime.pipeline)&&known(runtime.sourceCommit);
-      if(!hardBlocked&&identityOk&&zeroCost&&fresh&&known(runtime.observedAt)) state='VERIFIED';
+      const successOk=runtime.validPatch===true&&!runtime.timestampAmbiguous&&constitution.automaticBilling===false&&constitution.automaticOverage===false;
+      if(!hardBlocked&&identityOk&&zeroCost&&fresh&&known(runtime.observedAt)&&successOk) state='VERIFIED';
     }
     const generatedIdentityDigest=active?sha(JSON.stringify({route:runtime.route,model:runtime.model,pipeline:runtime.pipeline,sourceCommit:runtime.sourceCommit})):null;
     const proofArtifactDigest=active&&runtime.modelArtifactSha256&&runtime.modelArtifactSha256!=='unknown'?runtime.modelArtifactSha256:null;

@@ -36,6 +36,8 @@ export function runtimeRouteFromEvidence(evidence){
   const ok=ledger.filter(x=>x?.status==='ok');
   if(!ok.length) return null;
   const last=ok[ok.length-1];
+  const observed=evidence?.observedAt||null; const generated=evidence?.generatedAt||null;
+  const timestampAmbiguous=Boolean(observed&&generated&&observed!==generated);
   return {
     route:String(last.route||''),
     model:last.model||null,
@@ -43,7 +45,7 @@ export function runtimeRouteFromEvidence(evidence){
     providerCostUsd:last.costUsd===null||last.costUsd===undefined?null:Number(last.costUsd),
     sourceCommit:evidence?.sourceCommit||null,
     modelArtifactSha256:evidence?.modelArtifactSha256||null,
-    observedAt:evidence?.observedAt||evidence?.generatedAt||null,
+    observedAt:timestampAmbiguous?null:(observed||generated),timestampAmbiguous,
     validPatch:evidence?.validPatch===true,
     status:evidence?.status||null
   };
