@@ -1,0 +1,227 @@
+[
+  {
+    "run_id": "34290628304",
+    "log_sha256": "e35f8f9bbebe0a9aaf741346e71fa69ae68da4ace98bc342b8730fb8bb16c313",
+    "responses": [
+      {
+        "http": 200,
+        "ok": true,
+        "status": "PASS",
+        "provider": "mistral-free",
+        "model": "ministral-3b-latest",
+        "requested_model": "ministral-3b-latest",
+        "mandatory_cost_usd": 0,
+        "paid_fallback_used": false,
+        "provider_attempts": [
+          {
+            "route": "mistral-free",
+            "model": "ministral-3b-latest",
+            "status": 200,
+            "parsed": true,
+            "usage_tokens": 146
+          }
+        ],
+        "model_unavailable": false,
+        "live_proven": true
+      }
+    ]
+  },
+  {
+    "run_id": "34291048991",
+    "log_sha256": "4c652d511a52a7aa2d8bda59a385d4caf50b200a62a5c141b35e398a16f75d0d",
+    "responses": [
+      {
+        "http": 200,
+        "ok": true,
+        "status": "PASS",
+        "provider": "mistral-free",
+        "model": "ministral-3b-latest",
+        "requested_model": "ministral-3b-latest",
+        "mandatory_cost_usd": 0,
+        "paid_fallback_used": false,
+        "provider_attempts": [
+          {
+            "route": "mistral-free",
+            "model": "ministral-3b-latest",
+            "status": 200,
+            "parsed": true,
+            "usage_tokens": 146
+          }
+        ],
+        "mode": "diagnostic",
+        "model_unavailable": false,
+        "live_proven": true
+      }
+    ]
+  },
+  {
+    "run_id": "34291140698",
+    "log_sha256": "065570c7d71804d04704995121a026a8479ca19eb5337e9b1587cc72c60e3ab7",
+    "responses": [
+      {
+        "http": 200,
+        "ok": true,
+        "status": "PASS",
+        "provider": "lightning-ai-free",
+        "model": "lightning-ai/gpt-oss-20b",
+        "requested_model": null,
+        "mandatory_cost_usd": 0,
+        "paid_fallback_used": false,
+        "provider_attempts": [
+          {
+            "route": "lightning-free",
+            "model": "lightning-ai/gpt-oss-20b",
+            "status": 200,
+            "parsed": true,
+            "usage_tokens": 311
+          }
+        ],
+        "mode": "normal_mesh",
+        "model_unavailable": false,
+        "live_proven": false
+      },
+      {
+        "http": 200,
+        "ok": true,
+        "status": "PASS",
+        "provider": "mistral-free",
+        "model": "ministral-3b-latest",
+        "requested_model": null,
+        "mandatory_cost_usd": 0,
+        "paid_fallback_used": false,
+        "provider_attempts": [
+          {
+            "route": "mistral-free",
+            "model": "ministral-3b-latest",
+            "status": 200,
+            "parsed": true,
+            "usage_tokens": 153,
+            "usage": {
+              "total_tokens": 153
+            },
+            "retry_after": null,
+            "rate_limit_headers": {
+              "x-ratelimit-limit-req-minute": "750",
+              "x-ratelimit-limit-tokens-minute": "1300000",
+              "x-ratelimit-remaining-req-minute": "749",
+              "x-ratelimit-remaining-tokens-minute": "1299847",
+              "x-ratelimit-tokens-query-cost": "153"
+            },
+            "rate_limit_remaining": null,
+            "mandatory_cost_usd": 0,
+            "paid_fallback_used": false
+          }
+        ],
+        "mode": "normal_mesh",
+        "model_unavailable": false,
+        "live_proven": true
+      }
+    ]
+  },
+  {
+    "run_id": "34291365140",
+    "log_sha256": "c3ab385aa8fcc5fdf47b2101f53ca04d8ab1cc939c3bdf78369b9bbbae2cca7b",
+    "responses": [
+      {
+        "http": 200,
+        "ok": true,
+        "status": "PASS",
+        "provider": "mistral-free",
+        "model": "ministral-3b-latest",
+        "requested_model": "ministral-3b-latest",
+        "mandatory_cost_usd": 0,
+        "paid_fallback_used": false,
+        "provider_attempts": [
+          {
+            "route": "mistral-free",
+            "model": "ministral-3b-latest",
+            "status": 200,
+            "parsed": true,
+            "usage_tokens": 145,
+            "usage": {
+              "total_tokens": 145
+            },
+            "retry_after": null,
+            "rate_limit_headers": {
+              "x-ratelimit-limit-req-minute": "750",
+              "x-ratelimit-limit-tokens-minute": "1300000",
+              "x-ratelimit-remaining-req-minute": "749",
+              "x-ratelimit-remaining-tokens-minute": "1299855",
+              "x-ratelimit-tokens-query-cost": "145"
+            },
+            "rate_limit_remaining": null,
+            "mandatory_cost_usd": 0,
+            "paid_fallback_used": false
+          }
+        ],
+        "mode": "diagnostic",
+        "model_unavailable": false,
+        "live_proven": true
+      }
+    ]
+  },
+  {
+    "run_id": "34291383489",
+    "log_sha256": "c2ef9f3fb175c54afbc71de079b31ab5e83c3f3f2b3f9d4d00a65a4684ba2863",
+    "responses": [
+      {
+        "http": 200,
+        "ok": true,
+        "status": "PASS",
+        "provider": "lightning-ai-free",
+        "model": "lightning-ai/gpt-oss-20b",
+        "requested_model": null,
+        "mandatory_cost_usd": 0,
+        "paid_fallback_used": false,
+        "provider_attempts": [
+          {
+            "route": "lightning-free",
+            "model": "lightning-ai/gpt-oss-20b",
+            "status": 200,
+            "parsed": true,
+            "usage_tokens": 259
+          }
+        ],
+        "mode": "normal_mesh",
+        "model_unavailable": false,
+        "live_proven": false
+      },
+      {
+        "http": 200,
+        "ok": true,
+        "status": "PASS",
+        "provider": "mistral-free",
+        "model": "ministral-3b-latest",
+        "requested_model": null,
+        "mandatory_cost_usd": 0,
+        "paid_fallback_used": false,
+        "provider_attempts": [
+          {
+            "route": "mistral-free",
+            "model": "ministral-3b-latest",
+            "status": 200,
+            "parsed": true,
+            "usage_tokens": 153,
+            "usage": {
+              "total_tokens": 153
+            },
+            "retry_after": null,
+            "rate_limit_headers": {
+              "x-ratelimit-limit-req-minute": "750",
+              "x-ratelimit-limit-tokens-minute": "1300000",
+              "x-ratelimit-remaining-req-minute": "748",
+              "x-ratelimit-remaining-tokens-minute": "1299702",
+              "x-ratelimit-tokens-query-cost": "153"
+            },
+            "rate_limit_remaining": null,
+            "mandatory_cost_usd": 0,
+            "paid_fallback_used": false
+          }
+        ],
+        "mode": "normal_mesh",
+        "model_unavailable": false,
+        "live_proven": true
+      }
+    ]
+  }
+]
