@@ -1,0 +1,22 @@
+name: ARBM Provider Probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  provider_probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ZERO_SPEND_MODE: HARD
+    steps:
+      - uses: actions/checkout@v7
+      - name: Probe ARBM FREE provider mesh
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = "HARD"
+          python arbm_provider_probe.py
