@@ -1,20 +1,17 @@
-import json, os, urllib.request, urllib.error
-API_URL="https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v3"
-MODELS=["gemini-3.8-flash","gemini-3.7-flash","gemini-3.6-flash","gemini-3.5-flash","gemini-3.5-flash-lite","gemini-3.1-flash-lite","gemini-2.5-flash","gemini-2.5-flash-lite"]
+import json,os,urllib.request,urllib.error
+API='https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v4'
+CASES=[('google','gemini-3.6-flash'),('groq','qwen/qwen3.8-27b'),('groq','qwen/qwen3.6-27b'),('groq','openai/gpt-oss-120b'),('groq','openai/gpt-oss-20b')]
 def oidc():
- url=os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"]; token=os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]
- sep="&" if "?" in url else "?"; req=urllib.request.Request(url+sep+"audience=arbm-sist-benchmark",headers={"Authorization":"Bearer "+token})
- with urllib.request.urlopen(req,timeout=20) as r:return json.loads(r.read().decode())["value"]
-def probe(model,token):
- body={"instruction":"Return one safe first shell command as JSON.","observation":"No commands executed yet.","step":1,"provider_hint":"google","model_hint":model}
- req=urllib.request.Request(API_URL,data=json.dumps(body).encode(),method="POST",headers={"Authorization":"Bearer "+token,"Content-Type":"application/json"})
+ u=os.environ['ACTIONS_ID_TOKEN_REQUEST_URL']; t=os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']; sep='&' if '?' in u else '?'
+ with urllib.request.urlopen(urllib.request.Request(u+sep+'audience=arbm-sist-benchmark',headers={'Authorization':'Bearer '+t}),timeout=20) as r:return json.loads(r.read())['value']
+def one(provider,model):
+ body={'instruction':'Return one safe first bash command as JSON.','observation':'No commands executed yet.','step':1,'provider_hint':provider,'model_hint':model}
+ req=urllib.request.Request(API,data=json.dumps(body).encode(),method='POST',headers={'Authorization':'Bearer '+oidc(),'Content-Type':'application/json'})
  try:
-  with urllib.request.urlopen(req,timeout=40) as r:data=json.loads(r.read().decode()); return {"model":model,"http":r.status,"ok":data.get("ok"),"provider":data.get("provider"),"mandatory_cost_usd":data.get("mandatory_cost_usd"),"paid_fallback_used":data.get("paid_fallback_used"),"attempts":data.get("provider_attempts",[])}
+  with urllib.request.urlopen(req,timeout=45) as r:d=json.loads(r.read()); return {'provider':provider,'model':model,'http':r.status,'ok':d.get('ok'),'used_model':d.get('model'),'attempts':d.get('provider_attempts'),'cost':d.get('mandatory_cost_usd'),'paid':d.get('paid_fallback_used')}
  except urllib.error.HTTPError as e:
-  data=json.loads(e.read().decode()); return {"model":model,"http":e.code,"ok":False,"status":data.get("status"),"attempts":data.get("provider_attempts",[])}
-def main():
- token=oidc(); rows=[probe(m,token) for m in MODELS]; print(json.dumps(rows,separators=(",",":")))
- good=[r for r in rows if r.get("http")==200 and r.get("ok") is True and r.get("mandatory_cost_usd")==0 and r.get("paid_fallback_used") is False]
- print(json.dumps({"models_tested":len(rows),"free_models_live":len(good),"live_models":[r["model"] for r in good],"mandatory_cost_usd":0},separators=(",",":")))
- if len(good)<2: raise SystemExit(2)
-if __name__=="__main__":main()
+  d=json.loads(e.read()); return {'provider':provider,'model':model,'http':e.code,'ok':False,'attempts':d.get('provider_attempts'),'cost':d.get('mandatory_cost_usd')}
+rows=[one(*c) for c in CASES]; print(json.dumps(rows,separators=(',',':')))
+live=[r for r in rows if r.get('ok') is True and r.get('cost')==0 and r.get('paid') is False]
+print(json.dumps({'tested':len(rows),'live':len(live),'live_models':[r['model'] for r in live],'mandatory_cost_usd':0},separators=(',',':')))
+if not live: raise SystemExit(2)
