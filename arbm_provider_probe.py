@@ -26,7 +26,10 @@ def live_proven(http, data, mesh=False):
             and type(data.get("mandatory_cost_usd")) in (int, float)
             and data["mandatory_cost_usd"] == 0 and data.get("paid_fallback_used") is False
             and any(a.get("route") == "mistral-free" and a.get("status") == 200
-                    and a.get("parsed") is True for a in attempts)
+                    and a.get("parsed") is True
+                    and type(a.get("mandatory_cost_usd")) in (int, float)
+                    and a["mandatory_cost_usd"] == 0
+                    and a.get("paid_fallback_used") is False for a in attempts)
             and all(a.get("mandatory_cost_usd", 0) == 0 and a.get("paid_fallback_used", False) is False for a in attempts)
             and all(a.get("route") in (("mistral", "mistral-free", "google", "groq", "groq-json-object", "groq-json-text", "lightning", "lightning-free", "cloudflare") if mesh else ("mistral", "mistral-free")) for a in attempts))
 

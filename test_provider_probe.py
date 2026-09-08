@@ -6,7 +6,7 @@ class ProofTests(unittest.TestCase):
     def setUp(self):
         self.data = {"ok": True, "status": "PASS", "provider": "mistral-free",
                      "mandatory_cost_usd": 0, "paid_fallback_used": False,
-                     "provider_attempts": [{"route": "mistral-free", "status": 200, "parsed": True}]}
+                     "provider_attempts": [{"route": "mistral-free", "status": 200, "parsed": True, "mandatory_cost_usd": 0, "paid_fallback_used": False}]}
     def test_real_success(self):
         self.assertTrue(live_proven(200, self.data))
     def test_failures_never_promote(self):
@@ -20,6 +20,16 @@ class ProofTests(unittest.TestCase):
         for status in (401, 403, 429, 503, "transport"):
             data = copy.deepcopy(self.data); data["provider_attempts"][0]["status"] = status
             self.assertFalse(live_proven(200, data))
+    def test_missing_attempt_cost_evidence_never_promotes(self):
+        for key in ("mandatory_cost_usd", "paid_fallback_used", "parsed"):
+            data = copy.deepcopy(self.data)
+            del data["provider_attempts"][0][key]
+            self.assertFalse(live_proven(200, data))
+    def test_paid_or_unknown_mesh_attempt_never_promotes(self):
+        for attempt in ({"route": "paid"}, {"route": "google", "paid_fallback_used": True}):
+            data = copy.deepcopy(self.data)
+            data["provider_attempts"].append(attempt)
+            self.assertFalse(live_proven(200, data, mesh=True))
     def test_only_model_unavailability_retries(self):
         for status in (400, 404, 422):
             self.assertTrue(model_unavailable({"provider_attempts": [
