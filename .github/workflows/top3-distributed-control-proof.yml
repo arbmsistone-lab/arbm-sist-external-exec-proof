@@ -1,5 +1,8 @@
 name: Top3 Distributed Control Proof
 on:
+  push:
+    branches: [p3/terminal-bench-harbor-arbm-20260908]
+    paths: [.github/workflows/top3-distributed-control-proof.yml]
   workflow_dispatch:
 permissions:
   contents: read
