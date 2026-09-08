@@ -1,0 +1,26 @@
+name: P3 Cloudflare OIDC FREE Proof
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Prove GitHub OIDC to Cloudflare Workers AI
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark"
+          oidc="$(curl -fsSL -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "$url" | jq -r .value)"
+          test -n "$oidc" && test "$oidc" != null
+          body='{"model":"@cf/nvidia/nemotron-3-120b-a12b","messages":[{"role":"user","content":"Reply only ARBM_CF_OIDC_PASS"}]}'
+          code="$(curl -sS -o response.json -w '%{http_code}' -H "Authorization: Bearer ${oidc}" -H 'content-type: application/json' --data "$body" https://arbm-p0-free-proof.zevanory.workers.dev)"
+          test "$code" = 200
+          jq -e '.ok == true and .provider == "cloudflare" and .model == "@cf/nvidia/nemotron-3-120b-a12b" and .mandatory_cost_usd == 0 and .paid_fallback_used == false' response.json >/dev/null
+          jq -e '(.result.response // .result.result.response // "") | tostring | contains("ARBM_CF_OIDC_PASS")' response.json >/dev/null
+          jq '{ok,provider,model,mandatory_cost_usd,paid_fallback_used}' response.json
+      - name: Evidence marker
+        run: echo 'ARBM_P3_CLOUDFLARE_OIDC_FREE=PASS'
