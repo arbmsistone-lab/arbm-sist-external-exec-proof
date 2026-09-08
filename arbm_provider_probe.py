@@ -1,12 +1,14 @@
 import json,os,urllib.request,urllib.error
-API='https://arbm-p0-free-proof.zevanory.workers.dev'; MODEL='@cf/nvidia/nemotron-3-120b-a12b'
+API='https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v7'
 def oidc():
  u=os.environ['ACTIONS_ID_TOKEN_REQUEST_URL']; t=os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']; sep='&' if '?' in u else '?'
- with urllib.request.urlopen(urllib.request.Request(u+sep+'audience=arbm-sist-benchmark',headers={'Authorization':'Bearer '+t,'User-Agent':'curl/8.5.0'}),timeout=20) as r:return json.loads(r.read())['value']
-token=oidc(); body={'model':MODEL,'messages':[{'role':'user','content':'Reply only ARBM_CF_OIDC_PASS'}]}
-req=urllib.request.Request(API,data=json.dumps(body).encode(),method='POST',headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','Accept':'application/json','User-Agent':'curl/8.5.0'})
+ with urllib.request.urlopen(urllib.request.Request(u+sep+'audience=arbm-sist-benchmark',headers={'Authorization':'Bearer '+t}),timeout=20) as r:return json.loads(r.read())['value']
+body={'instruction':'Return one safe inspection command as JSON.','observation':'No commands executed yet.','step':1,'provider_hint':'lightning'}
+req=urllib.request.Request(API,data=json.dumps(body).encode(),method='POST',headers={'Authorization':'Bearer '+oidc(),'Content-Type':'application/json'})
 try:
- with urllib.request.urlopen(req,timeout=45) as r:d=json.loads(r.read()); txt=str((((d.get('result') or {}).get('choices') or [{}])[0].get('message') or {}).get('content') or ''); out={'http':r.status,'ok':d.get('ok'),'provider':d.get('provider'),'model':d.get('model'),'matched':'ARBM_CF_OIDC_PASS' in txt,'cost':d.get('mandatory_cost_usd'),'paid':d.get('paid_fallback_used')}
-except urllib.error.HTTPError as e: out={'http':e.code,'ok':False,'error':e.read().decode('utf-8','replace')[:200]}
+ with urllib.request.urlopen(req,timeout=30) as r:d=json.loads(r.read()); out={'http':r.status,'ok':d.get('ok'),'attempts':d.get('provider_attempts'),'cost':d.get('mandatory_cost_usd'),'paid':d.get('paid_fallback_used')}
+except urllib.error.HTTPError as e:
+ d=json.loads(e.read()); out={'http':e.code,'ok':False,'status':d.get('status'),'attempts':d.get('provider_attempts'),'cost':d.get('mandatory_cost_usd'),'paid':d.get('paid_fallback_used')}
 print(json.dumps(out,separators=(',',':')))
-if not(out.get('http')==200 and out.get('ok') is True and out.get('cost')==0 and out.get('paid') is False): raise SystemExit(2)
+a=out.get('attempts') or []
+if not(out.get('http')==503 and out.get('cost')==0 and out.get('paid') is False and any(x.get('route')=='lightning' and x.get('status')=='not_configured' for x in a)): raise SystemExit(2)
