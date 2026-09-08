@@ -1,0 +1,69 @@
+name: Top3 Distributed Control Proof
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  distributed_control:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      ZERO_SPEND_MODE: HARD
+    steps:
+      - uses: actions/checkout@v7
+      - name: Prove external runner and zero spend
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = "github-hosted"
+          test "$ZERO_SPEND_MODE" = "HARD"
+      - name: Run recovery control and isolation suites
+        run: |
+          set -euo pipefail
+          python arbm-control-isolation-tests.py
+          python arbm-evidence-fault-tests.py
+      - name: Generate adversarial distributed evidence
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import importlib.util,json,pathlib,hashlib
+          root=pathlib.Path('.')
+          def load(name,file):
+              s=importlib.util.spec_from_file_location(name,root/file)
+              m=importlib.util.module_from_spec(s); s.loader.exec_module(m); return m
+          mc=load('mc','arbm-mission-control.py')
+          ci=load('ci','arbm-context-isolation.py')
+          fi=load('fi','arbm-fault-injection.py')
+          mission={'id':'proof-m1','status':'RUNNING','control_owner':'ops','lease_owner':'runner-a','checkpoint':'cp-17'}
+          cancel=mc.apply_control(mission,'CANCEL','ops')
+          preempt=mc.apply_control(mission,'PREEMPT','ops')
+          resume=mc.apply_control(preempt,'RESUME','ops')
+          cross_path=ci.authorize_path('proof-m1','missions/proof-m2/leak.txt')
+          cross_secret=ci.authorize_secret('proof-m1','mission/proof-m2/provider-key')
+          recover=[fi.recover({'checkpoint':'cp-17','attempts':0,'provider_index':i},'provider_timeout') for i in range(3)]
+          corrupt=fi.recover({'checkpoint':'cp-17'},'checkpoint_corrupt')
+          evidence={'schema':'arbm-top3-distributed-control-v1','zeroSpendMode':'HARD','runnerEnvironment':'github-hosted',
+            'cancelReleasedLease':cancel['status']=='CANCELLED' and cancel['lease_owner'] is None,
+            'preemptCheckpointPreserved':preempt['status']=='PREEMPTED' and preempt['resume_from']=='cp-17',
+            'resumeQueued':resume['status']=='QUEUED','crossMissionPathBlocked':cross_path is False,
+            'crossMissionSecretBlocked':cross_secret is False,'threeWayRotation':[x['provider_index'] for x in recover]==[1,2,0],
+            'noDuplicateMutation':all(x['duplicate_mutation'] is False for x in recover),
+            'corruptCheckpointFailClosed':corrupt['status']=='BLOCKED'}
+          assert all(v is True for k,v in evidence.items() if isinstance(v,bool)), evidence
+          out=pathlib.Path('top3-evidence/distributed-control'); out.mkdir(parents=True,exist_ok=True)
+          raw=json.dumps(evidence,sort_keys=True,indent=2)+'\n'
+          (out/'evidence.json').write_text(raw,encoding='utf-8')
+          digest=hashlib.sha256(raw.encode()).hexdigest()
+          (out/'SHA256SUMS.txt').write_text(f'{digest}  evidence.json\n',encoding='utf-8')
+          print(json.dumps(evidence,sort_keys=True))
+          PY
+      - name: Verify immutable evidence
+        run: |
+          set -euo pipefail
+          cd top3-evidence/distributed-control
+          sha256sum -c SHA256SUMS.txt
+      - name: Upload distributed control evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: top3-distributed-control-proof
+          path: top3-evidence/distributed-control
+          retention-days: 90
