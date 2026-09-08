@@ -55,7 +55,8 @@ class ARBMHarborAgent(BaseAgent):
         for attempt in range(4):
             try:
                 retry_hint = "" if attempt == 0 else "\nRETRY_HINT: Previous remote output was invalid or unavailable. Return exactly one valid action object: exec with a non-empty command, or finish."
-                payload = json.dumps({"instruction": instruction, "observation": observation + retry_hint, "step": step}).encode()
+                policy = "\nEXECUTION_POLICY: Converge quickly. Use at most two pure inspection steps before making the smallest correct change. After any nonzero command, the next action must diagnose and repair that failure. Never finish while a required artifact/file/service is known missing or a verification failed. Before finish, run one focused verification whenever feasible. Avoid repeating ls/cat/grep of already-seen content."
+                payload = json.dumps({"instruction": instruction + policy, "observation": observation + retry_hint, "step": step}).encode()
                 oidc = self._oidc()
                 req = urllib.request.Request(API_URL, data=payload, method="POST", headers={
                     "Authorization": "Bearer " + oidc,
