@@ -40,7 +40,7 @@ export function runtimeRouteFromEvidence(evidence){
     route:String(last.route||''),
     model:last.model||null,
     pipeline:last.pipeline||null,
-    providerCostUsd:Number(last.costUsd||0),
+    providerCostUsd:last.costUsd===null||last.costUsd===undefined?null:Number(last.costUsd),
     sourceCommit:evidence?.sourceCommit||null,
     modelArtifactSha256:evidence?.modelArtifactSha256||null,
     observedAt:evidence?.observedAt||evidence?.generatedAt||null,

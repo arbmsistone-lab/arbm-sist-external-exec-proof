@@ -20,7 +20,10 @@ export function attestDiscovery(discovery,now=new Date()){
     if(route.configured&&!active) reasons.push('NO_SUCCESSFUL_EXECUTION_EVIDENCE');
     if(active){
       if(!known(runtime.pipeline)||!known(runtime.sourceCommit)) reasons.push('RUNTIME_IDENTITY_INCOMPLETE');
-      const zeroCost=Number(runtime.providerCostUsd)===0&&Number(discovery?.evidence?.providerCostUsd||0)===0;
+      const aggregateCost=discovery?.evidence?.providerCostUsd;
+      const zeroCost=runtime.providerCostUsd!==null&&runtime.providerCostUsd!==undefined&&aggregateCost!==null&&aggregateCost!==undefined&&Number(runtime.providerCostUsd)===0&&Number(aggregateCost)===0;
+      if(aggregateCost===null||aggregateCost===undefined) reasons.push('AGGREGATE_COST_MISSING');
+      if(runtime.providerCostUsd===null||runtime.providerCostUsd===undefined) reasons.push('ROUTE_COST_MISSING');
       if(!zeroCost) reasons.push('ZERO_SPEND_NOT_PROVEN');
       const fresh=ageHours(runtime.observedAt,now)<=Number(policy.maxEvidenceAgeHours||72);
       if(!known(runtime.observedAt)) reasons.push('OBSERVED_AT_MISSING');
@@ -28,9 +31,11 @@ export function attestDiscovery(discovery,now=new Date()){
       const identityOk=known(runtime.pipeline)&&known(runtime.sourceCommit);
       if(!hardBlocked&&identityOk&&zeroCost&&fresh&&known(runtime.observedAt)) state='VERIFIED';
     }
+    const generatedIdentityDigest=active?sha(JSON.stringify({route:runtime.route,model:runtime.model,pipeline:runtime.pipeline,sourceCommit:runtime.sourceCommit})):null;
+    const proofArtifactDigest=active&&runtime.modelArtifactSha256&&runtime.modelArtifactSha256!=='unknown'?runtime.modelArtifactSha256:null;
     const identity=active?{
       id:runtime.route,version:runtime.model||runtime.pipeline,
-      artifactSha256:runtime.modelArtifactSha256&&runtime.modelArtifactSha256!=='unknown'?runtime.modelArtifactSha256:sha(JSON.stringify({route:runtime.route,model:runtime.model,pipeline:runtime.pipeline,sourceCommit:runtime.sourceCommit})),
+      artifactSha256:proofArtifactDigest||generatedIdentityDigest,proofArtifactDigest,identityDigest:generatedIdentityDigest,
       activatedAt:runtime.observedAt,zeroSpendVerified:Number(runtime.providerCostUsd)===0,
       model:runtime.model,pipeline:runtime.pipeline,sourceCommit:runtime.sourceCommit
     }:null;
@@ -40,7 +45,7 @@ export function attestDiscovery(discovery,now=new Date()){
   return {
     schema:'arbm-incumbent-attestation-v1',observedAt:now.toISOString(),
     verifiedCount:verified.length,configuredCount:routes.filter(x=>x.configured).length,
-    replacementSafe:verified.length>0,routes,
+    replacementSafe:verified.length===1,routes,
     attestationHash:sha(JSON.stringify(routes.map(x=>({id:x.id,state:x.state,identity:x.identity,reasons:x.reasons}))))
   };
 }

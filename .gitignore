@@ -4,3 +4,5 @@ universal-radar-registry.json
 universal-radar-smoke.json
 universal-radar-evidence-ledger.jsonl
 scheduler-debug.mjs
+
+universal-radar-scheduler-state.json
