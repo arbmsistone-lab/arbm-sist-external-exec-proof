@@ -1,6 +1,8 @@
 import json
 import os
 import urllib.request
+import urllib.error
+import time
 from harbor.agents.base import BaseAgent
 from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
@@ -14,7 +16,7 @@ class ARBMHarborAgent(BaseAgent):
         return "arbm-sist"
 
     def version(self) -> str | None:
-        return "terminal-v2-free-mesh"
+        return "terminal-v3-free-mesh-hard-gate"
 
     async def setup(self, environment: BaseEnvironment) -> None:
         return None
@@ -34,8 +36,25 @@ class ARBMHarborAgent(BaseAgent):
             "Authorization": "Bearer " + oidc,
             "Content-Type": "application/json",
         })
-        with urllib.request.urlopen(req, timeout=30) as r:
-            body = json.loads(r.read().decode())
+        body = None
+        last_error = None
+        for attempt in range(3):
+            try:
+                with urllib.request.urlopen(req, timeout=30) as r:
+                    body = json.loads(r.read().decode())
+                break
+            except urllib.error.HTTPError as exc:
+                last_error = exc
+                if exc.code not in (429, 500, 502, 503, 504) or attempt == 2:
+                    raise
+                time.sleep(1 + attempt)
+            except (urllib.error.URLError, TimeoutError) as exc:
+                last_error = exc
+                if attempt == 2:
+                    raise
+                time.sleep(1 + attempt)
+        if body is None:
+            raise RuntimeError("ARBM_DECISION_TRANSPORT_FAILED:" + str(last_error))
         if not body.get("ok"):
             raise RuntimeError("ARBM_DECISION_UNAVAILABLE:" + str(body.get("status") or body.get("error")))
         if float(body.get("mandatory_cost_usd", -1)) != 0 or body.get("paid_fallback_used") is not False:
@@ -47,16 +66,24 @@ class ARBMHarborAgent(BaseAgent):
         observation = "No commands executed yet."
         trace = []
         providers = []
+        failed_commands = set()
         for step in range(1, MAX_STEPS + 1):
             decision = self._decide(oidc, instruction, observation, step)
             action = decision["action"]
             providers.append({"provider": decision.get("provider"), "model": decision.get("model")})
-            trace.append({"step": step, "action": action.get("action"), "command": action.get("command", ""), "summary": action.get("summary", "")})
+            command = str(action.get("command", "")).strip()
+            trace.append({"step": step, "action": action.get("action"), "command": command, "summary": action.get("summary", "")})
             if action.get("action") == "finish":
                 break
-            result = await environment.exec(command=str(action["command"]), timeout_sec=120)
+            if command in failed_commands:
+                observation = "REJECTED_REPEAT_FAILED_COMMAND:\n%s\nChoose a materially different diagnostic or repair strategy." % command
+                continue
+            result = await environment.exec(command=command, timeout_sec=120)
             observation = "RETURN_CODE: %s\nSTDOUT:\n%s\nSTDERR:\n%s" % (
                 result.return_code, (result.stdout or "")[-12000:], (result.stderr or "")[-12000:]
             )
+            if result.return_code != 0:
+                failed_commands.add(command)
+                observation += "\nRECOVERY_DIRECTIVE: this exact command failed and must not be repeated."
         context.cost_usd = 0.0
         context.metadata = {"pipeline": "terminal-agent-v2-free-mesh", "trace": trace, "providers": providers, "steps": len(trace)}

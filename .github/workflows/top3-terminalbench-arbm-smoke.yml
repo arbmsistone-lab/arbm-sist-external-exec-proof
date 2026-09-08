@@ -52,7 +52,7 @@ jobs:
           printf '%s\n' "$ZERO_SPEND_MODE" > top3-evidence/terminalbench-arbm/zero-spend-mode.txt
           latest_result=$(find jobs -name result.json -type f | sort | tail -n 1)
           if [ -n "$latest_result" ]; then cp "$latest_result" top3-evidence/terminalbench-arbm/harbor-result.json; fi
-          if [ -n "$latest_result" ]; then cp "$latest_result" top3-evidence/terminalbench-arbm/harbor-result.json; fi
+          find jobs -name result.json -type f -print0 | while IFS= read -r -d '' f; do d=top3-evidence/terminalbench-arbm/results/$(basename $(dirname "$f")); mkdir -p "$d"; cp "$f" "$d/result.json"; done
           find top3-evidence/terminalbench-arbm -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > top3-evidence/terminalbench-arbm/SHA256SUMS.txt
       - name: Upload ARBM immutable evidence
         if: always()
@@ -62,3 +62,24 @@ jobs:
           path: top3-evidence/terminalbench-arbm
           if-no-files-found: error
           retention-days: 30
+      - name: Enforce real scored smoke
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import glob,json,sys
+          files=glob.glob('jobs/*/*/result.json')
+          if not files:
+              raise SystemExit('NO_TERMINALBENCH_RESULTS')
+          rewards=[]; errors=[]
+          for f in files:
+              d=json.load(open(f,encoding='utf-8'))
+              if d.get('exception_info'):
+                  errors.append((f,d.get('exception_info')))
+              r=((d.get('verifier_result') or {}).get('rewards') or {}).get('reward')
+              if isinstance(r,(int,float)): rewards.append(float(r))
+          print({'results':len(files),'errors':len(errors),'rewards':rewards,'mean':sum(rewards)/len(rewards) if rewards else None})
+          if errors: raise SystemExit('TERMINALBENCH_EXCEPTIONS_PRESENT')
+          if not rewards or max(rewards) <= 0: raise SystemExit('TERMINALBENCH_ZERO_SCORE')
+          PY
