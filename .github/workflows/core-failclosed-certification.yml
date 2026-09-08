@@ -1,7 +1,7 @@
 name: Core Fail-Closed Certification
 on:
   push:
-    branches: [codex/core-failclosed-final-20260908]
+    branches: [codex/core-failclosed-final-20260908, p8/constitution-source-context-20260905]
   workflow_dispatch:
 permissions:
   contents: read
