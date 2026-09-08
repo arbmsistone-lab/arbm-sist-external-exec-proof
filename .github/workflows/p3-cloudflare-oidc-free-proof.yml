@@ -1,5 +1,8 @@
 name: P3 Cloudflare OIDC FREE Proof
 on:
+  push:
+    branches:
+      - p3/cloudflare-free-dev-20260908
   workflow_dispatch:
 permissions:
   contents: read
