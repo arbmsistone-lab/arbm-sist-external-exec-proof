@@ -20,6 +20,7 @@ jobs:
       ARBM_TERMINAL_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v1
       ARBM_TERMINAL_MAX_STEPS: '3'
       ARBM_TERMINAL_EVIDENCE_PATH: ${{ github.workspace }}/arbm-terminal-smoke-agent-evidence.json
+      PYTHONPATH: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
