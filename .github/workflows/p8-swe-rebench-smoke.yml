@@ -1,6 +1,11 @@
 name: P8 SWE-rebench V2 real smoke
 on:
   workflow_dispatch:
+    inputs:
+      hf_offset:
+        description: 'Public SWE-rebench sample offset'
+        required: false
+        default: '1'
   push:
     branches: ['p8/**']
     paths:
@@ -15,7 +20,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     env:
-      HF_OFFSET: '1'
+      HF_OFFSET: ${{ inputs.hf_offset || '1' }}
       MODEL_DIR: ${{ github.workspace }}/.cache/arbm-models
       MODEL_FILE: qwen2.5-coder-14b-instruct-q4_k_m.gguf
       MODEL_SHA256: c1e659736d89ac1065fb495330fb824d94001974a4bfa78e7270e43476a8d940
