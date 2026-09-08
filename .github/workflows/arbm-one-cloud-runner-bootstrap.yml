@@ -39,5 +39,5 @@ jobs:
             --url https://github.com/arbmsistone-lab/ARBM-one \
             --token "$ARBM_ONE_RUNNER_TOKEN" \
             --name "$REQUESTED_RUNNER_NAME" \
-            --labels "arbm-cloud,arbm-final"
+            --labels "arbm-cloud,arbm-final,arbm-free,arbm-core"
           ./run.sh
