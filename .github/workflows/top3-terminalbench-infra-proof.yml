@@ -47,7 +47,10 @@ jobs:
           printf '%s\n' "$GITHUB_SHA" > top3-evidence/terminalbench-infra/candidate-sha.txt
           printf '%s\n' "$RUNNER_ENVIRONMENT" > top3-evidence/terminalbench-infra/runner-environment.txt
           printf '%s\n' "$ZERO_SPEND_MODE" > top3-evidence/terminalbench-infra/zero-spend-mode.txt
-          find top3-evidence/terminalbench-infra -type f -print0 | sort -z | xargs -0 sha256sum > top3-evidence/terminalbench-infra/SHA256SUMS.txt
+          latest_result=$(find jobs -name result.json -type f | sort | tail -n 1)
+          test -n "$latest_result"
+          cp "$latest_result" top3-evidence/terminalbench-infra/harbor-result.json
+          find top3-evidence/terminalbench-infra -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > top3-evidence/terminalbench-infra/SHA256SUMS.txt
       - name: Upload immutable evidence
         if: always()
         uses: actions/upload-artifact@v4
