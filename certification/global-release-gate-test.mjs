@@ -8,7 +8,7 @@ assert.ok(!r.blockers.some(x=>x.startsWith('providerOperationalQuorum:')));
 assert.equal(r.providerQuorum.activeIndependentDomains,3);
 assert.equal(r.providerQuorum.pass,true);
 assert.ok(r.blockers.includes('osworldV2Content:BLOCKED_EXTERNAL_AUTH'));
-assert.ok(r.blockers.includes('swefficiency:BLOCKED_EXTERNAL_COMPUTE'));
+assert.ok(r.blockers.includes('swefficiency:BLOCKED_CPU_TOPOLOGY'));
 assert.ok(r.blockers.includes('terminalBench4:BLOCKED_EXTERNAL_COMPUTE'));
 assert.ok(!r.blockers.some(x=>x.startsWith('p9DubboM0031:')));
 const enforced=spawnSync(process.execPath,['certification/global-release-gate.mjs'],{

@@ -1,6 +1,6 @@
 {
   "schema": "arbm-global-release-readiness-v1",
-  "capturedAt": "2026-09-07T23:53:00.780091Z",
+  "capturedAt": "2026-09-08T00:09:19.345616Z",
   "policy": {
     "zeroSpendHard": true,
     "heavyExecution": "REMOTE_ONLY",
@@ -53,21 +53,38 @@
       "release": "osworld-v2-2026.08.08"
     },
     "swefficiency": {
-      "status": "BLOCKED_EXTERNAL_COMPUTE",
-      "runId": 34170734054,
-      "artifactId": 10035610512,
-      "artifactSha256": "c277b573ba366aa9e9eaff9ad8badaa8a3a10b27ca03f4fb6f8db892ac699d68",
-      "officialContainerContract": {
-        "memLimit": "32g",
-        "memReservation": "16g",
-        "memswapLimit": "32g"
+      "status": "BLOCKED_CPU_TOPOLOGY",
+      "runId": 34172380725,
+      "artifactId": 10036111374,
+      "artifactSha256": "043a203a18eaea988e976dcd955245a67748356ade49ee618598b4d242b975e2",
+      "resourceContractSchema": "arbm-sweff-resource-contract-v3",
+      "paperRecommendation": {
+        "vcpusPerWorker": 4,
+        "memoryGBPerWorker": 16
       },
-      "requiredReservationMiB": 16384,
-      "requiredLimitMiB": 32768,
-      "observedMemoryMiB": 15989,
-      "reservationCompatible": false,
-      "hardLimitCompatible": false,
-      "memoryCompatible": false
+      "officialCpuContract": {
+        "vcpusPerWorker": 4,
+        "threadsPerCore": 2,
+        "reservePhysicalCores": 4
+      },
+      "observed": {
+        "logicalCpus": 4,
+        "physicalCoresDiscovered": 2,
+        "eligiblePhysicalCores": 0,
+        "memoryMiB": 15989
+      },
+      "cpuTopologyCompatible": false,
+      "dockerMemoryEnvelopeAccepted": true,
+      "oomKillDisableEffective": false,
+      "officialSingleTaskSmoke": {
+        "runId": 34171995848,
+        "artifactId": 10036018631,
+        "artifactSha256": "5ea5d170c03e8dfebad159d47ec50f1f869d0f090355c8dad9ec53b067da82d0",
+        "instanceId": "numpy__numpy-11720",
+        "exitCode": 1,
+        "failureClass": "CPU_TOPOLOGY",
+        "error": "Not enough physical cores: need 2, have 0"
+      }
     },
     "terminalBench4": {
       "status": "BLOCKED_EXTERNAL_COMPUTE",
@@ -91,5 +108,5 @@
     }
   },
   "releaseRule": "Overall release can be CERTIFIED only when every required gate is CERTIFIED or PASS with immutable evidence; diagnostic workflow success is not certification.",
-  "evidenceBaselineSha": "569e4038f4088201fa299de4340af464428eb85e"
+  "evidenceBaselineSha": "0f53906"
 }
