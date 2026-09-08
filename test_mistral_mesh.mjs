@@ -10,12 +10,13 @@ const action = {action:"exec",command:"pwd",summary:"Inspect directory"};
 function harness(env = {}, responses = []) {
   let handler;
   const calls = [];
-  const vars = {MISTRAL_API_KEY:"test-secret-never-log", ARBM_MISTRAL_ZERO_SPEND_CONFIRMED:"1", ARBM_MISTRAL_LIVE_PROVEN:"1", ...env};
-  const context = vm.createContext({URL,Response,Request,Headers,AbortSignal,Date,console,
+  const vars = {MISTRAL_API_KEY:"test-secret-never-log", ARBM_MISTRAL_ZERO_SPEND_CONFIRMED:"1", ARBM_MISTRAL_LIVE_PROVEN:"1", SUPABASE_URL:"https://control.test",SUPABASE_SERVICE_ROLE_KEY:"test-service-key", ...env};
+  const context = vm.createContext({URL,Response,Request,Headers,AbortSignal,Date,console,TextEncoder,
     Deno:{env:{get:key=>vars[key]},serve:fn=>{handler=fn;}},
     createRemoteJWKSet:()=>({}),
     jwtVerify:async()=>({payload:{repository:"arbmsistone-lab/arbm-sist-external-exec-proof",ref:"refs/heads/codex/free-capacity-v3-20260908",event_name:"push"}}),
     fetch:async(url,options)=>{
+      if(String(url).includes("/rest/v1/rpc/")) return Response.json(String(url).endsWith("arbm_mesh_acquire")?{allowed:true,lease_id:"test-lease"}:{accepted:true});
       calls.push({url:String(url),body:JSON.parse(options.body)});
       const response = responses.shift();
       if(response instanceof Error) throw response;

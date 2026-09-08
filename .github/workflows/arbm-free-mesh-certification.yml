@@ -1,0 +1,62 @@
+name: ARBM FREE Mesh Certification
+on:
+  push:
+    branches: ['codex/free-capacity-v3-20260908']
+    paths: ['supabase/**', 'test_mesh*', 'test_shared_control.py', 'mesh_capacity.py', 'certify_mesh.py', '.github/workflows/arbm-free-mesh-certification.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  certification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17.6
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test-only-ephemeral
+          POSTGRES_DB: mesh_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      ZERO_SPEND_MODE: HARD
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: test-only-ephemeral
+      PGDATABASE: mesh_test
+      ARBM_TEST_DATABASE: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - name: Typecheck and deterministic regressions
+        run: |
+          set -euo pipefail
+          npx --yes deno@2.7.4 check supabase/functions/arbm-terminal-agent-v7/index.ts
+          python -m unittest test_provider_probe.py test_mesh_capacity.py
+          node --test test_mistral_mesh.mjs test_mesh_resilience.mjs
+      - name: Ephemeral PostgreSQL concurrency and permission tests
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -c 'create role anon; create role authenticated; create role service_role;'
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260908234554_arbm_free_mesh_shared_control.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260908234554_arbm_free_mesh_shared_control.sql
+          python -m unittest test_shared_control.py
+      - name: Minimal real provider matrix
+        if: github.event_name == 'workflow_dispatch'
+        run: python certify_mesh.py
+      - name: Normal mesh without hints
+        if: github.event_name == 'workflow_dispatch'
+        run: python arbm_provider_probe.py --mesh
+      - name: Preserve sanitized certification observations
+        if: always() && github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: arbm-free-mesh-certification
+          path: certification-output/
+          if-no-files-found: error
