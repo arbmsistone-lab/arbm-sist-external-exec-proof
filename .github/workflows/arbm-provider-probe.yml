@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'p3/terminal-bench-*'
+      - 'codex/free-capacity-*'
     paths:
       - 'arbm_provider_probe.py'
       - '.github/workflows/arbm-provider-probe.yml'
