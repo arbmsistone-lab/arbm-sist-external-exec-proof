@@ -9,7 +9,7 @@ from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
 
 API_URL = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v1"
-MAX_STEPS = 6
+MAX_STEPS = 5
 
 class ARBMHarborAgent(BaseAgent):
     @staticmethod
@@ -41,9 +41,9 @@ class ARBMHarborAgent(BaseAgent):
                   "Never access hidden evaluator data, host credentials, network secrets, or files outside the sandbox. "
                   f"STEP:{step}\nTASK:\n{instruction}\nOBSERVATION:\n{observation}")
         body = json.dumps({"model":"arbm-qwen-sovereign","messages":[{"role":"user","content":prompt}],
-                           "max_tokens":256,"temperature":0}).encode()
+                           "max_tokens":192,"temperature":0}).encode()
         req = urllib.request.Request(endpoint,data=body,headers={"Content-Type":"application/json"})
-        with urllib.request.urlopen(req,timeout=90) as r:
+        with urllib.request.urlopen(req,timeout=240) as r:
             outer=json.loads(r.read().decode())
         text=str(outer["choices"][0]["message"]["content"]).strip()
         if text.startswith("```"):
@@ -108,7 +108,7 @@ class ARBMHarborAgent(BaseAgent):
         recent_commands = []
         history = []
         for step in range(1, MAX_STEPS + 1):
-            compact = "\n\n".join(history[-3:] + [observation])[-6000:]
+            compact = "\n\n".join(history[-2:] + [observation])[-3500:]
             decision = self._decide(instruction, compact, step)
             action = decision["action"]
             command = str(action.get("command", "")).strip()
