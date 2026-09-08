@@ -1,0 +1,19 @@
+name: Cirrus API Probe
+on:
+  push:
+    branches:
+      - probe/cirrus-sweff-topology-8cpu-20260907
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Query Cirrus build by SHA
+        env:
+          TARGET_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          cat > query.json <<EOF
+          {"query":"query BuildBySHAQuery($owner: String!, $name: String!, $SHA: String) { searchBuilds(repositoryOwner: $owner, repositoryName: $name, SHA: $SHA) { id status branch } }","variables":{"owner":"arbmsistone-lab","name":"arbm-sist-external-exec-proof","SHA":"${TARGET_SHA}"}}
+          EOF
+          curl -fsS -H 'Content-Type: application/json' --data @query.json https://api.cirrus-ci.com/graphql | tee response.json
