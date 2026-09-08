@@ -96,3 +96,4 @@ jobs:
           name: osworld-real-vm-zero-spend-boot
           path: osworld-boot.txt
           if-no-files-found: error
+# closure rerun 2026-09-08
