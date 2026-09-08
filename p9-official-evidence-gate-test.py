@@ -50,6 +50,17 @@ class ContractTests(unittest.TestCase):
             (root/'solve-evidence.json').write_text('{"state":"SUCCEEDED"}')
             self.assertEqual(gate.validate_artifact(root),['OFFICIAL_EVALUATOR_EVIDENCE_MISSING'])
 
+    def test_promotion_pack_is_native_official_evidence(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder); (root/'solve-artifact').mkdir()
+            (root/'promotion-summary.json').write_text('{"schema":"arbm-p9-official-promotion-v1","task":"dubbo/M003.1","promotionGrade":true,"resolved":true,"snapshotIntegrityOk":true,"zeroSpendMode":"HARD","infraInvalid":false}')
+            (root/'evaluation_result.json').write_text(__import__('json').dumps(self.valid()))
+            (root/'source_snapshot.integrity.json').write_text('{"ok":true,"gold_patch_exposed":false}')
+            (root/'solve-artifact'/'solve-evidence.json').write_text('{"state":"SUCCEEDED","zeroSpendMode":"HARD","mandatoryCostUsd":0,"executionType":"remote","goldPatchExposed":false}')
+            for rel in ('solve-artifact/SHA256SUMS.txt','source_snapshot.tar.sha256','evaluation-SHA256SUMS.txt'):
+                (root/rel).write_text('proof')
+            self.assertEqual(gate.validate_artifact(root),[])
+
 
 if __name__=='__main__':
     unittest.main()

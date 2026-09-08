@@ -11,9 +11,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
-      E2E_RUN: '34003981543'
-      E2E_ARTIFACT: p9-dubbo-m0031-solve-arbm-p9-m0031-e2e-20260905-03
-      E2E_ARTIFACT_SHA256: 6761bde5910b410ad1b4358112319ad72faec1d8fec2d1027543a6214f15751b
+      E2E_RUN: '34157503111'
+      E2E_ARTIFACT: p9-dubbo-m0031-official-promotion-arbm-p9-promotion-20260907-01
+      E2E_ARTIFACT_SHA256: 26511c4d54ac113f0c4c71385f803e5039d2c2e4b56ae0cce93b7863ca93489a
       BENCHMARK_VERSION: v1.0.2
       SRS_SHA256: aac87b7e8a66001512c9c54649b3e1571d252777177d52cbed197fc541dd164f
     steps:
@@ -34,7 +34,7 @@ jobs:
             34002711887:'8dc6a3a2625bb4f40fb567bed0418a218ab0bc61',
             34002951417:'2b7fbff07b62867fef3e32dd373bd3c8c3ad5996',
             34003310061:'c84e5af861950cb088167f0fd27a56a3169f9a7e',
-            34003981543:'917d777ae9d742c7940caaf5936874d28317a45c'}
+            34157503111:'070f48a6321fe165c8cbd63ec22c6607daa54cb0'}
           repo=os.environ['GITHUB_REPOSITORY']
           for run,sha in expected.items():
             raw=subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{run}'],text=True)
@@ -61,9 +61,10 @@ jobs:
           set -euo pipefail
           mkdir evidence
           gh run download "$E2E_RUN" --repo "$GITHUB_REPOSITORY" --name "$E2E_ARTIFACT" --dir evidence
-          test -s evidence/solve-evidence.json
-          test -s evidence/SHA256SUMS.txt
-          (cd evidence && sha256sum -c SHA256SUMS.txt)
+          test -s evidence/promotion-summary.json
+          test -s evidence/evaluation_result.json
+          test -s evidence/solve-artifact/solve-evidence.json
+          test -s evidence/source_snapshot.integrity.json
       - name: Require evaluator and clean official trial evidence
         run: python p9-official-evidence-gate.py evidence
       - name: Validate P9 release contract
@@ -72,7 +73,7 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           import json,os,pathlib
-          ev=json.load(open('evidence/solve-evidence.json',encoding='utf-8'))
+          ev=json.load(open('evidence/solve-artifact/solve-evidence.json',encoding='utf-8'))
           assert ev['state']=='SUCCEEDED'
           assert ev['zeroSpendMode']=='HARD'
           assert ev['executionType']=='remote'
@@ -89,8 +90,8 @@ jobs:
             'srsSha256':os.environ['SRS_SHA256'],'zeroSpendMode':'HARD',
             'executionType':'remote','goldPatchExposed':False,
             'authoritativeRun':int(os.environ['E2E_RUN']),
-            'authoritativeWorkflowSha':'917d777ae9d742c7940caaf5936874d28317a45c',
-            'prerequisiteRuns':[34002099233,34002413162,34002711887,34002951417,34003310061,34003981543]}
+            'authoritativeWorkflowSha':'070f48a6321fe165c8cbd63ec22c6607daa54cb0',
+            'prerequisiteRuns':[34002099233,34002413162,34002711887,34002951417,34003310061,34157503111]}
           pathlib.Path('P9_RELEASE_CERTIFICATE.json').write_text(json.dumps(cert,sort_keys=True,indent=2)+'\n')
           print(json.dumps(cert,sort_keys=True))
           PY
@@ -102,6 +103,8 @@ jobs:
           path: |
             P9_RELEASE_CERTIFICATE.json
             P9_RELEASE_CERTIFICATE.sha256
-            evidence/solve-evidence.json
-            evidence/SHA256SUMS.txt
+            evidence/promotion-summary.json
+            evidence/evaluation_result.json
+            evidence/source_snapshot.integrity.json
+            evidence/solve-artifact/solve-evidence.json
           retention-days: 90

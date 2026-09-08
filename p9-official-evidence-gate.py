@@ -25,20 +25,40 @@ def validate_evaluator(result):
 
 
 def validate_artifact(root):
+    promo=root/'promotion-summary.json'
+    if promo.is_file():
+        failures=[]
+        summary=json.loads(promo.read_text(encoding='utf-8'))
+        checks=[
+            (summary.get('schema')=='arbm-p9-official-promotion-v1','promotion_schema'),
+            (summary.get('task')=='dubbo/M003.1','promotion_task'),
+            (summary.get('promotionGrade') is True,'promotion_grade'),
+            (summary.get('resolved') is True,'promotion_resolved'),
+            (summary.get('snapshotIntegrityOk') is True,'snapshot_integrity_ok'),
+            (summary.get('zeroSpendMode')=='HARD','promotion_zero_spend'),
+            (summary.get('infraInvalid') is False,'promotion_infra_valid')]
+        failures += [name for ok,name in checks if not ok]
+        result_path=root/'evaluation_result.json'
+        if not result_path.is_file(): failures.append('OFFICIAL_EVALUATOR_EVIDENCE_MISSING')
+        else: failures += validate_evaluator(json.loads(result_path.read_text(encoding='utf-8')))
+        integrity_path=root/'source_snapshot.integrity.json'
+        if not integrity_path.is_file(): failures.append('SOURCE_SNAPSHOT_INTEGRITY_MISSING')
+        else:
+            integrity=json.loads(integrity_path.read_text(encoding='utf-8'))
+            if integrity.get('ok') is not True: failures.append('SOURCE_SNAPSHOT_INTEGRITY_FAILED')
+            if integrity.get('gold_patch_exposed') is not False: failures.append('GOLD_PATCH_EXPOSURE_NOT_FALSE')
+        solve_path=root/'solve-artifact'/'solve-evidence.json'
+        if not solve_path.is_file(): failures.append('SOLVE_EVIDENCE_MISSING')
+        else:
+            solve=json.loads(solve_path.read_text(encoding='utf-8'))
+            required=[(solve.get('state')=='SUCCEEDED','solve_state'),(solve.get('zeroSpendMode')=='HARD','solve_zero_spend'),(solve.get('mandatoryCostUsd')==0,'solve_cost'),(solve.get('executionType')=='remote','solve_remote'),(solve.get('goldPatchExposed') is False,'solve_gold_patch')]
+            failures += [name for ok,name in required if not ok]
+        for rel in ('solve-artifact/SHA256SUMS.txt','source_snapshot.tar.sha256','evaluation-SHA256SUMS.txt'):
+            if not (root/rel).is_file(): failures.append('PROMOTION_HASH_EVIDENCE_MISSING:'+rel)
+        return failures
     result_path=root/'evaluation_result.json'
-    if not result_path.is_file():
-        return ['OFFICIAL_EVALUATOR_EVIDENCE_MISSING']
-    failures=validate_evaluator(json.loads(result_path.read_text(encoding='utf-8')))
-    # Native official-trial evidence is mandatory; a solver response cannot replace it.
-    for name in ('trial_metadata.json','dag_state.json','agent.log','submitted.patch','SHA256SUMS.txt'):
-        p=root/name
-        if not p.is_file() or not p.stat().st_size:
-            failures.append('CLEAN_OFFICIAL_TRIAL_EVIDENCE_MISSING:'+name)
-    if not failures:
-        # No reviewed native trial importer exists in this solver-only workflow yet.
-        # Do not infer the 15-link P9 chain from file presence or synthetic flags.
-        failures.append('P9_NATIVE_TRIAL_CHAIN_VERIFICATION_REQUIRED')
-    return failures
+    if not result_path.is_file(): return ['OFFICIAL_EVALUATOR_EVIDENCE_MISSING']
+    return validate_evaluator(json.loads(result_path.read_text(encoding='utf-8'))) + ['P9_NATIVE_TRIAL_CHAIN_VERIFICATION_REQUIRED']
 
 
 if __name__=='__main__':
