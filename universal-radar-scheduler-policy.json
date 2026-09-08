@@ -1,0 +1,29 @@
+{
+  "schema": "arbm-universal-radar-scheduler-v1",
+  "enabled": true,
+  "executionPreference": "REMOTE_FIRST",
+  "localRole": "THIN_CLIENT_FALLBACK",
+  "cadenceMinutes": {
+    "volatile": 60,
+    "standard": 360,
+    "deep": 1440
+  },
+  "resourceGuards": {
+    "maxLocalWorkingSetMiB": 192,
+    "maxParallelCollectors": 4,
+    "minimumFreeRamMiB": 768,
+    "skipDeepScanOnLowRam": true
+  },
+  "failurePolicy": {
+    "failClosedPromotion": true,
+    "continueOnBestEffortSourceFailure": true,
+    "requiredSourceFailureBlocksEvidencePass": true,
+    "maxConsecutiveFailuresBeforeDegrade": 3
+  },
+  "evidence": {
+    "appendOnly": true,
+    "hashChain": "sha256",
+    "retainRawCollections": false,
+    "retainSummaries": true
+  }
+}

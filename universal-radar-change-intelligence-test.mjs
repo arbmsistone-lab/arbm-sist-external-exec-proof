@@ -1,0 +1,12 @@
+import {classifyChange,recheckStageFor} from './universal-radar-change-intelligence.mjs';
+const base={sourceId:'x',externalId:'1',name:'A',domain:'ai-providers',rawMeta:{pricing:{prompt:'0',completion:'0'}}};
+const paid={...base,rawMeta:{pricing:{prompt:'0.2',completion:'1'}}};
+const shut={...base,summary:'Service shutdown and end of life announced'};
+const sec={...base,summary:'Known exploited CVE-2026-1234 security advisory'};
+const rel={...base,summary:'New release adds tool use and larger context window'};
+if(classifyChange(base,paid).action!=='COST_RECHECK') throw new Error('COST_CHANGE_MISSED');
+if(classifyChange(base,shut).action!=='QUARANTINE') throw new Error('SHUTDOWN_MISSED');
+if(classifyChange(base,sec).action!=='SECURITY_RECHECK') throw new Error('SECURITY_MISSED');
+if(classifyChange(base,rel).action!=='BENCHMARK_RECHECK') throw new Error('CAPABILITY_MISSED');
+if(recheckStageFor('QUARANTINE')!=='VERIFY') throw new Error('QUARANTINE_STAGE_FAIL');
+console.log('UNIVERSAL_RADAR_CHANGE_INTELLIGENCE_PASS');

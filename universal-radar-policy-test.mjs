@@ -1,0 +1,15 @@
+import fs from 'node:fs';
+const radar=JSON.parse(fs.readFileSync('universal-radar-policy.json','utf8'));
+const execp=JSON.parse(fs.readFileSync('execution-provider-policy.json','utf8'));
+const constitution=JSON.parse(fs.readFileSync('arbm-constitution.json','utf8'));
+const needDomains=['llm','ai-providers','gpu-cloud','cpu-cloud','remote-runners','mcp-servers','security','vulnerabilities','pricing','free-tiers','deprecations','outages','research','standards'];
+for(const d of needDomains) if(!radar.domains.includes(d)) throw new Error('RADAR_DOMAIN_MISSING:'+d);
+if(radar.scope!=='universal'||radar.mode!=='GLOBAL_CONTINUOUS') throw new Error('RADAR_SCOPE_INVALID');
+if(radar.newToStableAllowed!==false||constitution.newToStableAllowed!==false) throw new Error('NEW_TO_STABLE_FORBIDDEN');
+if(!radar.mandatoryZeroSpendCheck||constitution.zeroSpendMode!=='HARD') throw new Error('ZERO_SPEND_INVARIANT');
+if(!radar.providerIndependent||!constitution.providerIndependent) throw new Error('PROVIDER_INDEPENDENCE');
+if(execp.lowRamMode.thinClientBelowGiB>8) throw new Error('LOW_RAM_FLOOR_REGRESSION');
+if(execp.lowRamMode.localHeavyWorkAllowed!==false) throw new Error('LOCAL_HEAVY_WORK_FORBIDDEN');
+if(execp.routing.minimumHealthyRemoteProviders<3) throw new Error('REMOTE_PROVIDER_REDUNDANCY');
+for(const k of ['checkpointRequired','resumeRequired','workerIsolationRequired','failClosedWhenNoSafeCapacity']) if(execp.routing[k]!==true) throw new Error('EXECUTION_INVARIANT:'+k);
+console.log('UNIVERSAL_RADAR_POLICY_PASS');

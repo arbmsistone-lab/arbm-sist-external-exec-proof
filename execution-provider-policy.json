@@ -1,0 +1,23 @@
+{
+  "schema": "arbm-execution-provider-policy-v1",
+  "providerIndependent": true,
+  "lowRamMode": {
+    "enabled": true,
+    "thinClientBelowGiB": 8,
+    "criticalBelowGiB": 6,
+    "reserveLocalGiB": 1.5,
+    "preferRemoteForHeavyWork": true,
+    "localHeavyWorkAllowed": false
+  },
+  "heavyWorkClasses": [
+    "build", "test-suite", "container", "browser-agent",
+    "document-analysis", "model-inference", "benchmark", "parallel-agent"
+  ],
+  "routing": {
+    "minimumHealthyRemoteProviders": 3,
+    "checkpointRequired": true,
+    "resumeRequired": true,
+    "workerIsolationRequired": true,
+    "failClosedWhenNoSafeCapacity": true
+  }
+}

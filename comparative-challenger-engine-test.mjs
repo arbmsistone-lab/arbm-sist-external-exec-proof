@@ -1,0 +1,15 @@
+import {comparePaired} from './comparative-challenger-engine.mjs';
+const mk=(n,pass=true,lat=100)=>Array.from({length:n},(_,i)=>({id:'t'+i,pass,integrity:true,latencyMs:lat+i}));
+const micro=comparePaired({incumbent:mk(4,true,120),candidate:mk(4,true,90),candidateMeta:{zeroSpendVerified:false,primaryEvidence:true},grade:'microShadow'});
+if(micro.decision!=='ADVANCE_TO_REPLACEMENT_GRADE') throw new Error('MICRO_ADVANCE_FAIL');
+const good=comparePaired({incumbent:mk(30,true,120),candidate:mk(30,true,90),candidateMeta:{zeroSpendVerified:true,primaryEvidence:true},grade:'replacementGrade'});
+if(!['REPLACEMENT_CANDIDATE','NON_INFERIOR_CANDIDATE'].includes(good.decision)) throw new Error('REPLACEMENT_GRADE_FAIL');
+const unknown=comparePaired({incumbent:mk(30,true),candidate:mk(30,true),candidateMeta:{zeroSpendVerified:false,primaryEvidence:true},grade:'replacementGrade'});
+if(unknown.gates.costOk||unknown.decision!=='REJECT') throw new Error('UNKNOWN_COST_NOT_BLOCKED');
+const short=comparePaired({incumbent:mk(10,true),candidate:mk(10,true),candidateMeta:{zeroSpendVerified:true,primaryEvidence:true},grade:'replacementGrade'});
+if(short.gates.sampleOk||short.decision!=='REJECT') throw new Error('INSUFFICIENT_SAMPLE_NOT_BLOCKED');
+const regress=mk(30,true); regress[7].criticalRegression=true;
+const bad=comparePaired({incumbent:mk(30,true),candidate:regress,candidateMeta:{zeroSpendVerified:true,primaryEvidence:true},grade:'replacementGrade'});
+if(bad.gates.criticalOk||bad.decision!=='REJECT') throw new Error('CRITICAL_REGRESSION_NOT_BLOCKED');
+if(good.replacementApplied!==false) throw new Error('AUTO_REPLACEMENT_FORBIDDEN');
+console.log('COMPARATIVE_CHALLENGER_ENGINE_PASS');

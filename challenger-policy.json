@@ -1,0 +1,29 @@
+{
+  "schema": "arbm-comparative-challenger-v1",
+  "mode": "PAIRED_SAME_TASK_ZERO_SPEND_HARD",
+  "microShadow": {
+    "minimumSamples": 4,
+    "replacementEligible": false
+  },
+  "replacementGrade": {
+    "minimumSamples": 30,
+    "maxNonInferiorityMarginPp": 2,
+    "requireAllPaired": true,
+    "requireEvaluatorIntegrity": true,
+    "requireKnownZeroCost": true,
+    "requirePrimaryEvidence": true,
+    "requireHashedArtifacts": true,
+    "requireNoCriticalRegression": true
+  },
+  "metrics": [
+    "taskCorrectness", "pairedWins", "pairedLosses", "pairedTies",
+    "medianLatencyMs", "p95LatencyMs", "evaluatorIntegrity",
+    "zeroSpendVerified", "artifactHash"
+  ],
+  "decision": {
+    "automaticReplacement": false,
+    "winnerMustBeatOrBeNonInferior": true,
+    "lowerLatencyBreaksQualityTie": true,
+    "unknownCostBlocks": true
+  }
+}

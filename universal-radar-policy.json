@@ -1,0 +1,79 @@
+{
+  "schema": "arbm-universal-radar-v1",
+  "mode": "GLOBAL_CONTINUOUS",
+  "scope": "universal",
+  "providerIndependent": true,
+  "newToStableAllowed": false,
+  "mandatoryZeroSpendCheck": true,
+  "discovery": {
+    "languages": "all",
+    "regions": "all",
+    "vendors": "all",
+    "licenses": "all-compatible",
+    "channels": [
+      "official-docs", "official-blogs", "changelogs", "status-pages",
+      "github-releases", "git-repositories", "package-registries",
+      "model-hubs", "papers", "standards", "benchmark-leaderboards",
+      "security-advisories", "cve-feeds", "pricing-pages", "terms-pages",
+      "privacy-pages", "community-signals"
+    ]
+  },
+  "domains": [
+    "llm", "coding-models", "reasoning-models", "multimodal-models",
+    "vision", "speech", "audio", "image-generation", "video-generation",
+    "embeddings", "rerankers", "open-weight-models", "inference-engines",
+    "ai-providers", "gpu-cloud", "cpu-cloud", "serverless", "edge-compute",
+    "containers", "sandboxes", "ci-cd", "remote-runners", "wasm",
+    "browsers", "browser-agents", "computer-use", "coding-agents",
+    "agent-frameworks", "multi-agent", "mcp-servers", "tool-protocols",
+    "context-engineering", "memory-systems", "compression", "caching",
+    "vector-databases", "databases", "object-storage", "file-storage",
+    "queues", "event-streams", "workflow-engines", "orchestrators",
+    "observability", "tracing", "evaluation", "testing", "benchmarking",
+    "auth", "identity", "secrets", "security", "supply-chain-security",
+    "vulnerabilities", "privacy", "compliance", "licenses", "terms",
+    "pricing", "free-tiers", "quotas", "rate-limits", "deprecations",
+    "incidents", "outages", "networking", "tunnels", "remote-access",
+    "developer-tools", "ides", "cli-tools", "package-managers",
+    "operating-systems", "runtimes", "compilers", "build-systems",
+    "hardware-accelerators", "gpu", "npu", "cpu", "distributed-compute",
+    "research", "papers", "patents", "standards", "protocols"
+  ],
+  "signals": [
+    "new-product", "new-model", "new-provider", "new-runtime",
+    "quality-change", "latency-change", "availability-change",
+    "free-tier-change", "quota-change", "price-change", "license-change",
+    "terms-change", "privacy-change", "security-change", "cve",
+    "deprecation", "shutdown", "outage", "benchmark-change",
+    "release", "breaking-change", "new-capability"
+  ],
+  "candidatePipeline": [
+    "DISCOVER", "COLLECT", "VERIFY", "NORMALIZE", "DEDUPLICATE",
+    "CANDIDATE", "SECURITY_CHECK", "COST_CHECK", "PRIVACY_CHECK",
+    "LICENSE_CHECK", "COMPATIBILITY_CHECK", "BENCHMARK", "SHADOW",
+    "CANARY", "STABLE_OR_REJECT", "MONITOR", "LEARN"
+  ],
+  "ranking": {
+    "dimensions": [
+      "quality", "reliability", "latency", "throughput", "availability",
+      "freeCapacity", "zeroSpendSafety", "privacy", "security",
+      "licenseCompatibility", "integrationEase", "providerIndependence",
+      "lowRamSuitability", "checkpointSupport", "resumeSupport",
+      "operationalStability", "communityHealth", "vendorContinuity"
+    ],
+    "requireEvidence": true,
+    "preferPrimarySources": true,
+    "penalizeTrialOnly": true,
+    "penalizeCardRequired": true,
+    "penalizeUnclearBilling": true,
+    "penalizeSingleVendorDependency": true
+  },
+  "promotion": {
+    "automaticDiscovery": true,
+    "automaticBenchmark": true,
+    "automaticShadow": true,
+    "automaticStablePromotion": false,
+    "rollbackRequired": true,
+    "evidenceBundleRequired": true
+  }
+}

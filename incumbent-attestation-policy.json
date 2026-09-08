@@ -1,0 +1,27 @@
+{
+  "schema": "arbm-incumbent-attestation-policy-v1",
+  "mode": "FAIL_CLOSED_ZERO_SPEND_HARD",
+  "maxEvidenceAgeHours": 72,
+  "required": {
+    "configuredRoute": true,
+    "successfulExecution": true,
+    "runtimeIdentity": true,
+    "artifactHash": true,
+    "zeroSpendVerified": true,
+    "observedAt": true
+  },
+  "states": [
+    "UNVERIFIED",
+    "CONFIGURED_UNATTESTED",
+    "ATTESTED_STALE",
+    "VERIFIED"
+  ],
+  "rules": {
+    "failedExecutionCannotVerify": true,
+    "unknownCostCannotVerify": true,
+    "paidRouteCannotVerifyInHardMode": true,
+    "unconfiguredRouteCannotVerify": true,
+    "staleEvidenceCannotVerify": true,
+    "unknownBlocksReplacement": true
+  }
+}

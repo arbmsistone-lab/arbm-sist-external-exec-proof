@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+import {mergeCollection} from './universal-radar-registry.mjs';
+const collection=JSON.parse(fs.readFileSync('universal-radar-smoke.json','utf8'));
+const first=mergeCollection(collection);
+const second=mergeCollection(collection);
+if(first.discovered<1) throw new Error('REGISTRY_DISCOVERY_FAIL');
+if(second.discovered!==0) throw new Error('REGISTRY_DEDUPE_FAIL');
+if(second.seen<first.discovered) throw new Error('REGISTRY_SEEN_FAIL');
+console.log(JSON.stringify({first,second},null,2));
+console.log('UNIVERSAL_RADAR_REGISTRY_PASS');

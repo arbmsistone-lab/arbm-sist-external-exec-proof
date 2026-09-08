@@ -1,2 +1,6 @@
 __pycache__/
 p8-swe-artifact/
+universal-radar-registry.json
+universal-radar-smoke.json
+universal-radar-evidence-ledger.jsonl
+scheduler-debug.mjs

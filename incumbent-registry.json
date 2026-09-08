@@ -1,0 +1,62 @@
+{
+  "schema": "arbm-incumbent-registry-v1",
+  "mode": "EXPLICIT_VERSIONED_FAIL_CLOSED",
+  "automaticMutation": false,
+  "domains": {
+    "ai-providers": {
+      "status": "CONFIGURED_UNATTESTED",
+      "active": null,
+      "usableForReplacementProposal": false,
+      "lastAttestationHash": "sha256:5b155b6bed115d1bb2557da84ec327e917a4e7dd83dff9cbf223c69678bbe0e9",
+      "lastAttestationAt": "2026-09-08T13:55:23.064Z"
+    },
+    "coding-models": {
+      "status": "UNVERIFIED",
+      "active": null
+    },
+    "reasoning-models": {
+      "status": "UNVERIFIED",
+      "active": null
+    },
+    "remote-runners": {
+      "status": "UNVERIFIED",
+      "active": null
+    },
+    "gpu-cloud": {
+      "status": "UNVERIFIED",
+      "active": null
+    },
+    "cpu-cloud": {
+      "status": "UNVERIFIED",
+      "active": null
+    },
+    "browser-agents": {
+      "status": "UNVERIFIED",
+      "active": null
+    },
+    "computer-use": {
+      "status": "UNVERIFIED",
+      "active": null
+    },
+    "coding-agents": {
+      "status": "UNVERIFIED",
+      "active": null
+    },
+    "inference-engines": {
+      "status": "UNVERIFIED",
+      "active": null
+    },
+    "sandboxes": {
+      "status": "UNVERIFIED",
+      "active": null
+    }
+  },
+  "requiredIdentity": [
+    "id",
+    "version",
+    "artifactSha256",
+    "activatedAt",
+    "zeroSpendVerified"
+  ],
+  "updatedAt": "2026-09-08T13:55:23.064Z"
+}

@@ -1,0 +1,38 @@
+{
+  "schema": "arbm-universal-radar-strategy-v1",
+  "mode": "QUALITY_FIRST_ZERO_SPEND_HARD",
+  "automaticReplacement": false,
+  "automaticStablePromotion": false,
+  "coreDomains": [
+    "ai-providers", "coding-models", "reasoning-models", "open-weight-models",
+    "gpu-cloud", "cpu-cloud", "serverless", "remote-runners",
+    "browser-agents", "computer-use", "coding-agents", "agent-frameworks",
+    "mcp-servers", "tool-protocols", "context-engineering", "memory-systems",
+    "inference-engines", "sandboxes", "security", "vulnerabilities"
+  ],
+  "domainWeights": {
+    "ai-providers": 10, "coding-models": 10, "reasoning-models": 9,
+    "remote-runners": 10, "gpu-cloud": 9, "cpu-cloud": 8,
+    "browser-agents": 9, "computer-use": 9, "coding-agents": 10,
+    "inference-engines": 8, "sandboxes": 8, "security": 10,
+    "vulnerabilities": 10
+  },
+  "thresholds": {
+    "ignoreBelow": 20,
+    "watchBelow": 45,
+    "benchmarkNowAt": 65,
+    "replaceCandidateAt": 85,
+    "threatHighAt": 70
+  },
+  "rules": {
+    "allowAutomaticReplacement": false,
+    "requireKnownZeroCost": true,
+    "requireBenchmarkBeforeReplacement": true,
+    "requirePrimaryEvidence": true,
+    "criticalRiskTakesPriority": true
+  },
+  "actions": [
+    "IGNORE", "WATCH", "VERIFY", "BENCHMARK_NOW",
+    "SECURITY_REVIEW", "COST_REVIEW", "QUARANTINE", "REPLACE_CANDIDATE"
+  ]
+}

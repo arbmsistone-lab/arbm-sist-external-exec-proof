@@ -1,0 +1,21 @@
+{
+  "schema": "arbm-universal-radar-sources-v1",
+  "defaultTimeoutMs": 12000,
+  "maxItemsPerSource": 60,
+  "sources": [
+    {"id":"huggingface-models","kind":"json","url":"https://huggingface.co/api/models?sort=lastModified&direction=-1&limit=60","domain":"open-weight-models","primary":true},
+    {"id":"huggingface-router-models","kind":"json-data","url":"https://router.huggingface.co/v1/models","domain":"ai-providers","primary":true,"bestEffort":true},
+    {"id":"openrouter-models","kind":"json-data","url":"https://openrouter.ai/api/v1/models?sort=newest&output_modalities=all","domain":"ai-providers","primary":true,"bestEffort":true},
+    {"id":"npm-ai-search","kind":"npm-search","url":"https://registry.npmjs.com/-/v1/search?text=keywords:ai&size=60","domain":"developer-tools","primary":true},
+    {"id":"crates-new","kind":"crates","url":"https://crates.io/api/v1/crates?page=1&per_page=60&sort=new","domain":"developer-tools","primary":true},
+    {"id":"pypi-updates","kind":"rss","url":"https://pypi.org/rss/updates.xml","domain":"package-managers","primary":true,"bestEffort":true},
+    {"id":"arxiv-ai","kind":"atom","url":"https://export.arxiv.org/api/query?search_query=cat%3Acs.AI&start=0&max_results=40&sortBy=submittedDate&sortOrder=descending","domain":"research","primary":true,"bestEffort":true},
+    {"id":"arxiv-se","kind":"atom","url":"https://export.arxiv.org/api/query?search_query=cat%3Acs.SE&start=0&max_results=30&sortBy=submittedDate&sortOrder=descending","domain":"research","primary":true,"bestEffort":true},
+    {"id":"arxiv-security","kind":"atom","url":"https://export.arxiv.org/api/query?search_query=cat%3Acs.CR&start=0&max_results=30&sortBy=submittedDate&sortOrder=descending","domain":"security","primary":true,"bestEffort":true},
+    {"id":"cisa-kev","kind":"cisa-kev","url":"https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json","domain":"vulnerabilities","primary":true,"bestEffort":true},
+    {"id":"github-openai-releases","kind":"github-releases","url":"https://api.github.com/repos/openai/openai-python/releases?per_page=30","domain":"developer-tools","primary":true,"bestEffort":true},
+    {"id":"github-llama-releases","kind":"github-releases","url":"https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=30","domain":"inference-engines","primary":true,"bestEffort":true},
+    {"id":"github-browser-use-releases","kind":"github-releases","url":"https://api.github.com/repos/browser-use/browser-use/releases?per_page=30","domain":"browser-agents","primary":true,"bestEffort":true},
+    {"id":"github-langgraph-releases","kind":"github-releases","url":"https://api.github.com/repos/langchain-ai/langgraph/releases?per_page=30","domain":"agent-frameworks","primary":true,"bestEffort":true}
+  ]
+}
