@@ -49,7 +49,13 @@ class ARBMHarborAgent(BaseAgent):
                     raise RuntimeError("ARBM_ZERO_COST_POLICY_VIOLATION")
                 return body
             except urllib.error.HTTPError as exc:
-                last_error = "HTTP_%s" % exc.code
+                body_text = exc.read().decode("utf-8", "replace")[:4000]
+                try:
+                    safe = json.loads(body_text)
+                    detail = json.dumps({"status": safe.get("status"), "error": safe.get("error"), "provider_attempts": safe.get("provider_attempts", [])}, separators=(",", ":"))
+                except Exception:
+                    detail = "unparsed"
+                last_error = "HTTP_%s:%s" % (exc.code, detail)
                 if exc.code not in (401, 408, 429, 500, 502, 503, 504):
                     raise RuntimeError("ARBM_DECISION_HTTP_%s" % exc.code)
             except (urllib.error.URLError, TimeoutError) as exc:
