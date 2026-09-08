@@ -36,7 +36,7 @@ class ARBMHarborAgent(BaseAgent):
         prompt = f"""You are ARBM SIST inside a Terminal-Bench sandbox. Return JSON only with action, command, summary. action must be exec or finish. Use one safe bash command for exec. Never access evaluator secrets, credentials, or files outside the sandbox. Do not repeat failed commands. Inspect first, make the smallest correct change, run a focused verification, and finish only after verification succeeds. Keep commands bounded and non-interactive.\nSTEP:{step}\nTASK:{instruction}\nRECENT HISTORY:{observation}"""
         body = {"model":"arbm-qwen-sovereign","messages":[{"role":"user","content":prompt}],"temperature":0,"max_tokens":128}
         req = urllib.request.Request(SOVEREIGN_URL, data=json.dumps(body).encode(), method="POST", headers={"Authorization":"Bearer local-dummy-key","Content-Type":"application/json"})
-        with urllib.request.urlopen(req, timeout=45) as r:
+        with urllib.request.urlopen(req, timeout=20) as r:
             raw=json.loads(r.read().decode())
         text=str((((raw.get("choices") or [{}])[0].get("message") or {}).get("content") or "")).strip()
         text=text.removeprefix("```json").removesuffix("```").strip()
@@ -93,6 +93,8 @@ class ARBMHarborAgent(BaseAgent):
                     if waits:
                         wait=max(waits)
                         if wait > 60:
+                            if attempt < 1:
+                                continue
                             self._remote_cooldown_until = time.time() + min(wait, 600.0)
                             break
                         time.sleep(wait + 1.0)
