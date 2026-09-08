@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
-import {appendEvidence,verifyLedger} from './universal-radar-evidence-ledger.mjs';
+import {appendEvidence,verifyLedger,findEvidence,validLedgerHash} from './universal-radar-evidence-ledger.mjs';
 import {validProposalHash} from './proposal-integrity.mjs';
 import {withFileLock} from './file-mutation-lock.mjs';
 const path='incumbent-registry.json';
@@ -21,7 +21,10 @@ export function promoteReplacement(args){return withFileLock(lockPath,()=>{
   if(stable(proposal?.incumbentIdentity)!==stable(slot?.active)) reasons.push('INCUMBENT_CHANGED_SINCE_PROPOSAL');
   if(!validIdentity(challengerIdentity)) reasons.push('CHALLENGER_IDENTITY_INVALID');
   if(stable(proposal?.challengerIdentity)!==stable(challengerIdentity)) reasons.push('CHALLENGER_IDENTITY_MISMATCH');
-  if(certification?.status!=='PASS'||certification?.rollbackReady!==true||!digest(certification?.evidenceHash)) reasons.push('CERTIFICATION_INCOMPLETE');
+  const replayed=(slot?.history||[]).some(x=>x.type==='PROMOTION'&&x.proposalHash===proposal?.proposalHash); if(replayed) reasons.push('PROPOSAL_ALREADY_USED');
+  if(certification?.status!=='PASS'||certification?.rollbackReady!==true||!validLedgerHash(certification?.evidenceHash)) reasons.push('CERTIFICATION_INCOMPLETE');
+  const certEvidence=findEvidence(certification?.evidenceHash); const certPayload=certEvidence?.entry?.payload;
+  if(!certEvidence.ok||certPayload?.type!=='REPLACEMENT_CERTIFIED'||certPayload?.status!=='PASS'||certPayload?.rollbackReady!==true||certPayload?.domain!==domain||certPayload?.proposalHash!==proposal?.proposalHash||certPayload?.challengerArtifactSha256!==challengerIdentity?.artifactSha256) reasons.push('CERTIFICATION_EVIDENCE_MISMATCH');
   const ledgerCheck=verifyLedger(); if(!ledgerCheck.ok) reasons.push('EVIDENCE_LEDGER_INVALID');
   if(reasons.length) return {schema:'arbm-incumbent-promotion-v1',promoted:false,reasons};
   const original=structuredClone(reg); const previous=structuredClone(slot.active); const now=new Date().toISOString();
