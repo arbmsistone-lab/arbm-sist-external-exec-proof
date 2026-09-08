@@ -960,7 +960,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
     code,data,err,timed_out=remote_json(solve_payload)
     cand_a=(data or {}).get('edits',[]) if code==0 else []
     alt_issue=solver_problem+'\n\nGenerate an INDEPENDENT ALTERNATIVE solution. The first candidate was: '+json.dumps(cand_a)[:4000]+' Do not repeat it; test a different plausible root cause or more complete behavioral invariant using only supplied public context.'
-    if os.environ.get('ARBM_SOVEREIGN_ONLY')=='1':
+    if os.environ.get('ARBM_SOVEREIGN_ONLY')=='1' and cand_a:
         bcode,bdata,berr,btimed=204,{'edits':[],'model':'sovereign-single-candidate','pipeline':'sovereign-fast-path'},'',False
         cand_b=[]
     else:
