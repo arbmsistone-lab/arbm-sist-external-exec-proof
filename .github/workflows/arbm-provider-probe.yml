@@ -1,6 +1,12 @@
 name: ARBM Provider Probe
 
 on:
+  push:
+    branches:
+      - 'p3/terminal-bench-*'
+    paths:
+      - 'arbm_provider_probe.py'
+      - '.github/workflows/arbm-provider-probe.yml'
   workflow_dispatch:
 
 permissions:
