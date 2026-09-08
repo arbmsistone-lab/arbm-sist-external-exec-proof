@@ -1,0 +1,58 @@
+name: Top3 TerminalBench Infra Proof
+
+on:
+  push:
+    branches:
+      - p9/certification-failclosed-20260906
+    paths:
+      - '.github/workflows/top3-terminalbench-infra-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  terminalbench_infra_proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ZERO_SPEND_MODE: HARD
+      ARBM_REPO_VISIBILITY: public
+    steps:
+      - uses: actions/checkout@v7
+      - name: Prove GitHub hosted runner
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = "github-hosted"
+          test "$ZERO_SPEND_MODE" = "HARD"
+          docker info
+      - name: Install uv and Harbor
+        run: |
+          set -euo pipefail
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          "$HOME/.local/bin/uv" tool install harbor
+          "$HOME/.local/bin/harbor" --help >/dev/null
+      - name: Run official Terminal-Bench 2.1 oracle smoke
+        run: |
+          set -euo pipefail
+          mkdir -p top3-evidence/terminalbench-infra
+          "$HOME/.local/bin/harbor" run -d terminal-bench/terminal-bench-2-1 -a oracle -l 5 2>&1 | tee top3-evidence/terminalbench-infra/harbor-oracle-smoke.log
+      - name: Freeze infrastructure evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p top3-evidence/terminalbench-infra
+          docker version > top3-evidence/terminalbench-infra/docker-version.txt 2>&1 || true
+          "$HOME/.local/bin/harbor" --help > top3-evidence/terminalbench-infra/harbor-help.txt 2>&1 || true
+          printf '%s\n' "$GITHUB_SHA" > top3-evidence/terminalbench-infra/candidate-sha.txt
+          printf '%s\n' "$RUNNER_ENVIRONMENT" > top3-evidence/terminalbench-infra/runner-environment.txt
+          printf '%s\n' "$ZERO_SPEND_MODE" > top3-evidence/terminalbench-infra/zero-spend-mode.txt
+          find top3-evidence/terminalbench-infra -type f -print0 | sort -z | xargs -0 sha256sum > top3-evidence/terminalbench-infra/SHA256SUMS.txt
+      - name: Upload immutable evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: top3-terminalbench-infra-proof
+          path: top3-evidence/terminalbench-infra
+          if-no-files-found: error
+          retention-days: 30
