@@ -151,7 +151,7 @@ async function callCloudflare(prompt: string, modelHint = "") {
       signal: AbortSignal.timeout(25000)
     });
     const raw = await res.text();
-    if (!res.ok) return { result: null, attempts: [{ route: "cloudflare", status: res.status }] };
+    if (!res.ok) return { result: null, attempts: [{ route: "cloudflare", status: res.status, error_message: scrub(raw) }] };
     const outer = JSON.parse(raw);
     const action = parseJson(String(outer?.output || ""));
     const attempt = { route: "cloudflare", status: res.status, model: String(outer?.model || "unknown"), parsed: !!action };
