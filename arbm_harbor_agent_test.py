@@ -45,23 +45,19 @@ class Tests(unittest.TestCase):
   self.assertTrue(out["ok"]); sleeper.assert_not_called()
 
 
- def test_capacity_exhaustion_fast_exits_without_exception(self):
-  a=agent.ARBMHarborAgent()
-  exc=agent.urllib.error.HTTPError("x",503,"busy",{},None); exc.read=lambda: json.dumps({"status":"WAITING_FREE_CAPACITY","provider_attempts":[]}).encode()
-  exc2=agent.urllib.error.HTTPError("x",503,"busy",{},None); exc2.read=lambda: json.dumps({"status":"WAITING_FREE_CAPACITY","provider_attempts":[]}).encode()
-  with patch.object(a,"_oidc",return_value="token"), patch.object(agent.urllib.request,"urlopen",side_effect=[exc,exc2]), patch.object(a,"_sovereign_decide",side_effect=TimeoutError()), patch.object(agent.time,"sleep"):
-   with patch.dict(os.environ,{"ARBM_ENABLE_SOVEREIGN_FALLBACK":"1"}): out=a._decide("x","y",1)
-  self.assertTrue(out["ok"]); self.assertEqual(out["action"]["action"],"finish"); self.assertEqual(out["provider"],"free-mesh-fast-exit")
-
-
  def test_long_groq_reset_opens_remote_circuit(self):
   a=agent.ARBMHarborAgent()
   body=json.dumps({"status":"WAITING_FREE_CAPACITY","provider_attempts":[{"route":"groq-json-object","status":429,"retry_after":"433"}]}).encode()
   exc=agent.urllib.error.HTTPError("x",503,"busy",{},None); exc.read=lambda: body
   sovereign={"ok":True,"action":{"action":"finish","summary":"fallback"},"mandatory_cost_usd":0,"paid_fallback_used":False}
-  exc2=agent.urllib.error.HTTPError("x",503,"busy",{},None); exc2.read=lambda: body
-  with patch.object(a,"_oidc",return_value="token"), patch.object(agent.urllib.request,"urlopen",side_effect=[exc,exc2]), patch.object(a,"_sovereign_decide",return_value=sovereign) as sv, patch.object(agent.time,"sleep"):
+  with patch.object(a,"_oidc",return_value="token"), patch.object(agent.urllib.request,"urlopen",side_effect=exc), patch.object(a,"_sovereign_decide",return_value=sovereign) as sv, patch.object(agent.time,"sleep"):
    with patch.dict(os.environ,{"ARBM_ENABLE_SOVEREIGN_FALLBACK":"1"}): out=a._decide("x","y",1)
   self.assertTrue(out["ok"]); self.assertGreater(getattr(a,"_remote_cooldown_until",0),0); sv.assert_called_once()
+
+ def test_sovereign_failure_fast_exits_cleanly(self):
+  a=agent.ARBMHarborAgent()
+  with patch.object(a,'_oidc',return_value='token'), patch.object(agent.urllib.request,'urlopen',side_effect=agent.urllib.error.URLError('offline')), patch.object(a,'_sovereign_decide',side_effect=TimeoutError()), patch.object(agent.time,'sleep'):
+   with patch.dict(os.environ,{'ARBM_ENABLE_SOVEREIGN_FALLBACK':'1'}): out=a._decide('x','y',1)
+  self.assertTrue(out['ok']); self.assertEqual(out['status'],'NO_FREE_CAPACITY_FAST_EXIT'); self.assertEqual(out['action']['action'],'finish'); self.assertEqual(out['mandatory_cost_usd'],0)
 
 if __name__=='__main__': unittest.main()
