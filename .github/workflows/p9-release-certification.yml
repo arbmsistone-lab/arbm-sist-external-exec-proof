@@ -66,7 +66,17 @@ jobs:
           test -s evidence/solve-artifact/solve-evidence.json
           test -s evidence/source_snapshot.integrity.json
       - name: Require evaluator and clean official trial evidence
-        run: python p9-official-evidence-gate.py evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python p9-official-evidence-gate.py evidence | tee p9-official-gate-result.json
+          python - <<'PY'
+          import json
+          result=json.load(open('p9-official-gate-result.json',encoding='utf-8'))
+          assert result.get('p9OfficialPass') is True, result
+          assert result.get('failures') == [], result
+          print('P9_OFFICIAL_PASS=TRUE')
+          PY
       - name: Validate P9 release contract
         shell: bash
         run: |
@@ -103,6 +113,7 @@ jobs:
           path: |
             P9_RELEASE_CERTIFICATE.json
             P9_RELEASE_CERTIFICATE.sha256
+            p9-official-gate-result.json
             evidence/promotion-summary.json
             evidence/evaluation_result.json
             evidence/source_snapshot.integrity.json
