@@ -1,4 +1,5 @@
 """Real, fail-closed Mistral FREE probe. Never executes returned commands."""
+import argparse
 import json
 import os
 import urllib.error
@@ -18,7 +19,7 @@ def oidc():
         return json.loads(response.read())["value"]
 
 
-def live_proven(http, data):
+def live_proven(http, data, mesh=False):
     attempts = data.get("provider_attempts") or []
     return (http == 200 and data.get("ok") is True and data.get("status") == "PASS"
             and data.get("provider") == "mistral-free"
@@ -26,7 +27,8 @@ def live_proven(http, data):
             and data["mandatory_cost_usd"] == 0 and data.get("paid_fallback_used") is False
             and any(a.get("route") == "mistral-free" and a.get("status") == 200
                     and a.get("parsed") is True for a in attempts)
-            and all(a.get("route") in ("mistral", "mistral-free") for a in attempts))
+            and all(a.get("mandatory_cost_usd", 0) == 0 and a.get("paid_fallback_used", False) is False for a in attempts)
+            and all(a.get("route") in (("mistral", "mistral-free", "google", "groq", "groq-json-object", "groq-json-text", "lightning", "lightning-free", "cloudflare") if mesh else ("mistral", "mistral-free")) for a in attempts))
 
 
 def model_unavailable(data):
@@ -40,10 +42,11 @@ def model_unavailable(data):
                 ("not found", "does not exist", "unavailable", "not available", "unsupported", "invalid model")))
 
 
-def request_probe(token, model):
+def request_probe(token, model=None, sample=0):
     body = {"instruction": "Return one safe inspection command as JSON.",
-            "observation": "No commands executed yet.", "step": 1,
-            "provider_hint": "mistral", "model_hint": model}
+            "observation": "No commands executed yet." if model else f"Normal mesh inspection sample {sample}. No commands executed yet.", "step": 1}
+    if model:
+        body.update(provider_hint="mistral", model_hint=model)
     request = urllib.request.Request(API, data=json.dumps(body).encode(), method="POST",
         headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
     try:
@@ -59,25 +62,33 @@ def request_probe(token, model):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mesh", action="store_true", help="Use normal routing without provider/model hints")
+    args = parser.parse_args()
     if os.environ.get("ZERO_SPEND_MODE") != "HARD":
         print(json.dumps({"live_proven": False, "status": "ZERO_SPEND_HARD_REQUIRED"}))
         return 2
     token = oidc()
-    for model in MODELS:
-        http, data = request_probe(token, model)
+    for sample, model in enumerate([None] * 4 if args.mesh else MODELS):
+        http, data = request_probe(token, model, sample)
         safe_fields = ("route", "model", "status", "parsed", "usage_tokens", "usage",
-                       "retry_after", "rate_limit_headers", "mandatory_cost_usd", "paid_fallback_used")
+                       "retry_after", "rate_limit_headers", "rate_limit_remaining", "mandatory_cost_usd", "paid_fallback_used")
         output = {"http": http, "ok": data.get("ok"), "status": data.get("status"),
                   "provider": data.get("provider"), "model": data.get("model"), "requested_model": model,
                   "mandatory_cost_usd": data.get("mandatory_cost_usd"),
                   "paid_fallback_used": data.get("paid_fallback_used"),
                   "provider_attempts": [{k: a[k] for k in safe_fields if k in a}
                                         for a in data.get("provider_attempts", [])],
-                  "model_unavailable": model_unavailable(data), "live_proven": live_proven(http, data)}
+                  "mode": "normal_mesh" if args.mesh else "diagnostic",
+                  "model_unavailable": model_unavailable(data), "live_proven": live_proven(http, data, args.mesh)}
         print(json.dumps(output, separators=(",", ":")), flush=True)
         if output["live_proven"]:
             return 0
-        if not output["model_unavailable"]:
+        if args.mesh:
+            # Only sample provider diversity after another provider succeeds. Never retry quota failures.
+            if http != 200 or any(a.get("route") == "mistral-free" for a in data.get("provider_attempts", [])):
+                break
+        elif not output["model_unavailable"]:
             break
     return 2
 

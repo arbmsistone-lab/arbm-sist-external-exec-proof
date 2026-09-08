@@ -7,8 +7,17 @@ on:
       - 'codex/free-capacity-*'
     paths:
       - 'arbm_provider_probe.py'
+      - 'test_provider_probe.py'
+      - 'test_mistral_mesh.mjs'
+      - 'supabase/functions/arbm-terminal-agent-v7/**'
       - '.github/workflows/arbm-provider-probe.yml'
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Probe route
+        type: choice
+        options: [diagnostic, normal_mesh]
+        default: diagnostic
 
 permissions:
   contents: read
@@ -22,8 +31,18 @@ jobs:
       ZERO_SPEND_MODE: HARD
     steps:
       - uses: actions/checkout@v7
+      - name: Test proof gates and mesh regressions
+        run: |
+          python -m unittest test_provider_probe.py
+          node --test test_mistral_mesh.mjs
       - name: Probe ARBM FREE provider mesh
+        env:
+          PROBE_MODE: ${{ inputs.mode || 'diagnostic' }}
         run: |
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
-          python arbm_provider_probe.py
+          if [ "$PROBE_MODE" = "normal_mesh" ]; then
+            python arbm_provider_probe.py --mesh
+          else
+            python arbm_provider_probe.py
+          fi

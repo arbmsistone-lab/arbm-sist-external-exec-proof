@@ -1,4 +1,4 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import "jsr:@supabase/functions-js@2.116.0/edge-runtime.d.ts";
 import { createRemoteJWKSet, jwtVerify } from "npm:jose@5.10.0";
 
 const ISS = "https://token.actions.githubusercontent.com";
@@ -70,7 +70,7 @@ function parseJson(text: string) {
 function extractGemini(raw: any) {
   return (raw?.candidates?.[0]?.content?.parts || []).map((p: any) => p?.text || "").join("");
 }
-function googleQuota(raw:any){ let retry="", limit:any=null, metric=""; for(const d of (raw?.error?.details||[])){ if(d?.retryDelay) retry=String(d.retryDelay); const v=d?.violations?.[0]; if(v){ limit=v?.quotaValue ?? null; metric=String(v?.quotaId||v?.quotaMetric||"").split("/").pop().slice(0,120); } } return {retry,limit,metric}; }
+function googleQuota(raw:any){ let retry="", limit:any=null, metric=""; for(const d of (raw?.error?.details||[])){ if(d?.retryDelay) retry=String(d.retryDelay); const v=d?.violations?.[0]; if(v){ limit=v?.quotaValue ?? null; metric=(String(v?.quotaId||v?.quotaMetric||"").split("/").pop() || "").slice(0,120); } } return {retry,limit,metric}; }
 async function callGemini(prompt: string, step = 1, modelHint = "") {
   const key = String(Deno.env.get("GEMINI_API_KEY") || "").trim();
   if (!key) return { result: null, attempts: [{ route: "google", status: "not_configured" }] };
@@ -160,25 +160,65 @@ async function callLightning(prompt: string, step = 1, modelHint = "") {
   }
   return { result: null, attempts };
 }
+function mistralRetryMs(value: string | null, now = Date.now()) {
+  if (!value) return 120000;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.max(1000, seconds * 1000);
+  const date = Date.parse(value);
+  return Number.isFinite(date) ? Math.max(1000, date - now) : 120000;
+}
+function mistralLimitHeaders(headers: Headers) {
+  const limits: Record<string, string> = {};
+  headers.forEach((value, name) => {
+    if (/^(?:x-)?rate-?limit(?:-[a-z-]+)?$/.test(name) && /^[0-9.,;= :a-zA-Z_"/+-]{1,220}$/.test(value)) {
+      limits[name] = value;
+    }
+  });
+  return limits;
+}
+function mistralModelUnavailable(status: number, message: string) {
+  return [400,404,422].includes(status) && /model/i.test(message) &&
+    /not found|does not exist|unavailable|not available|unsupported|invalid model/i.test(message);
+}
 async function callMistral(prompt: string, modelHint = "") {
   const key = String(Deno.env.get("MISTRAL_API_KEY") || "").trim();
-  const hardFree = String(Deno.env.get("ARBM_MISTRAL_ZERO_SPEND_CONFIRMED") || "") === "1";
-  const liveProven = String(Deno.env.get("ARBM_MISTRAL_LIVE_PROVEN") || "") === "1";
-  if (!key) return { result: null, attempts: [{ route: "mistral", status: "not_configured" }] };
-  if (!hardFree) return { result: null, attempts: [{ route: "mistral", status: "zero_spend_unconfirmed" }] };
-  if (!liveProven && !modelHint) return { result: null, attempts: [{ route: "mistral", status: "live_proof_required" }] };
-  const attempts:any[]=[];
-  const models = modelHint && MISTRAL_MODELS.includes(modelHint) ? [modelHint] : MISTRAL_MODELS;
+  const hardFree = Deno.env.get("ARBM_MISTRAL_ZERO_SPEND_CONFIRMED") === "1";
+  const liveProven = Deno.env.get("ARBM_MISTRAL_LIVE_PROVEN") === "1";
+  // This service supports only HARD mode. Missing env retains the existing hard-only policy.
+  const hardMode = (Deno.env.get("ZERO_SPEND_MODE") || "HARD") === "HARD";
+  const blocked = (status: string) => ({ result: null, attempts: [{route:"mistral",status,mandatory_cost_usd:0,paid_fallback_used:false}] });
+  if (!key) return blocked("not_configured");
+  if (!hardFree || !hardMode) return blocked("zero_spend_unconfirmed");
+  if (modelHint && !MISTRAL_MODELS.includes(modelHint)) return blocked("invalid_model_hint");
+  if (!liveProven && !modelHint) return blocked("live_proof_required");
+  if (cooling("mistral")) return blocked("cooldown");
+  const attempts: any[] = [];
+  const models = modelHint ? [modelHint] : MISTRAL_MODELS;
   const system = "Return exactly one JSON object with keys action, command, summary. action must be exec or finish.";
   for (const model of models) {
     try {
-      const res=await fetch(MISTRAL_URL,{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${key}`},body:JSON.stringify({model,messages:[{role:"system",content:system},{role:"user",content:prompt}],max_tokens:192,response_format:{type:"json_object"}}),signal:AbortSignal.timeout(30000)});
-      const raw=await res.json().catch(()=>({}));
-      const action=res.ok?parseJson(String(raw?.choices?.[0]?.message?.content||"")):null;
-      attempts.push({route:"mistral-free",model,status:res.status,parsed:!!action,usage_tokens:Number(raw?.usage?.total_tokens||0),error_message:scrub(raw?.message||raw?.error?.message)});
-      if(action)return {result:{action,model,provider:"mistral-free"},attempts};
-      if([401,403,429].includes(res.status)) break;
-    } catch(error:any){attempts.push({route:"mistral-free",model,status:"transport",error:String(error?.name||"Error")});}
+      const res = await fetch(MISTRAL_URL, {method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${key}`},body:JSON.stringify({model,messages:[{role:"system",content:system},{role:"user",content:prompt}],max_tokens:192,response_format:{type:"json_object"}}),signal:AbortSignal.timeout(30000)});
+      const raw = await res.json().catch(() => ({}));
+      const parsed = res.status === 200 ? parseJson(String(raw?.choices?.[0]?.message?.content || "")) : null;
+      const action = parsed && ["exec","finish"].includes(parsed.action) && typeof parsed.command === "string" && typeof parsed.summary === "string" && (parsed.action !== "exec" || parsed.command.trim()) ? parsed : null;
+      const message = scrub(String(raw?.message || raw?.error?.message || "").split(key).join("[redacted]"));
+      const retry = res.headers.get("retry-after");
+      const limits = mistralLimitHeaders(res.headers);
+      const tokens = Number.isFinite(raw?.usage?.total_tokens) && raw.usage.total_tokens >= 0 ? raw.usage.total_tokens : null;
+      if (res.status === 429 || Object.entries(limits).some(([name,value]) => name.includes("remaining") && value === "0")) {
+        COOLDOWN.set("mistral", Date.now() + mistralRetryMs(retry));
+      } else if (res.status >= 500) {
+        COOLDOWN.set("mistral", Date.now() + Math.max(30000, mistralRetryMs(retry)));
+      }
+      attempts.push({route:"mistral-free",model,status:res.status,parsed:!!action,usage_tokens:tokens,usage:{total_tokens:tokens},retry_after:retry,rate_limit_remaining:limits["x-ratelimit-remaining"] ?? limits["ratelimit-remaining"] ?? null,rate_limit_headers:limits,mandatory_cost_usd:0,paid_fallback_used:false,error_message:message});
+      if (action) return {result:{action,model,provider:"mistral-free"},attempts};
+      // Do not rotate models on account quotas, auth failures, outages or malformed output.
+      if (!mistralModelUnavailable(res.status, message)) break;
+    } catch (error: any) {
+      COOLDOWN.set("mistral", Date.now() + 30000);
+      attempts.push({route:"mistral-free",model,status:"transport",parsed:false,mandatory_cost_usd:0,paid_fallback_used:false,error:String(error?.name || "Error")});
+      break;
+    }
   }
   return {result:null,attempts};
 }
@@ -237,13 +277,19 @@ Deno.serve(async (req: Request) => {
     const forceMistral = body?.provider_hint === "mistral" && diagnosticBranch;
     const modelHint = diagnosticBranch ? String(body?.model_hint || "") : "";
     if (forceMistral) { const m=await callMistral(prompt,modelHint); attempts.push(...m.attempts); result=m.result; }
+    const normalMesh = !forceMistral && !forceGroq && !forceGoogle && !forceCloudflare && !forceLightning;
+    const mistralFirst = normalMesh && (hashText(prompt) + step) % 4 === 3;
+    if (mistralFirst) {
+      const mistral = await callMistral(prompt);
+      attempts.push(...mistral.attempts); result = mistral.result;
+    }
     const groqFirst = !forceMistral && !forceGoogle && !forceCloudflare && !forceLightning && (forceGroq || step >= 3);
     const lightningFirst = !forceMistral && !groqFirst && !forceGroq && !forceGoogle && !forceCloudflare;
-    if (lightningFirst) {
+    if (!result && lightningFirst) {
       const lightning = await callLightning(prompt, step, forceLightning ? modelHint : "");
       attempts.push(...lightning.attempts); result = lightning.result;
     }
-    if (groqFirst) {
+    if (!result && groqFirst) {
       const groq = await callGroq(prompt, step, forceGroq ? modelHint : "");
       attempts.push(...groq.attempts); result = groq.result;
     }
@@ -260,6 +306,11 @@ Deno.serve(async (req: Request) => {
       const lightning = await callLightning(prompt, step, forceLightning ? modelHint : "");
       attempts.push(...lightning.attempts);
       result = lightning.result;
+    }
+
+    if (!result && normalMesh && !mistralFirst) {
+      const mistral = await callMistral(prompt);
+      attempts.push(...mistral.attempts); result = mistral.result;
     }
 
     if (!result && !forceMistral && !forceGroq && !forceGoogle && !forceLightning) {
@@ -297,7 +348,7 @@ Deno.serve(async (req: Request) => {
       model: result.model,
       provider: result.provider,
       provider_attempts: attempts,
-      pipeline: "terminal-agent-v13-zero-spend-capacity-mesh",
+      pipeline: "terminal-agent-v14-mistral-free-capacity-mesh",
       mandatory_cost_usd: 0,
       paid_fallback_used: false,
       scoreable: false,
