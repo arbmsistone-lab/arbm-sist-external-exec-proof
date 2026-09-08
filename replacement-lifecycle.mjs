@@ -20,7 +20,8 @@ export function reconcileQueue(){
   const q=loadQueue(); let changed=0;
   for(const item of q.items||[]){
     const life=deriveLifecycle(item.proposalHash); if(!life.ok) return {ok:false,reason:'EVIDENCE_LEDGER_INVALID'};
-    if(life.status!=='UNKNOWN'&&item.status!==life.status){item.status=life.status;item.lifecycleEvidence=life.entries;changed++;}
+    const target=life.status==='UNKNOWN'?'ORPHANED_NO_LEDGER':life.status;
+    if(item.status!==target){item.status=target;item.lifecycleEvidence=life.entries;changed++;}
   }
   if(changed){q.updatedAt=new Date().toISOString();atomicWrite(q);}
   return {ok:true,changed,total:(q.items||[]).length};

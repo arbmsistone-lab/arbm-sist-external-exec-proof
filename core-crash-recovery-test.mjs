@@ -1,0 +1,31 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import {evaluateReplacementProposal} from './replacement-proposal-gate.mjs';
+import {appendEvidence,findEvidence} from './universal-radar-evidence-ledger.mjs';
+import {certifyReplacement} from './replacement-certification.mjs';
+import {promoteReplacement,rollbackReplacement} from './incumbent-promotion-controller.mjs';
+import {registerRollbackValidation} from './rollback-validation.mjs';
+import {recoverCoreConsistency} from './core-crash-recovery.mjs';
+import {reconcileQueue} from './replacement-lifecycle.mjs';
+const regPath='incumbent-registry.json',qPath='replacement-proposals.json',ledgerPath='universal-radar-evidence-ledger.jsonl';
+const regBackup=fs.readFileSync(regPath,'utf8'),qBackup=fs.existsSync(qPath)?fs.readFileSync(qPath,'utf8'):null,ledgerBackup=fs.existsSync(ledgerPath)?fs.readFileSync(ledgerPath,'utf8'):null;
+const d=c=>'sha256:'+c.repeat(64);try{
+ const challenger={id:'crash-candidate',version:'4',artifactSha256:d('7'),activatedAt:'2026-09-08T17:00:00Z',zeroSpendVerified:true};
+ const result={grade:'replacementGrade',decision:'REPLACEMENT_CANDIDATE',replacementApplied:false,gates:{sampleOk:true,pairedOk:true,integrityOk:true}};
+ const proposal=evaluateReplacementProposal({domain:'ai-providers',challengerResult:result,challengerIdentity:challenger});
+ fs.writeFileSync(qPath,JSON.stringify({schema:'arbm-replacement-proposals-v1',items:[{proposalHash:proposal.proposalHash,domain:proposal.domain,status:'PENDING_P9'}]},null,2));
+ appendEvidence({type:'REPLACEMENT_PROPOSAL',domain:proposal.domain,proposalHash:proposal.proposalHash,status:'PENDING_P9'});
+ const src=appendEvidence({type:'REPLACEMENT_VALIDATION',status:'PASS',rollbackReady:true,domain:proposal.domain,proposalHash:proposal.proposalHash,challengerArtifactSha256:challenger.artifactSha256});
+ const cert=certifyReplacement({proposal,certificationResult:{status:'PASS',rollbackReady:true,evidenceHash:src.entryHash}}); assert.equal(cert.certified,true);
+ const beforeLines=fs.readFileSync(ledgerPath,'utf8').trim().split(/\r?\n/).length; const dup=certifyReplacement({proposal,certificationResult:{status:'PASS',rollbackReady:true,evidenceHash:src.entryHash}}); assert.equal(dup.duplicate,true); assert.equal(fs.readFileSync(ledgerPath,'utf8').trim().split(/\r?\n/).length,beforeLines);
+ const tampered=certifyReplacement({proposal:{...proposal,domain:'coding-models'},certificationResult:{status:'PASS',rollbackReady:true,evidenceHash:src.entryHash}}); assert.equal(tampered.certified,false);
+ const promotion=promoteReplacement({domain:'ai-providers',proposal,challengerIdentity:challenger,certification:cert}); assert.equal(promotion.promoted,true); const linesAfterPromotion=fs.readFileSync(ledgerPath,'utf8').trim().split(/\r?\n/); const promotedLine=JSON.parse(linesAfterPromotion.at(-1)); assert.equal(promotedLine.payload.type,'INCUMBENT_PROMOTED'); fs.writeFileSync(ledgerPath,linesAfterPromotion.slice(0,-1).join('\n')+'\n');
+ const rec1=recoverCoreConsistency(); assert.equal(rec1.ok,true); assert.equal(rec1.recovered,1); const recoveredPromotion=findEvidence(fs.readFileSync(ledgerPath,'utf8').trim().split(/\r?\n/).map(JSON.parse).at(-1).entryHash); assert.equal(recoveredPromotion.entry.payload.recoveredAfterCrash,true);
+ const rbSrc=appendEvidence({type:'ROLLBACK_VALIDATION_SOURCE',status:'PASS',domain:'ai-providers',promotionHash:promotion.promotionHash});
+ const rbVal=registerRollbackValidation({domain:'ai-providers',promotionHash:promotion.promotionHash,reason:'crash recovery test',validationResult:{status:'PASS',evidenceHash:rbSrc.entryHash}}); assert.equal(rbVal.validated,true);
+ const rb=rollbackReplacement({domain:'ai-providers',promotionHash:promotion.promotionHash,reason:'crash recovery test',evidenceHash:rbVal.evidenceHash}); assert.equal(rb.rolledBack,true);
+ const linesAfterRollback=fs.readFileSync(ledgerPath,'utf8').trim().split(/\r?\n/); assert.equal(JSON.parse(linesAfterRollback.at(-1)).payload.type,'INCUMBENT_ROLLED_BACK'); fs.writeFileSync(ledgerPath,linesAfterRollback.slice(0,-1).join('\n')+'\n');
+ const rec2=recoverCoreConsistency(); assert.equal(rec2.ok,true); assert.equal(rec2.recovered,1); assert.equal(JSON.parse(fs.readFileSync(ledgerPath,'utf8').trim().split(/\r?\n/).at(-1)).payload.recoveredAfterCrash,true);
+ const q=JSON.parse(fs.readFileSync(qPath,'utf8')); q.items.push({proposalHash:d('f'),status:'PENDING_P9'}); fs.writeFileSync(qPath,JSON.stringify(q,null,2)); const recon=reconcileQueue(); assert.equal(recon.ok,true); assert.equal(JSON.parse(fs.readFileSync(qPath,'utf8')).items.find(x=>x.proposalHash===d('f')).status,'ORPHANED_NO_LEDGER');
+ console.log('CORE_CRASH_RECOVERY_PASS');
+} finally {fs.writeFileSync(regPath,regBackup);if(qBackup===null)fs.rmSync(qPath,{force:true});else fs.writeFileSync(qPath,qBackup);if(ledgerBackup===null)fs.rmSync(ledgerPath,{force:true});else fs.writeFileSync(ledgerPath,ledgerBackup);fs.rmSync(regPath+'.mutation.lock',{recursive:true,force:true});fs.rmSync(qPath+'.mutation.lock',{recursive:true,force:true});}
