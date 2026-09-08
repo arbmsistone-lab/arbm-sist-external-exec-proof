@@ -1,0 +1,82 @@
+name: OSWorld official task zero-spend gate
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  official_task_gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      ZERO_SPEND_MODE: HARD
+    steps:
+      - name: Require authorized gated access
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${HF_TOKEN:-}" || { echo 'HF_TOKEN_REQUIRED'; exit 2; }
+          echo 'HF_TOKEN=PRESENT' > osworld-task-gate.txt
+          echo 'ZERO_SPEND_MODE=HARD' >> osworld-task-gate.txt
+      - name: Checkout pinned official OSWorld
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v2026.08.08 https://github.com/xlang-ai/OSWorld-V2.git osworld
+          test "$(git -C osworld rev-parse HEAD)" = "d578d2d4e0dc82b43e270fdaa7fa89d9708cd154"
+          echo 'OSWORLD_CODE_PIN=PASS' >> osworld-task-gate.txt
+      - name: Install Hugging Face client
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -q -U huggingface_hub
+      - name: Download official task release
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd osworld
+          python scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
+          count=$(find evaluation_examples/task_class -maxdepth 1 -type f -name 'task_*.py' | wc -l)
+          echo "TASK_COUNT=${count}" | tee -a ../osworld-task-gate.txt
+          test "$count" -eq 108
+          echo 'OSWORLD_TASK_DOWNLOAD=PASS' >> ../osworld-task-gate.txt
+      - name: Verify official task hash manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd osworld
+          python - <<'PY' | tee -a ../osworld-task-gate.txt
+          import hashlib, json, os
+          from huggingface_hub import hf_hub_download
+          p=hf_hub_download('xlangai/osworld_v2_tasks','manifests/task_hashes.json',repo_type='dataset',revision='v2026.08.08',token=os.environ['HF_TOKEN'])
+          raw=open(p,'rb').read()
+          digest=hashlib.sha256(raw).hexdigest()
+          assert digest=='42f8f6f8939b8712997d5891456a575f8a2a5f53465e9e3e6747af5d6efd0915', digest
+          data=json.loads(raw)
+          print('TASK_HASH_MANIFEST_SHA256='+digest)
+          print('TASK_HASH_MANIFEST=PASS')
+          PY
+      - name: Compile all official task classes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd osworld
+          python -m compileall -q evaluation_examples/task_class
+          echo 'OSWORLD_TASK_COMPILE=PASS' >> ../osworld-task-gate.txt
+      - name: Freeze gate evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' "${GITHUB_SHA}" >> osworld-task-gate.txt
+          sha256sum osworld-task-gate.txt > osworld-task-gate.sha256
+      - name: Upload immutable gate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: osworld-official-task-zero-spend-gate
+          path: |
+            osworld-task-gate.txt
+            osworld-task-gate.sha256
+          if-no-files-found: error
+          retention-days: 90
