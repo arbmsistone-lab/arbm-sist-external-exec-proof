@@ -63,5 +63,5 @@ def validate_artifact(root):
 
 if __name__=='__main__':
     failures=validate_artifact(Path(sys.argv[1]))
-    print(json.dumps({'p9OfficialPass':False,'failures':failures},sort_keys=True))
+    print(json.dumps({'p9OfficialPass':not failures,'failures':failures},sort_keys=True))
     raise SystemExit(1 if failures else 0)
