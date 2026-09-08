@@ -1,20 +1,83 @@
 {
-  "schema_version": 1,
-  "mode": "ZERO_SPEND_HARD",
-  "as_of": "2026-09-08",
-  "targets": {"next_tokens_per_day": 3000000, "stretch_tokens_per_day": 10000000, "min_independent_providers": 4},
-  "live": {
-    "lightning": {"independent_provider": true, "free_tokens_per_month": 30000000, "nominal_30_day_average_equivalent": 1000000, "proof_run": 34283217079, "proof_commit": "cf78b5a206852ef0eb7dde686bd1481d022ed2be", "paid_fallback": false},
-    "groq": {"independent_provider": true, "models_proven": 4, "official_tpd_per_model_row": 200000, "aggregate_independence_guaranteed": false, "paid_fallback": false},
-    "gemini": {"independent_provider": true, "free_tier": true, "working_pools_observed": 4, "active_limits_dynamic": true, "paid_fallback": false}
-  },
-  "blocked_or_separate": {
-    "cloudflare": {"free_neurons_per_day": 10000, "active_for_arbm": false, "blocker": "ARBM-specific Cloudflare identity not authenticated"},
-    "modal": {"recurring_compute_credit_usd_per_month": 30, "active": false, "blocker": "isolated arbm-capacity browser authorization pending"},
-    "nvidia_nim": {"free": true, "scope": "development_testing_only", "active": false, "blocker": "no NVIDIA/NIM credential"},
-    "cerebras": {"active": false, "class": "trial_promotional", "reason": "current pricing describes $5 free trial credits"}
-  },
-  "policy": {"simple_steps": ["lightning", "gemini", "groq"], "critical_steps": ["groq", "gemini", "lightning", "cloudflare"], "no_paid_fallback": true, "fail_closed": true},
-  "latest_policy_proof": {"run": 34284120914, "commit": "a61f1b5f324fffafea2a3d6341373381b04595c5"},
-  "gate": {"three_million_tokens_per_day_certified": false, "reason": "current recurring quantifiable envelope is not yet a guaranteed 3M/day floor"}
+    "schema_version":  1,
+    "mode":  "ZERO_SPEND_HARD",
+    "as_of":  "2026-09-08",
+    "targets":  {
+                    "next_tokens_per_day":  3000000,
+                    "stretch_tokens_per_day":  10000000,
+                    "min_independent_providers":  4
+                },
+    "live":  {
+                 "lightning":  {
+                                   "independent_provider":  true,
+                                   "free_tokens_per_month":  30000000,
+                                   "nominal_30_day_average_equivalent":  1000000,
+                                   "proof_run":  34283217079,
+                                   "proof_commit":  "cf78b5a206852ef0eb7dde686bd1481d022ed2be",
+                                   "paid_fallback":  false
+                               },
+                 "groq":  {
+                              "independent_provider":  true,
+                              "models_proven":  4,
+                              "official_tpd_per_model_row":  200000,
+                              "aggregate_independence_guaranteed":  false,
+                              "paid_fallback":  false
+                          },
+                 "gemini":  {
+                                "independent_provider":  true,
+                                "free_tier":  true,
+                                "working_pools_observed":  4,
+                                "active_limits_dynamic":  true,
+                                "paid_fallback":  false
+                            }
+             },
+    "blocked_or_separate":  {
+                                "cloudflare":  {
+                                                   "free_neurons_per_day":  10000,
+                                                   "active_for_arbm":  false,
+                                                   "blocker":  "ARBM-specific Cloudflare identity not authenticated"
+                                               },
+                                "modal":  {
+                                              "recurring_compute_credit_usd_per_month":  30,
+                                              "active":  false,
+                                              "blocker":  "authenticated workspace; Starter has recurring $30 compute credit but no hard environment budget, so automatic fallback remains disabled",
+                                              "authenticated":  true,
+                                              "current_billed_cost_usd":  0,
+                                              "policy":  "manual_guard_only"
+                                          },
+                                "nvidia_nim":  {
+                                                   "free":  true,
+                                                   "scope":  "development_testing_only",
+                                                   "active":  false,
+                                                   "blocker":  "no NVIDIA/NIM credential"
+                                               },
+                                "cerebras":  {
+                                                 "active":  false,
+                                                 "class":  "trial_promotional",
+                                                 "reason":  "current pricing describes $5 free trial credits"
+                                             }
+                            },
+    "policy":  {
+                   "simple_steps":  [
+                                        "lightning",
+                                        "gemini",
+                                        "groq"
+                                    ],
+                   "critical_steps":  [
+                                          "groq",
+                                          "gemini",
+                                          "lightning",
+                                          "cloudflare"
+                                      ],
+                   "no_paid_fallback":  true,
+                   "fail_closed":  true
+               },
+    "latest_policy_proof":  {
+                                "run":  34284120914,
+                                "commit":  "a61f1b5f324fffafea2a3d6341373381b04595c5"
+                            },
+    "gate":  {
+                 "three_million_tokens_per_day_certified":  false,
+                 "reason":  "current recurring quantifiable envelope is not yet a guaranteed 3M/day floor"
+             }
 }
