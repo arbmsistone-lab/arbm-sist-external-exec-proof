@@ -65,8 +65,7 @@ jobs:
               'independentProviders':3,'state':'PASS'}
           (p/'evidence.json').write_text(json.dumps(ev,sort_keys=True,indent=2)+'\n',encoding='utf-8')
           PY
-          find top3-evidence/three-provider -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > top3-evidence/three-provider/SHA256SUMS.txt
-          (cd top3-evidence/three-provider && sha256sum -c SHA256SUMS.txt)
+          (cd top3-evidence/three-provider && find . -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt && sha256sum -c SHA256SUMS.txt)
       - name: Upload immutable three-provider proof
         uses: actions/upload-artifact@v7
         with:
