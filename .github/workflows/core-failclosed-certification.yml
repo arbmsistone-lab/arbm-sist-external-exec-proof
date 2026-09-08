@@ -18,7 +18,7 @@ jobs:
       - name: Build core evidence certificate
         run: node core-failclosed-certificate.mjs
       - name: Freeze evidence hashes
-        run: sha256sum evidence/core-failclosed/certificate.json | tee evidence/core-failclosed/SHA256SUMS.txt
+        run: sha256sum evidence/core-failclosed/certificate.json evidence/core-failclosed/test-results.json evidence/core-failclosed/trust-manifest.json | tee evidence/core-failclosed/SHA256SUMS.txt
       - name: Upload immutable core evidence
         uses: actions/upload-artifact@v6
         with:
