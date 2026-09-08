@@ -56,6 +56,17 @@ class ARBMHarborAgent(BaseAgent):
                 except Exception:
                     detail = "unparsed"
                 last_error = "HTTP_%s:%s" % (exc.code, detail)
+                if exc.code == 503:
+                    waits = []
+                    for item in safe.get("provider_attempts", []):
+                        if item.get("route") == "groq" and item.get("status") == 429:
+                            raw = str(item.get("retry_after") or "").strip().lower()
+                            try:
+                                waits.append(float(raw.rstrip("s")))
+                            except Exception:
+                                waits.append(20.0)
+                    if waits:
+                        time.sleep(min(max(waits) + 1.0, 65.0))
                 if exc.code not in (401, 408, 429, 500, 502, 503, 504):
                     raise RuntimeError("ARBM_DECISION_HTTP_%s" % exc.code)
             except (urllib.error.URLError, TimeoutError) as exc:
@@ -71,7 +82,7 @@ class ARBMHarborAgent(BaseAgent):
         recent_commands = []
         history = []
         for step in range(1, MAX_STEPS + 1):
-            compact = "\n\n".join(history[-6:] + [observation])[-16000:]
+            compact = "\n\n".join(history[-4:] + [observation])[-6000:]
             decision = self._decide(instruction, compact, step)
             action = decision["action"]
             command = str(action.get("command", "")).strip()
