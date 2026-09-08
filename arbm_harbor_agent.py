@@ -8,9 +8,9 @@ from harbor.agents.base import BaseAgent
 from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
 
-API_URL = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v2"
+API_URL = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v7"
 SOVEREIGN_URL = os.environ.get("ARBM_SOVEREIGN_URL", "http://127.0.0.1:8088/v1/chat/completions")
-MAX_STEPS = 8
+MAX_STEPS = 12
 
 class ARBMHarborAgent(BaseAgent):
     @staticmethod
@@ -34,7 +34,7 @@ class ARBMHarborAgent(BaseAgent):
             return json.loads(r.read().decode())["value"]
     def _sovereign_decide(self, instruction: str, observation: str, step: int) -> dict:
         prompt = f"""You are ARBM SIST inside a Terminal-Bench sandbox. Return JSON only with action, command, summary. action must be exec or finish. Use one safe bash command for exec. Never access evaluator secrets, credentials, or files outside the sandbox. Do not repeat failed commands. Inspect first, make the smallest correct change, run a focused verification, and finish only after verification succeeds. Keep commands bounded and non-interactive.\nSTEP:{step}\nTASK:{instruction}\nRECENT HISTORY:{observation}"""
-        body = {"model":"arbm-qwen-sovereign","messages":[{"role":"user","content":prompt}],"temperature":0,"max_tokens":160}
+        body = {"model":"arbm-qwen-sovereign","messages":[{"role":"user","content":prompt}],"temperature":0,"max_tokens":256}
         req = urllib.request.Request(SOVEREIGN_URL, data=json.dumps(body).encode(), method="POST", headers={"Authorization":"Bearer local-dummy-key","Content-Type":"application/json"})
         with urllib.request.urlopen(req, timeout=150) as r:
             raw=json.loads(r.read().decode())
@@ -110,7 +110,7 @@ class ARBMHarborAgent(BaseAgent):
         recent_commands = []
         history = []
         for step in range(1, MAX_STEPS + 1):
-            compact = "\n\n".join(history[-1:] + [observation])[-1200:]
+            compact = "\n\n".join(history[-3:] + [observation])[-4000:]
             decision = self._decide(instruction, compact, step)
             action = decision["action"]
             command = str(action.get("command", "")).strip()
@@ -131,5 +131,5 @@ class ARBMHarborAgent(BaseAgent):
             history.append("COMMAND: %s\n%s" % (command, observation))
             trace.append({"step": step, "action": "exec", "command": command, "summary": action.get("summary", ""), "return_code": result.return_code})
         context.cost_usd = 0.0
-        context.metadata = {"pipeline": "terminal-agent-v4-free-mesh-resilient", "trace": trace, "providers": providers, "steps": len(trace)}
+        context.metadata = {"pipeline": "terminal-agent-v12-terminalbench-close", "trace": trace, "providers": providers, "steps": len(trace)}
 

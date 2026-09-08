@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'p3/terminal-bench-*'
+      - 'codex/terminal-final-close-*'
     paths:
       - 'arbm_harbor_agent.py'
       - '.github/workflows/top3-terminalbench-arbm-smoke.yml'
@@ -101,8 +102,8 @@ jobs:
           printf '%s\n' "$ZERO_SPEND_MODE" > top3-evidence/terminalbench-arbm/zero-spend-mode.txt
           printf '%s\n' "$MODEL_SHA256" > top3-evidence/terminalbench-arbm/sovereign-model-sha256.txt
           cp -f sovereign-terminal.log top3-evidence/terminalbench-arbm/ 2>/dev/null || true
-          latest_result=$(find jobs -name result.json -type f | sort | tail -n 1)
-          if [ -n "$latest_result" ]; then cp "$latest_result" top3-evidence/terminalbench-arbm/harbor-result.json; fi
+          mkdir -p top3-evidence/terminalbench-arbm/results
+          find jobs -name result.json -type f -print0 | while IFS= read -r -d '' f; do cp "$f" "top3-evidence/terminalbench-arbm/results/$(echo "$f" | tr '/\\' '__')"; done
           find top3-evidence/terminalbench-arbm -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > top3-evidence/terminalbench-arbm/SHA256SUMS.txt
       - name: Upload ARBM immutable evidence
         if: always()
