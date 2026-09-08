@@ -32,4 +32,13 @@ class Tests(unittest.TestCase):
    with patch.dict(os.environ,{'ARBM_ENABLE_SOVEREIGN_FALLBACK':'1'}): self.assertTrue(a._decide('x','y',1)['ok'])
    sovereign.assert_called_once()
 
+ def test_long_groq_reset_opens_remote_circuit(self):
+  a=agent.ARBMHarborAgent()
+  body=json.dumps({"status":"WAITING_FREE_CAPACITY","provider_attempts":[{"route":"groq-json-object","status":429,"retry_after":"433"}]}).encode()
+  exc=agent.urllib.error.HTTPError("x",503,"busy",{},None); exc.read=lambda: body
+  sovereign={"ok":True,"action":{"action":"finish","summary":"fallback"},"mandatory_cost_usd":0,"paid_fallback_used":False}
+  with patch.object(a,"_oidc",return_value="token"), patch.object(agent.urllib.request,"urlopen",side_effect=exc), patch.object(a,"_sovereign_decide",return_value=sovereign) as sv, patch.object(agent.time,"sleep"):
+   with patch.dict(os.environ,{"ARBM_ENABLE_SOVEREIGN_FALLBACK":"1"}): out=a._decide("x","y",1)
+  self.assertTrue(out["ok"]); self.assertGreater(getattr(a,"_remote_cooldown_until",0),0); sv.assert_called_once()
+
 if __name__=='__main__': unittest.main()
