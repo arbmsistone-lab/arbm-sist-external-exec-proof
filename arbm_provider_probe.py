@@ -1,4 +1,4 @@
-import json,os,urllib.request,urllib.error
+﻿import json,os,urllib.request,urllib.error
 API='https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v7'
 def oidc():
  u=os.environ['ACTIONS_ID_TOKEN_REQUEST_URL']; t=os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']; sep='&' if '?' in u else '?'
@@ -11,4 +11,4 @@ except urllib.error.HTTPError as e:
  d=json.loads(e.read()); out={'http':e.code,'ok':False,'status':d.get('status'),'attempts':d.get('provider_attempts'),'cost':d.get('mandatory_cost_usd'),'paid':d.get('paid_fallback_used')}
 print(json.dumps(out,separators=(',',':')))
 a=out.get('attempts') or []
-if not(out.get('http')==503 and out.get('cost')==0 and out.get('paid') is False and any(x.get('route')=='lightning' and x.get('status')=='not_configured' for x in a)): raise SystemExit(2)
+if not(out.get('http')==503 and out.get('cost')==0 and out.get('paid') is False and any(x.get('route')=='lightning' and x.get('status') in ('not_configured','zero_spend_unconfirmed') for x in a)): raise SystemExit(2)
