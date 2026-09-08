@@ -163,8 +163,10 @@ async function callLightning(prompt: string, step = 1, modelHint = "") {
 async function callMistral(prompt: string, modelHint = "") {
   const key = String(Deno.env.get("MISTRAL_API_KEY") || "").trim();
   const hardFree = String(Deno.env.get("ARBM_MISTRAL_ZERO_SPEND_CONFIRMED") || "") === "1";
+  const liveProven = String(Deno.env.get("ARBM_MISTRAL_LIVE_PROVEN") || "") === "1";
   if (!key) return { result: null, attempts: [{ route: "mistral", status: "not_configured" }] };
   if (!hardFree) return { result: null, attempts: [{ route: "mistral", status: "zero_spend_unconfirmed" }] };
+  if (!liveProven && !modelHint) return { result: null, attempts: [{ route: "mistral", status: "live_proof_required" }] };
   const attempts:any[]=[];
   const models = modelHint && MISTRAL_MODELS.includes(modelHint) ? [modelHint] : MISTRAL_MODELS;
   const system = "Return exactly one JSON object with keys action, command, summary. action must be exec or finish.";
