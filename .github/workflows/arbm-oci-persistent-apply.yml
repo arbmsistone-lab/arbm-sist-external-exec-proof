@@ -1,0 +1,116 @@
+name: ARBM OCI Persistent Apply
+
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        description: OCI home region
+        required: true
+        type: string
+      availability_domain:
+        description: Availability domain with Always Free capacity
+        required: true
+        type: string
+      compartment_id:
+        description: OCI compartment OCID
+        required: true
+        type: string
+      subnet_id:
+        description: Existing public subnet OCID
+        required: true
+        type: string
+      image_ocid:
+        description: Ubuntu image OCID
+        required: true
+        type: string
+      home_region_verified:
+        description: Home region independently verified
+        required: true
+        default: false
+        type: boolean
+      always_free_inventory_verified:
+        description: Current tenancy free inventory independently verified
+        required: true
+        default: false
+        type: boolean
+      apply_guard:
+        description: Type ARBM_ZERO_SPEND_OCI_APPLY
+        required: true
+        default: BLOCKED
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: arbm-oci-persistent-apply
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      OCI_AUTH: APIKey
+      OCI_REGION: ${{ inputs.region }}
+      OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+      OCI_USER_OCID: ${{ secrets.OCI_USER_OCID }}
+      OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+      OCI_PRIVATE_KEY: ${{ secrets.OCI_PRIVATE_KEY }}
+      TF_VAR_region: ${{ inputs.region }}
+      TF_VAR_availability_domain: ${{ inputs.availability_domain }}
+      TF_VAR_compartment_id: ${{ inputs.compartment_id }}
+      TF_VAR_subnet_id: ${{ inputs.subnet_id }}
+      TF_VAR_image_ocid: ${{ inputs.image_ocid }}
+      TF_VAR_ssh_public_key: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
+      TF_VAR_home_region_verified: ${{ inputs.home_region_verified }}
+      TF_VAR_always_free_inventory_verified: ${{ inputs.always_free_inventory_verified }}
+      TF_VAR_apply_guard: ${{ inputs.apply_guard }}
+      TF_HTTP_ADDRESS: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terraform-state-v1/oci-persistent-prod
+      TF_HTTP_LOCK_ADDRESS: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terraform-state-v1/oci-persistent-prod
+      TF_HTTP_UNLOCK_ADDRESS: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terraform-state-v1/oci-persistent-prod
+      TF_HTTP_LOCK_METHOD: LOCK
+      TF_HTTP_UNLOCK_METHOD: UNLOCK
+      TF_HTTP_USERNAME: terraform-session
+    steps:
+      - uses: actions/checkout@v5
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.1
+          terraform_wrapper: false
+      - name: Fail-closed preflight
+        shell: bash
+        run: |
+          test '${{ inputs.apply_guard }}' = 'ARBM_ZERO_SPEND_OCI_APPLY'
+          test '${{ inputs.home_region_verified }}' = 'true'
+          test '${{ inputs.always_free_inventory_verified }}' = 'true'
+          test -n "$OCI_TENANCY_OCID"
+          test -n "$OCI_USER_OCID"
+          test -n "$OCI_FINGERPRINT"
+          test -n "$OCI_PRIVATE_KEY"
+          test -n "$TF_VAR_ssh_public_key"
+      - name: Issue ephemeral Terraform state session
+        run: node scripts/terraform-state-session.mjs issue
+      - name: Terraform init
+        run: terraform -chdir=infra/persistent/oci init -input=false
+      - name: Terraform plan
+        run: terraform -chdir=infra/persistent/oci plan -input=false -out=tfplan
+      - name: Export plan JSON
+        run: terraform -chdir=infra/persistent/oci show -json tfplan > infra/persistent/oci/tfplan.json
+      - name: Zero-spend plan policy
+        run: node scripts/verify-oci-zero-spend-plan.mjs infra/persistent/oci/tfplan.json
+      - name: Terraform apply
+        run: terraform -chdir=infra/persistent/oci apply -input=false -auto-approve tfplan
+      - name: Capture outputs
+        run: terraform -chdir=infra/persistent/oci output -json > infra/persistent/oci/apply-outputs.json
+      - name: Upload apply evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: oci-persistent-apply-${{ github.run_id }}
+          path: infra/persistent/oci/apply-outputs.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Revoke Terraform state session
+        if: always()
+        run: node scripts/terraform-state-session.mjs revoke

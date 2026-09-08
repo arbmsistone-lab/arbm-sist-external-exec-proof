@@ -7,8 +7,12 @@ on:
       - 'infra/persistent/**'
       - 'cloud/common/**'
       - 'cloud/oci/**'
+      - '.github/workflows/arbm-oci-persistent-apply.yml'
       - 'scripts/cloud-host-attestation*'
       - 'scripts/verify-persistent-iac.mjs'
+      - 'scripts/verify-oci-zero-spend-plan*'
+      - 'scripts/verify-oci-apply-workflow.mjs'
+      - 'scripts/terraform-state-session.mjs'
 
 permissions:
   contents: read
@@ -29,6 +33,12 @@ jobs:
           terraform_wrapper: false
       - name: Policy gate
         run: node scripts/verify-persistent-iac.mjs
+      - name: Apply workflow policy
+        run: node scripts/verify-oci-apply-workflow.mjs
+      - name: Zero-spend plan policy tests
+        run: node scripts/verify-oci-zero-spend-plan.test.mjs
+      - name: Script syntax
+        run: node --check scripts/terraform-state-session.mjs && node --check scripts/verify-oci-zero-spend-plan.mjs
       - name: Bootstrap syntax
         run: bash -n cloud/common/bootstrap-persistent-host.sh cloud/oci/bootstrap-persistent-host.sh
       - name: Terraform format
