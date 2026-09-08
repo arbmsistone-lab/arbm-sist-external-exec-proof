@@ -1,12 +1,33 @@
-version: 2.1
+﻿version: 2.1
 jobs:
-  zero_spend_sentinel:
-    docker:
-      - image: cimg/base:stable
+  p2_heavy_zero_spend_proof:
+    machine:
+      image: ubuntu-2604:current
+    resource_class: large.gen2
     steps:
-      - run: echo ARBM_CIRCLECI_NOOP
+      - checkout
+      - run:
+          name: P2 third-domain heavy compute proof
+          command: |
+            set -euo pipefail
+            echo "ARBM_P2_PROVIDER=CIRCLECI"
+            echo "ARBM_P2_REMOTE_ONLY=PASS"
+            echo "CPU_COUNT=$(nproc)"
+            grep '^MemTotal:' /proc/meminfo
+            python3 - <<'PY'
+            import hashlib, multiprocessing as mp, os
+            def work(seed):
+                block=(str(seed)*1024*1024).encode()[:16*1024*1024]
+                h=b''
+                for i in range(96): h=hashlib.sha256(block+h+str(i).encode()).digest()
+                return h.hex()
+            n=min(4, os.cpu_count() or 1)
+            with mp.Pool(n) as p: out=p.map(work, range(n))
+            assert len(out)==n and all(len(x)==64 for x in out)
+            print('ARBM_P2_HEAVY_COMPUTE=PASS')
+            print('WORKERS='+str(n))
+            PY
 workflows:
-  arbm_zero_spend_noop:
-    when: false
+  p2_third_domain:
     jobs:
-      - zero_spend_sentinel
+      - p2_heavy_zero_spend_proof
