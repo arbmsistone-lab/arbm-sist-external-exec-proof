@@ -53,7 +53,7 @@ class SmokePolicyTests(unittest.TestCase):
         for text in ('REJECTED CANDIDATE','rejected_behavior()','PUBLIC VALIDATION FAILURES','preserved formatting','NumberFormatException: NaN','complete candidate against the original numbered source'):
             self.assertIn(text,prompt)
         self.assertNotIn('obsolete focus',prompt)
-        self.assertEqual(requests[0]['max_tokens'],224)
+        self.assertEqual(requests[0]['max_tokens'],512)
 
     def test_context_compaction_deduplicates_files(self):
         compact = load_function('_compact_public_context', {'re': re})
