@@ -1,6 +1,6 @@
-import json,os,urllib.request,urllib.error
-API='https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v4'
-CASES=[('google','gemini-3.6-flash'),('groq','qwen/qwen3.8-27b'),('groq','qwen/qwen3.6-27b'),('groq','openai/gpt-oss-120b'),('groq','openai/gpt-oss-20b')]
+﻿import json,os,urllib.request,urllib.error
+API='https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5'
+CASES=[('google','gemini-3.6-flash'),('google','gemini-3.5-flash'),('google','gemini-3.5-flash-lite'),('google','gemini-3.1-flash-lite'),('groq','qwen/qwen3.8-27b'),('groq','qwen/qwen3.6-27b'),('groq','openai/gpt-oss-120b'),('groq','openai/gpt-oss-20b')]
 def oidc():
  u=os.environ['ACTIONS_ID_TOKEN_REQUEST_URL']; t=os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']; sep='&' if '?' in u else '?'
  with urllib.request.urlopen(urllib.request.Request(u+sep+'audience=arbm-sist-benchmark',headers={'Authorization':'Bearer '+t}),timeout=20) as r:return json.loads(r.read())['value']
