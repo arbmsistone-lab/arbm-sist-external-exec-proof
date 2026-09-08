@@ -243,6 +243,7 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertEqual(len(edits), 1)
         self.assertEqual(edits[0]['start_line'], 2)
         self.assertEqual(edits[0]['end_line'], 4)
+        self.assertIn('(< (Math/abs (double x)) 8388608.0)', edits[0]['new'])
         self.assertIn('(Math/rint (double x))', edits[0]['new'])
         self.assertIn('(format "%.0f" (double x))', edits[0]['new'])
         self.assertNotIn('(mod x 1)', edits[0]['new'])
@@ -250,7 +251,7 @@ class SmokePolicyTests(unittest.TestCase):
         self.assertNotIn('(bigint x)', edits[0]['new'])
         self.assertEqual(
             edits[0]['new'],
-            '    (if (== (double x) (Math/rint (double x)))\n      (format "%.0f" (double x))\n      (str x))))',
+            '    (if (and (< (Math/abs (double x)) 8388608.0)\n             (== (double x) (Math/rint (double x))))\n      (format "%.0f" (double x))\n      (str x))))',
         )
 
 

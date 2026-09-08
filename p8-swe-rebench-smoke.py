@@ -1052,7 +1052,8 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     indent=m.group(1)
                     fallback=lines[i+1].strip()
                     if not re.match(r'^\(str\s+'+re.escape(expr)+r'\)\)+$',fallback): continue
-                    new=(indent+'(if (== (double '+expr+') (Math/rint (double '+expr+')))\n'
+                    new=(indent+'(if (and (< (Math/abs (double '+expr+')) 8388608.0)\n'
+                         +indent+'         (== (double '+expr+') (Math/rint (double '+expr+'))))\n'
                          +indent+'  (format "%.0f" (double '+expr+'))\n'
                          +indent+'  '+fallback)
                     ranked.append((score,rel,i,i+2,new))
