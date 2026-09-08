@@ -1,104 +1,62 @@
 import json
 import os
-import urllib.error
 import urllib.request
-from typing import override
-
 from harbor.agents.base import BaseAgent
 from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
 
-ENDPOINT = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v1"
-BLOCKED = (
-    "/logs/verifier", "reward.txt", "verifier", "GEMINI_API_KEY",
-    "ACTIONS_ID_TOKEN", "SUPABASE_SERVICE_ROLE", "OPENAI_API_KEY",
-    "solution.sh", "/tests/", "test_output", "ground_truth",
-)
+API_URL = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v1"
+MAX_STEPS = 20
 
-class ArbMSistAgent(BaseAgent):
+class ARBMHarborAgent(BaseAgent):
     @staticmethod
-    @override
     def name() -> str:
         return "arbm-sist"
 
-    @override
-    def version(self) -> str:
-        return "1.0.0"
+    def version(self) -> str | None:
+        return "terminal-v2-free-mesh"
 
-    @override
     async def setup(self, environment: BaseEnvironment) -> None:
         return None
 
-    def _call_brain(self, instruction: str, observation: str, step: int) -> dict:
-        token = os.environ.get("ARBM_OIDC_TOKEN", "").strip()
-        if not token:
-            raise RuntimeError("ARBM_OIDC_TOKEN_MISSING")
-        payload = json.dumps({
-            "instruction": instruction,
-            "observation": observation,
-            "step": step,
-        }).encode()
-        req = urllib.request.Request(
-            ENDPOINT,
-            data=payload,
-            method="POST",
-            headers={
-                "authorization": f"Bearer {token}",
-                "content-type": "application/json",
-            },
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=70) as res:
-                return json.loads(res.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", "replace")[:800]
-            raise RuntimeError(f"ARBM_BRAIN_HTTP_{exc.code}:{detail}") from exc
+    def _oidc(self) -> str:
+        url = os.environ.get("ACTIONS_ID_TOKEN_REQUEST_URL", "")
+        token = os.environ.get("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "")
+        if not url or not token:
+            raise RuntimeError("GITHUB_OIDC_UNAVAILABLE")
+        sep = "&" if "?" in url else "?"
+        req = urllib.request.Request(url + sep + "audience=arbm-sist-benchmark", headers={"Authorization": "Bearer " + token})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return json.loads(r.read().decode())["value"]
+    def _decide(self, oidc: str, instruction: str, observation: str, step: int) -> dict:
+        payload = json.dumps({"instruction": instruction, "observation": observation, "step": step}).encode()
+        req = urllib.request.Request(API_URL, data=payload, method="POST", headers={
+            "Authorization": "Bearer " + oidc,
+            "Content-Type": "application/json",
+        })
+        with urllib.request.urlopen(req, timeout=30) as r:
+            body = json.loads(r.read().decode())
+        if not body.get("ok"):
+            raise RuntimeError("ARBM_DECISION_UNAVAILABLE:" + str(body.get("status") or body.get("error")))
+        if float(body.get("mandatory_cost_usd", -1)) != 0 or body.get("paid_fallback_used") is not False:
+            raise RuntimeError("ARBM_ZERO_COST_POLICY_VIOLATION")
+        return body
 
-    @staticmethod
-    def _safe_command(command: str) -> bool:
-        low = command.lower()
-        return not any(term.lower() in low for term in BLOCKED)
-
-    @override
-    async def run(
-        self,
-        instruction: str,
-        environment: BaseEnvironment,
-        context: AgentContext,
-    ) -> None:
+    async def run(self, instruction: str, environment: BaseEnvironment, context: AgentContext) -> None:
+        oidc = self._oidc()
         observation = "No commands executed yet."
         trace = []
-        for step in range(1, 31):
-            reply = self._call_brain(instruction, observation, step)
-            if reply.get("ok") is not True:
-                raise RuntimeError(f"ARBM_BRAIN_NOT_READY:{reply.get('status')}")
-            action = reply.get("action") or {}
-            kind = str(action.get("action") or "")
-            summary = str(action.get("summary") or "")[:1000]
-            if kind == "finish":
-                trace.append({"step": step, "action": "finish", "summary": summary})
-                context.cost_usd = 0.0
-                context.metadata = {"pipeline": "arbm-terminal-agent-v1", "steps": trace}
-                return
-            if kind != "exec":
-                raise RuntimeError(f"ARBM_INVALID_ACTION:{kind}")
-            command = str(action.get("command") or "").strip()
-            if not command or not self._safe_command(command):
-                raise RuntimeError("ARBM_COMMAND_BLOCKED")
-            result = await environment.exec(command=command, timeout_sec=120)
-            stdout = (result.stdout or "")[-6000:]
-            stderr = (result.stderr or "")[-3000:]
-            observation = (
-                f"COMMAND:\n{command}\nRETURN_CODE:{result.return_code}"
-                f"\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}"
+        providers = []
+        for step in range(1, MAX_STEPS + 1):
+            decision = self._decide(oidc, instruction, observation, step)
+            action = decision["action"]
+            providers.append({"provider": decision.get("provider"), "model": decision.get("model")})
+            trace.append({"step": step, "action": action.get("action"), "command": action.get("command", ""), "summary": action.get("summary", "")})
+            if action.get("action") == "finish":
+                break
+            result = await environment.exec(command=str(action["command"]), timeout_sec=120)
+            observation = "RETURN_CODE: %s\nSTDOUT:\n%s\nSTDERR:\n%s" % (
+                result.return_code, (result.stdout or "")[-12000:], (result.stderr or "")[-12000:]
             )
-            trace.append({
-                "step": step,
-                "action": "exec",
-                "command": command[:1000],
-                "return_code": result.return_code,
-                "summary": summary,
-            })
         context.cost_usd = 0.0
-        context.metadata = {"pipeline": "arbm-terminal-agent-v1", "steps": trace}
-        raise RuntimeError("ARBM_STEP_LIMIT_EXCEEDED")
+        context.metadata = {"pipeline": "terminal-agent-v2-free-mesh", "trace": trace, "providers": providers, "steps": len(trace)}
