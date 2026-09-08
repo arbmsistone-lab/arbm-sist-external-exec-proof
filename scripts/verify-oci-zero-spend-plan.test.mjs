@@ -5,9 +5,14 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 const validator=new URL('./verify-oci-zero-spend-plan.mjs',import.meta.url).pathname.replace(/^\/(.:)/,'$1');
 function run(plan){
-  const file=path.join(os.tmpdir(),`arbm-plan-${Math.random().toString(16).slice(2)}.json`);
-  fs.writeFileSync(file,JSON.stringify(plan));
-  const r=spawnSync(process.execPath,[validator,file],{encoding:'utf8'});fs.rmSync(file,{force:true});return r;
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'arbm-plan-'));
+  const file=path.join(dir,'plan.json');
+  try{
+    fs.writeFileSync(file,JSON.stringify(plan));
+    return spawnSync(process.execPath,[validator,file],{encoding:'utf8'});
+  }finally{
+    fs.rmSync(dir,{recursive:true,force:true});
+  }
 }
 const base={address:'oci_core_instance.arbm_persistent',mode:'managed',change:{actions:['create'],after:{shape:'VM.Standard.A1.Flex',shape_config:[{ocpus:1,memory_in_gbs:6}],freeform_tags:{'ARBM-CostPolicy':'zero-spend-only'}}}};
 assert.equal(run({resource_changes:[base]}).status,0);
