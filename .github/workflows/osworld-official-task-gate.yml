@@ -1,6 +1,9 @@
-name: OSWorld official task zero-spend gate
+﻿name: OSWorld official task zero-spend gate
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/osworld-official-task-gate.yml'
 permissions:
   contents: read
 jobs:
@@ -80,3 +83,4 @@ jobs:
             osworld-task-gate.sha256
           if-no-files-found: error
           retention-days: 90
+
