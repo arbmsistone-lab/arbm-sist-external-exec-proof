@@ -73,7 +73,7 @@ jobs:
           set +e
           mkdir -p p8-matrix-artifacts
           FAILS=0
-          for OFFSET in 11 12 13 14 15; do
+          for OFFSET in 16 17 18 19 20; do
             echo "=== GENERATE SWE offset $OFFSET ==="
             rm -rf p8-swe-artifact
             HF_OFFSET="$OFFSET" python p8-swe-rebench-smoke.py
@@ -126,7 +126,7 @@ jobs:
         run: |
           set +e
           EVAL_FAILS=0
-          for OFFSET in 11 12 13 14 15; do
+          for OFFSET in 16 17 18 19 20; do
             DIR="p8-matrix-artifacts/offset-$OFFSET"
             if [ ! -s "$DIR/patches.json" ]; then
               echo "missing patches for offset $OFFSET"
