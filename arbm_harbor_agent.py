@@ -1,4 +1,4 @@
-import json
+﻿import json
 import os
 import urllib.request
 import urllib.error
@@ -8,7 +8,7 @@ from harbor.agents.base import BaseAgent
 from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
 
-API_URL = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v1"
+API_URL = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v2"
 SOVEREIGN_URL = os.environ.get("ARBM_SOVEREIGN_URL", "http://127.0.0.1:8088/v1/chat/completions")
 MAX_STEPS = 8
 
@@ -132,3 +132,4 @@ class ARBMHarborAgent(BaseAgent):
             trace.append({"step": step, "action": "exec", "command": command, "summary": action.get("summary", ""), "return_code": result.return_code})
         context.cost_usd = 0.0
         context.metadata = {"pipeline": "terminal-agent-v4-free-mesh-resilient", "trace": trace, "providers": providers, "steps": len(trace)}
+
