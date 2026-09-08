@@ -413,7 +413,7 @@ def _sovereign_json(payload):
         body=json.dumps({'model':'arbm-qwen-sovereign','messages':[{'role':'system','content':'You are a precise software repair agent. Output valid JSON only.'},{'role':'user','content':prompt}],
                          'temperature':0,'max_tokens':max_tokens,'stream':False,'cache_prompt':True,'response_format':{'type':'json_object','schema':schema}}).encode('utf-8')
     try:
-        req=urllib.request.Request(endpoint,data=body,method='POST'); req.add_header('Content-Type','application/json')
+        req=urllib.request.Request(endpoint,data=body,method='POST'); req.add_header('Content-Type','application/json'); req.add_header('Accept','application/json'); req.add_header('User-Agent','arbm-sist-benchmark/23')
         if cf_oidc:
             token=fresh_oidc()
             if not token: return 126,None,'NO_OIDC_PROVIDER_TOKEN',False
