@@ -8,11 +8,11 @@ const URL=process.env.ARBM_CONTINUITY_URL||'https://pvkpkqwdnnpkgvllwqbc.supabas
 const HOST_ID=String(process.env.ARBM_HOST_ID||'').trim();
 const TOKEN=String(process.env.ARBM_HOST_TOKEN||'').trim();
 const CLOUD_VENDOR=String(process.env.ARBM_CLOUD_VENDOR||'').trim().toLowerCase();
-const ROOT=process.env.ARBM_RUN_ROOT||'/var/lib/arbm-continuity/run';
-const CAPS=String(process.env.ARBM_CAPABILITIES||(CLOUD_VENDOR==='gcp'?'git,tests,cloud,persistent':'git,tests,build,cloud,persistent')).split(',').map(x=>x.trim()).filter(Boolean);
+const ROOT=process.env.ARBM_RUN_ROOT||'/tmp/arbm-continuity/run';
+const CAPS=String(process.env.ARBM_CAPABILITIES||'git,tests,cloud,persistent').split(',').map(x=>x.trim()).filter(Boolean);
 if(!HOST_ID)throw new Error('persistent_host_id_required');
 if(TOKEN.length<40)throw new Error('persistent_host_token_required');
-if(!['oci','gcp'].includes(CLOUD_VENDOR))throw new Error('persistent_cloud_vendor_required');
+if(!['modal','back4app','gcp'].includes(CLOUD_VENDOR))throw new Error('persistent_cloud_vendor_required');
 
 async function call(action,payload={}){
   const res=await fetch(URL,{method:'POST',headers:{authorization:`Bearer ${TOKEN}`,'x-arbm-host-id':HOST_ID,'content-type':'application/json'},body:JSON.stringify({action,...payload}),signal:AbortSignal.timeout(15000)});
@@ -23,13 +23,12 @@ async function call(action,payload={}){
 function err(error){return String(error?.code||error?.message||error).slice(0,1800);}
 async function probe(){
   const a=await collectCloudAttestation(CLOUD_VENDOR);
-  if(!a.instanceId||!a.profileEligible)throw new Error('cloud_profile_not_free_tier_eligible');
-  const r=await call('probe',{instanceId:a.instanceId,cloudVendor:a.cloudVendor,profile:a.profile,detail:a});
+  if(!a.instanceId||!a.profileEligible)throw new Error('cloud_profile_not_free_tier_eligible');  const r=await call('probe',{instanceId:a.instanceId,cloudVendor:a.cloudVendor,profile:a.profile,detail:a});
   return {attestation:a,control:r};
 }
 async function runOne(attestation){
   const instanceId=attestation.instanceId;
-  await call('heartbeat',{instanceId,healthy:true,capabilities:CAPS,detail:{source:'persistent-host-agent',mode:'resident-daemon'}});
+  await call('heartbeat',{instanceId,healthy:true,capabilities:CAPS,detail:{source:'persistent-host-agent',mode:'resident-container'}});
   const claim=await call('claim',{instanceId});
   if(!claim.claimed)return false;
   const leased=claim.mission;
@@ -53,7 +52,6 @@ async function runOne(attestation){
   }
   return true;
 }
-
 let backoffMs=5000;
 for(;;){
   try{

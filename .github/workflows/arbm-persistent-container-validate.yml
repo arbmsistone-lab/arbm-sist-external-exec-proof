@@ -1,0 +1,46 @@
+name: ARBM Persistent Container Validate
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'cloud/modal/**'
+      - 'cloud/back4app/**'
+      - 'scripts/persistent-continuity-agent.mjs'
+      - 'scripts/persistent-container-health.mjs'
+      - 'scripts/cloud-host-attestation*'
+      - 'scripts/verify-persistent-container-policy.mjs'
+      - '.github/workflows/arbm-persistent-container-validate.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arbm-persistent-container-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Node syntax
+        run: |
+          node --check scripts/persistent-continuity-agent.mjs
+          node --check scripts/persistent-container-health.mjs
+          node --check scripts/cloud-host-attestation.mjs
+      - name: Cloud attestation tests
+        run: node scripts/cloud-host-attestation.test.mjs
+      - name: Persistent container policy
+        run: node scripts/verify-persistent-container-policy.mjs
+      - name: Lease supervisor tests
+        run: node scripts/continuity-execution-supervisor.test.mjs
+      - name: Universal runner tests
+        run: node scripts/universal-remote-runner.test.mjs
+      - name: Modal manifest syntax
+        run: python -m py_compile cloud/modal/app.py
+      - name: Docker build
+        run: docker build -t armb-continuity-persistent:test .

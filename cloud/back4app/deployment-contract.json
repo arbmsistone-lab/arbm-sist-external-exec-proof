@@ -1,0 +1,31 @@
+{
+  "schema": "arbm-back4app-persistent-v1",
+  "providerId": "back4app-free-persistent",
+  "providerDomain": "back4app",
+  "branch": "master",
+  "rootDirectory": ".",
+  "dockerfile": "Dockerfile",
+  "profile": "back4app-free-container",
+  "cpuCoresMax": 0.25,
+  "memoryMiBMax": 256,
+  "port": 8000,
+  "autoDeploy": true,
+  "continuityUrl": "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-persistent-continuity-v1",
+  "requiredEnvironment": [
+    "ARBM_HOST_TOKEN",
+    "ARBM_CONTINUITY_URL",
+    "ARBM_CLOUD_VENDOR",
+    "ARBM_HOST_ID",
+    "ARBM_CPU_CORES",
+    "ARBM_MEMORY_MIB"
+  ],
+  "expectedEnvironment": {
+    "ARBM_CONTINUITY_URL": "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-persistent-continuity-v1",
+    "ARBM_CLOUD_VENDOR": "back4app",
+    "ARBM_HOST_ID": "back4app-free-persistent",
+    "ARBM_CPU_CORES": "0.25",
+    "ARBM_MEMORY_MIB": "256"
+  },
+  "costPolicy": "zero-spend-only",
+  "activation": "fail-closed-until-independent-billing-verification"
+}

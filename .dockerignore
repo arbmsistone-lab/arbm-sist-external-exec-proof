@@ -1,0 +1,11 @@
+.git
+.github
+certification
+infra
+cloud
+*.patch
+*.py
+tests
+node_modules
+**/*.log
+**/.DS_Store
