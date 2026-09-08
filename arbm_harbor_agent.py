@@ -31,9 +31,37 @@ class ARBMHarborAgent(BaseAgent):
         req = urllib.request.Request(url + sep + "audience=arbm-sist-benchmark", headers={"Authorization": "Bearer " + token})
         with urllib.request.urlopen(req, timeout=20) as r:
             return json.loads(r.read().decode())["value"]
+    def _sovereign_decide(self, instruction: str, observation: str, step: int) -> dict:
+        endpoint = os.environ.get("ARBM_SOVEREIGN_ENDPOINT", "").strip()
+        if not endpoint:
+            raise RuntimeError("ARBM_SOVEREIGN_UNAVAILABLE")
+        prompt = ("You are ARBM SIST in a Terminal-Bench sandbox. Return JSON only: "
+                  "{\"action\":\"exec|finish\",\"command\":\"...\",\"summary\":\"...\"}. "
+                  "Use one safe shell command at a time. Never repeat a failed command. "
+                  "Never access hidden evaluator data, host credentials, network secrets, or files outside the sandbox. "
+                  f"STEP:{step}\nTASK:\n{instruction}\nOBSERVATION:\n{observation}")
+        body = json.dumps({"model":"arbm-qwen-sovereign","messages":[{"role":"user","content":prompt}],
+                           "max_tokens":256,"temperature":0}).encode()
+        req = urllib.request.Request(endpoint,data=body,headers={"Content-Type":"application/json"})
+        with urllib.request.urlopen(req,timeout=420) as r:
+            outer=json.loads(r.read().decode())
+        text=str(outer["choices"][0]["message"]["content"]).strip()
+        if text.startswith("```"):
+            text=text.split("\n",1)[1] if "\n" in text else text[3:]
+            text=text.rsplit("```",1)[0].strip()
+        action=json.loads(text)
+        if action.get("action") not in ("exec","finish"):
+            raise RuntimeError("ARBM_SOVEREIGN_INVALID_ACTION")
+        if action.get("action")=="exec" and not str(action.get("command","")).strip():
+            raise RuntimeError("ARBM_SOVEREIGN_EMPTY_COMMAND")
+        return {"ok":True,"action":action,"provider":"sovereign-github-runner",
+                "model":"Qwen2.5-Coder-14B-Instruct-Q4_K_M","mandatory_cost_usd":0,
+                "paid_fallback_used":False,"provider_attempts":[{"route":"sovereign","status":200}]}
+
     def _decide(self, instruction: str, observation: str, step: int) -> dict:
         payload = json.dumps({"instruction": instruction, "observation": observation, "step": step}).encode()
         last_error = None
+        remote_attempts = []
         for attempt in range(4):
             try:
                 oidc = self._oidc()
@@ -52,7 +80,8 @@ class ARBMHarborAgent(BaseAgent):
                 body_text = exc.read().decode("utf-8", "replace")[:4000]
                 try:
                     safe = json.loads(body_text)
-                    detail = json.dumps({"status": safe.get("status"), "error": safe.get("error"), "provider_attempts": safe.get("provider_attempts", [])}, separators=(",", ":"))
+                    remote_attempts = safe.get("provider_attempts", []) or []
+                    detail = json.dumps({"status": safe.get("status"), "error": safe.get("error"), "provider_attempts": remote_attempts}, separators=(",", ":"))
                 except Exception:
                     detail = "unparsed"
                 last_error = "HTTP_%s:%s" % (exc.code, detail)
@@ -62,7 +91,12 @@ class ARBMHarborAgent(BaseAgent):
                 last_error = type(exc).__name__
             if attempt < 3:
                 time.sleep((0.7 * (2 ** attempt)) + random.uniform(0.05, 0.25))
-        raise RuntimeError("ARBM_DECISION_RETRY_EXHAUSTED:" + str(last_error))
+        try:
+            result = self._sovereign_decide(instruction, observation, step)
+            result["provider_attempts"] = remote_attempts + result.get("provider_attempts", [])
+            return result
+        except Exception as sovereign_exc:
+            raise RuntimeError("ARBM_DECISION_RETRY_EXHAUSTED:%s;SOVEREIGN:%s" % (last_error, type(sovereign_exc).__name__))
 
     async def run(self, instruction: str, environment: BaseEnvironment, context: AgentContext) -> None:
         observation = "No commands executed yet."

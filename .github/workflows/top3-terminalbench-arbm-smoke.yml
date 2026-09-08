@@ -21,6 +21,11 @@ jobs:
     env:
       ZERO_SPEND_MODE: HARD
       PYTHONPATH: ${{ github.workspace }}
+      MODEL_DIR: ${{ github.workspace }}/.cache/arbm-models
+      MODEL_FILE: qwen2.5-coder-14b-instruct-q4_k_m.gguf
+      MODEL_SHA256: c1e659736d89ac1065fb495330fb824d94001974a4bfa78e7270e43476a8d940
+      LLAMA_TAG: b10516
+      LLAMA_SHA256: f263a91280471b4c33c4999d7c76259c0f3a0a53a0b3e692b2c0b84380137a35
     steps:
       - uses: actions/checkout@v7
       - name: Prove external runner and Docker
@@ -35,6 +40,39 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           "$HOME/.local/bin/uv" tool install harbor
           "$HOME/.local/bin/harbor" --help >/dev/null
+      - name: Prepare verified sovereign backstop
+        run: |
+          set -euo pipefail
+          mkdir -p "$MODEL_DIR" top3-evidence/terminalbench-arbm
+          mem_kb=$(awk '/MemTotal/{print $2}' /proc/meminfo)
+          test "$mem_kb" -ge 15360000
+      - name: Restore sovereign model cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.MODEL_DIR }}/${{ env.MODEL_FILE }}
+          key: qwen25-coder-14b-q4km-${{ env.MODEL_SHA256 }}
+          save-always: true
+      - name: Download and verify sovereign model
+        run: |
+          set -euo pipefail
+          MODEL="$MODEL_DIR/$MODEL_FILE"
+          if [ ! -f "$MODEL" ]; then curl -fL --retry 5 --retry-delay 5 -o "$MODEL" "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/resolve/main/$MODEL_FILE?download=true"; fi
+          echo "$MODEL_SHA256  $MODEL" | sha256sum -c -
+      - name: Install pinned llama.cpp and start sovereign server
+        run: |
+          set -euo pipefail
+          URL="https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA_TAG/llama-$LLAMA_TAG-bin-ubuntu-x64.tar.gz"
+          curl -fL --retry 4 -o /tmp/llama.tgz "$URL"
+          echo "$LLAMA_SHA256  /tmp/llama.tgz" | sha256sum -c -
+          mkdir -p /tmp/llama && tar -xzf /tmp/llama.tgz -C /tmp/llama
+          LLAMA_SERVER=$(find /tmp/llama -type f -name llama-server -print -quit)
+          test -n "$LLAMA_SERVER" && chmod +x "$LLAMA_SERVER"
+          "$LLAMA_SERVER" -m "$MODEL_DIR/$MODEL_FILE" --host 127.0.0.1 --port 8088 -c 4096 -np 1 -t 4 -ctk q8_0 -ctv q8_0 --no-warmup --no-webui -a arbm-qwen-sovereign > top3-evidence/terminalbench-arbm/sovereign-server.log 2>&1 &
+          echo "ARBM_SOVEREIGN_SERVER_PID=$!" >> "$GITHUB_ENV"
+          echo "ARBM_SOVEREIGN_ENDPOINT=http://127.0.0.1:8088/v1/chat/completions" >> "$GITHUB_ENV"
+          READY=0
+          for i in $(seq 1 90); do if curl -fsS http://127.0.0.1:8088/health >/dev/null 2>&1; then READY=1; break; fi; sleep 2; done
+          test "$READY" = 1
       - name: Run ARBM on Terminal-Bench 2.1 smoke
         run: |
           set -euo pipefail
@@ -42,6 +80,10 @@ jobs:
           "$HOME/.local/bin/harbor" run -d terminal-bench/terminal-bench-2-1 \
             --agent arbm_harbor_agent:ARBMHarborAgent -l 5 \
             2>&1 | tee top3-evidence/terminalbench-arbm/harbor-arbm-smoke.log
+      - name: Stop sovereign server
+        if: always()
+        run: |
+          kill "$ARBM_SOVEREIGN_SERVER_PID" 2>/dev/null || true
       - name: Print sanitized trial diagnostics
         if: always()
         run: |
