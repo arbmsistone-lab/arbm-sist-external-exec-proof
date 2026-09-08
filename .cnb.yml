@@ -1,0 +1,62 @@
+"infra/cnb-sweff-executor-20260907":
+  push:
+    - name: sweff-capacity-proof
+      runner:
+        tags: cnb:arch:amd64
+        cpus: 16
+      services:
+        - docker
+      docker:
+        image: ubuntu:24.04
+      env:
+        SWEFF_REPO: https://github.com/swefficiency/swefficiency.git
+        SWEFF_SHA: 12d32a2d6800824a7d84bdb6797b5708e7b7957f
+        SWEFF_INSTANCE: numpy__numpy-11720
+      stages:
+        - name: host-and-docker-contract
+          script: |
+            set -euo pipefail
+            echo "CNB_BRANCH=${CNB_BRANCH}"
+            uname -a
+            nproc
+            grep -E 'MemTotal|SwapTotal' /proc/meminfo
+            docker version
+            docker info
+            docker create --name sweff-envelope --memory-reservation=16g --memory=32g --memory-swap=32g alpine:3.22 true
+            docker inspect sweff-envelope --format '{{json .HostConfig}}' > /tmp/docker-hostconfig.json
+            cat /tmp/docker-hostconfig.json
+            docker rm sweff-envelope
+        - name: official-sweff-topology-gate
+          script: |
+            set -euo pipefail
+            apt-get update >/dev/null
+            DEBIAN_FRONTEND=noninteractive apt-get install -y python3 git ca-certificates >/dev/null
+            rm -rf /tmp/sweff
+            git clone --filter=blob:none "$SWEFF_REPO" /tmp/sweff
+            git -C /tmp/sweff checkout --detach "$SWEFF_SHA"
+            python3 - <<'PY'
+            import importlib.util, json, os
+            f='/tmp/sweff/swefficiency/harness/cpu_assignment.py'
+            s=importlib.util.spec_from_file_location('cpu_assignment', f)
+            m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+            physical=len(m.discover_physical_cores())
+            logical=len(os.sched_getaffinity(0))
+            eligible=max(0, physical-4)
+            result={'logicalCpus': logical,'physicalCoresDiscovered': physical,'reservedPhysicalCores':4,'eligiblePhysicalCores':eligible,'requiredPhysicalCoresPerWorker':2,'pass':eligible>=2}
+            print(json.dumps(result, sort_keys=True))
+            raise SystemExit(0 if result['pass'] else 1)
+            PY
+        - name: official-single-task-smoke
+          script: |
+            set -euo pipefail
+            DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip python3-venv >/dev/null
+            python3 -m pip install --break-system-packages -e /tmp/sweff >/dev/null
+            cd /tmp/sweff
+            swefficiency eval \
+              --run_id arbm_cnb_single_smoke \
+              --num_workers 1 \
+              --instances_regex "^${SWEFF_INSTANCE}$"
+        - name: zero-spend-evidence
+          script: |
+            set -euo pipefail
+            printf '{"provider":"cnb","arch":"amd64","requestedCpus":16,"requestedMemoryGiB":32,"docker":true,"branch":"%s","sha":"%s"}\n' "$CNB_BRANCH" "$CNB_COMMIT" | tee /tmp/cnb-sweff-evidence.json
