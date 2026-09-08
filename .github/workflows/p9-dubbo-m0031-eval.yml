@@ -7,6 +7,8 @@ on:
     paths:
       - 'p9-dubbo-m0031.patch'
       - 'p9-evaluator-observe.py'
+      - 'arbm_executor_contract.py'
+      - 'test_arbm_executor_contract.py'
       - '.github/workflows/p9-dubbo-m0031-eval.yml'
 permissions:
   contents: read
@@ -27,12 +29,13 @@ jobs:
       BASE_OFFLINE_LOCAL: swe-milestone/apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__base-offline:v1.0.2
     steps:
       - uses: actions/checkout@v7
-      - name: Verify free hosted capacity
+      - name: Verify provider-neutral executor contract
         env:
-          REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
+          ARBM_REPO_VISIBILITY: ${{ github.event.repository.visibility }}
         run: |
-          test "$REPOSITORY_VISIBILITY" = public || { echo WAITING_FREE_CAPACITY; exit 1; }
-          test "$RUNNER_ENVIRONMENT" = github-hosted || { echo WAITING_FREE_CAPACITY; exit 1; }
+          set -euo pipefail
+          python arbm_executor_contract.py | tee executor-context.json
+          python -m unittest -v test_arbm_executor_contract.py
       - name: Verify frozen patch
         shell: bash
         run: |
@@ -197,6 +200,7 @@ jobs:
         run: |
           mkdir -p p9-eval
           cp -f p9-dubbo-m0031.patch p9-eval/submitted.patch || true
+          cp -f executor-context.json p9-eval/executor-context.json || true
           cp -f baseline-sha256.txt p9-eval/baseline-sha256.txt || true
           cp -f image-identity.txt p9-eval/image-identity.txt || true
           cp -f p9-bindings/repo_config.yaml p9-eval/repo_config.yaml || true

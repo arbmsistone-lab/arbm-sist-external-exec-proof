@@ -2,13 +2,16 @@
 import json
 import os
 from pathlib import Path
+
+from arbm_executor_contract import build_context
 import runpy
 import subprocess
 import sys
 import time
 
 ORIGINAL_RUN = subprocess.run
-OUT = Path(os.environ['GITHUB_WORKSPACE']) / 'p9-eval' / 'docker-diagnostics'
+WORKSPACE = Path(os.environ.get('ARBM_WORKSPACE') or os.environ.get('GITHUB_WORKSPACE') or os.environ.get('CI_PROJECT_DIR') or Path.cwd()).resolve()
+OUT = WORKSPACE / 'p9-eval' / 'docker-diagnostics'
 
 
 def record(name, command):
@@ -76,7 +79,11 @@ def observed_run(command, *args, **kwargs):
 
 
 if __name__ == '__main__':
-    if os.environ.get('GITHUB_ACTIONS') != 'true' or os.environ.get('ZERO_SPEND_MODE') != 'HARD':
-        raise SystemExit('WAITING_FREE_CAPACITY: cloud-only observer')
+    try:
+        context = build_context()
+    except RuntimeError as error:
+        raise SystemExit('WAITING_FREE_CAPACITY: ' + str(error)) from error
+    WORKSPACE = Path(context.workspace)
+    OUT = Path(context.evidence_dir) / 'docker-diagnostics'
     subprocess.run = observed_run
     runpy.run_module('harness.e2e.evaluator', run_name='__main__')
