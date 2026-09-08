@@ -40,7 +40,7 @@ jobs:
           set -euo pipefail
           mkdir -p top3-evidence/terminalbench-arbm
           "$HOME/.local/bin/harbor" run -d terminal-bench/terminal-bench-2-1 \
-            --agent arbm_harbor_agent:ARBMHarborAgent -l 5 \
+            --agent arbm_harbor_agent:ARBMHarborAgent -l 5 --n-concurrent 1 \
             2>&1 | tee top3-evidence/terminalbench-arbm/harbor-arbm-smoke.log
       - name: Print sanitized trial diagnostics
         if: always()
@@ -55,7 +55,6 @@ jobs:
           printf '%s\n' "$RUNNER_ENVIRONMENT" > top3-evidence/terminalbench-arbm/runner-environment.txt
           printf '%s\n' "$ZERO_SPEND_MODE" > top3-evidence/terminalbench-arbm/zero-spend-mode.txt
           latest_result=$(find jobs -name result.json -type f | sort | tail -n 1)
-          if [ -n "$latest_result" ]; then cp "$latest_result" top3-evidence/terminalbench-arbm/harbor-result.json; fi
           if [ -n "$latest_result" ]; then cp "$latest_result" top3-evidence/terminalbench-arbm/harbor-result.json; fi
           find top3-evidence/terminalbench-arbm -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > top3-evidence/terminalbench-arbm/SHA256SUMS.txt
       - name: Upload ARBM immutable evidence
