@@ -18,7 +18,13 @@ class Top3CertificationGateTests(unittest.TestCase):
         failures = GATE.validate_manifest(self.manifest())
         self.assertIn("gate_not_pass:terminal_benchmark:PENDING_EXTERNAL_PROOF", failures)
         self.assertIn("gate_not_pass:computer_use_benchmark:PENDING_EXTERNAL_PROOF", failures)
-        self.assertIn("gate_not_pass:ai_three_independent_providers:PENDING_3X_LIVE_PROOF", failures)
+        self.assertIn("gate_not_pass:three_independent_runners:PENDING_3X_E2E_PROOF", failures)
+        self.assertIn("gate_not_pass:universal_evidence_pack:PENDING_INTEGRATED_PROOF", failures)
+        self.assertNotIn("gate_not_pass:ai_three_independent_providers:PASS", failures)
+        self.assertNotIn("gate_not_pass:distributed_recovery:PASS", failures)
+        self.assertNotIn("gate_not_pass:remote_cancel_preempt:PASS", failures)
+        self.assertNotIn("gate_not_pass:context_isolation:PASS", failures)
+        self.assertNotIn("gate_not_pass:long_missions:PASS", failures)
 
     def test_engineering_official_proof_is_accepted(self):
         failures = GATE.validate_manifest(self.manifest())

@@ -1,7 +1,7 @@
 {
   "schema": "arbm-sist-top3-certification-v1",
-  "candidate_sha": "b8271602d5af047b1c5de89a96dca0865de646d8",
-  "generated_at": "2026-09-08T12:52:16Z",
+  "candidate_sha": "5003ececed838bfc7472c7a8b295088d44da8511",
+  "generated_at": "2026-09-08T17:18:19Z",
   "policy": "fail-closed",
   "mandatory_cost_usd": 0,
   "gates": {
@@ -15,14 +15,65 @@
       "none_to_pass": "1/1",
       "fail_closed": true
     },
-    "terminal_benchmark": {"status": "PENDING_EXTERNAL_PROOF"},
-    "computer_use_benchmark": {"status": "PENDING_EXTERNAL_PROOF"},
-    "ai_three_independent_providers": {"status": "PENDING_3X_LIVE_PROOF"},
-    "three_independent_runners": {"status": "PENDING_3X_E2E_PROOF"},
-    "distributed_recovery": {"status": "PENDING_FAULT_INJECTION_PROOF"},
-    "remote_cancel_preempt": {"status": "PENDING_DISTRIBUTED_PROOF"},
-    "context_isolation": {"status": "PENDING_ADVERSARIAL_PROOF"},
-    "long_missions": {"status": "PENDING_REAL_WORKLOAD_PROOF"},
-    "universal_evidence_pack": {"status": "PENDING_INTEGRATED_PROOF"}
+    "terminal_benchmark": {
+      "status": "PENDING_EXTERNAL_PROOF"
+    },
+    "computer_use_benchmark": {
+      "status": "PENDING_EXTERNAL_PROOF"
+    },
+    "ai_three_independent_providers": {
+      "status": "PASS",
+      "run_id": 34256266094,
+      "artifact_id": 10067975050,
+      "artifact_digest": "sha256:f380a6616581ec85da14c596f150ea19966da396681386697d6dc3cc413b3c25",
+      "providers": [
+        "google-gemini",
+        "cloudflare-workers-ai",
+        "groqcloud-free"
+      ],
+      "mandatory_cost_usd": 0
+    },
+    "three_independent_runners": {
+      "status": "PENDING_3X_E2E_PROOF"
+    },
+    "distributed_recovery": {
+      "status": "PASS",
+      "run_id": 34254646942,
+      "artifact_id": 10067347825,
+      "artifact_digest": "sha256:b27a31c2248ef07ec8b127a776e235834a17f6017b7509159b87f31d43ad4dc9",
+      "three_way_rotation": true,
+      "no_duplicate_mutation": true,
+      "checkpoint_corrupt_fail_closed": true
+    },
+    "remote_cancel_preempt": {
+      "status": "PASS",
+      "run_id": 34254646942,
+      "artifact_id": 10067347825,
+      "artifact_digest": "sha256:b27a31c2248ef07ec8b127a776e235834a17f6017b7509159b87f31d43ad4dc9",
+      "cancel_releases_lease": true,
+      "preempt_preserves_checkpoint": true,
+      "resume_queued": true
+    },
+    "context_isolation": {
+      "status": "PASS",
+      "run_id": 34254646942,
+      "artifact_id": 10067347825,
+      "artifact_digest": "sha256:b27a31c2248ef07ec8b127a776e235834a17f6017b7509159b87f31d43ad4dc9",
+      "cross_mission_path_blocked": true,
+      "cross_mission_secret_blocked": true
+    },
+    "long_missions": {
+      "status": "PASS",
+      "run_id": 34157503111,
+      "artifact_id": 10031987044,
+      "artifact_digest": "sha256:26511c4d54ac113f0c4c71385f803e5039d2c2e4b56ae0cce93b7863ca93489a",
+      "runtime_seconds": 1524,
+      "official_evaluator_seconds": 1264,
+      "promotion_grade": true,
+      "mandatory_cost_usd": 0
+    },
+    "universal_evidence_pack": {
+      "status": "PENDING_INTEGRATED_PROOF"
+    }
   }
 }
