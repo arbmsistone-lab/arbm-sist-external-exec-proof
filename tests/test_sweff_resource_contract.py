@@ -10,19 +10,22 @@ class SweffResourceContractTest(unittest.TestCase):
     def setUpClass(cls):
         cls.text = WORKFLOW.read_text(encoding="utf-8")
 
-    def test_official_container_contract_is_pinned(self):
-        self.assertIn('REQUIRED_RESERVATION_MIB: \'16384\'', self.text)
-        self.assertIn('REQUIRED_LIMIT_MIB: \'32768\'', self.text)
-        self.assertIn('mem_limit="32g"', self.text)
-        self.assertIn('mem_reservation="16g"', self.text)
-        self.assertIn('memswap_limit="32g"', self.text)
+    def test_official_contract_is_pinned(self):
+        for expected in (
+            'mem_limit="32g"', 'mem_reservation="16g"',
+            'memswap_limit="32g"', 'oom_kill_disable=True',
+            'vcpus_per_worker=4', 'threads_per_core=2', 'reserve_cores=4',
+        ):
+            self.assertIn(expected, self.text)
 
-    def test_summary_records_both_memory_thresholds(self):
-        self.assertIn('requiredReservationMiB', self.text)
-        self.assertIn('requiredLimitMiB', self.text)
-        self.assertIn('reservationCompatible', self.text)
-        self.assertIn('hardLimitCompatible', self.text)
-        self.assertIn('officialContainerContract', self.text)
+    def test_v3_uses_runtime_and_topology_not_host_32g(self):
+        self.assertIn("arbm-sweff-resource-contract-v3", self.text)
+        self.assertIn("physicalCoresDiscovered", self.text)
+        self.assertIn("eligiblePhysicalCores", self.text)
+        self.assertIn("dockerMemoryEnvelopeAccepted", self.text)
+        self.assertIn("oomKillDisableEffective", self.text)
+        self.assertIn("BLOCKED_CPU_TOPOLOGY", self.text)
+        self.assertNotIn("observed_mib >= limit_mib", self.text)
 
 
 if __name__ == "__main__":

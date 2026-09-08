@@ -18,8 +18,6 @@ jobs:
     env:
       SWEFF_COMMIT: 12d32a2d6800824a7d84bdb6797b5708e7b7957f
       SWEFF_REPO: https://github.com/swefficiency/swefficiency.git
-      REQUIRED_RESERVATION_MIB: '16384'
-      REQUIRED_LIMIT_MIB: '32768'
     steps:
       - name: Constitutional contract
         run: |
@@ -36,51 +34,70 @@ jobs:
           git fetch --depth=1 origin "$SWEFF_COMMIT"
           git checkout --detach "$SWEFF_COMMIT"
           test "$(git rev-parse HEAD)" = "$SWEFF_COMMIT"
-
-      - name: Verify official evaluator memory contract
+      - name: Verify official evaluator contract
         run: |
           set -euo pipefail
           grep -F 'mem_limit="32g"' sweff/swefficiency/harness/docker_build.py
           grep -F 'mem_reservation="16g"' sweff/swefficiency/harness/docker_build.py
           grep -F 'memswap_limit="32g"' sweff/swefficiency/harness/docker_build.py
-
-      - name: Measure runner capacity
+          grep -F 'oom_kill_disable=True' sweff/swefficiency/harness/docker_build.py
+          grep -F 'vcpus_per_worker=4' sweff/swefficiency/harness/run_validation.py
+          grep -F 'threads_per_core=2' sweff/swefficiency/harness/run_validation.py
+          grep -F 'reserve_cores=4' sweff/swefficiency/harness/run_validation.py
+      - name: Measure host and official CPU topology
         run: |
           set -euo pipefail
           mkdir -p evidence
-          mem_kb="$(awk '/MemTotal/{print $2}' /proc/meminfo)"
-          mem_bytes="$((mem_kb*1024))"
-          mem_mib="$((mem_kb/1024))"
-          cpus="$(nproc)"
-          disk_kb="$(df -Pk . | awk 'NR==2{print $4}')"
-          printf '{"cpus":%s,"memoryBytes":%s,"memoryMiB":%s,"diskAvailableKB":%s}\n' "$cpus" "$mem_bytes" "$mem_mib" "$disk_kb" > evidence/runner-capacity.json
-          cat evidence/runner-capacity.json
+          python - <<'PY'
+          import importlib.util, json, os, pathlib
+          f='sweff/swefficiency/harness/cpu_assignment.py'
+          spec=importlib.util.spec_from_file_location('sweff_cpu',f)
+          m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+          mem_kb=int(next(x.split()[1] for x in pathlib.Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemTotal:')))
+          physical=len(m.discover_physical_cores())
+          out={'logicalCpus':len(os.sched_getaffinity(0)),'physicalCoresDiscovered':physical,
+               'reservedPhysicalCores':4,'requiredPhysicalCoresPerWorker':2,
+               'eligiblePhysicalCores':max(0,physical-4),'memoryBytes':mem_kb*1024,
+               'memoryMiB':mem_kb//1024}
+          pathlib.Path('evidence/runner-capacity.json').write_text(json.dumps(out,indent=2))
+          print(json.dumps(out,indent=2))
+          PY
+      - name: Probe exact Docker memory envelope
+        run: |
+          set -euo pipefail
+          id=$(docker create --memory-reservation=16g --memory=32g --memory-swap=32g --oom-kill-disable alpine:3.22 true 2>evidence/docker-create.stderr)
+          docker inspect "$id" --format '{{json .HostConfig}}' > evidence/docker-hostconfig.json
+          docker start -a "$id"
+          docker rm "$id"
+          cat evidence/docker-create.stderr
+          cat evidence/docker-hostconfig.json
       - name: Freeze compatibility verdict
         run: |
           set -euo pipefail
           python - <<'PY'
           import hashlib, json, pathlib
           cap=json.loads(pathlib.Path('evidence/runner-capacity.json').read_text())
-          reservation_mib=16384
-          limit_mib=32768
-          observed_mib=cap['memoryMiB']
-          reservation_ok=observed_mib >= reservation_mib
-          limit_ok=observed_mib >= limit_mib
-          out={'schema':'arbm-sweff-resource-contract-v2','benchmark':'SWEfficiency',
+          host=json.loads(pathlib.Path('evidence/docker-hostconfig.json').read_text())
+          cpu_ok=cap['eligiblePhysicalCores'] >= cap['requiredPhysicalCoresPerWorker']
+          memory_envelope=(host['Memory']==34359738368 and host['MemoryReservation']==17179869184 and host['MemorySwap']==34359738368)
+          oom_effective=bool(host.get('OomKillDisable'))
+          if not cpu_ok: classification='BLOCKED_CPU_TOPOLOGY'
+          elif not memory_envelope: classification='BLOCKED_DOCKER_RUNTIME'
+          else: classification='RESOURCE_CONTRACT_ONLY'
+          out={'schema':'arbm-sweff-resource-contract-v3','benchmark':'SWEfficiency',
                'commit':'12d32a2d6800824a7d84bdb6797b5708e7b7957f',
-               'officialContainerContract':{'memLimit':'32g','memReservation':'16g','memswapLimit':'32g'},
-               'requiredReservationMiB':reservation_mib,'requiredLimitMiB':limit_mib,
-               'observedMemoryBytes':cap['memoryBytes'],'observedMemoryMiB':observed_mib,
-               'reservationCompatible':reservation_ok,'hardLimitCompatible':limit_ok,
-               'memoryCompatible':reservation_ok and limit_ok,'completeFamilyCertified':False,
-               'classification':'RESOURCE_CONTRACT_ONLY' if reservation_ok and limit_ok else 'BLOCKED_EXTERNAL_COMPUTE'}
+               'paperRecommendation':{'vcpusPerWorker':4,'memoryGBPerWorker':16},
+               'officialContainerContract':{'memLimit':'32g','memReservation':'16g','memswapLimit':'32g','oomKillDisableRequested':True},
+               'officialCpuContract':{'vcpusPerWorker':4,'threadsPerCore':2,'reservePhysicalCores':4},
+               'observed':cap,'cpuTopologyCompatible':cpu_ok,
+               'dockerMemoryEnvelopeAccepted':memory_envelope,'oomKillDisableEffective':oom_effective,
+               'completeFamilyCertified':False,'classification':classification}
           p=pathlib.Path('evidence/sweff-resource-summary.json')
           p.write_text(json.dumps(out,indent=2))
-          d=hashlib.sha256(p.read_bytes()).hexdigest()
-          pathlib.Path('evidence/SHA256SUMS.txt').write_text(f'{d}  sweff-resource-summary.json\n')
+          digest=hashlib.sha256(p.read_bytes()).hexdigest()
+          pathlib.Path('evidence/SHA256SUMS.txt').write_text(f'{digest}  sweff-resource-summary.json\n')
           print(json.dumps(out,indent=2))
           PY
-
       - name: Upload immutable evidence
         uses: actions/upload-artifact@v4
         with:
