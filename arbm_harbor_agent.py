@@ -9,7 +9,7 @@ from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
 
 API_URL = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v1"
-MAX_STEPS = 20
+MAX_STEPS = 6
 
 class ARBMHarborAgent(BaseAgent):
     @staticmethod
@@ -43,7 +43,7 @@ class ARBMHarborAgent(BaseAgent):
         body = json.dumps({"model":"arbm-qwen-sovereign","messages":[{"role":"user","content":prompt}],
                            "max_tokens":256,"temperature":0}).encode()
         req = urllib.request.Request(endpoint,data=body,headers={"Content-Type":"application/json"})
-        with urllib.request.urlopen(req,timeout=420) as r:
+        with urllib.request.urlopen(req,timeout=90) as r:
             outer=json.loads(r.read().decode())
         text=str(outer["choices"][0]["message"]["content"]).strip()
         if text.startswith("```"):
@@ -81,10 +81,13 @@ class ARBMHarborAgent(BaseAgent):
                 try:
                     safe = json.loads(body_text)
                     remote_attempts = safe.get("provider_attempts", []) or []
-                    detail = json.dumps({"status": safe.get("status"), "error": safe.get("error"), "provider_attempts": remote_attempts}, separators=(",", ":"))
+                    capacity_status = safe.get("status")
+                    detail = json.dumps({"status": capacity_status, "error": safe.get("error"), "provider_attempts": remote_attempts}, separators=(",", ":"))
                 except Exception:
                     detail = "unparsed"
                 last_error = "HTTP_%s:%s" % (exc.code, detail)
+                if 'capacity_status' in locals() and capacity_status == "WAITING_FREE_CAPACITY":
+                    break
                 if exc.code not in (401, 408, 429, 500, 502, 503, 504):
                     raise RuntimeError("ARBM_DECISION_HTTP_%s" % exc.code)
             except (urllib.error.URLError, TimeoutError) as exc:
@@ -105,7 +108,7 @@ class ARBMHarborAgent(BaseAgent):
         recent_commands = []
         history = []
         for step in range(1, MAX_STEPS + 1):
-            compact = "\n\n".join(history[-6:] + [observation])[-16000:]
+            compact = "\n\n".join(history[-3:] + [observation])[-6000:]
             decision = self._decide(instruction, compact, step)
             action = decision["action"]
             command = str(action.get("command", "")).strip()
@@ -118,7 +121,7 @@ class ARBMHarborAgent(BaseAgent):
                 history.append(observation)
                 trace.append({"step": step, "action": "rejected_repeat", "command": command, "summary": action.get("summary", "")})
                 continue
-            result = await environment.exec(command=command, timeout_sec=120)
+            result = await environment.exec(command=command, timeout_sec=60)
             recent_commands.append(command)
             observation = "RETURN_CODE: %s\nSTDOUT:\n%s\nSTDERR:\n%s" % (
                 result.return_code, (result.stdout or "")[-10000:], (result.stderr or "")[-10000:]
