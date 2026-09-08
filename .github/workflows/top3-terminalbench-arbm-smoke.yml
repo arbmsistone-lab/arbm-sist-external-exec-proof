@@ -54,14 +54,7 @@ jobs:
           set -euo pipefail
           result=$(find jobs -mindepth 2 -maxdepth 2 -name result.json | sort | tail -n 1)
           test -n "$result"
-          python - "$result" <<'PY'
-import json,sys
-p=sys.argv[1]; d=json.load(open(p,encoding='utf-8'))
-s=d['stats']; ev=next(iter(s['evals'].values()))
-assert s['n_errored_trials']==0, s
-assert ev['n_trials']>=1 and ev['n_errors']==0, ev
-assert s['cost_usd']==0, s['cost_usd']
-PY
+          python -c "import json,sys; d=json.load(open(sys.argv[1],encoding='utf-8')); s=d['stats']; ev=next(iter(s['evals'].values())); assert s['n_errored_trials']==0,s; assert ev['n_trials']>=1 and ev['n_errors']==0,ev; assert s['cost_usd']==0,s['cost_usd']" "$result"
       - name: Freeze evidence
         if: always()
         run: |
