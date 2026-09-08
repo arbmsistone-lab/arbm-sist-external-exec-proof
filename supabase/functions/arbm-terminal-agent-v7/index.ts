@@ -135,14 +135,14 @@ async function callGroq(prompt: string, step = 1, modelHint = "") {
   }
   return { result: null, attempts };
 }
-async function callLightning(prompt: string, modelHint = "") {
+async function callLightning(prompt: string, step = 1, modelHint = "") {
   const storedKey = String(Deno.env.get("LIGHTNING_API_KEY") || "").trim();
   const key = storedKey.split("/")[0];
   const hardFree = String(Deno.env.get("ARBM_LIGHTNING_ZERO_SPEND_CONFIRMED") || "") === "1";
   if (!key) return { result: null, attempts: [{ route: "lightning", status: "not_configured" }] };
   if (!hardFree) return { result: null, attempts: [{ route: "lightning", status: "zero_spend_unconfirmed" }] };
   const attempts: any[] = [];
-  const models = modelHint && LIGHTNING_MODELS.includes(modelHint) ? [modelHint] : LIGHTNING_MODELS;
+  const models = modelHint && LIGHTNING_MODELS.includes(modelHint) ? [modelHint] : (step <= 2 ? LIGHTNING_MODELS : [LIGHTNING_MODELS[1], LIGHTNING_MODELS[2], LIGHTNING_MODELS[0]]);
   const system = "You are ARBM SIST in a Terminal-Bench sandbox. Return exactly one JSON object with keys action, command, summary. action must be exec or finish.";
   for (const model of models) {
     if (cooling("lightning:"+model)) { attempts.push({ route: "lightning", model, status: "cooldown" }); continue; }
@@ -212,6 +212,11 @@ Deno.serve(async (req: Request) => {
     const forceLightning = body?.provider_hint === "lightning" && diagnosticBranch;
     const modelHint = diagnosticBranch ? String(body?.model_hint || "") : "";
     const groqFirst = !forceGoogle && !forceCloudflare && !forceLightning && (forceGroq || step >= 3);
+    const lightningFirst = !groqFirst && !forceGroq && !forceGoogle && !forceCloudflare;
+    if (lightningFirst) {
+      const lightning = await callLightning(prompt, step, forceLightning ? modelHint : "");
+      attempts.push(...lightning.attempts); result = lightning.result;
+    }
     if (groqFirst) {
       const groq = await callGroq(prompt, step, forceGroq ? modelHint : "");
       attempts.push(...groq.attempts); result = groq.result;
@@ -225,8 +230,8 @@ Deno.serve(async (req: Request) => {
       attempts.push(...groq.attempts); result = groq.result;
     }
 
-    if (!result && !forceGroq && !forceGoogle && !forceCloudflare) {
-      const lightning = await callLightning(prompt, forceLightning ? modelHint : "");
+    if (!result && !forceGroq && !forceGoogle && !forceCloudflare && !lightningFirst) {
+      const lightning = await callLightning(prompt, step, forceLightning ? modelHint : "");
       attempts.push(...lightning.attempts);
       result = lightning.result;
     }
