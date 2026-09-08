@@ -9,7 +9,7 @@ const HOST_ID=String(process.env.ARBM_HOST_ID||'').trim();
 const TOKEN=String(process.env.ARBM_HOST_TOKEN||'').trim();
 const CLOUD_VENDOR=String(process.env.ARBM_CLOUD_VENDOR||'').trim().toLowerCase();
 const ROOT=process.env.ARBM_RUN_ROOT||'/var/lib/arbm-continuity/run';
-const CAPS=['git','tests','build','cloud','persistent'];
+const CAPS=String(process.env.ARBM_CAPABILITIES||(CLOUD_VENDOR==='gcp'?'git,tests,cloud,persistent':'git,tests,build,cloud,persistent')).split(',').map(x=>x.trim()).filter(Boolean);
 if(!HOST_ID)throw new Error('persistent_host_id_required');
 if(TOKEN.length<40)throw new Error('persistent_host_token_required');
 if(!['oci','gcp'].includes(CLOUD_VENDOR))throw new Error('persistent_cloud_vendor_required');

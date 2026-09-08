@@ -23,6 +23,8 @@ ENV_FILE="/etc/arbm-continuity.env"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y --no-install-recommends ca-certificates git nodejs
+NODE_MAJOR="$(node -p "process.versions.node.split('.')[0]" 2>/dev/null || echo 0)"
+[[ "$NODE_MAJOR" =~ ^[0-9]+$ && "$NODE_MAJOR" -ge 18 ]] || { echo node_18_plus_required_use_ubuntu_24_04 >&2; exit 8; }
 id -u arbm-continuity >/dev/null 2>&1 || useradd --system --home "$STATE_DIR" --shell /usr/sbin/nologin arbm-continuity
 install -d -m 0755 "$INSTALL_DIR"
 install -d -o arbm-continuity -g arbm-continuity -m 0750 "$STATE_DIR" "$STATE_DIR/run"
@@ -43,19 +45,22 @@ chmod -R a-w "$INSTALL_DIR/repo"
 chown arbm-continuity:arbm-continuity "$STATE_DIR/bootstrap-attestation.json"
 chmod 0640 "$STATE_DIR/bootstrap-attestation.json"
 
+CPU_QUOTA=80%
+MEMORY_MAX=768M
+CAPABILITIES=git,tests,cloud,persistent
+if [[ "$CLOUD_VENDOR" == oci ]]; then CPU_QUOTA=180%; MEMORY_MAX=2G; CAPABILITIES=git,tests,build,cloud,persistent; fi
+
 umask 077
 cat > "$ENV_FILE" <<EOF
 ARBM_HOST_ID=$HOST_ID
 ARBM_HOST_TOKEN=$TOKEN
 ARBM_CLOUD_VENDOR=$CLOUD_VENDOR
 ARBM_RUN_ROOT=$STATE_DIR/run
+ARBM_CAPABILITIES=$CAPABILITIES
 EOF
 chmod 0600 "$ENV_FILE"
 unset TOKEN ARBM_HOST_TOKEN
 if [[ -n "$TOKEN_FILE" ]]; then rm -f -- "$TOKEN_FILE"; fi
-CPU_QUOTA=80%
-MEMORY_MAX=768M
-if [[ "$CLOUD_VENDOR" == oci ]]; then CPU_QUOTA=180%; MEMORY_MAX=2G; fi
 cat > /etc/systemd/system/arbm-continuity.service <<EOF
 [Unit]
 Description=ARBM persistent continuity agent
@@ -71,14 +76,22 @@ ExecStart=/usr/bin/node $INSTALL_DIR/repo/scripts/persistent-continuity-agent.mj
 Restart=always
 RestartSec=10
 NoNewPrivileges=true
+UMask=0077
 PrivateTmp=true
 PrivateDevices=true
 ProtectHome=true
 ProtectSystem=strict
 ReadWritePaths=$STATE_DIR
 ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
 ProtectControlGroups=true
+ProtectClock=true
 RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
 LockPersonality=true
 CPUQuota=$CPU_QUOTA
 MemoryMax=$MEMORY_MAX
