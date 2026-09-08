@@ -12,6 +12,8 @@ const GROQ_STRONG = ["qwen/qwen3.8-27b", "openai/gpt-oss-120b"];
 const GROQ_EFFICIENT = ["qwen/qwen3.6-27b", "openai/gpt-oss-20b"];
 const GROQ_MODELS = [...GROQ_STRONG, ...GROQ_EFFICIENT];
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+const LIGHTNING_URL = "https://lightning.ai/api/v1/chat/completions";
+const LIGHTNING_MODELS = ["lightning-ai/nvidia-nemotron-3-nano-omni-30b-a3b", "lightning-ai/nvidia-nemotron-3-super-120b-a12b"];
 const COOLDOWN = new Map<string, number>();
 const cooling = (k:string) => (COOLDOWN.get(k) || 0) > Date.now();
 const waitMs = (v:string|null, fallback=60) => { const m=/([0-9.]+)/.exec(String(v||"")); return Math.max(1000, (m ? Number(m[1]) : fallback) * 1000); };
@@ -133,6 +135,28 @@ async function callGroq(prompt: string, step = 1, modelHint = "") {
   }
   return { result: null, attempts };
 }
+async function callLightning(prompt: string, modelHint = "") {
+  const key = String(Deno.env.get("LIGHTNING_API_KEY") || "").trim();
+  const hardFree = String(Deno.env.get("ARBM_LIGHTNING_ZERO_SPEND_CONFIRMED") || "") === "1";
+  if (!key) return { result: null, attempts: [{ route: "lightning", status: "not_configured" }] };
+  if (!hardFree) return { result: null, attempts: [{ route: "lightning", status: "zero_spend_unconfirmed" }] };
+  const attempts: any[] = [];
+  const models = modelHint && LIGHTNING_MODELS.includes(modelHint) ? [modelHint] : LIGHTNING_MODELS;
+  const system = "You are ARBM SIST in a Terminal-Bench sandbox. Return exactly one JSON object with keys action, command, summary. action must be exec or finish.";
+  for (const model of models) {
+    if (cooling("lightning:"+model)) { attempts.push({ route: "lightning", model, status: "cooldown" }); continue; }
+    try {
+      const res = await fetch(LIGHTNING_URL, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${key}` }, body: JSON.stringify({ model, messages: [{role:"system",content:system},{role:"user",content:prompt}], max_tokens:192, temperature:0 }), signal: AbortSignal.timeout(30000) });
+      const raw = await res.json().catch(() => ({}));
+      const action = res.ok ? parseJson(String(raw?.choices?.[0]?.message?.content || "")) : null;
+      if (res.status === 429) cool("lightning:"+model, res.headers.get("retry-after"), 60);
+      attempts.push({ route: "lightning-free", model, status: res.status, parsed: !!action, usage_tokens: Number(raw?.usage?.total_tokens || 0), error_message: scrub(raw?.error?.message) });
+      if (action) return { result: { action, model, provider: "lightning-ai-free" }, attempts };
+      if (res.status === 401 || res.status === 403) break;
+    } catch (error:any) { attempts.push({ route:"lightning-free", model, status:"transport", error:String(error?.name||"Error") }); }
+  }
+  return { result: null, attempts };
+}
 async function callCloudflare(prompt: string, modelHint = "") {
   const url = String(Deno.env.get("ARBM_CF_AI_URL") || "").trim();
   const secret = String(Deno.env.get("ARBM_CF_AI_SHARED_SECRET") || "").trim();
@@ -184,22 +208,29 @@ Deno.serve(async (req: Request) => {
     const forceGroq = body?.provider_hint === "groq" && diagnosticBranch;
     const forceGoogle = body?.provider_hint === "google" && diagnosticBranch;
     const forceCloudflare = body?.provider_hint === "cloudflare" && diagnosticBranch;
+    const forceLightning = body?.provider_hint === "lightning" && diagnosticBranch;
     const modelHint = diagnosticBranch ? String(body?.model_hint || "") : "";
-    const groqFirst = !forceGoogle && !forceCloudflare && (forceGroq || step >= 3);
+    const groqFirst = !forceGoogle && !forceCloudflare && !forceLightning && (forceGroq || step >= 3);
     if (groqFirst) {
       const groq = await callGroq(prompt, step, forceGroq ? modelHint : "");
       attempts.push(...groq.attempts); result = groq.result;
     }
-    if (!result && !forceGroq && !forceCloudflare) {
+    if (!result && !forceGroq && !forceCloudflare && !forceLightning) {
       const google = await callGemini(prompt, step, forceGoogle ? modelHint : "");
       attempts.push(...google.attempts); result = google.result;
     }
-    if (!result && !forceGoogle && !forceCloudflare && !groqFirst) {
+    if (!result && !forceGoogle && !forceCloudflare && !forceLightning && !groqFirst) {
       const groq = await callGroq(prompt, step, "");
       attempts.push(...groq.attempts); result = groq.result;
     }
 
-    if (!result && !forceGroq && !forceGoogle) {
+    if (!result && !forceGroq && !forceGoogle && !forceCloudflare) {
+      const lightning = await callLightning(prompt, forceLightning ? modelHint : "");
+      attempts.push(...lightning.attempts);
+      result = lightning.result;
+    }
+
+    if (!result && !forceGroq && !forceGoogle && !forceLightning) {
       const cloudflare = await callCloudflare(prompt, forceCloudflare ? modelHint : "");
       attempts.push(...cloudflare.attempts);
       result = cloudflare.result;
@@ -234,7 +265,7 @@ Deno.serve(async (req: Request) => {
       model: result.model,
       provider: result.provider,
       provider_attempts: attempts,
-      pipeline: "terminal-agent-v12-cloudflare-capacity-discovery",
+      pipeline: "terminal-agent-v13-zero-spend-capacity-mesh",
       mandatory_cost_usd: 0,
       paid_fallback_used: false,
       scoreable: false,
