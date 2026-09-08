@@ -1,0 +1,28 @@
+{
+  "schema": "arbm-sist-top3-certification-v1",
+  "candidate_sha": "b8271602d5af047b1c5de89a96dca0865de646d8",
+  "generated_at": "2026-09-08T12:52:16Z",
+  "policy": "fail-closed",
+  "mandatory_cost_usd": 0,
+  "gates": {
+    "official_engineering_evaluator": {
+      "status": "PASS",
+      "run_id": 34226692171,
+      "artifact_id": 10056755075,
+      "artifact_digest": "sha256:8b367874314d77fd8392c8c106030b69de93ef0937fe25a1002e82abba90f1f6",
+      "resolved": true,
+      "pass_to_pass": "6954/6954",
+      "none_to_pass": "1/1",
+      "fail_closed": true
+    },
+    "terminal_benchmark": {"status": "PENDING_EXTERNAL_PROOF"},
+    "computer_use_benchmark": {"status": "PENDING_EXTERNAL_PROOF"},
+    "ai_three_independent_providers": {"status": "PENDING_3X_LIVE_PROOF"},
+    "three_independent_runners": {"status": "PENDING_3X_E2E_PROOF"},
+    "distributed_recovery": {"status": "PENDING_FAULT_INJECTION_PROOF"},
+    "remote_cancel_preempt": {"status": "PENDING_DISTRIBUTED_PROOF"},
+    "context_isolation": {"status": "PENDING_ADVERSARIAL_PROOF"},
+    "long_missions": {"status": "PENDING_REAL_WORKLOAD_PROOF"},
+    "universal_evidence_pack": {"status": "PENDING_INTEGRATED_PROOF"}
+  }
+}
