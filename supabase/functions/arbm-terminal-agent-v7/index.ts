@@ -14,6 +14,8 @@ const GROQ_MODELS = [...GROQ_STRONG, ...GROQ_EFFICIENT];
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const LIGHTNING_URL = "https://lightning.ai/api/v1/chat/completions";
 const LIGHTNING_MODELS = ["lightning-ai/gpt-oss-20b", "lightning-ai/gpt-oss-120b", "lightning-ai/nemotron-3-ultra-550b-a55b"];
+const MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions";
+const MISTRAL_MODELS = ["ministral-3b-latest", "ministral-8b-latest", "mistral-small-latest"];
 const COOLDOWN = new Map<string, number>();
 const cooling = (k:string) => (COOLDOWN.get(k) || 0) > Date.now();
 const waitMs = (v:string|null, fallback=60) => { const m=/([0-9.]+)/.exec(String(v||"")); return Math.max(1000, (m ? Number(m[1]) : fallback) * 1000); };
@@ -158,6 +160,26 @@ async function callLightning(prompt: string, step = 1, modelHint = "") {
   }
   return { result: null, attempts };
 }
+async function callMistral(prompt: string, modelHint = "") {
+  const key = String(Deno.env.get("MISTRAL_API_KEY") || "").trim();
+  const hardFree = String(Deno.env.get("ARBM_MISTRAL_ZERO_SPEND_CONFIRMED") || "") === "1";
+  if (!key) return { result: null, attempts: [{ route: "mistral", status: "not_configured" }] };
+  if (!hardFree) return { result: null, attempts: [{ route: "mistral", status: "zero_spend_unconfirmed" }] };
+  const attempts:any[]=[];
+  const models = modelHint && MISTRAL_MODELS.includes(modelHint) ? [modelHint] : MISTRAL_MODELS;
+  const system = "Return exactly one JSON object with keys action, command, summary. action must be exec or finish.";
+  for (const model of models) {
+    try {
+      const res=await fetch(MISTRAL_URL,{method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${key}`},body:JSON.stringify({model,messages:[{role:"system",content:system},{role:"user",content:prompt}],max_tokens:192,response_format:{type:"json_object"}}),signal:AbortSignal.timeout(30000)});
+      const raw=await res.json().catch(()=>({}));
+      const action=res.ok?parseJson(String(raw?.choices?.[0]?.message?.content||"")):null;
+      attempts.push({route:"mistral-free",model,status:res.status,parsed:!!action,usage_tokens:Number(raw?.usage?.total_tokens||0),error_message:scrub(raw?.message||raw?.error?.message)});
+      if(action)return {result:{action,model,provider:"mistral-free"},attempts};
+      if([401,403,429].includes(res.status)) break;
+    } catch(error:any){attempts.push({route:"mistral-free",model,status:"transport",error:String(error?.name||"Error")});}
+  }
+  return {result:null,attempts};
+}
 async function callCloudflare(prompt: string, modelHint = "") {
   const url = String(Deno.env.get("ARBM_CF_AI_URL") || "").trim();
   const secret = String(Deno.env.get("ARBM_CF_AI_SHARED_SECRET") || "").trim();
@@ -210,9 +232,11 @@ Deno.serve(async (req: Request) => {
     const forceGoogle = body?.provider_hint === "google" && diagnosticBranch;
     const forceCloudflare = body?.provider_hint === "cloudflare" && diagnosticBranch;
     const forceLightning = body?.provider_hint === "lightning" && diagnosticBranch;
+    const forceMistral = body?.provider_hint === "mistral" && diagnosticBranch;
     const modelHint = diagnosticBranch ? String(body?.model_hint || "") : "";
-    const groqFirst = !forceGoogle && !forceCloudflare && !forceLightning && (forceGroq || step >= 3);
-    const lightningFirst = !groqFirst && !forceGroq && !forceGoogle && !forceCloudflare;
+    if (forceMistral) { const m=await callMistral(prompt,modelHint); attempts.push(...m.attempts); result=m.result; }
+    const groqFirst = !forceMistral && !forceGoogle && !forceCloudflare && !forceLightning && (forceGroq || step >= 3);
+    const lightningFirst = !forceMistral && !groqFirst && !forceGroq && !forceGoogle && !forceCloudflare;
     if (lightningFirst) {
       const lightning = await callLightning(prompt, step, forceLightning ? modelHint : "");
       attempts.push(...lightning.attempts); result = lightning.result;
@@ -221,22 +245,22 @@ Deno.serve(async (req: Request) => {
       const groq = await callGroq(prompt, step, forceGroq ? modelHint : "");
       attempts.push(...groq.attempts); result = groq.result;
     }
-    if (!result && !forceGroq && !forceCloudflare && !forceLightning) {
+    if (!result && !forceMistral && !forceGroq && !forceCloudflare && !forceLightning) {
       const google = await callGemini(prompt, step, forceGoogle ? modelHint : "");
       attempts.push(...google.attempts); result = google.result;
     }
-    if (!result && !forceGoogle && !forceCloudflare && !forceLightning && !groqFirst) {
+    if (!result && !forceMistral && !forceGoogle && !forceCloudflare && !forceLightning && !groqFirst) {
       const groq = await callGroq(prompt, step, "");
       attempts.push(...groq.attempts); result = groq.result;
     }
 
-    if (!result && !forceGroq && !forceGoogle && !forceCloudflare && !lightningFirst) {
+    if (!result && !forceMistral && !forceGroq && !forceGoogle && !forceCloudflare && !lightningFirst) {
       const lightning = await callLightning(prompt, step, forceLightning ? modelHint : "");
       attempts.push(...lightning.attempts);
       result = lightning.result;
     }
 
-    if (!result && !forceGroq && !forceGoogle && !forceLightning) {
+    if (!result && !forceMistral && !forceGroq && !forceGoogle && !forceLightning) {
       const cloudflare = await callCloudflare(prompt, forceCloudflare ? modelHint : "");
       attempts.push(...cloudflare.attempts);
       result = cloudflare.result;
