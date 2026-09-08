@@ -82,7 +82,7 @@ class ARBMHarborAgent(BaseAgent):
         recent_commands = []
         history = []
         for step in range(1, MAX_STEPS + 1):
-            compact = "\n\n".join(history[-4:] + [observation])[-6000:]
+            compact = "\n\n".join(history[-2:] + [observation])[-3500:]
             decision = self._decide(instruction, compact, step)
             action = decision["action"]
             command = str(action.get("command", "")).strip()
