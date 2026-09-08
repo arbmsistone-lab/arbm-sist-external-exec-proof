@@ -25,7 +25,7 @@ jobs:
           if [ "$code" != 200 ]; then jq -c '{error,detail,ok,provider,model,mandatory_cost_usd,paid_fallback_used}' response.json 2>/dev/null || true; fi
           test "$code" = 200
           jq -e '.ok == true and .provider == "cloudflare" and .model == "@cf/nvidia/nemotron-3-120b-a12b" and .mandatory_cost_usd == 0 and .paid_fallback_used == false' response.json >/dev/null
-          jq -e '(.result.response // .result.result.response // "") | tostring | contains("ARBM_CF_OIDC_PASS")' response.json >/dev/null
+          jq -e '(.result.choices[0].message.content // "") | tostring | contains("ARBM_CF_OIDC_PASS")' response.json >/dev/null
           jq '{ok,provider,model,mandatory_cost_usd,paid_fallback_used}' response.json
       - name: Evidence marker
         run: echo 'ARBM_P3_CLOUDFLARE_OIDC_FREE=PASS'
