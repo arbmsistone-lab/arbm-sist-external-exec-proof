@@ -4,6 +4,7 @@ import {promoteReplacement,rollbackReplacement} from './incumbent-promotion-cont
 import {evaluateReplacementProposal} from './replacement-proposal-gate.mjs';
 import {appendEvidence} from './universal-radar-evidence-ledger.mjs';
 import {certifyReplacement} from './replacement-certification.mjs';
+import {registerRollbackValidation} from './rollback-validation.mjs';
 const registryPath='incumbent-registry.json',ledgerPath='universal-radar-evidence-ledger.jsonl',queuePath='replacement-proposals.json';
 const registryBackup=fs.readFileSync(registryPath,'utf8'),ledgerBackup=fs.existsSync(ledgerPath)?fs.readFileSync(ledgerPath,'utf8'):null,queueBackup=fs.existsSync(queuePath)?fs.readFileSync(queuePath,'utf8'):null;
 const d=c=>'sha256:'+c.repeat(64), result={grade:'replacementGrade',decision:'REPLACEMENT_CANDIDATE',replacementApplied:false,gates:{sampleOk:true,pairedOk:true,integrityOk:true}};
@@ -14,6 +15,11 @@ function certifiedProposal(challenger){
  const certification=certifyReplacement({proposal,certificationResult:{status:'PASS',rollbackReady:true,evidenceHash:src.entryHash}});
  assert.equal(certification.certified,true); return {proposal,certification};
 }
+function rollbackProof(promotionHash,reason){
+ const src=appendEvidence({type:'ROLLBACK_VALIDATION_SOURCE',status:'PASS',domain:'ai-providers',promotionHash});
+ const proof=registerRollbackValidation({domain:'ai-providers',promotionHash,reason,validationResult:{status:'PASS',evidenceHash:src.entryHash}});
+ assert.equal(proof.validated,true); return proof.evidenceHash;
+}
 try{
  const before=JSON.parse(registryBackup).domains['ai-providers'].active;
  const challenger={id:'candidate-x',version:'2',artifactSha256:d('b'),activatedAt:'2026-09-08T16:00:00Z',zeroSpendVerified:true};
@@ -23,7 +29,7 @@ try{
  const tampered=promoteReplacement({domain:'ai-providers',proposal:{...proposal,domain:'coding-models'},challengerIdentity:challenger,certification});
  assert.equal(tampered.promoted,false); assert.equal(tampered.reasons.includes('PROPOSAL_HASH_MISMATCH'),true);
  const p=promoteReplacement({domain:'ai-providers',proposal,challengerIdentity:challenger,certification}); assert.equal(p.promoted,true);
- const rb=rollbackReplacement({domain:'ai-providers',promotionHash:p.promotionHash,reason:'canary regression',evidenceHash:d('e')}); assert.equal(rb.rolledBack,true);
+ const rb=rollbackReplacement({domain:'ai-providers',promotionHash:p.promotionHash,reason:'canary regression',evidenceHash:rollbackProof(p.promotionHash,'canary regression')}); assert.equal(rb.rolledBack,true);
  assert.deepEqual(JSON.parse(fs.readFileSync(registryPath,'utf8')).domains['ai-providers'].active,before);
  const replay=promoteReplacement({domain:'ai-providers',proposal,challengerIdentity:challenger,certification}); assert.equal(replay.promoted,false); assert.equal(replay.reasons.includes('PROPOSAL_ALREADY_USED'),true);
  const challenger2={id:'candidate-y',version:'3',artifactSha256:d('c'),activatedAt:'2026-09-08T16:10:00Z',zeroSpendVerified:true};
@@ -32,7 +38,7 @@ try{
  fs.rmSync(lockPath,{recursive:true,force:true}); assert.equal(fs.readFileSync(registryPath,'utf8'),lockBefore);
  fs.mkdirSync(lockPath); const old=new Date(Date.now()-700000); fs.utimesSync(lockPath,old,old);
  const recovered=promoteReplacement({domain:'ai-providers',proposal:second.proposal,challengerIdentity:challenger2,certification:second.certification}); assert.equal(recovered.promoted,true);
- const recoveredRb=rollbackReplacement({domain:'ai-providers',promotionHash:recovered.promotionHash,reason:'stale lock recovery',evidenceHash:d('9')}); assert.equal(recoveredRb.rolledBack,true);
+ const recoveredRb=rollbackReplacement({domain:'ai-providers',promotionHash:recovered.promotionHash,reason:'stale lock recovery',evidenceHash:rollbackProof(recovered.promotionHash,'stale lock recovery')}); assert.equal(recoveredRb.rolledBack,true);
  const stableBefore=fs.readFileSync(registryPath,'utf8'); fs.writeFileSync(ledgerPath,'{corrupt\n');
  const blocked=promoteReplacement({domain:'ai-providers',proposal:second.proposal,challengerIdentity:challenger2,certification:second.certification});
  assert.equal(blocked.promoted,false); assert.equal(blocked.reasons.includes('EVIDENCE_LEDGER_INVALID'),true); assert.equal(fs.readFileSync(registryPath,'utf8'),stableBefore);

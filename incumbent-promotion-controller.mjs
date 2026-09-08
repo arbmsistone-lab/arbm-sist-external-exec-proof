@@ -42,12 +42,14 @@ export function rollbackReplacement(args){return withFileLock(lockPath,()=>{
   if(slot?.lastPromotionHash!==promotionHash) reasons.push('PROMOTION_NOT_CURRENT');
   if(!validIdentity(promotion?.previous)) reasons.push('ROLLBACK_TARGET_INVALID');
   if(!String(reason||'').trim()) reasons.push('ROLLBACK_REASON_REQUIRED');
-  if(!digest(evidenceHash)) reasons.push('ROLLBACK_EVIDENCE_INVALID');
+  if(!validLedgerHash(evidenceHash)) reasons.push('ROLLBACK_EVIDENCE_INVALID');
+  const rollbackEvidence=findEvidence(evidenceHash); const rollbackPayload=rollbackEvidence?.entry?.payload;
+  if(!rollbackEvidence.ok||rollbackPayload?.type!=='ROLLBACK_VALIDATED'||rollbackPayload?.status!=='PASS'||rollbackPayload?.domain!==domain||rollbackPayload?.promotionHash!==promotionHash) reasons.push('ROLLBACK_EVIDENCE_MISMATCH');
   const ledgerCheck=verifyLedger(); if(!ledgerCheck.ok) reasons.push('EVIDENCE_LEDGER_INVALID');
   if(reasons.length) return {schema:'arbm-incumbent-rollback-v1',rolledBack:false,reasons};
   const original=structuredClone(reg); const now=new Date().toISOString(); const failed=structuredClone(slot.active); const rollbackHash=sha(JSON.stringify({domain,promotionHash,failed,restored:promotion.previous,reason,evidenceHash,now}));
   slot.active=promotion.previous; slot.status='VERIFIED'; slot.verifiedAt=now; slot.usableForReplacementProposal=true; slot.lastRollbackHash=rollbackHash; slot.lastPromotionHash=null;
   slot.history.push({type:'ROLLBACK',at:now,rollbackHash,promotionHash,failed,restored:promotion.previous,reason,evidenceHash}); slot.history=slot.history.slice(-100); reg.updatedAt=now;
-  atomicWrite(reg); let ev; try{ev=appendEvidence({type:'INCUMBENT_ROLLED_BACK',domain,rollbackHash,promotionHash,reason,evidenceHash});}catch(e){atomicWrite(original);throw e;}
+  atomicWrite(reg); let ev; try{ev=appendEvidence({type:'INCUMBENT_ROLLED_BACK',domain,rollbackHash,promotionHash,proposalHash:promotion.proposalHash,reason,evidenceHash});}catch(e){atomicWrite(original);throw e;}
   return {schema:'arbm-incumbent-rollback-v1',rolledBack:true,domain,rollbackHash,failed,active:promotion.previous,evidenceHash:ev.entryHash};
 });}
