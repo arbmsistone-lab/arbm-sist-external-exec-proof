@@ -1,0 +1,51 @@
+name: Top3 Final Certification
+on:
+  push:
+    branches:
+      - 'p3/terminal-bench-*'
+    paths:
+      - 'top3-certification-manifest.json'
+      - 'top3-certification-gate.py'
+      - 'top3-certification-gate-test.py'
+      - 'top3-evidence-pack.py'
+      - '.github/workflows/top3-final-certification.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      ZERO_SPEND_MODE: HARD
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate zero-spend policy
+        run: test "$ZERO_SPEND_MODE" = HARD
+      - name: Run certification tests
+        run: python top3-certification-gate-test.py
+      - name: Build fail-closed evidence pack
+        id: pack
+        continue-on-error: true
+        run: python top3-evidence-pack.py
+      - name: Freeze pack hashes
+        if: always()
+        run: |
+          set -euo pipefail
+          test -f top3-evidence-pack.json
+          sha256sum top3-certification-manifest.json top3-certification-gate.py top3-evidence-pack.json > TOP3_SHA256SUMS.txt
+      - name: Upload final certification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: top3-final-certification-evidence
+          path: |
+            top3-certification-manifest.json
+            top3-evidence-pack.json
+            TOP3_SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 90
+      - name: Enforce certification result
+        if: always()
+        run: |
+          python top3-certification-gate.py top3-certification-manifest.json
