@@ -96,40 +96,48 @@ jobs:
           print(json.dumps({'resilience':r,'chaos':c},separators=(',',':')))
           PY
       - name: Probe Vikasit Nova FREE capacity when configured
+        if: github.event_name != 'pull_request'
         env:
           VIKASIT_API_KEY: ${{ secrets.VIKASIT_API_KEY }}
         run: |
           python vikasit_capacity_probe.py
       - name: Probe Groq model-specific FREE buckets
+        if: github.event_name != 'pull_request'
         run: |
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
           python groq_model_bucket_probe.py | tee groq-live.json
 
       - name: Probe Mistral free moderation lane
+        if: github.event_name != 'pull_request'
         run: |
           set -o pipefail
           python mistral_free_moderation_probe.py | tee mistral-live.json
       - name: Probe Supabase FREE guardrail live
+        if: github.event_name != 'pull_request'
         run: |
           set -o pipefail
           python supabase_guardrail_live_probe.py | tee supabase-live.json
 
       - name: Probe ARBM FREE provider mesh
+        if: github.event_name != 'pull_request'
         run: |
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
           python arbm_provider_probe.py
       - name: Probe account-bound FREE capacity
+        if: github.event_name != 'pull_request'
         run: |
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
           python account_capacity_probe.py | tee account-live.jsonl
       - name: Enforce live degraded-mode survival floor
+        if: github.event_name != 'pull_request'
         run: |
           python live_capacity_survival_gate.py --account account-live.jsonl --mistral mistral-live.json --supabase supabase-live.json
 
       - name: Probe SambaNova recurring FREE capacity when configured
+        if: github.event_name != 'pull_request'
         env:
           SAMBANOVA_API_KEY: ${{ secrets.SAMBANOVA_API_KEY }}
         run: |
@@ -137,6 +145,7 @@ jobs:
           test "$ZERO_SPEND_MODE" = "HARD"
           python sambanova_capacity_probe.py
       - name: Probe OpenRouter FREE capacity when configured
+        if: github.event_name != 'pull_request'
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
@@ -144,11 +153,20 @@ jobs:
           test "$ZERO_SPEND_MODE" = "HARD"
           python openrouter_capacity_probe.py
       - name: Revalidate public FREE contracts
+        if: github.event_name != 'pull_request'
         run: python capacity_contract_probe.py
 
       - name: Enforce recurring FREE capacity revalidation
+        if: github.event_name != 'pull_request'
         run: |
           python capacity_revalidation_gate.py --live-revalidated
+
+      - name: PR deterministic certification gate
+        if: github.event_name == 'pull_request'
+        run: |
+          test "$ZERO_SPEND_MODE" = "HARD"
+          python capacity_configuration_gate.py
+          python capacity_ceiling_gate.py
 
       - name: Enforce current capacity configuration truth
         env:
@@ -157,6 +175,7 @@ jobs:
           python capacity_configuration_gate.py
 
       - name: Probe Cerebras FREE capacity when configured
+        if: github.event_name != 'pull_request'
         env:
           CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
         run: |
