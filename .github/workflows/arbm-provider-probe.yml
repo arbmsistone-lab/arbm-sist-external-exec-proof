@@ -10,6 +10,7 @@ on:
     paths:
       - 'arbm_provider_probe.py'
       - 'account_capacity_probe.py'
+      - 'huggingface_capacity_probe.py'
       - 'cerebras_capacity_probe.py'
       - 'test_cerebras_capacity_probe.py'
       - 'sambanova_capacity_probe.py'
@@ -97,6 +98,14 @@ jobs:
           VIKASIT_API_KEY: ${{ secrets.VIKASIT_API_KEY }}
         run: |
           python vikasit_capacity_probe.py
+      - name: Probe Hugging Face Novita recurring FREE capacity
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = "HARD"
+          python huggingface_capacity_probe.py | tee huggingface-live.json
+
       - name: Probe Groq model-specific FREE buckets
         run: |
           set -euo pipefail
