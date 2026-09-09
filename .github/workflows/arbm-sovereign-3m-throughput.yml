@@ -1,0 +1,104 @@
+name: ARBM Sovereign FREE 3M Throughput
+on:
+  push:
+    branches: ['codex/free-capacity-*']
+    paths: ['.github/workflows/arbm-sovereign-3m-throughput.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  throughput:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      ZERO_SPEND_MODE: HARD
+      MODEL_FILE: qwen2.5-coder-3b-instruct-q4_k_m.gguf
+      MODEL_SHA256: 724fb256bec1ff062b2f65e4569e871ad2e95ab2a3989723d1769c54294730b7
+      LLAMA_TAG: b10516
+      LLAMA_SHA256: f263a91280471b4c33c4999d7c76259c0f3a0a53a0b3e692b2c0b84380137a35
+    steps:
+      - uses: actions/checkout@v7
+      - name: Prove remote free runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$ZERO_SPEND_MODE" = HARD
+          echo "shard=${{ matrix.shard }}"
+      - name: Download pinned model and runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 5 -o "$MODEL_FILE" "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/aebf6a0f72261b12fb8199bc580fe172fe86c901/$MODEL_FILE?download=true"
+          echo "$MODEL_SHA256  $MODEL_FILE" | sha256sum -c -
+          curl -fL --retry 4 -o /tmp/llama.tgz "https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA_TAG/llama-$LLAMA_TAG-bin-ubuntu-x64.tar.gz"
+          echo "$LLAMA_SHA256  /tmp/llama.tgz" | sha256sum -c -
+          mkdir -p /tmp/llama && tar -xzf /tmp/llama.tgz -C /tmp/llama
+      - name: Measure generation throughput
+        shell: bash
+        run: |
+          set -euo pipefail
+          LLAMA_SERVER=$(find /tmp/llama -type f -name llama-server -print -quit)
+          chmod +x "$LLAMA_SERVER"
+          "$LLAMA_SERVER" -m "$MODEL_FILE" --host 127.0.0.1 --port 8089 -c 4096 -np 1 -t 4 --no-warmup --no-webui -a arbm-qwen3b > /tmp/arbm-3m-server.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 90); do curl -fsS http://127.0.0.1:8089/health >/dev/null && break; sleep 2; done
+          curl -fsS http://127.0.0.1:8089/health >/dev/null
+          python - <<'PY'
+          import json,time,urllib.request,statistics,os
+          url='http://127.0.0.1:8089/v1/chat/completions'
+          rates=[]; samples=[]
+          for i in range(3):
+              body=json.dumps({'model':'arbm-qwen3b','messages':[{'role':'user','content':'Write concise numbered technical checks for a distributed system. Return plain text only.'}],'max_tokens':256,'temperature':0.2}).encode()
+              req=urllib.request.Request(url,data=body,headers={'content-type':'application/json'})
+              t=time.monotonic()
+              with urllib.request.urlopen(req,timeout=180) as r: data=json.load(r)
+              elapsed=time.monotonic()-t
+              tokens=int(data.get('usage',{}).get('completion_tokens') or 0)
+              rate=tokens/elapsed if elapsed>0 else 0
+              rates.append(rate); samples.append({'tokens':tokens,'elapsed_s':round(elapsed,3),'tokens_per_s':round(rate,3)})
+          med=statistics.median(rates)
+          out={'shard':int(os.environ.get('MATRIX_SHARD','0') or 0),'samples':samples,'median_tokens_per_s':round(med,3),'daily_tokens_single_shard':int(med*86400)}
+          print(json.dumps(out,separators=(',',':')))
+          open('throughput.json','w').write(json.dumps(out,indent=2))
+          assert med>0
+          PY
+        env:
+          MATRIX_SHARD: ${{ matrix.shard }}
+      - name: Upload shard evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: sovereign-3m-shard-${{ matrix.shard }}
+          path: throughput.json
+          retention-days: 30
+  aggregate:
+    needs: throughput
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Download all shard evidence
+        uses: actions/download-artifact@v5
+        with:
+          pattern: sovereign-3m-shard-*
+          path: evidence
+      - name: Enforce 3M/day quantitative gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import glob,json
+          files=glob.glob('evidence/**/throughput.json',recursive=True)
+          rows=[json.load(open(f,encoding='utf-8')) for f in files]
+          assert len(rows)==4, f'EXPECTED_4_SHARDS_GOT_{len(rows)}'
+          total=sum(float(r['median_tokens_per_s']) for r in rows)
+          daily=int(total*86400)
+          result={'shards':rows,'aggregate_tokens_per_s':round(total,3),'projected_daily_tokens':daily,'target_daily_tokens':3000000,'gate':'PASS' if daily>=3000000 else 'FAIL'}
+          print(json.dumps(result,separators=(',',':')))
+          open('sovereign-3m-gate.json','w').write(json.dumps(result,indent=2))
+          assert daily>=3000000, f'INSUFFICIENT_THROUGHPUT_{daily}'
+          PY
