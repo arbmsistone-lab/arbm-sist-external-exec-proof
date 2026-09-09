@@ -81,7 +81,7 @@ def one_op(i):
                     with state_lock: state['reroutes']+=1
             except Exception:
                 with state_lock: state['down'].add(cell)
-        return (time.perf_counter()-started)*1000,touched,(None if ack>=QUORUM else 'quorum_unavailable')
+        return (time.perf_counter()-started)*1000,touched,(None if ack>=QUORUM else 'quorum_unavailable'),phase
     finally:
         if gated: recovery_gate.release()
 
@@ -159,7 +159,7 @@ def checksum(cell):
     finally: conn.close()
 
 setup(); threading.Thread(target=fault_schedule,daemon=True).start()
-lat=[]; errors=[]; touched=[0,0,0,0]; phase_ops={'healthy':0,'n2':0,'repair':0,'quiesce':0,'recovered':0}
+lat=[]; errors=[]; touched=[0,0,0,0]; phase_ops={'healthy':0,'n2':0,'repair':0,'quiesce':0,'recovered':0}; phase_lats={k:[] for k in phase_ops}
 start=time.perf_counter(); i=0
 with concurrent.futures.ThreadPoolExecutor(max_workers=CLIENTS) as ex:
     pending=set()
@@ -168,9 +168,9 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=CLIENTS) as ex:
             pending.add(ex.submit(one_op,i)); i+=1
         done,pending=concurrent.futures.wait(pending,timeout=.05,return_when=concurrent.futures.FIRST_COMPLETED)
         for f in done:
-            ms,cells,err=f.result(); lat.append(ms)
+            ms,cells,err,op_phase=f.result(); lat.append(ms); phase_lats[op_phase].append(ms)
             for c in cells: touched[c]+=1
-            with state_lock: phase_ops[state['phase']]+=1
+            phase_ops[op_phase]+=1
             if err: errors.append(err)
 elapsed=time.perf_counter()-start
 checks=[checksum(c) for c in range(4)]
@@ -181,7 +181,7 @@ out={
  'schema':'arbm-top3-chaos-soak-n2-v2','remoteOnly':True,'zeroSpendHard':True,
  'durationSec':round(elapsed,3),'clients':CLIENTS,'failedCells':list(FAILED_CELLS),'quorum':QUORUM,
  'ops':len(lat),'errors':len(errors),'errorRate':round(len(errors)/max(1,len(lat)),6),
- 'reroutes':reroutes,'perCellAcks':touched,'phaseOps':phase_ops,
+ 'reroutes':reroutes,'perCellAcks':touched,'phaseOps':phase_ops,'phaseP99Ms':{k:round(pct(v,.99),3) for k,v in phase_lats.items()},
  'p95Ms':round(pct(lat,.95),3),'p99Ms':round(pct(lat,.99),3),'throughputOpsSec':round(len(lat)/elapsed,2),
  'rejoined':rejoined,'recoveryRtoSec':rto,'cellRecoverySec':cell_rto,'finalDownCells':final_down,
  'checksums':[list(x) for x in checks],'consistent':consistent,
