@@ -21,7 +21,7 @@ def chaos_floor(routes,failures=1):
   pool=r.get("independence_pool"); _,cap,_=_route_daily_units(r)
   if pool and type(cap) is int and cap>0: pools[pool]=max(pools.get(pool,0),cap)
  ordered=sorted(pools.values(),reverse=True); floor=max(0,sum(ordered)-sum(ordered[:max(0,failures)]))
- return {"status":"PASS" if floor>=BASE_TPD else "FAIL_INSUFFICIENT_CAPACITY","failures":failures,"surviving_useful_units_per_day":floor,"independent_pools":len(pools)}
+ return {"status":"PASS" if floor>=BASE_TPD else "FAIL_INSUFFICIENT_CAPACITY","failures":failures,"surviving_useful_units_per_day":floor,"surviving_tpd":floor,"independent_pools":len(pools)}
 
 def evidence_freshness(item,now=None):
  stamp=item.get("observed_at") if isinstance(item,dict) else None; ok=evidence_fresh(stamp,now)
