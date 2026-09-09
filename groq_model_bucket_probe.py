@@ -1,13 +1,13 @@
 """Probe Groq model-specific FREE buckets without executing model output."""
 import json, os, urllib.error, urllib.request
 from account_capacity_probe import API, oidc
-MODELS=("qwen/qwen3.6-27b","qwen/qwen3.8-27b","openai/gpt-oss-20b","openai/gpt-oss-120b")
+MODELS=("openai/gpt-oss-20b","openai/gpt-oss-120b","qwen/qwen3.8-27b","qwen/qwen3.6-27b")
 SAFE=("route","model","status","parsed","usage_tokens","free_plan_proven",
       "rate_limit_rpd","rate_limit_tpm","remaining_requests","remaining_tokens",
       "rate_limit_headers","mandatory_cost_usd","paid_fallback_used")
 
 def probe(token, model):
-    body={"instruction":"Return one safe inspection command as JSON.",
+    body={"instruction":"Return exactly this JSON object and nothing else: {\"action\":\"finish\",\"command\":\"\",\"summary\":\"ARBM_GROQ_BUCKET_PROBE\"}",
           "observation":"Groq account-bound model bucket probe. No commands executed.",
           "step":1,"provider_hint":"groq","model_hint":model}
     req=urllib.request.Request(API,data=json.dumps(body).encode(),method="POST",

@@ -69,6 +69,12 @@ jobs:
           VIKASIT_API_KEY: ${{ secrets.VIKASIT_API_KEY }}
         run: |
           python vikasit_capacity_probe.py
+      - name: Probe Groq model-specific FREE buckets
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = "HARD"
+          python groq_model_bucket_probe.py
+
       - name: Probe ARBM FREE provider mesh
         run: |
           set -euo pipefail
@@ -79,12 +85,6 @@ jobs:
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
           python account_capacity_probe.py
-      - name: Probe Groq model-specific FREE buckets
-        run: |
-          set -euo pipefail
-          test "$ZERO_SPEND_MODE" = "HARD"
-          python groq_model_bucket_probe.py
-
       - name: Probe SambaNova recurring FREE capacity when configured
         env:
           SAMBANOVA_API_KEY: ${{ secrets.SAMBANOVA_API_KEY }}
