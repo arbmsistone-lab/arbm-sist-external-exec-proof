@@ -1,0 +1,36 @@
+name: ARBM Cloudflare FREE Probe
+on:
+  push:
+    branches: ['codex/free-capacity-*']
+    paths: ['.github/workflows/arbm-cloudflare-free-probe.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ZERO_SPEND_MODE: HARD
+    steps:
+      - uses: actions/checkout@v7
+      - name: Probe Cloudflare route fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = HARD
+          OIDC=$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark" | python -c 'import json,sys;print(json.load(sys.stdin)["value"])')
+          BODY='{"instruction":"Return one safe inspection command as JSON.","observation":"No commands executed yet.","step":1,"provider_hint":"cloudflare"}'
+          HTTP=$(curl -sS -o /tmp/cf.json -w '%{http_code}' -H "Authorization: Bearer $OIDC" -H 'Content-Type: application/json' --data "$BODY" https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v7)
+          python - "$HTTP" /tmp/cf.json <<'PY'
+          import json,sys
+          http=int(sys.argv[1]); d=json.load(open(sys.argv[2],encoding='utf-8'))
+          attempts=d.get('provider_attempts') or []
+          safe={'http':http,'ok':d.get('ok'),'status':d.get('status'),'provider':d.get('provider'),'model':d.get('model'),'mandatory_cost_usd':d.get('mandatory_cost_usd'),'paid_fallback_used':d.get('paid_fallback_used'),'attempts':[{k:a.get(k) for k in ('route','model','status','parsed') if k in a} for a in attempts]}
+          print(json.dumps(safe,separators=(',',':')))
+          assert http==200 and d.get('ok') is True and d.get('status')=='PASS'
+          assert d.get('provider') in ('cloudflare-workers-ai','cloudflare-free')
+          assert d.get('mandatory_cost_usd')==0 and d.get('paid_fallback_used') is False
+          assert any(a.get('route')=='cloudflare' and a.get('status')==200 and a.get('parsed') is True for a in attempts)
+          PY
