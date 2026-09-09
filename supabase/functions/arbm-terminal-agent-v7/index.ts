@@ -130,9 +130,10 @@ async function callGroq(prompt: string, step = 1, modelHint = "") {
         const rpd = res.headers.get("x-ratelimit-limit-requests"), tpm = res.headers.get("x-ratelimit-limit-tokens");
         const retryAfter = res.headers.get("retry-after") || res.headers.get("x-ratelimit-reset-tokens");
         const remainingReq = res.headers.get("x-ratelimit-remaining-requests"), remainingTokens = res.headers.get("x-ratelimit-remaining-tokens");
+        const rateHeaders = Object.fromEntries([...res.headers.entries()].filter(([k]) => k.toLowerCase().startsWith("x-ratelimit-")).map(([k,v]) => [k.toLowerCase(), String(v).slice(0,120)]));
         if (res.status === 429 || remainingTokens === "0") cool("groq:"+model, retryAfter, 60);
         const freePlanProven = rpd === "1000" && tpm === "8000";
-        attempts.push({ route: structured ? "groq-json-object" : "groq-json-text", model, status: res.status, parsed: !!action, usage_tokens: Number.isFinite(raw?.usage?.total_tokens) ? raw.usage.total_tokens : null, free_plan_proven: freePlanProven, rate_limit_rpd: rpd, rate_limit_tpm: tpm, retry_after: retryAfter, remaining_requests: remainingReq, remaining_tokens: remainingTokens, error_message: scrub(raw?.error?.message) });
+        attempts.push({ route: structured ? "groq-json-object" : "groq-json-text", model, status: res.status, parsed: !!action, usage_tokens: Number.isFinite(raw?.usage?.total_tokens) ? raw.usage.total_tokens : null, free_plan_proven: freePlanProven, rate_limit_rpd: rpd, rate_limit_tpm: tpm, rate_limit_headers: rateHeaders, retry_after: retryAfter, remaining_requests: remainingReq, remaining_tokens: remainingTokens, error_message: scrub(raw?.error?.message) });
         if (action && freePlanProven) return { result: { action, model, provider: "groqcloud-free" }, attempts };
         if ([401,403,429].includes(res.status) || res.status >= 500) return {result:null,attempts};
         if (structured && res.status === 400 && /response.?format|json.?object/i.test(String(raw?.error?.message || ""))) continue;
