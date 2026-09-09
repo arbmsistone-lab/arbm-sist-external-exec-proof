@@ -6,7 +6,7 @@ DSNS=[os.environ[f'LOAD_DSN_{i}'] for i in range(4)]
 OUT=Path('top3-evidence/security-load-failure'); OUT.mkdir(parents=True,exist_ok=True)
 DURATION=90.0; CLIENTS=384; POOL_PER_CELL=64
 FAILED_CELLS=(1,2); KILL_AT=20.0; RECOVER_AT=50.0; QUORUM=2
-RECOVERY_WRITER_LIMIT=128
+RECOVERY_WRITER_LIMIT=CLIENTS
 FINAL_DELTA_MAX=1024
 recovery_gate=threading.BoundedSemaphore(RECOVERY_WRITER_LIMIT)
 rejoin_release=threading.Event(); rejoin_release.set()
@@ -43,7 +43,9 @@ def fill_pool(cell):
     while not pools[cell].empty():
         try: pools[cell].get_nowait().close()
         except Exception: pass
-    for _ in range(POOL_PER_CELL): pools[cell].put(new_conn(cell))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(16,POOL_PER_CELL)) as ex:
+        conns=list(ex.map(lambda _: new_conn(cell),range(POOL_PER_CELL)))
+    for conn in conns: pools[cell].put(conn)
 
 def setup():
     for cell in range(4): ensure_cell_up(cell)
@@ -107,6 +109,11 @@ def prepare_repair_cell(cell):
     with new_conn(cell) as c: c.execute('drop index if exists arbm_n2.events_tenant_idx')
     return started
 
+def replay_cursor(cell,target):
+    with new_conn(cell) as c:
+        row=c.execute('select coalesce(min(g),%s+1) from generate_series(1,%s) as s(g) left join arbm_n2.events e on e.event_id=g where e.event_id is null',(target,target)).fetchone()
+    return max(0,int(row[0])-1)
+
 def replay_to_target(cell,cursor,target):
     with wal_lock: snapshot=list(wal[cursor:target])
     bulk_replay(cell,snapshot)
@@ -121,7 +128,10 @@ def recover_cells():
     with state_lock: state['phase']='repair'
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(FAILED_CELLS)) as ex:
         cell_started=list(ex.map(prepare_repair_cell,FAILED_CELLS))
-    cursors={cell:0 for cell in FAILED_CELLS}
+    with wal_lock: initial_target=len(wal)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(FAILED_CELLS)) as ex:
+        starts=list(ex.map(lambda c: replay_cursor(c,initial_target),FAILED_CELLS))
+    cursors={cell:start for cell,start in zip(FAILED_CELLS,starts)}
     while True:
         with wal_lock: target=len(wal)
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(FAILED_CELLS)) as ex:
