@@ -1,0 +1,20 @@
+name: Mistral Admin Rate Limit Probe
+on:
+  push:
+    branches: [codex/free-capacity-groq-compound-20260909]
+    paths:
+      - 'mistral_admin_rate_limit_probe.py'
+      - '.github/workflows/mistral-admin-rate-limit-probe.yml'
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ZERO_SPEND_MODE: HARD
+    steps:
+      - uses: actions/checkout@v7
+      - run: python -m py_compile mistral_admin_rate_limit_probe.py
+      - run: python mistral_admin_rate_limit_probe.py
