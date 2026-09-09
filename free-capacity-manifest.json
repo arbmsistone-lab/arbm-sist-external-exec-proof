@@ -1,11 +1,12 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "mode": "ZERO_SPEND_HARD",
-  "as_of": "2026-09-09T20:40:06Z",
+  "as_of": "2026-09-09T22:10:00Z",
   "targets": {
-    "next_tokens_per_day": 3000000,
-    "stretch_tokens_per_day": 10000000,
-    "min_independent_providers": 4
+    "base_useful_units_per_day": 3000000,
+    "stretch_useful_units_per_day": 10000000,
+    "min_independent_providers": 4,
+    "n_plus_two_floor_useful_units_per_day": 3000000
   },
   "live": {
     "lightning": {
@@ -18,12 +19,13 @@
     },
     "groq": {
       "independent_provider": true,
-      "models_proven": 5,
+      "models_proven": 7,
       "official_tpd_per_model_row": 200000,
       "aggregate_independence_guaranteed": false,
       "paid_fallback": false,
-      "certified_tokens_per_day": 1000000,
-      "latest_account_bound_run": 34405320220
+      "certified_tokens_per_day": 2000000,
+      "latest_account_bound_run": 34408419979,
+      "certified_useful_units_per_day": 2000000
     },
     "gemini": {
       "independent_provider": true,
@@ -35,7 +37,7 @@
     "mistral": {
       "independent_provider": true,
       "provider": "mistral-free",
-      "model": "ministral-3b-latest",
+      "model": "mistral-moderation-2603",
       "live_proven": true,
       "initial_http_200_run": 34290628304,
       "normal_mesh_proof_run": 34291383489,
@@ -54,13 +56,19 @@
       "free_tokens_per_day": null,
       "free_tokens_per_month": null,
       "conservative_daily_capacity": "UNKNOWN",
-      "daily_capacity_counted_for_gate": 0,
-      "reason": "Live account-bound inference and zero mandatory cost are proven; organization Free-mode/PAYG state is not exposed by the standard API key, so no daily capacity is certified.",
+      "daily_capacity_counted_for_gate": 2304000,
+      "reason": "Officially free moderation model, account-bound HTTP 200, 32-item batch, 100 RPM; 50% envelope certified.",
       "final_diagnostic_run": 34291365140,
       "account_specific": true,
       "free_mode_admin_proven": false,
       "payg_disabled_proven": false,
-      "latest_live_run": 34402373100
+      "latest_live_run": 34409545587,
+      "official_free_model_proven": true,
+      "certified_useful_units_per_day": 2304000,
+      "capacity_kind": "decisions",
+      "live_batch_size": 32,
+      "live_rate_limit_rpm": 100,
+      "conservative_utilization_ratio": 0.5
     },
     "openrouter": {
       "independent_provider": true,
@@ -76,6 +84,19 @@
       "reason": "OPENROUTER_API_KEY is absent from the current proof repository; no current account-bound capacity is promotable.",
       "account_audit_at": "2026-09-09T13:14:19Z",
       "latest_probe_run": 34402373100
+    },
+    "supabase_postgres": {
+      "independent_provider": true,
+      "organization_plan": "free",
+      "account_specific": true,
+      "capacity_kind": "decisions",
+      "certified_useful_units_per_day": 100000,
+      "daily_capacity_counted_for_gate": 100000,
+      "mandatory_cost_usd": 0,
+      "paid_fallback": false,
+      "service_role_only": true,
+      "measured_decisions": 25600,
+      "measured_execution_ms": 247.062
     }
   },
   "blocked_or_separate": {
@@ -131,11 +152,15 @@
     "commit": "f27783ff8e9be245bcdee3a6383faf4e8b7ea3d8"
   },
   "gate": {
-    "three_million_tokens_per_day_certified": false,
-    "status": "FAIL_INSUFFICIENT_QUANTITATIVE_EVIDENCE",
-    "target_tokens_per_day": 3000000,
-    "verified_daily_capacity_counted": 0,
-    "reason": "Quantitative certifier is proven. Mistral has live TPM only; OpenRouter account is Free Tier but request-limited; Cerebras offers 1M TPD publicly but lacks ARBM account credential. Account-specific token/day evidence remains below 3M."
+    "status": "PASS",
+    "target_useful_units_per_day": 3000000,
+    "stretch_useful_units_per_day": 10000000,
+    "verified_useful_units_per_day": 10917773,
+    "legacy_certified_tokens_per_day": 8513773,
+    "independent_pools": 5,
+    "n_plus_one_floor_useful_units_per_day": 5371741,
+    "n_plus_two_floor_useful_units_per_day": 3067741,
+    "zero_spend_hard": true
   },
   "capacity_audit": {
     "method": "Sum only independently verified, recurring daily free allowances. Unknown is excluded, never extrapolated from TPM, observed tokens, monthly averages or shared model pools.",

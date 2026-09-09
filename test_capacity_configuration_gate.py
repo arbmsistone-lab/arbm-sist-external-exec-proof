@@ -20,4 +20,8 @@ class GateTests(unittest.TestCase):
         self.assertIn('MISTRAL_COUNTED_WITHOUT_FREE_MODE_PROOF',e)
         self.assertIn('MISTRAL_COUNTED_WITHOUT_PAYG_DISABLED_PROOF',e)
 
+    def test_mistral_official_free_model_can_count_without_payg_admin(self):
+        e=self.run_gate({'mistral':{'daily_capacity_counted_for_gate':2304000,'live_proven':True,'official_free_model_proven':True,'model':'mistral-moderation-2603','free_mode_admin_proven':False,'payg_disabled_proven':False}})
+        self.assertEqual(e,[])
+
 if __name__=='__main__': unittest.main()

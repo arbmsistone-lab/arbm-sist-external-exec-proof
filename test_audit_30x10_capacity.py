@@ -7,7 +7,7 @@ NOW=datetime(2026,9,9,18,40,tzinfo=timezone.utc)
 def route(name,pool,tpd):
     return {"name":name,"independence_pool":pool,"account_verified":True,
             "recurring_free":True,"no_paid_fallback":True,"reset_verified":True,
-            "certified_tokens_per_day":tpd}
+            "certified_useful_units_per_day":tpd}
 
 class AuditTests(unittest.TestCase):
     def test_current_like_mesh_fails_n1_and_n2(self):

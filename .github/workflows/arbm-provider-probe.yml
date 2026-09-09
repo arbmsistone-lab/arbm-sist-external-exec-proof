@@ -51,7 +51,7 @@ jobs:
       - uses: actions/checkout@v7
       - name: Test proof gates and mesh regressions
         run: |
-          python -m unittest test_provider_probe.py test_mesh_capacity.py test_distributed_capacity.py test_cloudflare_granite_capacity.py test_resilience_capacity.py test_vikasit_capacity_probe.py test_cerebras_capacity_probe.py test_capacity_excellence.py test_workload_useful_capacity.py test_audit_30x10_capacity.py test_audit_50x10_capacity.py test_capacity_ceiling_gate.py test_openrouter_capacity_probe.py
+          python -m unittest test_provider_probe.py test_mesh_capacity.py test_distributed_capacity.py test_cloudflare_granite_capacity.py test_resilience_capacity.py test_vikasit_capacity_probe.py test_cerebras_capacity_probe.py test_capacity_excellence.py test_workload_useful_capacity.py test_audit_30x10_capacity.py test_audit_50x10_capacity.py test_capacity_ceiling_gate.py test_openrouter_capacity_probe.py test_capacity_configuration_gate.py
           python -m py_compile account_capacity_probe.py cerebras_capacity_probe.py sambanova_capacity_probe.py distributed_capacity.py cloudflare_granite_capacity.py resilience_capacity.py vikasit_capacity_probe.py capacity_excellence.py workload_useful_capacity.py audit_30x10_capacity.py audit_50x10_capacity.py capacity_ceiling_gate.py openrouter_capacity_probe.py groq_model_bucket_probe.py
           node --test test_mistral_mesh.mjs
           python - <<'PY'
@@ -60,8 +60,10 @@ jobs:
           d=json.load(open('account-capacity-evidence.json',encoding='utf-8'))
           r=certify_mesh(d['routes'])
           assert r['status']=='PASS', r
+          assert r['certified_useful_units_per_day']==10917773, r
           assert r['certified_tokens_per_day']==8513773, r
-          assert r['deficit_tokens_per_day']==0, r
+          assert r['deficit_useful_units_per_day']==0, r
+          assert r['independent_pools']==5, r
           print(json.dumps(r,separators=(',',':')))
           PY
       - name: Report resilience and growth gates
@@ -72,7 +74,12 @@ jobs:
           d=json.load(open('account-capacity-evidence.json',encoding='utf-8'))
           r=certify_resilience(d['routes'])
           assert r['base_3m_status']=='PASS', r
-          print(json.dumps(r,separators=(',',':')))
+          assert r['stretch_10m_status']=='PASS', r
+          assert r['n_plus_one_3m_status']=='PASS', r
+          from capacity_excellence import chaos_floors
+          c=chaos_floors(d['routes']); assert c['n_plus_two_status']=='PASS', c
+          assert c['n_plus_two_floor_useful_units_per_day']==3067741, c
+          print(json.dumps({'resilience':r,'chaos':c},separators=(',',':')))
           PY
       - name: Probe Vikasit Nova FREE capacity when configured
         env:
@@ -85,6 +92,8 @@ jobs:
           test "$ZERO_SPEND_MODE" = "HARD"
           python groq_model_bucket_probe.py
 
+      - name: Probe Mistral free moderation lane
+        run: python mistral_free_moderation_probe.py
       - name: Probe ARBM FREE provider mesh
         run: |
           set -euo pipefail
