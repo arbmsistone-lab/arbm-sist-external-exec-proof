@@ -1,6 +1,8 @@
 ﻿name: HF Account Capability Probe
 on:
   workflow_dispatch:
+  push:
+    branches: [codex/hf-capacity-probe-20260909]
 permissions:
   contents: read
 jobs:
@@ -26,3 +28,4 @@ jobs:
           out={'status':'PASS','name':d.get('name'),'type':d.get('type'),'canPay':d.get('canPay'),'orgs':[{'name':x.get('name'),'roleInOrg':x.get('roleInOrg')} for x in d.get('orgs',[])]}
           print(json.dumps(out,separators=(',',':')))
           PY
+
