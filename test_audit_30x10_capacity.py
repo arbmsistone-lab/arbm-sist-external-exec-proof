@@ -11,7 +11,7 @@ def route(name,pool,tpd):
 
 class AuditTests(unittest.TestCase):
     def test_current_like_mesh_fails_n1_and_n2(self):
-        routes=[route("cf","cf",4305723),route("lightning","l",967741),route("groq","g",800000)]
+        routes=[route("cf","cf",5546032),route("lightning","l",967741),route("groq","g",800000)]
         r=audit(routes,[{"observed_at":"2026-09-09T18:00:00Z"}],NOW)
         self.assertEqual(r["checks"],300)
         self.assertEqual(r["status"],"FAIL")

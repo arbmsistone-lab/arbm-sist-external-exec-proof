@@ -1,5 +1,5 @@
 import unittest
-from cloudflare_granite_capacity import granite_concise_lane_tpd, granite_ratio_lane_tpd
+from cloudflare_granite_capacity import granite_concise_lane_tpd, granite_concise32_lane_tpd, granite_ratio_lane_tpd
 from mesh_capacity import certify_mesh
 
 
@@ -16,6 +16,11 @@ class GraniteCapacityTests(unittest.TestCase):
         self.assertEqual(row["min_prompt_tokens"], 1024)
         self.assertEqual(row["max_output_tokens"], 102)
 
+    def test_concise32_lane_is_live_promotable_floor(self):
+        row = granite_concise32_lane_tpd()
+        self.assertEqual(row["certified_tokens_per_day"], 5546032)
+        self.assertEqual(row["min_prompt_tokens"], 1024)
+        self.assertEqual(row["max_output_tokens"], 32)
     def test_lightning_plus_granite_passes_five_million(self):
         cf = granite_concise_lane_tpd()["certified_tokens_per_day"]
         routes = [

@@ -12,7 +12,7 @@ class ResilienceCapacityTests(unittest.TestCase):
     def test_current_3m_certificate_stays_green(self):
         r = certify_resilience(self.routes)
         self.assertEqual(r["base_3m_status"], "PASS")
-        self.assertEqual(r["certified_tokens_per_day"], 6_073_464)
+        self.assertEqual(r["certified_tokens_per_day"], 7_313_773)
 
     def test_current_mesh_is_not_n_plus_one(self):
         r = certify_resilience(self.routes)
