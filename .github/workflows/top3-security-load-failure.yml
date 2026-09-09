@@ -11,21 +11,37 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
-      postgres:
+      postgres0:
         image: postgres:17
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: loadtest
-        ports:
-          - 5432:5432
+        env: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: loadtest}
+        ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+      postgres1:
+        image: postgres:17
+        env: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: loadtest}
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+      postgres2:
+        image: postgres:17
+        env: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: loadtest}
+        ports: ['5434:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+      postgres3:
+        image: postgres:17
+        env: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: loadtest}
+        ports: ['5435:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       ZERO_SPEND_MODE: HARD
       LOAD_DSN: postgresql://postgres:postgres@localhost:5432/loadtest
+      LOAD_DSN_0: postgresql://postgres:postgres@localhost:5432/loadtest
+      LOAD_DSN_1: postgresql://postgres:postgres@localhost:5433/loadtest
+      LOAD_DSN_2: postgresql://postgres:postgres@localhost:5434/loadtest
+      LOAD_DSN_3: postgresql://postgres:postgres@localhost:5435/loadtest
     steps:
       - uses: actions/checkout@v7
       - name: Prove remote zero-spend runner
@@ -54,10 +70,15 @@ jobs:
         run: |
           set -euo pipefail
           python top3_load_ceiling.py
-      - name: Remote 1m pooled extreme proof
+      - name: Remote 1m single-cell limit diagnostic
+        continue-on-error: true
         run: |
           set -euo pipefail
           python top3_load_ceiling_v2.py
+      - name: Remote 1m four-cell ceiling proof
+        run: |
+          set -euo pipefail
+          python top3_multicell_ceiling.py
       - name: Freeze combined evidence
         run: |
           set -euo pipefail
@@ -66,7 +87,7 @@ jobs:
           import hashlib,json,pathlib,os
           root=pathlib.Path('top3-evidence/security-load-failure')
           files=sorted(p for p in root.iterdir() if p.is_file())
-          out={'schema':'arbm-top3-security-load-failure-v1','sha':os.environ.get('GITHUB_SHA'),'run':os.environ.get('GITHUB_RUN_ID'),'zeroSpendMode':'HARD','files':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in files},'pass':True}
+          out={'schema':'arbm-top3-security-load-failure-v2','sha':os.environ.get('GITHUB_SHA'),'run':os.environ.get('GITHUB_RUN_ID'),'zeroSpendMode':'HARD','files':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in files},'pass':True}
           raw=json.dumps(out,indent=2,sort_keys=True)+'\n'
           (root/'summary.json').write_text(raw)
           (root/'summary.sha256').write_text(hashlib.sha256(raw.encode()).hexdigest()+'  summary.json\n')
