@@ -136,7 +136,7 @@ async function callGroq(prompt: string, step = 1, modelHint = "", systemOverride
         attempts.push({ route: structured ? "groq-json-object" : "groq-json-text", model, status: res.status, parsed: !!action, usage_tokens: Number.isFinite(raw?.usage?.total_tokens) ? raw.usage.total_tokens : null, free_plan_proven: freePlanProven, rate_limit_rpd: rpd, rate_limit_tpm: tpm, rate_limit_headers: rateHeaders, retry_after: retryAfter, remaining_requests: remainingReq, remaining_tokens: remainingTokens, error_message: scrub(raw?.error?.message) });
         if (action && freePlanProven) return { result: { action, model, provider: "groqcloud-free" }, attempts };
         if ([401,403,429].includes(res.status) || res.status >= 500) return {result:null,attempts};
-        if (structured && res.status === 400 && /response.?format|json.?object/i.test(String(raw?.error?.message || ""))) continue;
+        if (structured && res.status === 400 && /response.?format|json.?object|failed.?generation|generate.?json|json.?generation/i.test(String(raw?.error?.message || ""))) continue;
         break;
       } catch (error: any) {
         attempts.push({ route: structured ? "groq-json-object" : "groq-json-text", model, status: "transport", error: String(error?.name || "Error") });
