@@ -85,10 +85,6 @@ jobs:
           test "$ZERO_SPEND_MODE" = "HARD"
           python groq_model_bucket_probe.py
 
-      - name: Probe Groq safeguard FREE bucket
-        env:
-          ZERO_SPEND_MODE: HARD
-        run: python groq_safeguard_account_probe.py
       - name: Probe ARBM FREE provider mesh
         run: |
           set -euo pipefail
