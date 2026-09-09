@@ -33,24 +33,32 @@ def one_op(i):
     primary=tenant_num%4
     tenant=f'tenant-{tenant_num:07d}'
     started=time.perf_counter()
-    for cell in healthy_order(primary):
-        conn=None
-        try:
-            conn=pools[cell].get(timeout=.25)
-            row=conn.execute('select v from arbm_soak.jobs where tenant_id=%s',(tenant,)).fetchone()
-            if row is None: raise RuntimeError('replica_miss')
-            pools[cell].put(conn); conn=None
-            if cell!=primary:
-                with lock: state['reroutes']+=1
-            return (time.perf_counter()-started)*1000,cell,None
-        except queue.Empty:
-            continue
-        except Exception:
-            if conn is not None:
-                try: conn.close()
-                except Exception: pass
-            with lock: state['down'].add(cell)
+    deadline=started+1.25
+    while time.perf_counter()<deadline:
+        cells=healthy_order(primary)
+        if not cells: break
+        for cell in cells:
+            conn=None
+            try:
+                remaining=deadline-time.perf_counter()
+                if remaining<=0: break
+                conn=pools[cell].get(timeout=min(.05,remaining))
+                row=conn.execute('select v from arbm_soak.jobs where tenant_id=%s',(tenant,)).fetchone()
+                if row is None: raise RuntimeError('replica_miss')
+                pools[cell].put(conn); conn=None
+                if cell!=primary:
+                    with lock: state['reroutes']+=1
+                return (time.perf_counter()-started)*1000,cell,None
+            except queue.Empty:
+                continue
+            except Exception:
+                if conn is not None:
+                    try: conn.close()
+                    except Exception: pass
+                with lock: state['down'].add(cell)
+        time.sleep(.001)
     return (time.perf_counter()-started)*1000,-1,'unavailable_after_reroute'
+
 
 def kill_cell_after(delay):
     time.sleep(delay)
