@@ -1,0 +1,212 @@
+{
+  "schema": "arbm-sweff-final-evidence-v1",
+  "observedAt": "2026-09-09",
+  "result": "BLOCKED_EXTERNAL_COMPUTE",
+  "decision": "NO-GO",
+  "certified": false,
+  "top3Claim": false,
+  "repository": "arbmsistone-lab/arbm-sist-external-exec-proof",
+  "branch": "codex/sweff-final-close-20260909",
+  "baselineSha": "c0b0e117cec4eef27008beb936ed2f829e36d9e8",
+  "benchmarkCommit": "12d32a2d6800824a7d84bdb6797b5708e7b7957f",
+  "scope": "SWEfficiency only",
+  "execution": {
+    "newRemoteRuns": [],
+    "localHeavyRuns": 0,
+    "provider": null,
+    "runner": null,
+    "newMeasuredCapacity": null
+  },
+  "cost": {
+    "mode": "HARD",
+    "billingChanged": false,
+    "paidResourceCreated": false,
+    "computeDispatched": false,
+    "invoiceVerified": false
+  },
+  "contract": {
+    "minimumMemoryBytes": 17179869184,
+    "dockerRequired": true,
+    "officialReservedPhysicalCores": 4,
+    "officialWorkerPhysicalCores": 2,
+    "officialMemoryLimitBytes": 34359738368,
+    "officialMemoryReservationBytes": 17179869184,
+    "verifyCgroupsAndAffinity": true,
+    "sequence": [
+      "free entitlement and hard spending block",
+      "resource contract",
+      "one official smoke",
+      "larger benchmark"
+    ]
+  },
+  "candidates": [
+    {
+      "provider": "Semaphore",
+      "sha": "c0b0e117cec4eef27008beb936ed2f829e36d9e8",
+      "ref": "semaphore/sweff-ready-20260906",
+      "runner": "r1-standard-8",
+      "advertised": {
+        "vcpus": 8,
+        "memoryGB": 16,
+        "diskGB": 75,
+        "architecture": "ARM"
+      },
+      "measured": null,
+      "blockers": [
+        "Available browser is at login, not authenticated",
+        "Organization/project and free entitlement unavailable",
+        "Hard billing block unverified",
+        "Actual memory, topology, Docker and ARM compatibility unmeasured"
+      ],
+      "findings": [
+        "Prepared RAM threshold is 16000000 KiB, below 16 GiB",
+        "hello-world accepting Docker limits does not prove available memory"
+      ],
+      "sources": [
+        "https://docs.semaphore.io/reference/machine-types",
+        "https://docs.semaphore.io/using-semaphore/billing",
+        "https://id.semaphoreci.com/login"
+      ]
+    },
+    {
+      "provider": "Codespaces",
+      "sha": "e70d6ffb6fc7acb9ea5090040a07d50091b7f785",
+      "ref": "codespaces-sweff-capacity-probe-20260907",
+      "requested": {
+        "vcpus": 32,
+        "memory": "120gb",
+        "storage": "128gb"
+      },
+      "authenticatedUIOptions": [
+        {
+          "vcpus": 2,
+          "memoryGB": 8,
+          "diskGB": 32
+        },
+        {
+          "vcpus": 4,
+          "memoryGB": 16,
+          "diskGB": 32
+        }
+      ],
+      "measured": null,
+      "blockers": [
+        "Only 2/4-core machines offered, insufficient for official reserved physical cores plus worker",
+        "No SWEff codespace exists",
+        "Free quota and hard spending block unverified"
+      ],
+      "source": "https://github.com/codespaces/new?repo=1355191632"
+    },
+    {
+      "provider": "GitLab FREE",
+      "evidenceType": "historical repository evidence, not newly measured",
+      "observed": {
+        "vcpus": 2,
+        "memoryMB": 7954,
+        "diskAvailableMB": 18891,
+        "pipelineId": "2827844667",
+        "jobId": "16355607115",
+        "runner": "7-green.saas-linux-small-amd64.runners-manager.gitlab.com/default",
+        "observedAt": "2026-09-08T00:02:41.052946Z"
+      },
+      "blockers": [
+        "Below memory and CPU contract"
+      ],
+      "source": "https://github.com/arbmsistone-lab/arbm-sist-external-exec-proof/blob/566a1ce42e6ad2648599941bb21bd253b53fa2cc/certification/gitlab-universal-capacity-20260907.json",
+      "conflict": "Older provider registry says memoryMB=16006; newer evidence says 7954. Neither meets 16384 MiB."
+    },
+    {
+      "provider": "CircleCI",
+      "sha": "3962ecda54753ab3545845c30383405c62a74172",
+      "blockers": [
+        "xlarge paid-plan restriction reported by user; excluded as instructed"
+      ],
+      "verifiedThisTurn": "GitHub status failure; plan restriction not independently revalidated",
+      "source": "https://circleci.com/gh/arbmsistone-lab/arbm-sist-external-exec-proof/8"
+    },
+    {
+      "provider": "Cirrus",
+      "sha": "d6919f54ec3240f1ee874f4ec3f24a6cda742b80",
+      "requested": {
+        "vcpus": 8,
+        "memory": "32G"
+      },
+      "measured": null,
+      "blockers": [
+        "TLS/API failure reported by user",
+        "Independent authenticated zero-cost route not established"
+      ],
+      "verifiedThisTurn": "GitHub API probe check failed; no Cirrus commit status returned; no retry dispatched",
+      "findings": [
+        "Prepared task does not enforce Docker/memory/billing"
+      ]
+    },
+    {
+      "provider": "CNB",
+      "sha": "2bd467ceed1b048d2327c463a45343284f5f7c53",
+      "ref": "infra/cnb-sweff-executor-20260907",
+      "requested": {
+        "vcpus": 16,
+        "architecture": "amd64"
+      },
+      "measured": null,
+      "blockers": [
+        "Configured project URL, authenticated execution and free entitlement unavailable"
+      ],
+      "findings": [
+        "Pipeline reaches smoke without enforcing minimum measured RAM or spend policy",
+        "Final JSON reports requested 32 GiB without measuring or enforcing it"
+      ]
+    }
+  ],
+  "historicalRuns": [
+    {
+      "id": 34171697179,
+      "jobId": 101893076911,
+      "sha": "0941e76561c252fde625f2685cbabcf4c9b81ede",
+      "conclusion": "success",
+      "meaning": "Docker envelope probe only; NOT certification",
+      "observed": {
+        "vcpus": 4,
+        "memoryKiB": 16373444,
+        "dockerVersion": "28.0.4",
+        "architecture": "linux/amd64",
+        "oomKillDisableEffective": false
+      },
+      "warning": "Kernel discarded OomKillDisable; RAM below 16 GiB",
+      "source": "https://github.com/arbmsistone-lab/arbm-sist-external-exec-proof/actions/runs/34171697179"
+    },
+    {
+      "id": 34171995848,
+      "jobId": 101893935986,
+      "sha": "2b7ed33572e5e3a312b850f3ede41c0fd4c95cd4",
+      "conclusion": "failure",
+      "instance": "numpy__numpy-11720",
+      "meaning": "Historical smoke exit 1; consulted job log does not establish root cause. Not attributed to ARBM.",
+      "artifactId": 10036018631,
+      "artifactDigest": "sha256:5ea5d170c03e8dfebad159d47ec50f1f869d0f090355c8dad9ec53b067da82d0",
+      "artifactExpiresAt": "2026-10-08T00:03:49Z",
+      "source": "https://github.com/arbmsistone-lab/arbm-sist-external-exec-proof/actions/runs/34171995848"
+    }
+  ],
+  "auditFindings": [
+    {
+      "ref": "566a1ce42e6ad2648599941bb21bd253b53fa2cc",
+      "path": ".github/workflows/sweff-resource-contract.yml",
+      "finding": "v3 accepts Docker memory envelope without enforcing measured RAM >=16 GiB and does not exit nonzero for incompatible classification. Insufficient for certification.",
+      "resolved": false
+    }
+  ],
+  "rollback": {
+    "baselineSha": "c0b0e117cec4eef27008beb936ed2f829e36d9e8",
+    "method": "Evidence-only new branch; return to baseline SHA. No production/provider rollback required.",
+    "existingBranchesChanged": false,
+    "productionChanged": false
+  },
+  "nextRoute": "Existing Semaphore project, conditional on authenticated free entitlement and hard spending block, then strict RAM/topology/Docker/architecture resource contract. Availability is NOT proven.",
+  "integrity": "Bound by Git blob and enclosing commit SHA. Historical artifact digest recorded; artifact retention finite. Missing evidence stays null.",
+  "publication": {
+    "messageRequires": "[skip ci]",
+    "reason": "No compute dispatch before zero-spend verification"
+  }
+}
