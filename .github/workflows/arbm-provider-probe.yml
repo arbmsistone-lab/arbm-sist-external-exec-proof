@@ -47,6 +47,9 @@ on:
       - 'test_workload_useful_capacity.py'
       - 'supabase/functions/arbm-terminal-agent-v7/**'
       - '.github/workflows/arbm-provider-probe.yml'
+  pull_request:
+    branches:
+      - 'codex/free-capacity-account-proof-20260909'
   workflow_dispatch:
 permissions:
   contents: read
