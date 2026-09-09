@@ -1,0 +1,38 @@
+name: HF ZeroGPU Account-Bound Proof
+on:
+  push:
+    branches: [codex/hf-capacity-probe-20260909]
+    paths:
+      - '.github/workflows/hf-zerogpu-proof.yml'
+permissions:
+  contents: read
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    steps:
+      - name: Probe ZeroGPU eligibility without paid fallback
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${HF_TOKEN:-}"
+          python -m pip install -q 'huggingface_hub>=1.0,<2'
+          python - <<'PY'
+          import json, os
+          from huggingface_hub import HfApi
+          api=HfApi(token=os.environ['HF_TOKEN'])
+          me=api.whoami()
+          owner=me.get('name')
+          repo=f"{owner}/arbm-zerogpu-capacity-proof"
+          out={'provider':'huggingface-zerogpu','account':owner,'repo':repo,'mandatory_cost_usd':0,'paid_fallback_used':False}
+          try:
+              url=api.create_repo(repo_id=repo, repo_type='space', space_sdk='gradio', space_hardware='zero-a10g', private=True, exist_ok=True)
+              rt=api.get_space_runtime(repo)
+              out.update(status='PASS',created=True,hardware=str(rt.hardware),requested_hardware=str(rt.requested_hardware),stage=str(rt.stage),url=str(url))
+          except Exception as e:
+              msg=str(e)
+              out.update(status='NOT_ELIGIBLE',created=False,error_type=type(e).__name__,error=msg[:500])
+          print(json.dumps(out,separators=(',',':')))
+          PY
