@@ -6,8 +6,8 @@ DSNS=[os.environ[f'LOAD_DSN_{i}'] for i in range(4)]
 OUT=Path('top3-evidence/security-load-failure'); OUT.mkdir(parents=True,exist_ok=True)
 DURATION=90.0; CLIENTS=384; POOL_PER_CELL=64
 FAILED_CELLS=(1,2); KILL_AT=20.0; RECOVER_AT=50.0; QUORUM=2
-RECOVERY_WRITER_LIMIT=64
-FINAL_DELTA_MAX=2048
+RECOVERY_WRITER_LIMIT=128
+FINAL_DELTA_MAX=1024
 recovery_gate=threading.BoundedSemaphore(RECOVERY_WRITER_LIMIT)
 rejoin_release=threading.Event(); rejoin_release.set()
 state={'down':set(),'phase':'healthy','reroutes':0,'rejoined':False,'recoveryRtoSec':None,'cellRecoverySec':[]}
@@ -186,9 +186,10 @@ out={
  'rejoined':rejoined,'recoveryRtoSec':rto,'cellRecoverySec':cell_rto,'finalDownCells':final_down,
  'checksums':[list(x) for x in checks],'consistent':consistent,
  'paidFallbackUsed':False,'mandatoryCostUsd':0,
- 'thresholds':{'errorRateMax':0,'p99MsMax':1500,'throughputMinOpsSec':500,'recoveryRtoSecMax':20,'reroutesMin':1}
+ 'thresholds':{'errorRateMax':0,'p99MsMax':1500,'phaseP99MsMax':1500,'throughputMinOpsSec':500,'recoveryRtoSecMax':20,'reroutesMin':1}
 }
-out['pass']=(out['errorRate']==0 and out['p99Ms']<1500 and out['throughputOpsSec']>500 and out['reroutes']>0 and out['rejoined'] and not out['finalDownCells'] and out['consistent'] and out['recoveryRtoSec'] is not None and out['recoveryRtoSec']<20 and not out['paidFallbackUsed'])
+phase_p99_ok=all(v<1500 for k,v in out['phaseP99Ms'].items() if phase_ops[k]>0)
+out['pass']=(out['errorRate']==0 and out['p99Ms']<1500 and phase_p99_ok and out['throughputOpsSec']>500 and out['reroutes']>0 and out['rejoined'] and not out['finalDownCells'] and out['consistent'] and out['recoveryRtoSec'] is not None and out['recoveryRtoSec']<20 and not out['paidFallbackUsed'])
 raw=json.dumps(out,indent=2,sort_keys=True)+'\n'
 (OUT/'chaos-soak-n2.json').write_text(raw)
 (OUT/'chaos-soak-n2.sha256').write_text(hashlib.sha256(raw.encode()).hexdigest()+'  chaos-soak-n2.json\n')

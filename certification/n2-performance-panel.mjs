@@ -9,6 +9,6 @@ if(!Array.isArray(p.roles) || p.roles.length!==30 || new Set(p.roles).size!==30)
 const prefixes=['SRE','DR','PostgreSQL','distributed','performance','security','QA'];
 for(const prefix of prefixes) if(!p.roles.some(r=>r.startsWith(prefix))) fail(`missing_${prefix}`);
 const g=p.runtimeGates||{};
-const expected={errorRateMax:0,p99MsMax:1500,throughputMinOpsSec:500,recoveryRtoSecMax:20,failedCells:2,quorum:2,consistent:true,rejoined:true,mandatoryCostUsd:0};
+const expected={errorRateMax:0,p99MsMax:1500,phaseP99MsMax:1500,throughputMinOpsSec:500,recoveryRtoSecMax:20,failedCells:2,quorum:2,consistent:true,rejoined:true,mandatoryCostUsd:0};
 for(const [k,v] of Object.entries(expected)) if(g[k]!==v) fail(`gate_${k}`);
 console.log(JSON.stringify({pass:true,roles:p.roles.length,auditRounds:p.auditRounds,policy:p.policy,gates:g}));

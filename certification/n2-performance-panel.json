@@ -16,6 +16,7 @@
   "runtimeGates": {
     "errorRateMax": 0,
     "p99MsMax": 1500,
+    "phaseP99MsMax": 1500,
     "throughputMinOpsSec": 500,
     "recoveryRtoSecMax": 20,
     "failedCells": 2,
