@@ -1,0 +1,89 @@
+{
+  "schema": "arbm-global-compute-radar-v1",
+  "observedAt": "2026-09-09",
+  "scope": "SWEfficiency external compute",
+  "policy": {
+    "mandatoryZeroSpend": true,
+    "localHeavyCompute": false,
+    "minimumLogicalCpus": 8,
+    "minimumPhysicalCores": 6,
+    "minimumMemoryBytes": 17179869184,
+    "dockerRequired": true,
+    "failClosed": true
+  },
+  "ranking": [
+    {
+      "rank": 1,
+      "provider": "Latchkey OSS",
+      "target": "latchkey-xlarge",
+      "advertised": {"vcpus":16,"memoryGB":64},
+      "freeModel": "6000 runner minutes/month for approved OSS projects",
+      "cardRequiredToStart": false,
+      "cardlessExhaustionBehavior": "blocks new jobs",
+      "state": "PREFERRED_EXTERNAL_ONBOARDING",
+      "reason": "Best recurring zero-spend fit if OSS approval is granted"
+    },
+    {
+      "rank": 2,
+      "provider": "Blacksmith",
+      "target": "blacksmith-16vcpu-ubuntu-2404",
+      "advertised": {"vcpus":16,"memoryGB":64,"storageGB":750},
+      "freeModel": "3000 free minutes/month; OSS sponsorship exists",
+      "cardRequiredToStart": false,
+      "state": "HIGH_PRIORITY_CANDIDATE",
+      "reason": "Strong hardware and Docker-oriented CI, but hard zero-spend exhaustion behavior must be verified"
+    },
+    {
+      "rank": 3,
+      "provider": "Azure Free Trial",
+      "target": "16-vCPU/64-GB class VM",
+      "freeModel": "$200 trial credit / 30 days with spending limit",
+      "state": "TEMPORARY_PROOF_ROUTE",
+      "reason": "Hard spending-limit behavior is documented; not a permanent free route"
+    }
+  ],  "rejectedOrDeprioritized": [
+    {
+      "provider": "Semaphore r1-standard-8",
+      "state": "REJECTED_FOR_SWEFFICIENCY",
+      "reason": "ARM R1 route does not satisfy required Docker environment contract"
+    },
+    {
+      "provider": "GitHub hosted standard",
+      "state": "INSUFFICIENT_CAPACITY",
+      "reason": "Historical 4 vCPU / ~16 GiB runner below strict topology contract"
+    },
+    {
+      "provider": "GitLab FREE shared",
+      "state": "INSUFFICIENT_CAPACITY",
+      "reason": "Measured 2 vCPU / ~8 GiB"
+    },
+    {
+      "provider": "Codespaces",
+      "state": "INSUFFICIENT_CAPACITY",
+      "reason": "Observed selectable 2/4 vCPU classes below strict topology contract"
+    },
+    {
+      "provider": "CircleCI",
+      "state": "DEPRIORITIZED",
+      "reason": "Required large resource class not proven free and hard-capped"
+    },
+    {
+      "provider": "Brazilian public cloud/trials surveyed",
+      "state": "NO_VERIFIED_RECURRING_ZERO_SPEND_WINNER",
+      "reason": "No nationally hosted offer found with simultaneously verified 16 vCPU-class capacity, Docker, permanent zero-spend and hard no-overage behavior"
+    }
+  ],
+  "activationGate": {
+    "mustVerifyBeforeFirstJob": [
+      "account entitlement",
+      "hard no-overage behavior",
+      "runner architecture",
+      "logical CPU count",
+      "physical core count",
+      "memory >= 16 GiB",
+      "Docker runtime and exact memory envelope",
+      "dataset authorization"
+    ],
+    "automaticActivation": false
+  }
+}
