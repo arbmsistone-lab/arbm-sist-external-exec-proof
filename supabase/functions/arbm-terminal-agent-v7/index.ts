@@ -101,8 +101,9 @@ async function callGemini(prompt: string, step = 1, modelHint = "") {
       const raw = await res.json().catch(() => ({}));
       const action = res.ok ? parseJson(extractGemini(raw)) : null;
       const quota=googleQuota(raw), retry=quota.retry || res.headers.get("retry-after");
+      const rateHeaders=Object.fromEntries([...res.headers.entries()].filter(([k])=>/rate.?limit|quota/i.test(k)).map(([k,v])=>[k.toLowerCase(),String(v).slice(0,120)]));
       if (res.status === 429 || res.status === 503) cool("google:"+model, retry, res.status===429 ? 120 : 30);
-      attempts.push({ route: "google", model, status: res.status, parsed: !!action, usage_tokens: Number.isFinite(raw?.usageMetadata?.totalTokenCount) ? raw.usageMetadata.totalTokenCount : null, retry_after: retry || null, quota_limit: quota.limit, quota_metric: quota.metric || null });
+      attempts.push({ route: "google", model, status: res.status, parsed: !!action, usage_tokens: Number.isFinite(raw?.usageMetadata?.totalTokenCount) ? raw.usageMetadata.totalTokenCount : null, retry_after: retry || null, quota_limit: quota.limit, quota_metric: quota.metric || null, rate_limit_headers: rateHeaders });
       if (action) return { result: { action, model, provider: "google-gemini" }, attempts };
       if (!mistralModelUnavailable(res.status, String(raw?.error?.message || ""))) break;
     } catch (error: any) {
