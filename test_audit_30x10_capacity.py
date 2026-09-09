@@ -1,4 +1,4 @@
-import unittest
+﻿import unittest
 from datetime import datetime, timezone
 from audit_30x10_capacity import audit
 
@@ -18,6 +18,17 @@ class AuditTests(unittest.TestCase):
         self.assertIn("n_plus_one",r["findings"])
         self.assertIn("n_plus_two",r["findings"])
 
+    def test_four_pools_below_10m_still_fails(self):
+        routes=[route("a","a",3_100_000),route("b","b",2_500_000),route("c","c",2_000_000),route("d","d",1_500_000)]
+        r=audit(routes,[{"observed_at":"2026-09-09T18:00:00Z"}],NOW)
+        self.assertEqual(r["status"],"FAIL")
+        self.assertIn("stretch_10m",r["findings"])
+
+    def test_10m_with_only_three_pools_still_fails(self):
+        routes=[route("a","a",4_000_000),route("b","b",3_500_000),route("c","c",3_000_000)]
+        r=audit(routes,[{"observed_at":"2026-09-09T18:00:00Z"}],NOW)
+        self.assertEqual(r["status"],"FAIL")
+        self.assertIn("independent_pools_lt_4",r["findings"])
     def test_top_tier_mesh_passes_300_checks(self):
         routes=[route("a","a",4_000_000),route("b","b",3_500_000),route("c","c",3_200_000),route("d","d",3_000_000)]
         r=audit(routes,[{"observed_at":"2026-09-09T18:00:00Z"}],NOW)
@@ -25,3 +36,4 @@ class AuditTests(unittest.TestCase):
         self.assertEqual(r["passed_checks"],300)
 
 if __name__=='__main__': unittest.main()
+
