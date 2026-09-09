@@ -193,6 +193,19 @@ function mistralModelUnavailable(status: number, message: string) {
   return [400,404,422].includes(status) && /model/i.test(message) &&
     /not found|does not exist|unavailable|not available|unsupported|invalid model/i.test(message);
 }
+async function probeMistralAdminRateLimit() {
+  const key = String(Deno.env.get("MISTRAL_API_KEY") || "").trim();
+  if (!key) return { status: "NOT_CONFIGURED" };
+  try {
+    const res = await fetch("https://api.mistral.ai/v1/admin/rate-limit", {
+      method: "GET", headers: { authorization: `Bearer ${key}`, "x-api-key": key }, signal: AbortSignal.timeout(10000)
+    });
+    const raw = await res.json().catch(() => ({}));
+    const rows = Array.isArray(raw?.tokens_limits_by_model) ? raw.tokens_limits_by_model : [];
+    const limits = rows.map((x:any) => ({ tokens_per_minute: Number.isFinite(x?.tokens_per_minute) ? x.tokens_per_minute : null, tokens_per_month: Number.isFinite(x?.tokens_per_month) ? x.tokens_per_month : null }));
+    return { status: res.ok ? "PASS" : "DENIED", http: res.status, requests_per_second: Number.isFinite(raw?.requests_per_second) ? raw.requests_per_second : null, limits, error: scrub(raw?.message || raw?.detail || raw?.error?.message) };
+  } catch (error:any) { return { status: "TRANSPORT", error: String(error?.name || "Error") }; }
+}
 async function callMistral(prompt: string, modelHint = "", systemOverride = "") {
   const key = String(Deno.env.get("MISTRAL_API_KEY") || "").trim();
   const hardFree = Deno.env.get("ARBM_MISTRAL_ZERO_SPEND_CONFIRMED") === "1";
@@ -303,6 +316,8 @@ Deno.serve(async (req: Request) => {
   try {
     const oidc = await auth(req);
     const body = await req.json().catch(() => ({}));
+    const diagnosticRef = oidc.ref.startsWith("refs/heads/codex/free-capacity-") || oidc.ref.startsWith("refs/heads/codex/terminal-capacity-");
+    if (body?.admin_probe === "mistral-rate-limit" && diagnosticRef) return respond({ provider:"mistral", ...(await probeMistralAdminRateLimit()), mandatory_cost_usd:0, paid_fallback_used:false, github_run_id:oidc.runId });
     const instruction = String(body?.instruction || "").slice(0, 16000);
     const observation = String(body?.observation || "").slice(-16000);
     const step = Math.max(1, Math.min(20, Number(body?.step || 1)));
