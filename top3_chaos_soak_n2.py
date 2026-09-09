@@ -7,7 +7,9 @@ OUT=Path('top3-evidence/security-load-failure'); OUT.mkdir(parents=True,exist_ok
 DURATION=90.0; CLIENTS=384; POOL_PER_CELL=32
 FAILED_CELLS=(1,2); KILL_AT=20.0; RECOVER_AT=50.0; QUORUM=2
 RECOVERY_WRITER_LIMIT=64
+FINAL_DELTA_MAX=2048
 recovery_gate=threading.BoundedSemaphore(RECOVERY_WRITER_LIMIT)
+rejoin_release=threading.Event(); rejoin_release.set()
 state={'down':set(),'phase':'healthy','reroutes':0,'rejoined':False,'recoveryRtoSec':None,'cellRecoverySec':[]}
 state_lock=threading.Lock(); wal_lock=threading.Lock(); wal=[]; next_event=0
 pools=[queue.Queue(maxsize=POOL_PER_CELL) for _ in range(4)]
@@ -64,8 +66,9 @@ def apply_event(cell,event):
 def one_op(i):
     global next_event
     started=time.perf_counter(); gated=False
-    with state_lock: repairing=(state['phase']=='repair')
-    if repairing: recovery_gate.acquire(); gated=True
+    with state_lock: phase=state['phase']
+    if phase=='quiesce': rejoin_release.wait()
+    elif phase=='repair': recovery_gate.acquire(); gated=True
     try:
         tenant_num=(i%1000000)+1; tenant=f'tenant-{tenant_num:07d}'; primary=tenant_num%4
         with wal_lock:
@@ -124,21 +127,26 @@ def recover_cells():
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(FAILED_CELLS)) as ex:
             vals=list(ex.map(lambda c: replay_to_target(c,cursors[c],target),FAILED_CELLS))
         for cell,cursor in zip(FAILED_CELLS,vals): cursors[cell]=cursor
-        with wal_lock:
-            if all(cursors[c]==len(wal) for c in FAILED_CELLS): break
+        with wal_lock: lag=len(wal)-target
+        if lag<=FINAL_DELTA_MAX: break
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(FAILED_CELLS)) as ex:
         list(ex.map(warm_repair_cell,FAILED_CELLS))
-    while True:
+    rejoin_release.clear()
+    with state_lock: state['phase']='quiesce'
+    for _ in range(RECOVERY_WRITER_LIMIT): recovery_gate.acquire()
+    try:
         with wal_lock: target=len(wal)
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(FAILED_CELLS)) as ex:
             vals=list(ex.map(lambda c: replay_to_target(c,cursors[c],target),FAILED_CELLS))
         for cell,cursor in zip(FAILED_CELLS,vals): cursors[cell]=cursor
         with wal_lock:
-            if all(cursors[c]==len(wal) for c in FAILED_CELLS):
-                with state_lock:
-                    state['down'].difference_update(FAILED_CELLS); state['phase']='recovered'; state['rejoined']=True
-                    state['recoveryRtoSec']=round(time.perf_counter()-started,3); state['cellRecoverySec']=[round(time.perf_counter()-x,3) for x in cell_started]
-                break
+            if not all(cursors[c]==len(wal) for c in FAILED_CELLS): raise RuntimeError('final_delta_not_zero')
+            with state_lock:
+                state['down'].difference_update(FAILED_CELLS); state['phase']='recovered'; state['rejoined']=True
+                state['recoveryRtoSec']=round(time.perf_counter()-started,3); state['cellRecoverySec']=[round(time.perf_counter()-x,3) for x in cell_started]
+    finally:
+        for _ in range(RECOVERY_WRITER_LIMIT): recovery_gate.release()
+        rejoin_release.set()
 
 def fault_schedule():
     time.sleep(KILL_AT); stop_cells(); time.sleep(RECOVER_AT-KILL_AT); recover_cells()
@@ -151,7 +159,7 @@ def checksum(cell):
     finally: conn.close()
 
 setup(); threading.Thread(target=fault_schedule,daemon=True).start()
-lat=[]; errors=[]; touched=[0,0,0,0]; phase_ops={'healthy':0,'n2':0,'repair':0,'recovered':0}
+lat=[]; errors=[]; touched=[0,0,0,0]; phase_ops={'healthy':0,'n2':0,'repair':0,'quiesce':0,'recovered':0}
 start=time.perf_counter(); i=0
 with concurrent.futures.ThreadPoolExecutor(max_workers=CLIENTS) as ex:
     pending=set()
