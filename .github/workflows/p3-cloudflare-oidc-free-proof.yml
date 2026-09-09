@@ -19,11 +19,11 @@ jobs:
           url="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark"
           oidc="$(curl -fsSL -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "$url" | jq -r .value)"
           test -n "$oidc" && test "$oidc" != null
-          body='{"model":"@cf/meta/llama-3.2-1b-instruct","messages":[{"role":"user","content":"Reply only ARBM_CF_OIDC_PASS"}]}'
+          body='{"model":"@cf/google/gemma-4-26b-a4b-it","messages":[{"role":"user","content":"Reply only ARBM_CF_OIDC_PASS"}]}'
           code="$(curl -sS -o response.json -w '%{http_code}' -H "Authorization: Bearer ${oidc}" -H 'content-type: application/json' --data "$body" https://arbm-p0-free-proof.zevanory.workers.dev)"
           echo "HTTP_CODE=$code"
           test "$code" = 200
-          jq -e '.ok == true and .provider == "cloudflare" and .model == "@cf/meta/llama-3.2-1b-instruct" and .mandatory_cost_usd == 0 and .paid_fallback_used == false' response.json >/dev/null
+          jq -e '.ok == true and .provider == "cloudflare" and .model == "@cf/google/gemma-4-26b-a4b-it" and .mandatory_cost_usd == 0 and .paid_fallback_used == false' response.json >/dev/null
           jq -e '(.result.choices[0].message.content // "") | tostring | contains("ARBM_CF_OIDC_PASS")' response.json >/dev/null
           jq '{ok,provider,model,mandatory_cost_usd,paid_fallback_used}' response.json
       - name: Evidence marker
