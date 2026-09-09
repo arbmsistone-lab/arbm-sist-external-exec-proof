@@ -85,6 +85,8 @@ jobs:
           test "$ZERO_SPEND_MODE" = "HARD"
           python groq_model_bucket_probe.py
 
+      - name: Probe Gemini account tier read-only
+        run: python gemini_tier_probe.py
       - name: Probe ARBM FREE provider mesh
         run: |
           set -euo pipefail
