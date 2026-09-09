@@ -4,18 +4,69 @@ on:
 jobs:
   proof:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: postgres
+      PGHOST: 127.0.0.1
+      PGUSER: postgres
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          package-manager-cache: false
-      - name: Run deterministic mission
-        run: node mission.mjs | tee evidence.json
-      - name: Upload evidence
+      - name: Build source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          createdb source_v3
+          psql -d source_v3 -v ON_ERROR_STOP=1 -f dr/top3_v3_fixture.sql
+          psql -d source_v3 -Atc "select md5(string_agg(job_id||':'||tenant_id||':'||payload::text,'|' order by job_id)) from arbm_sist_top3.tenant_jobs" > source.sha
+          pg_dump -Fc -d source_v3 -f top3-v3.dump
+          test -s top3-v3.dump
+      - name: Simulate provider loss and restore
+        shell: bash
+        run: |
+          set -euo pipefail
+          dropdb source_v3
+          createdb restored_v3
+          start=$(date +%s%3N)
+          pg_restore --exit-on-error -d restored_v3 top3-v3.dump
+          end=$(date +%s%3N)
+          echo $((end-start)) > restore-ms.txt
+          psql -d restored_v3 -Atc "select md5(string_agg(job_id||':'||tenant_id||':'||payload::text,'|' order by job_id)) from arbm_sist_top3.tenant_jobs" > restored.sha
+          diff -u source.sha restored.sha
+      - name: Verify 10k tenant restore and evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          jobs=$(psql -d restored_v3 -Atc "select count(*) from arbm_sist_top3.tenant_jobs")
+          tenants=$(psql -d restored_v3 -Atc "select count(distinct tenant_id) from arbm_sist_top3.tenant_jobs")
+          budgets=$(psql -d restored_v3 -Atc "select count(*) from arbm_sist_top3.budget_accounts")
+          force=$(psql -d restored_v3 -Atc "select bool_and(c.relforcerowsecurity) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='arbm_sist_top3' and c.relname in ('tenant_jobs','budget_accounts')")
+          test "$jobs" = 20000
+          test "$tenants" = 10000
+          test "$budgets" = 10000
+          test "$force" = t
+          ms=$(cat restore-ms.txt)
+          checksum=$(cat restored.sha)
+          jq -n --argjson restore_ms "$ms" --arg checksum "$checksum" '{schema:"arbm-top3-dr-proof-v1",result:"PASS",tenants:10000,jobs:20000,budget_accounts:10000,force_rls:true,checksum_match:true,restore_ms:$restore_ms,source_domain:"postgres-snapshot",restore_domain:"github-hosted-postgres",zero_spend_mode:"HARD"}' > evidence.json
+          cat evidence.json
+      - name: Upload DR evidence
         uses: actions/upload-artifact@v7
         with:
-          name: armb-external-proof
-          path: evidence.json
+          name: arbm-top3-v3-dr-proof
+          path: |
+            evidence.json
+            top3-v3.dump
+          retention-days: 7
