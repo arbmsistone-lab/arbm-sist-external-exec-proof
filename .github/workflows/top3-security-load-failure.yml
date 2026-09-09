@@ -1,0 +1,73 @@
+name: Top3 Security Load Failure Proof
+on:
+  workflow_dispatch:
+  push:
+    branches: [cert/security-load-failure-20260909]
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: loadtest
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      ZERO_SPEND_MODE: HARD
+      LOAD_DSN: postgresql://postgres:postgres@localhost:5432/loadtest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Prove remote zero-spend runner
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = "github-hosted"
+          test "$ZERO_SPEND_MODE" = "HARD"
+      - name: Install test dependencies
+        run: |
+          python -m pip install --disable-pip-version-check 'psycopg[binary]==3.2.10'
+      - name: Public isolation and recovery suites
+        run: |
+          set -euo pipefail
+          python arbm-control-isolation-tests.py
+          python arbm-evidence-fault-tests.py
+          node --test test_mesh_resilience.mjs
+      - name: Signed-cache cell critic failure contracts
+        run: |
+          set -euo pipefail
+          node top3_fault_contract.mjs
+      - name: Remote 10k saturation and latency proof
+        run: |
+          set -euo pipefail
+          python top3_load_saturation.py
+      - name: Freeze combined evidence
+        run: |
+          set -euo pipefail
+          mkdir -p top3-evidence/security-load-failure
+          python - <<'PY'
+          import hashlib,json,pathlib,os
+          root=pathlib.Path('top3-evidence/security-load-failure')
+          files=sorted(p for p in root.iterdir() if p.is_file())
+          out={'schema':'arbm-top3-security-load-failure-v1','sha':os.environ.get('GITHUB_SHA'),'run':os.environ.get('GITHUB_RUN_ID'),'zeroSpendMode':'HARD','files':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in files},'pass':True}
+          raw=json.dumps(out,indent=2,sort_keys=True)+'\n'
+          (root/'summary.json').write_text(raw)
+          (root/'summary.sha256').write_text(hashlib.sha256(raw.encode()).hexdigest()+'  summary.json\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+      - name: Upload immutable evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: top3-security-load-failure-proof
+          path: top3-evidence/security-load-failure
+          if-no-files-found: error
+          retention-days: 90
