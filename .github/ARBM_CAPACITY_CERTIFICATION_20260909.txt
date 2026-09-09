@@ -9,4 +9,5 @@ Independent quantitatively certified pools: 5
 ZERO_SPEND_MODE: HARD; paid fallback blocked
 Governance: provider_probe strict; required signatures; admins enforced; linear history; no force-push; no deletion
 CircleCI legacy webhook 675339771 disabled; no CircleCI dependency
-Gemini and Hugging Face probes are telemetry-only and excluded from quantitative capacity until account-bound recurring quota is proven
+Gemini telemetry: LIVE HTTP 200, mandatory_cost_usd=0, paid_fallback_used=false; quota metadata absent, therefore excluded from quantitative capacity
+Hugging Face native inference: excluded from final certification after account token returned HTTP 403 for inference-provider calls
