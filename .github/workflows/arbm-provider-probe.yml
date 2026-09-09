@@ -121,6 +121,10 @@ jobs:
           set -o pipefail
           python supabase_guardrail_live_probe.py | tee supabase-live.json
 
+      - name: Inventory external provider credentials safely
+        run: |
+          python supabase_secret_inventory_probe.py | tee provider-secret-inventory.json
+
       - name: Probe ARBM FREE provider mesh
         run: |
           set -euo pipefail
