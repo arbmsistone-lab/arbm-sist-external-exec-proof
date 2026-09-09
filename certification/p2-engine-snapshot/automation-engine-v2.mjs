@@ -1,0 +1,14 @@
+import fs from 'node:fs';import path from 'node:path';import crypto from 'node:crypto';
+const id=()=>crypto.randomBytes(8).toString('hex');
+function load(file){try{return JSON.parse(fs.readFileSync(file,'utf8'))}catch{return {schema:'arbm-automation-v2',workflows:{},queue:[],events:[]}}}
+function save(file,state){fs.mkdirSync(path.dirname(file),{recursive:true});const tmp=file+'.tmp';fs.writeFileSync(tmp,JSON.stringify(state,null,2));fs.renameSync(tmp,file);}
+export class DurableAutomationEngine{
+ constructor(file){this.file=path.resolve(file);this.state=load(this.file);}
+ register({name='',trigger={},steps=[]}={}){if(!name||!trigger.type||!steps.length)throw new Error('automation_contract_invalid');const w={id:id(),name,trigger:{...trigger},steps:steps.map(x=>({...x}))};this.state.workflows[w.id]=w;save(this.file,this.state);return structuredClone(w);}
+ emit(event={}){this.state.events.push({...event,at:new Date().toISOString()});const ids=Object.values(this.state.workflows).filter(w=>w.trigger.type===event.type).map(w=>this.enqueue(w.id,{event}));save(this.file,this.state);return ids;}
+ due(at=new Date()){const t=+at;return Object.values(this.state.workflows).filter(w=>w.trigger.type==='schedule'&&Date.parse(w.trigger.at||'')<=t).map(w=>w.id);}
+ enqueue(workflowId,payload={}){const w=this.state.workflows[workflowId];if(!w)throw new Error('workflow_not_found');const run={id:id(),workflowId,state:'QUEUED',nextStep:0,payload,results:[]};this.state.queue.push(run);save(this.file,this.state);return run.id;}
+ async runNext(execute){if(typeof execute!=='function')throw new Error('executor_required');const run=this.state.queue.find(r=>['QUEUED','INTERRUPTED_RECOVERABLE'].includes(r.state));if(!run)return null;const w=this.state.workflows[run.workflowId];run.state='RUNNING';save(this.file,this.state);try{for(let i=run.nextStep;i<w.steps.length;i++){const out=await execute(w.steps[i],run);run.results.push({step:w.steps[i].id||w.steps[i].type,result:out});run.nextStep=i+1;save(this.file,this.state);if(out?.state==='FAILED'){run.state='FAILED';save(this.file,this.state);return structuredClone(run);}}run.state='SUCCEEDED';save(this.file,this.state);return structuredClone(run);}catch(e){run.state='INTERRUPTED_RECOVERABLE';run.error=String(e?.message||e);save(this.file,this.state);return structuredClone(run);}}
+ resume(runId){const r=this.state.queue.find(x=>x.id===runId);if(!r||r.state!=='INTERRUPTED_RECOVERABLE')throw new Error('run_not_recoverable');r.state='QUEUED';delete r.error;save(this.file,this.state);return structuredClone(r);}
+}
+export function automationV2Gate(engine){const s=engine?.state;return {pass:Boolean(s&&Object.keys(s.workflows||{}).length&&Array.isArray(s.queue)&&Array.isArray(s.events)),workflows:Object.keys(s?.workflows||{}).length,queued:s?.queue?.length||0};}

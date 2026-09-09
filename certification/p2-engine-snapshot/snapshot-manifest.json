@@ -1,0 +1,57 @@
+﻿[
+    {
+        "file":  "attachment-store.mjs",
+        "sha256":  "e370a01f77b058c9cdf52d66bffdd159acc9c2d1c6701f711e254fb83cc8ef54",
+        "bytes":  5466
+    },
+    {
+        "file":  "automation-engine-v2.mjs",
+        "sha256":  "5f6e115c564e2bf2bee50ee0d63009cb7760b1d2598e7d7bcc9ba586965e2168",
+        "bytes":  2823
+    },
+    {
+        "file":  "computer-use-verifier.mjs",
+        "sha256":  "7116328b7c28bb6d9469d65fa3c783a5fee079c71ebc3c42e01dd94328cb9810",
+        "bytes":  1594
+    },
+    {
+        "file":  "data-engine.mjs",
+        "sha256":  "60881c6b0a15853c926d5e3dd02c408164c3b9fd898e6b2adab23b4ffed60e1a",
+        "bytes":  1057
+    },
+    {
+        "file":  "data-engine-v2.mjs",
+        "sha256":  "7ec80db20c9b83ef8a980710975a2af443d94939b99859eea38c6555974228d6",
+        "bytes":  1537
+    },
+    {
+        "file":  "deployment-mesh.mjs",
+        "sha256":  "6e07fbec71bfebb5dba362a6f54230fdfc208a126bd35108f4c0b2b2e86a03f6",
+        "bytes":  1526
+    },
+    {
+        "file":  "evidence-engine.mjs",
+        "sha256":  "715cdea0874589d4ca221397d574b6cfc4e687421a63974d342d2489e27ea7a7",
+        "bytes":  1617
+    },
+    {
+        "file":  "integration-engine.mjs",
+        "sha256":  "a7945a3ef8bd39cb3a15caceb5b46794193ede0ddabbc89f51b4c3adcfec344d",
+        "bytes":  1234
+    },
+    {
+        "file":  "integration-engine-v2.mjs",
+        "sha256":  "31c0a9a970926b1ddcc18284f93c267ce81a62f813de85dbc18bedd2779b2d86",
+        "bytes":  1047
+    },
+    {
+        "file":  "knowledge-engine.mjs",
+        "sha256":  "f66a03fef4e19ee3a1e688d2dbc0d3387c2e490097f3e03effeda2df51fc66ae",
+        "bytes":  1546
+    },
+    {
+        "file":  "research-engine.mjs",
+        "sha256":  "d777bf04968826a73fc2c88a5047b5c245bd4474f647123def6ae59ee2adcbdf",
+        "bytes":  1349
+    }
+]
