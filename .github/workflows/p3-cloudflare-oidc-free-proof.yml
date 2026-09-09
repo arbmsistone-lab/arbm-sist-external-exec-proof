@@ -24,7 +24,8 @@ jobs:
             code="$(curl -sS -o response.json -w '%{http_code}' -H "Authorization: Bearer ${oidc}" -H 'content-type: application/json' --data "$body" "$endpoint")"
             test "$code" = 200
             jq -e --arg model "$model" '.ok and .model==$model and .mandatory_cost_usd==0 and .paid_fallback_used==false and .response_nonempty' response.json >/dev/null
-          done          python - <<'PY'
+          done
+          python - <<'PY'
           text=('ARBM SIST capacity lane processes cloud-hosted operational context, evidence, constraints, audit state, routing policy, rollback state and verification requirements before returning a concise bounded decision. ' * 180)
           open('prompt.txt','w',encoding='utf-8').write(text)
           PY
