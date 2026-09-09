@@ -43,4 +43,11 @@ jobs:
           body="$(jq -nc --rawfile prompt ratio-prompt.txt '{mode:"capacity_lane",prompt:$prompt,max_output_tokens:512}')"
           test "$(curl -sS -o neg-ratio.json -w '%{http_code}' -H "Authorization: Bearer ${oidc}" -H 'content-type: application/json' --data "$body" "$endpoint")" = 422
           jq -e '.error=="output_ratio_exceeded" and .prompt_tokens>=1024 and .max_allowed_output_tokens<512' neg-ratio.json >/dev/null
+          concise="$(jq -nc --rawfile prompt prompt.txt '{mode:"concise_lane",prompt:$prompt}')"
+          code="$(curl -sS -o concise.json -w '%{http_code}' -H "Authorization: Bearer ${oidc}" -H 'content-type: application/json' --data "$concise" "$endpoint")"
+          echo "CONCISE_HTTP=$code"
+          jq '{ok,error,model,mode,main_usage,max_output_tokens,min_prompt_tokens}' concise.json
+          test "$code" = 200
+          jq -e '.ok and .model=="@cf/ibm-granite/granite-4.0-h-micro" and .mode=="GRANITE_CONCISE_10" and .main_usage.prompt_tokens>=1024 and .main_usage.completion_tokens<=102 and .max_output_tokens==102 and .mandatory_cost_usd==0 and .paid_fallback_used==false' concise.json >/dev/null
           echo 'ARBM_P3_CLOUDFLARE_GRANITE_RATIO_LANE=PASS'
+          echo 'ARBM_P3_CLOUDFLARE_GRANITE_CONCISE_10=PASS'
