@@ -31,6 +31,8 @@ jobs:
           PY
           body="$(jq -nc --rawfile prompt prompt.txt '{mode:"capacity_lane",prompt:$prompt,max_output_tokens:128}')"
           code="$(curl -sS -o lane.json -w '%{http_code}' -H "Authorization: Bearer ${oidc}" -H 'content-type: application/json' --data "$body" "$endpoint")"
+          echo "LANE_HTTP=$code"
+          jq '{ok,error,model,mode,preflight_usage,main_usage,max_output_tokens,max_allowed_output_tokens}' lane.json
           test "$code" = 200
           jq -e '.ok and .model=="@cf/ibm-granite/granite-4.0-h-micro" and .mode=="GRANITE_RATIO_20" and .preflight_usage.prompt_tokens>=1024 and .main_usage.prompt_tokens==.preflight_usage.prompt_tokens and .main_usage.completion_tokens<=.max_output_tokens and .max_output_tokens<=.max_allowed_output_tokens and .ratio_denominator==5 and .mandatory_cost_usd==0 and .paid_fallback_used==false' lane.json >/dev/null
           short='{"mode":"capacity_lane","prompt":"short prompt","max_output_tokens":1}'
