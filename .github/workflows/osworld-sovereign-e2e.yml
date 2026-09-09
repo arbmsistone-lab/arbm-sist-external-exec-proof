@@ -22,6 +22,8 @@ jobs:
       OPENAI_BASE_URL: http://127.0.0.1:8088/v1
       OPENAI_API_KEY: zero-spend-local
       AWS_REGION: us-east-1
+      AWS_SUBNET_ID: unused-docker-provider
+      AWS_SECURITY_GROUP_ID: unused-docker-provider
       OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
     steps:
       - uses: actions/checkout@v7
@@ -150,3 +152,4 @@ jobs:
       - name: Stop sovereign runtime
         if: always()
         run: kill "$ARBM_SOVEREIGN_SERVER_PID" 2>/dev/null || true
+
