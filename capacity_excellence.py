@@ -32,7 +32,7 @@ def chaos_floor(routes, failures=1):
                     r.get("no_paid_fallback") is True, r.get("reset_verified") is True)):
             continue
         pool = r.get("independence_pool"); cap = r.get("certified_tokens_per_day")
-        if pool and type(cap) is int and cap >= 0:
+        if pool and type(cap) is int and cap > 0:
             pools[pool] = max(pools.get(pool, 0), cap)
     ordered = sorted(pools.values(), reverse=True)
     floor = max(0, sum(ordered) - sum(ordered[:max(0, failures)]))

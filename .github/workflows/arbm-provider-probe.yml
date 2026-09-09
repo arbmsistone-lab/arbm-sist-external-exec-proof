@@ -20,6 +20,9 @@ on:
       - 'vikasit_capacity_probe.py'
       - 'test_vikasit_capacity_probe.py'
       - 'account-capacity-evidence.json'
+      - 'merge_live_capacity_evidence.py'
+      - 'test_merge_live_capacity_evidence.py'
+      - 'test_zero_capacity_pool_gate.py'
       - 'test_provider_probe.py'
       - 'test_distributed_capacity.py'
       - 'mesh_capacity.py'
@@ -50,8 +53,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Test proof gates and mesh regressions
         run: |
-          python -m unittest test_provider_probe.py test_mesh_capacity.py test_distributed_capacity.py test_cloudflare_granite_capacity.py test_resilience_capacity.py test_vikasit_capacity_probe.py test_sambanova_capacity_probe.py test_cerebras_capacity_probe.py test_capacity_excellence.py test_workload_useful_capacity.py test_audit_30x10_capacity.py test_capacity_ceiling_gate.py test_openrouter_capacity_probe.py
-          python -m py_compile account_capacity_probe.py cerebras_capacity_probe.py sambanova_capacity_probe.py distributed_capacity.py cloudflare_granite_capacity.py resilience_capacity.py vikasit_capacity_probe.py capacity_excellence.py workload_useful_capacity.py audit_30x10_capacity.py capacity_ceiling_gate.py openrouter_capacity_probe.py groq_model_bucket_probe.py
+          python -m unittest test_provider_probe.py test_mesh_capacity.py test_distributed_capacity.py test_cloudflare_granite_capacity.py test_resilience_capacity.py test_vikasit_capacity_probe.py test_sambanova_capacity_probe.py test_merge_live_capacity_evidence.py test_zero_capacity_pool_gate.py test_cerebras_capacity_probe.py test_capacity_excellence.py test_workload_useful_capacity.py test_audit_30x10_capacity.py test_capacity_ceiling_gate.py test_openrouter_capacity_probe.py
+          python -m py_compile account_capacity_probe.py cerebras_capacity_probe.py sambanova_capacity_probe.py distributed_capacity.py cloudflare_granite_capacity.py resilience_capacity.py vikasit_capacity_probe.py capacity_excellence.py workload_useful_capacity.py audit_30x10_capacity.py capacity_ceiling_gate.py openrouter_capacity_probe.py groq_model_bucket_probe.py merge_live_capacity_evidence.py
           node --test test_mistral_mesh.mjs
           python - <<'PY'
           import json
@@ -77,7 +80,7 @@ jobs:
         env:
           VIKASIT_API_KEY: ${{ secrets.VIKASIT_API_KEY }}
         run: |
-          python vikasit_capacity_probe.py
+          python vikasit_capacity_probe.py | tee vikasit-result.json
       - name: Probe Groq model-specific FREE buckets
         run: |
           set -euo pipefail
@@ -100,14 +103,14 @@ jobs:
         run: |
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
-          python sambanova_capacity_probe.py
+          python sambanova_capacity_probe.py | tee sambanova-result.json
       - name: Probe OpenRouter FREE capacity when configured
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
-          python openrouter_capacity_probe.py
+          python openrouter_capacity_probe.py | tee openrouter-result.json
 
       - name: Probe Cerebras FREE capacity when configured
         env:
@@ -115,4 +118,20 @@ jobs:
         run: |
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
-          python cerebras_capacity_probe.py
+          python cerebras_capacity_probe.py | tee cerebras-result.json
+      - name: Merge qualified live capacity proofs and run maximum gates
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = "HARD"
+          python merge_live_capacity_evidence.py --baseline account-capacity-evidence.json --output effective-capacity-evidence.json --run-id "$GITHUB_RUN_ID" --probe vikasit-result.json --probe sambanova-result.json --probe openrouter-result.json --probe cerebras-result.json
+          python - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          from capacity_ceiling_gate import certify_ceiling
+          from resilience_capacity import certify_resilience
+          d=json.load(open('effective-capacity-evidence.json',encoding='utf-8'))
+          r=certify_resilience(d['routes'])
+          c=certify_ceiling(d['routes'],[d],datetime.now(timezone.utc))
+          print(json.dumps({'resilience':r,'ceiling':c},separators=(',',':')))
+          if c['status']!='PASS': print('MAXIMUM_CAPACITY_GATE_WAITING_FOR_QUALIFIED_EXTERNAL_POOLS')
+          PY
