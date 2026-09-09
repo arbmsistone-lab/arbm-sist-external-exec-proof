@@ -1,0 +1,28 @@
+{
+  "schema": "arbm-sweff-closure-supplement-v1",
+  "observedAt": "2026-09-09",
+  "baselineEvidenceSha": "2d938a050b3596d94c640276ac63d5d9d4a23438",
+  "scope": "SWEfficiency external compute closure",
+  "localHeavyRuns": 0,
+  "remoteRunsDispatched": 0,
+  "billingChanged": false,
+  "contractPatch": {
+    "githubWorkflow": "strict RAM >= 16 GiB, >= 8 logical CPUs, >= 6 physical cores, exact Docker envelope, fail nonzero",
+    "semaphoreWorkflow": "strict RAM >= 16 GiB, topology and Docker envelope, zero-spend flags required before probe"
+  },
+  "semaphore": {
+    "candidate": "r1-standard-8",
+    "advertised": "8 vCPU, 16 GB, ARM, 75 GB",
+    "decision": "BLOCKED_SEMAPHORE_CAPACITY",
+    "reason": "Semaphore R1 is ARM and current official machine-type documentation marks R1 Docker environments unsupported; SWEfficiency contract requires Docker. Billing is usage-based and authenticated entitlement/spend protection remains unverified."
+  },
+  "nextCandidate": {
+    "provider": "Latchkey OSS",
+    "runner": "latchkey-large",
+    "advertised": "8 vCPU, 32 GB",
+    "freeOffer": "6000 runner minutes/month for approved open-source projects",
+    "state": "QUALIFIED_CANDIDATE",
+    "blocker": "Open-source program/account approval and zero-overage protection not yet independently proven for this repository"
+  },
+  "decision": "BLOCKED_EXTERNAL_COMPUTE"
+}

@@ -1,4 +1,4 @@
-name: SWEfficiency Resource Contract
+name: SWEfficiency Strict Resource Contract
 
 on:
   workflow_dispatch:
@@ -18,7 +18,9 @@ jobs:
     env:
       SWEFF_COMMIT: 12d32a2d6800824a7d84bdb6797b5708e7b7957f
       SWEFF_REPO: https://github.com/swefficiency/swefficiency.git
-      REQUIRED_MEMORY_MB: '16384'
+      REQUIRED_MEMORY_BYTES: '17179869184'
+      REQUIRED_LOGICAL_CPUS: '8'
+      REQUIRED_PHYSICAL_CORES: '6'
     steps:
       - name: Constitutional contract
         run: |
@@ -26,6 +28,7 @@ jobs:
           echo ZERO_SPEND_MODE=HARD
           echo EXECUTION_POLICY=REMOTE_ONLY
           echo LOCAL_HEAVY_ALLOWED=false
+
       - name: Fetch exact SWEfficiency source
         run: |
           set -euo pipefail
@@ -35,34 +38,58 @@ jobs:
           git fetch --depth=1 origin "$SWEFF_COMMIT"
           git checkout --detach "$SWEFF_COMMIT"
           test "$(git rev-parse HEAD)" = "$SWEFF_COMMIT"
+      - name: Verify official evaluator contract
+        run: |
+          set -euo pipefail
+          grep -F 'mem_limit="32g"' sweff/swefficiency/harness/docker_build.py
+          grep -F 'mem_reservation="16g"' sweff/swefficiency/harness/docker_build.py
+          grep -F 'memswap_limit="32g"' sweff/swefficiency/harness/docker_build.py
+          grep -F 'oom_kill_disable=True' sweff/swefficiency/harness/docker_build.py
+          grep -F 'vcpus_per_worker=4' sweff/swefficiency/harness/run_validation.py
+          grep -F 'threads_per_core=2' sweff/swefficiency/harness/run_validation.py
+          grep -F 'reserve_cores=4' sweff/swefficiency/harness/run_validation.py
 
-      - name: Measure runner capacity
+      - name: Measure and enforce host contract
         run: |
           set -euo pipefail
           mkdir -p evidence
-          mem_kb="$(awk '/MemTotal/{print $2}' /proc/meminfo)"
-          mem_mb="$((mem_kb/1024))"
-          cpus="$(nproc)"
-          disk_kb="$(df -Pk . | awk 'NR==2{print $4}')"
-          printf '{"cpus":%s,"memoryMB":%s,"diskAvailableKB":%s}\n' "$cpus" "$mem_mb" "$disk_kb" > evidence/runner-capacity.json
-          cat evidence/runner-capacity.json
-      - name: Freeze compatibility verdict
+          python - <<'PY'
+          import importlib.util,json,os,pathlib,sys
+          f='sweff/swefficiency/harness/cpu_assignment.py'
+          spec=importlib.util.spec_from_file_location('sweff_cpu',f)
+          m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+          mem_kb=int(next(x.split()[1] for x in pathlib.Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemTotal:')))
+          logical=len(os.sched_getaffinity(0)); physical=len(m.discover_physical_cores())
+          out={'logicalCpus':logical,'physicalCoresDiscovered':physical,'memoryBytes':mem_kb*1024}
+          pathlib.Path('evidence/runner-capacity.json').write_text(json.dumps(out,indent=2))
+          print(json.dumps(out,indent=2))
+          if out['memoryBytes'] < 17179869184: sys.exit('BLOCKED_MEMORY_LT_16_GIB')
+          if logical < 8: sys.exit('BLOCKED_LOGICAL_CPU_LT_8')
+          if physical < 6: sys.exit('BLOCKED_PHYSICAL_CORES_LT_6')
+          PY
+      - name: Enforce exact Docker memory envelope
+        run: |
+          set -euo pipefail
+          id="$(docker create --memory-reservation=16g --memory=32g --memory-swap=32g --oom-kill-disable alpine:3.22 true 2>evidence/docker-create.stderr)"
+          docker inspect "$id" --format '{{json .HostConfig}}' > evidence/docker-hostconfig.json
+          docker start -a "$id"
+          docker rm "$id"
+          grep -q '"Memory":34359738368' evidence/docker-hostconfig.json
+          grep -q '"MemoryReservation":17179869184' evidence/docker-hostconfig.json
+          grep -q '"MemorySwap":34359738368' evidence/docker-hostconfig.json
+
+      - name: Freeze strict verdict
         run: |
           set -euo pipefail
           python - <<'PY'
-          import hashlib, json, pathlib
+          import hashlib,json,pathlib
           cap=json.loads(pathlib.Path('evidence/runner-capacity.json').read_text())
-          required=16384
-          compatible=cap['memoryMB'] >= required
-          out={'schema':'arbm-sweff-resource-contract-v1','benchmark':'SWEfficiency',
-               'commit':'12d32a2d6800824a7d84bdb6797b5708e7b7957f',
-               'requiredMemoryMB':required,'observedMemoryMB':cap['memoryMB'],
-               'memoryCompatible':compatible,'completeFamilyCertified':False,
-               'classification':'RESOURCE_CONTRACT_ONLY' if compatible else 'BLOCKED_EXTERNAL_COMPUTE'}
-          p=pathlib.Path('evidence/sweff-resource-summary.json')
-          p.write_text(json.dumps(out,indent=2))
-          d=hashlib.sha256(p.read_bytes()).hexdigest()
-          pathlib.Path('evidence/SHA256SUMS.txt').write_text(f'{d}  sweff-resource-summary.json\n')
+          host=json.loads(pathlib.Path('evidence/docker-hostconfig.json').read_text())
+          ok=(cap['memoryBytes'] >= 17179869184 and cap['logicalCpus'] >= 8 and cap['physicalCoresDiscovered'] >= 6 and host['Memory']==34359738368 and host['MemoryReservation']==17179869184 and host['MemorySwap']==34359738368)
+          if not ok: raise SystemExit('BLOCKED_STRICT_RESOURCE_CONTRACT')
+          out={'schema':'arbm-sweff-resource-contract-v4','classification':'STRICT_RESOURCE_CONTRACT_PASS','completeFamilyCertified':False,'observed':cap}
+          p=pathlib.Path('evidence/sweff-resource-summary.json'); p.write_text(json.dumps(out,indent=2))
+          d=hashlib.sha256(p.read_bytes()).hexdigest(); pathlib.Path('evidence/SHA256SUMS.txt').write_text(f'{d}  sweff-resource-summary.json\n')
           print(json.dumps(out,indent=2))
           PY
 

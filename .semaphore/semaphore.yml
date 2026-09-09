@@ -1,22 +1,31 @@
 version: v1.0
-name: ARBM SWEff Semaphore Probe
+name: ARBM SWEff Semaphore Strict Resource Gate
 agent:
   machine:
     type: r1-standard-8
     os_image: ubuntu2404
 blocks:
-  - name: Resource Contract
+  - name: Strict Resource Contract
     task:
       jobs:
-        - name: 8CPU 16GB Docker Probe
+        - name: Fail-closed SWEfficiency preflight
           commands:
             - checkout
-            - uname -m
-            - nproc
-            - grep MemTotal /proc/meminfo
-            - docker version
-            - docker info
-            - test "$(nproc)" -ge 8
-            - mem_kb=$(awk '/MemTotal/ {print $2}' /proc/meminfo); echo "MEM_KB=$mem_kb"; test "$mem_kb" -ge 16000000
-            - docker run --rm --memory-reservation=16g --memory=32g hello-world | grep -q 'Hello from Docker!'
-            - echo ARBM_SEMAPHORE_RESOURCE_PROBE=PASS
+            - set -euo pipefail
+            - test "${ARBM_ZERO_SPEND_VERIFIED:-0}" = "1"
+            - test "${ARBM_HARD_SPEND_BLOCK_VERIFIED:-0}" = "1"
+            - mkdir -p evidence
+            - arch="$(uname -m)"; echo "ARCH=$arch" | tee evidence/architecture.txt
+            - logical="$(nproc)"; echo "LOGICAL_CPUS=$logical" | tee evidence/logical-cpus.txt; test "$logical" -ge 8
+            - physical="$(lscpu -p=core,socket | grep -v '^#' | sort -u | wc -l)"; echo "PHYSICAL_CORES=$physical" | tee evidence/physical-cores.txt; test "$physical" -ge 6
+            - mem_kb="$(awk '/MemTotal/ {print $2}' /proc/meminfo)"; echo "MEM_KB=$mem_kb" | tee evidence/memory.txt; test "$mem_kb" -ge 16777216
+            - docker version | tee evidence/docker-version.txt
+            - docker info | tee evidence/docker-info.txt
+            - id="$(docker create --memory-reservation=16g --memory=32g --memory-swap=32g --oom-kill-disable alpine:3.22 true 2>evidence/docker-create.stderr)"
+            - docker inspect "$id" --format '{{json .HostConfig}}' | tee evidence/docker-hostconfig.json
+            - docker start -a "$id"
+            - docker rm "$id"
+            - grep -q '"Memory":34359738368' evidence/docker-hostconfig.json
+            - grep -q '"MemoryReservation":17179869184' evidence/docker-hostconfig.json
+            - grep -q '"MemorySwap":34359738368' evidence/docker-hostconfig.json
+            - echo ARBM_SEMAPHORE_STRICT_RESOURCE_GATE=PASS
