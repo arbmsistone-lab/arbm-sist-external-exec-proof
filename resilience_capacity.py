@@ -27,3 +27,5 @@ def certify_resilience(routes):
         "stretch_10m_status": stretch["status"],
         "stretch_10m_deficit_tokens_per_day": stretch["deficit_tokens_per_day"],
     }
+
+# Audit trigger: revalidate hardened capacity gates in cloud CI.
