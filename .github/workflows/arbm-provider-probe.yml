@@ -129,6 +129,7 @@ jobs:
       - name: Probe Vercel AI Gateway recurring FREE capacity when configured
         env:
           VERCEL_AI_GATEWAY_API_KEY: ${{ secrets.VERCEL_AI_GATEWAY_API_KEY }}
+          VERCEL_AI_GATEWAY_API_KEY_ID: ${{ vars.VERCEL_AI_GATEWAY_API_KEY_ID }}
         run: |
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
