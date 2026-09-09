@@ -30,6 +30,7 @@ jobs:
     needs: mesh-preflight
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         task: ['001','002','003']
     runs-on: ubuntu-24.04
@@ -40,7 +41,7 @@ jobs:
       OPENAI_BASE_URL: http://127.0.0.1:8088/v1
       OPENAI_API_KEY: zero-spend-oidc-shim
       ARBM_OSWORLD_SHIM_LOG: ${{ github.workspace }}/osworld-free-mesh-shim.log
-      OSWORLD_AGENT_VERSION: supabase-arbm-terminal-agent-v7-v20
+      OSWORLD_AGENT_VERSION: supabase-arbm-terminal-agent-v7-v20-shim-v21
       AWS_REGION: us-east-1
       AWS_SUBNET_ID: unused-docker-provider
       AWS_SECURITY_GROUP_ID: unused-docker-provider

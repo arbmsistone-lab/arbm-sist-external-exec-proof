@@ -2,7 +2,7 @@ import json, os, re, time, urllib.request, urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 UPSTREAM = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v7"
-STATE = {"step": 0, "previous": ""}
+STATE = {"step": 0, "previous": "", "executed": 0, "history": []}
 LOG = os.environ.get("ARBM_OSWORLD_SHIM_LOG", "osworld-free-mesh-shim.log")
 
 def text_of(content):
@@ -38,27 +38,38 @@ def log_event(data):
 
 def call_mesh(messages):
     STATE["step"] += 1
+    preferred = {"001":"groq", "002":"lightning", "003":"google"}.get(os.environ.get("TASK_ID", ""), "")
     body = {"instruction": task_from(messages), "observation": latest_observation(messages),
-            "previous_command": STATE["previous"], "step": STATE["step"]}
-    req = urllib.request.Request(UPSTREAM, data=json.dumps(body).encode(), method="POST",
-        headers={"Authorization": "Bearer " + oidc_token(), "Content-Type": "application/json"})
-    http = None
-    try:
-        with urllib.request.urlopen(req, timeout=70) as res:
-            http, data = res.status, json.loads(res.read())
-    except urllib.error.HTTPError as err:
-        http = err.code
-        try: data = json.loads(err.read())
-        except Exception: data = {"status": "INVALID_UPSTREAM_RESPONSE"}
+            "previous_command": STATE["previous"], "executed_count": STATE["executed"],
+            "provider_hint": preferred, "step": STATE["step"]}
+    http, data = None, {"status": "NO_ATTEMPT"}
+    for attempt in range(4):
+        req = urllib.request.Request(UPSTREAM, data=json.dumps(body).encode(), method="POST",
+            headers={"Authorization": "Bearer " + oidc_token(), "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=70) as res:
+                http, data = res.status, json.loads(res.read())
+        except urllib.error.HTTPError as err:
+            http = err.code
+            try: data = json.loads(err.read())
+            except Exception: data = {"status": "INVALID_UPSTREAM_RESPONSE"}
+        if http == 200: break
+        if http not in (429, 503): break
+        time.sleep(1.0 + attempt * 0.5)
     data["step"], data["http"] = STATE["step"], http
     log_event(data)
     action = data.get("action") or {}
     if http == 200 and data.get("ok") is True and action.get("action") == "exec":
         command = str(action.get("command") or "").strip()
+        if command in STATE["history"]:
+            return "WAIT"
         STATE["previous"] = command
+        STATE["executed"] += 1
+        STATE["history"].append(command)
+        STATE["history"] = STATE["history"][-8:]
         return "```python\n" + command + "\n```"
     if http == 200 and data.get("ok") is True and action.get("action") == "finish":
-        return "DONE"
+        return "DONE" if STATE["executed"] > 0 else "WAIT"
     return "WAIT"
 
 class Handler(BaseHTTPRequestHandler):
