@@ -6,7 +6,7 @@ DSNS=[os.environ[f'LOAD_DSN_{i}'] for i in range(4)]
 OUT=Path('top3-evidence/security-load-failure'); OUT.mkdir(parents=True,exist_ok=True)
 DURATION=90.0; CLIENTS=384; POOL_PER_CELL=32
 FAILED_CELLS=(1,2); KILL_AT=20.0; RECOVER_AT=50.0; QUORUM=2
-state={'down':set(),'phase':'healthy','reroutes':0,'rejoined':False,'recoveryRtoSec':None}
+state={'down':set(),'phase':'healthy','reroutes':0,'rejoined':False,'recoveryRtoSec':None,'cellRecoverySec':[]}
 state_lock=threading.Lock(); wal_lock=threading.Lock(); wal=[]; next_event=0
 pools=[queue.Queue(maxsize=POOL_PER_CELL) for _ in range(4)]
 container_ids={}
@@ -84,7 +84,8 @@ def batch_replay(cell,events):
     if not events: return
     conn=new_conn(cell)
     try:
-        conn.executemany('insert into arbm_n2.events(event_id,tenant_id) values (%s,%s) on conflict do nothing',events)
+        with conn.cursor() as cur:
+            cur.executemany('insert into arbm_n2.events(event_id,tenant_id) values (%s,%s) on conflict do nothing',events)
     finally: conn.close()
 def replay_cell(cell):
     started=time.perf_counter(); ensure_cell_up(cell); fill_pool(cell); cursor=0
@@ -102,9 +103,10 @@ def replay_cell(cell):
 
 def recover_cells():
     started=time.perf_counter()
-    for cell in FAILED_CELLS: replay_cell(cell)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(FAILED_CELLS)) as ex:
+        rtos=list(ex.map(replay_cell,FAILED_CELLS))
     with state_lock:
-        state['phase']='recovered'; state['rejoined']=True; state['recoveryRtoSec']=round(time.perf_counter()-started,3)
+        state['phase']='recovered'; state['rejoined']=True; state['recoveryRtoSec']=round(time.perf_counter()-started,3); state['cellRecoverySec']=[round(x,3) for x in rtos]
 
 def fault_schedule():
     time.sleep(KILL_AT); stop_cells(); time.sleep(RECOVER_AT-KILL_AT); recover_cells()
@@ -134,14 +136,14 @@ elapsed=time.perf_counter()-start
 checks=[checksum(c) for c in range(4)]
 consistent=(len(set(checks))==1)
 with state_lock:
-    rejoined=state['rejoined']; rto=state['recoveryRtoSec']; reroutes=state['reroutes']; final_down=sorted(state['down'])
+    rejoined=state['rejoined']; rto=state['recoveryRtoSec']; cell_rto=list(state['cellRecoverySec']); reroutes=state['reroutes']; final_down=sorted(state['down'])
 out={
  'schema':'arbm-top3-chaos-soak-n2-v2','remoteOnly':True,'zeroSpendHard':True,
  'durationSec':round(elapsed,3),'clients':CLIENTS,'failedCells':list(FAILED_CELLS),'quorum':QUORUM,
  'ops':len(lat),'errors':len(errors),'errorRate':round(len(errors)/max(1,len(lat)),6),
  'reroutes':reroutes,'perCellAcks':touched,'phaseOps':phase_ops,
  'p95Ms':round(pct(lat,.95),3),'p99Ms':round(pct(lat,.99),3),'throughputOpsSec':round(len(lat)/elapsed,2),
- 'rejoined':rejoined,'recoveryRtoSec':rto,'finalDownCells':final_down,
+ 'rejoined':rejoined,'recoveryRtoSec':rto,'cellRecoverySec':cell_rto,'finalDownCells':final_down,
  'checksums':[list(x) for x in checks],'consistent':consistent,
  'paidFallbackUsed':False,'mandatoryCostUsd':0,
  'thresholds':{'errorRateMax':0,'p99MsMax':1500,'throughputMinOpsSec':500,'recoveryRtoSecMax':20,'reroutesMin':1}
