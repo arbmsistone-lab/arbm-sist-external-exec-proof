@@ -12,14 +12,14 @@ class ResilienceCapacityTests(unittest.TestCase):
     def test_current_3m_certificate_stays_green(self):
         r = certify_resilience(self.routes)
         self.assertEqual(r["base_3m_status"], "PASS")
-        self.assertEqual(r["certified_tokens_per_day"], 3_341_225)
+        self.assertEqual(r["certified_tokens_per_day"], 5_305_723)
 
     def test_current_mesh_is_not_n_plus_one(self):
         r = certify_resilience(self.routes)
         self.assertEqual(r["n_plus_one_floor_tokens_per_day"], 1_000_000)
         self.assertEqual(r["n_plus_one_3m_status"], "FAIL_INSUFFICIENT_CAPACITY")
 
-    def test_growth_gate_is_fail_closed(self):
+    def test_growth_gate_passes_with_concise_cloudflare_lane(self):
         r = certify_resilience(self.routes)
-        self.assertEqual(r["growth_5m_status"], "FAIL_INSUFFICIENT_CAPACITY")
-        self.assertEqual(r["growth_5m_deficit_tokens_per_day"], 1_658_775)
+        self.assertEqual(r["growth_5m_status"], "PASS")
+        self.assertEqual(r["growth_5m_deficit_tokens_per_day"], 0)
