@@ -1,7 +1,8 @@
 name: HF ZeroGPU Eligibility Probe
 on:
+  workflow_dispatch:
   push:
-    branches: [codex/free-capacity-hf-zerogpu-20260909]
+    branches: [codex/free-capacity-hf-zerogpu-20260909, codex/hf-zerogpu-dispatch-hardening-20260909]
     paths:
       - 'hf_zerogpu_eligibility_probe.py'
       - '.github/workflows/hf-zerogpu-eligibility-probe.yml'
