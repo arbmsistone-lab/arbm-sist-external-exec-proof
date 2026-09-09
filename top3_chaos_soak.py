@@ -43,6 +43,8 @@ def one_op(i):
             if cell!=primary:
                 with lock: state['reroutes']+=1
             return (time.perf_counter()-started)*1000,cell,None
+        except queue.Empty:
+            continue
         except Exception:
             if conn is not None:
                 try: conn.close()
