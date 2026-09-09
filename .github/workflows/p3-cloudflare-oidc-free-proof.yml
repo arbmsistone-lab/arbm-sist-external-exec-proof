@@ -19,12 +19,11 @@ jobs:
           url="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark"
           oidc="$(curl -fsSL -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "$url" | jq -r .value)"
           test -n "$oidc" && test "$oidc" != null
-          body='{"model":"@cf/nvidia/nemotron-3-120b-a12b","messages":[{"role":"user","content":"Reply only ARBM_CF_OIDC_PASS"}]}'
+          body='{"model":"@cf/ibm-granite/granite-4.0-h-micro","messages":[{"role":"user","content":"Reply only ARBM_CF_OIDC_PASS"}]}'
           code="$(curl -sS -o response.json -w '%{http_code}' -H "Authorization: Bearer ${oidc}" -H 'content-type: application/json' --data "$body" https://arbm-p0-free-proof.zevanory.workers.dev)"
           echo "HTTP_CODE=$code"
-          if [ "$code" != 200 ]; then jq -c '{error,detail,ok,provider,model,mandatory_cost_usd,paid_fallback_used}' response.json 2>/dev/null || true; fi
           test "$code" = 200
-          jq -e '.ok == true and .provider == "cloudflare" and .model == "@cf/nvidia/nemotron-3-120b-a12b" and .mandatory_cost_usd == 0 and .paid_fallback_used == false' response.json >/dev/null
+          jq -e '.ok == true and .provider == "cloudflare" and .model == "@cf/ibm-granite/granite-4.0-h-micro" and .mandatory_cost_usd == 0 and .paid_fallback_used == false' response.json >/dev/null
           jq -e '(.result.choices[0].message.content // "") | tostring | contains("ARBM_CF_OIDC_PASS")' response.json >/dev/null
           jq '{ok,provider,model,mandatory_cost_usd,paid_fallback_used}' response.json
       - name: Evidence marker
