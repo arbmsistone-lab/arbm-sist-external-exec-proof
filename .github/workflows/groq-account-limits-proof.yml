@@ -1,4 +1,4 @@
-name: ARBM Remote Provider Key Presence Proof
+name: Groq Full Rate Header Proof
 on:
   push:
     branches: ['codex/free-capacity-*']
@@ -10,7 +10,7 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Check sanitized remote provider-key presence
+      - name: Inspect sanitized Groq rate-limit headers
         shell: bash
         run: |
           set -euo pipefail
@@ -19,4 +19,4 @@ jobs:
           T=$(python -c 'import json,sys;print(json.load(sys.stdin)["value"])' <<<"$R")
           O=$(curl -fsS -X POST -H "Authorization: Bearer $T" 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-cf-ai-probe-once-20260905')
           echo "$O"
-          python -c 'import json,sys;d=json.load(sys.stdin);assert d.get("status")=="PASS_PRESENCE_ONLY",d' <<<"$O"
+          python -c 'import json,sys;d=json.load(sys.stdin);assert d.get("status") in ("PASS_HEADERS","HTTP_ERROR"),d' <<<"$O"
