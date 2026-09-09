@@ -2,7 +2,7 @@
 import json, os, urllib.error, urllib.request
 from decimal import Decimal
 from pathlib import Path
-ENDPOINT="https://arbm-sist-free-capacity-probe.netlify.app/.netlify/functions/capacity-probe"
+ENDPOINT="https://arbm-sist-free-capacity-probe.netlify.app/capacity-probe"
 CREDITS_DOC="https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/credit-based-pricing-plans/"
 AI_DOC="https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/pricing-for-ai-features/"
 MODEL="meta-llama/llama-3.1-8b-instruct"
