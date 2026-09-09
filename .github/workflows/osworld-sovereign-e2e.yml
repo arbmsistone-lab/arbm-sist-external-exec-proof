@@ -8,15 +8,19 @@ on:
 permissions:
   contents: read
 jobs:
-  e2e:
+  task:
+    strategy:
+      fail-fast: false
+      matrix:
+        task: ['001','002','003']
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       ZERO_SPEND_MODE: HARD
       MODEL_DIR: ${{ github.workspace }}/.cache/arbm-models
-      MODEL_FILE: qwen2.5-coder-14b-instruct-q4_k_m.gguf
-      MODEL_SHA256: c1e659736d89ac1065fb495330fb824d94001974a4bfa78e7270e43476a8d940
+      MODEL_FILE: qwen2.5-coder-3b-instruct-q4_k_m.gguf
+      MODEL_SHA256: 724fb256bec1ff062b2f65e4569e871ad2e95ab2a3989723d1769c54294730b7
       LLAMA_TAG: b10516
       LLAMA_SHA256: f263a91280471b4c33c4999d7c76259c0f3a0a53a0b3e692b2c0b84380137a35
       OPENAI_BASE_URL: http://127.0.0.1:8088/v1
@@ -25,18 +29,19 @@ jobs:
       AWS_SUBNET_ID: unused-docker-provider
       AWS_SECURITY_GROUP_ID: unused-docker-provider
       OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
+      TASK_ID: ${{ matrix.task }}
     steps:
       - uses: actions/checkout@v7
       - name: Prove free KVM runner
         shell: bash
         run: |
-          set -euo pipefail          test "$RUNNER_ENVIRONMENT" = "github-hosted"
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = "github-hosted"
           test "$ZERO_SPEND_MODE" = "HARD"
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL || true
           sudo apt-get clean
           test -c /dev/kvm
           sudo chmod 666 /dev/kvm
-          df -h /
       - name: Checkout pinned OSWorld
         shell: bash
         run: |
@@ -46,15 +51,15 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           cd osworld
           "$HOME/.local/bin/uv" sync --frozen
-      - name: Download official tasks and selected assets
+      - name: Download official task and selected asset
         shell: bash
         run: |
           set -euo pipefail
           test -n "${HF_TOKEN:-}"
           cd osworld
           "$HOME/.local/bin/uv" run python scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
-          "$HOME/.local/bin/uv" run python scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 --allow-pattern 'task_001/**' --allow-pattern 'task_002/**' --allow-pattern 'task_003/**' --target-dir cache/osworld_v2_assets
-          printf '{"tasks":["001","002","003"]}\n' > evaluation_examples/test_arbm_sovereign.json
+          "$HOME/.local/bin/uv" run python scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 --allow-pattern "task_${TASK_ID}/**" --target-dir cache/osworld_v2_assets
+          printf '{"tasks":["%s"]}\n' "$TASK_ID" > evaluation_examples/test_arbm_sovereign.json
           test "$(find evaluation_examples/task_class -maxdepth 1 -name 'task_*.py' -type f | wc -l)" -eq 108
       - name: Download and verify official VM
         shell: bash
@@ -74,14 +79,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.MODEL_DIR }}/${{ env.MODEL_FILE }}
-          key: qwen25-coder-14b-q4km-${{ env.MODEL_SHA256 }}
+          key: qwen25-coder-3b-q4km-${{ env.MODEL_SHA256 }}
       - name: Start verified sovereign model
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p "$MODEL_DIR"
           MODEL="$MODEL_DIR/$MODEL_FILE"
-          if [ ! -f "$MODEL" ]; then curl -fL --retry 5 --retry-delay 5 -o "$MODEL" "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/resolve/main/$MODEL_FILE?download=true"; fi
+          if [ ! -f "$MODEL" ]; then curl -fL --retry 5 --retry-delay 5 -o "$MODEL" "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/aebf6a0f72261b12fb8199bc580fe172fe86c901/$MODEL_FILE?download=true"; fi
           echo "$MODEL_SHA256  $MODEL" | sha256sum -c -
           curl -fL --retry 4 -o /tmp/llama.tgz "https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA_TAG/llama-$LLAMA_TAG-bin-ubuntu-x64.tar.gz"
           echo "$LLAMA_SHA256  /tmp/llama.tgz" | sha256sum -c -
@@ -92,12 +97,12 @@ jobs:
           echo "ARBM_SOVEREIGN_SERVER_PID=$!" >> "$GITHUB_ENV"
           for i in $(seq 1 90); do curl -fsS http://127.0.0.1:8088/health >/dev/null && break; sleep 2; done
           curl -fsS http://127.0.0.1:8088/health
-      - name: Run official OSWorld sovereign smoke
+      - name: Run official OSWorld sovereign task
         shell: bash
         run: |
           set -euo pipefail
           cd osworld
-          mkdir -p ../top3-evidence/osworld-sovereign
+          mkdir -p ../top3-evidence/osworld-sovereign-${TASK_ID}
           "$HOME/.local/bin/uv" run python scripts/python/run_multienv.py \
             --headless \
             --provider_name docker \
@@ -113,44 +118,56 @@ jobs:
             --max_trajectory_length 1 \
             --max_tokens 192 \
             --num_envs 1 \
-            --result_dir ../top3-evidence/osworld-sovereign/results \
-            2>&1 | tee ../top3-evidence/osworld-sovereign/osworld.log
-      - name: Enforce official evaluator gate
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import glob, os
-          files=glob.glob('top3-evidence/osworld-sovereign/results/**/result.txt',recursive=True)
-          vals=[]
-          for f in files:
-              try: vals.append(float(open(f,encoding='utf-8').read().strip()))
-              except: pass
-          assert files, 'NO_OSWORLD_RESULTS'
-          assert vals, 'NO_NUMERIC_OSWORLD_SCORES'
-          assert max(vals) > 0.0, 'ZERO_SCORE_OSWORLD_RUN'
-          print({'tasks':len(files),'scores':vals,'max_score':max(vals)})
-          PY
-      - name: Freeze immutable evidence
+            --result_dir ../top3-evidence/osworld-sovereign-${TASK_ID}/results \
+            2>&1 | tee ../top3-evidence/osworld-sovereign-${TASK_ID}/osworld.log
+      - name: Freeze task evidence
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p top3-evidence/osworld-sovereign
-          printf '%s\n' "$GITHUB_SHA" > top3-evidence/osworld-sovereign/candidate-sha.txt
-          printf '%s\n' "$ZERO_SPEND_MODE" > top3-evidence/osworld-sovereign/zero-spend-mode.txt
-          printf '%s\n' "$MODEL_SHA256" > top3-evidence/osworld-sovereign/sovereign-model-sha256.txt
-          cp -f sovereign-osworld.log top3-evidence/osworld-sovereign/ 2>/dev/null || true
-          find top3-evidence/osworld-sovereign -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > top3-evidence/osworld-sovereign/SHA256SUMS.txt
-      - name: Upload OSWorld E2E evidence
+          DIR="top3-evidence/osworld-sovereign-${TASK_ID}"
+          mkdir -p "$DIR"
+          printf '%s\n' "$GITHUB_SHA" > "$DIR/candidate-sha.txt"
+          printf '%s\n' "$ZERO_SPEND_MODE" > "$DIR/zero-spend-mode.txt"
+          printf '%s\n' "$MODEL_SHA256" > "$DIR/sovereign-model-sha256.txt"
+          printf '%s\n' "$TASK_ID" > "$DIR/task-id.txt"
+          cp -f sovereign-osworld.log "$DIR/" 2>/dev/null || true
+          find "$DIR" -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > "$DIR/SHA256SUMS.txt"
+      - name: Upload task evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: top3-osworld-sovereign-e2e
-          path: top3-evidence/osworld-sovereign
+          name: top3-osworld-task-${{ matrix.task }}
+          path: top3-evidence/osworld-sovereign-${{ matrix.task }}
           if-no-files-found: error
           retention-days: 90
       - name: Stop sovereign runtime
         if: always()
         run: kill "$ARBM_SOVEREIGN_SERVER_PID" 2>/dev/null || true
-
+  aggregate:
+    needs: task
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download all task evidence
+        uses: actions/download-artifact@v5
+        with:
+          pattern: top3-osworld-task-*
+          path: evidence
+      - name: Enforce official evaluator gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import glob
+          files=glob.glob('evidence/**/results/**/result.txt',recursive=True)
+          vals=[]
+          for f in files:
+              try: vals.append(float(open(f,encoding='utf-8').read().strip()))
+              except: pass
+          assert len(files)==3, f'EXPECTED_3_OSWORLD_RESULTS_GOT_{len(files)}'
+          assert len(vals)==3, f'EXPECTED_3_NUMERIC_SCORES_GOT_{len(vals)}'
+          assert max(vals)>0.0, 'ZERO_SCORE_OSWORLD_RUN'
+          print({'tasks':len(files),'scores':vals,'max_score':max(vals)})
+          PY
