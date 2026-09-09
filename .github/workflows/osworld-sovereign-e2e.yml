@@ -28,11 +28,6 @@ jobs:
           if-no-files-found: error
   task:
     needs: mesh-preflight
-    strategy:
-      fail-fast: false
-      max-parallel: 1
-      matrix:
-        task: ['001','002','003']
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
@@ -40,13 +35,11 @@ jobs:
       ZERO_SPEND_MODE: HARD
       OPENAI_BASE_URL: http://127.0.0.1:8088/v1
       OPENAI_API_KEY: zero-spend-oidc-shim
-      ARBM_OSWORLD_SHIM_LOG: ${{ github.workspace }}/osworld-free-mesh-shim.log
-      OSWORLD_AGENT_VERSION: supabase-arbm-terminal-agent-v7-v20-shim-v21
+      OSWORLD_AGENT_VERSION: supabase-arbm-terminal-agent-v7-v22-single-runner-v22
       AWS_REGION: us-east-1
       AWS_SUBNET_ID: unused-docker-provider
       AWS_SECURITY_GROUP_ID: unused-docker-provider
       OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
-      TASK_ID: ${{ matrix.task }}
     steps:
       - uses: actions/checkout@v7
       - name: Prove free KVM runner
@@ -59,7 +52,7 @@ jobs:
           sudo apt-get clean
           test -c /dev/kvm
           sudo chmod 666 /dev/kvm
-      - name: Checkout pinned OSWorld
+      - name: Checkout pinned OSWorld once
         shell: bash
         run: |
           set -euo pipefail
@@ -68,17 +61,18 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           cd osworld
           "$HOME/.local/bin/uv" sync --frozen
-      - name: Download official task and selected asset
+      - name: Download official tasks and assets once
         shell: bash
         run: |
           set -euo pipefail
           test -n "${HF_TOKEN:-}"
           cd osworld
           "$HOME/.local/bin/uv" run python scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
-          "$HOME/.local/bin/uv" run python scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 --allow-pattern "task_${TASK_ID}/**" --target-dir cache/osworld_v2_assets
-          printf '{"tasks":["%s"]}\n' "$TASK_ID" > evaluation_examples/test_arbm_sovereign.json
+          for id in 001 002 003; do
+            "$HOME/.local/bin/uv" run python scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 --allow-pattern "task_${id}/**" --target-dir cache/osworld_v2_assets
+          done
           test "$(find evaluation_examples/task_class -maxdepth 1 -name 'task_*.py' -type f | wc -l)" -eq 108
-      - name: Download and verify official VM
+      - name: Download and verify official VM once
         shell: bash
         run: |
           set -euo pipefail
@@ -92,63 +86,58 @@ jobs:
           QCOW=$(find vm -type f -name '*.qcow2' | head -1)
           test -n "$QCOW"
           echo "QCOW_PATH=$PWD/$QCOW" >> "$GITHUB_ENV"
-      - name: Start verified remote FREE mesh shim
+          sha256sum "$QCOW" | cut -d' ' -f1 > qcow-base.sha256
+      - name: Run three official OSWorld tasks on one verified VM base
         shell: bash
         run: |
           set -euo pipefail
-          test "$ZERO_SPEND_MODE" = "HARD"
-          python scripts/osworld_free_mesh_shim.py > shim-runtime.log 2>&1 &
-          echo "ARBM_SOVEREIGN_SERVER_PID=$!" >> "$GITHUB_ENV"
-          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8088/health >/dev/null && break; sleep 1; done
-          curl -fsS http://127.0.0.1:8088/health
-      - name: Run official OSWorld sovereign task
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd osworld
-          mkdir -p ../top3-evidence/osworld-sovereign-${TASK_ID}
-          "$HOME/.local/bin/uv" run python scripts/python/run_multienv.py \
-            --headless \
-            --provider_name docker \
-            --path_to_vm "$QCOW_PATH" \
-            --eval_version v2 \
-            --test_all_meta_path evaluation_examples/test_arbm_sovereign.json \
-            --domain tasks \
-            --observation_type a11y_tree \
-            --action_space pyautogui \
-            --model gpt-arbm-sovereign \
-            --temperature 0 \
-            --max_steps 12 \
-            --max_trajectory_length 1 \
-            --max_tokens 512 \
-            --num_envs 1 \
-            --result_dir ../top3-evidence/osworld-sovereign-${TASK_ID}/results \
-            2>&1 | tee ../top3-evidence/osworld-sovereign-${TASK_ID}/osworld.log
-      - name: Freeze task evidence
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          DIR="top3-evidence/osworld-sovereign-${TASK_ID}"
-          mkdir -p "$DIR"
-          printf '%s\n' "$GITHUB_SHA" > "$DIR/candidate-sha.txt"
-          printf '%s\n' "$ZERO_SPEND_MODE" > "$DIR/zero-spend-mode.txt"
-          printf '%s\n' "$OSWORLD_AGENT_VERSION" > "$DIR/osworld-agent-version.txt"
-          printf '%s\n' "$TASK_ID" > "$DIR/task-id.txt"
-          cp -f "$ARBM_OSWORLD_SHIM_LOG" "$DIR/" 2>/dev/null || true
-          cp -f shim-runtime.log "$DIR/" 2>/dev/null || true
-          find "$DIR" -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > "$DIR/SHA256SUMS.txt"
-      - name: Upload task evidence
+          overall=0
+          for TASK_ID in 001 002 003; do
+            export TASK_ID
+            export ARBM_OSWORLD_SHIM_LOG="$GITHUB_WORKSPACE/osworld-free-mesh-shim-${TASK_ID}.log"
+            DIR="$GITHUB_WORKSPACE/top3-evidence/osworld-sovereign-${TASK_ID}"
+            mkdir -p "$DIR"
+            printf '{"tasks":["%s"]}\n' "$TASK_ID" > "$GITHUB_WORKSPACE/osworld/evaluation_examples/test_arbm_sovereign.json"
+            test "$(sha256sum "$QCOW_PATH" | cut -d' ' -f1)" = "$(cat qcow-base.sha256)"
+            python scripts/osworld_free_mesh_shim.py > "shim-runtime-${TASK_ID}.log" 2>&1 &
+            SHIM_PID=$!
+            ready=0
+            for i in $(seq 1 30); do
+              if curl -fsS http://127.0.0.1:8088/health >/dev/null; then ready=1; break; fi
+              sleep 1
+            done
+            test "$ready" = 1
+            set +e
+            (cd osworld && "$HOME/.local/bin/uv" run python scripts/python/run_multienv.py \
+              --headless --provider_name docker --path_to_vm "$QCOW_PATH" --eval_version v2 \
+              --test_all_meta_path evaluation_examples/test_arbm_sovereign.json --domain tasks \
+              --observation_type a11y_tree --action_space pyautogui --model gpt-arbm-sovereign \
+              --temperature 0 --max_steps 12 --max_trajectory_length 1 --max_tokens 512 --num_envs 1 \
+              --result_dir "../top3-evidence/osworld-sovereign-${TASK_ID}/results" \
+              2>&1 | tee "../top3-evidence/osworld-sovereign-${TASK_ID}/osworld.log")
+            rc=${PIPESTATUS[0]}
+            set -e
+            kill "$SHIM_PID" 2>/dev/null || true
+            wait "$SHIM_PID" 2>/dev/null || true
+            cp -f "$ARBM_OSWORLD_SHIM_LOG" "$DIR/" 2>/dev/null || true
+            cp -f "shim-runtime-${TASK_ID}.log" "$DIR/" 2>/dev/null || true
+            printf '%s\n' "$GITHUB_SHA" > "$DIR/candidate-sha.txt"
+            printf '%s\n' "$ZERO_SPEND_MODE" > "$DIR/zero-spend-mode.txt"
+            printf '%s\n' "$OSWORLD_AGENT_VERSION" > "$DIR/osworld-agent-version.txt"
+            printf '%s\n' "$TASK_ID" > "$DIR/task-id.txt"
+            test "$(sha256sum "$QCOW_PATH" | cut -d' ' -f1)" = "$(cat qcow-base.sha256)" || rc=99
+            find "$DIR" -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > "$DIR/SHA256SUMS.txt"
+            if [ "$rc" -ne 0 ]; then overall=1; fi
+          done
+          exit "$overall"
+      - name: Upload all task evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: top3-osworld-task-${{ matrix.task }}
-          path: top3-evidence/osworld-sovereign-${{ matrix.task }}
+          name: top3-osworld-task-bundle
+          path: top3-evidence
           if-no-files-found: error
           retention-days: 90
-      - name: Stop sovereign runtime
-        if: always()
-        run: kill "$ARBM_SOVEREIGN_SERVER_PID" 2>/dev/null || true
   aggregate:
     needs: task
     if: always()

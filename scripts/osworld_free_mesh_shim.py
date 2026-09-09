@@ -1,8 +1,8 @@
-import json, os, re, time, urllib.request, urllib.error
+import json, os, re, time, urllib.request, urllib.error, hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 UPSTREAM = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v7"
-STATE = {"step": 0, "previous": "", "executed": 0, "history": []}
+STATE = {"step": 0, "previous": "", "executed": 0, "history": [], "memory": [], "last_obs_sig": "", "last_target": ""}
 LOG = os.environ.get("ARBM_OSWORLD_SHIM_LOG", "osworld-free-mesh-shim.log")
 
 def text_of(content):
@@ -44,9 +44,10 @@ def log_event(data):
 def call_mesh(messages):
     STATE["step"] += 1
     preferred = {"001":"groq", "002":"lightning", "003":"google"}.get(os.environ.get("TASK_ID", ""), "")
-    body = {"instruction": task_from(messages), "observation": latest_observation(messages),
+    obs = latest_observation(messages)
+    body = {"instruction": task_from(messages), "observation": obs,
             "previous_command": STATE["previous"], "executed_count": STATE["executed"],
-            "provider_hint": preferred, "step": STATE["step"]}
+            "memory": "\n".join(STATE["memory"][-6:]), "provider_hint": preferred, "step": STATE["step"]}
     http, data = None, {"status": "NO_ATTEMPT"}
     for attempt in range(4):
         req = urllib.request.Request(UPSTREAM, data=json.dumps(body).encode(), method="POST",
@@ -66,10 +67,18 @@ def call_mesh(messages):
     action = data.get("action") or {}
     if http == 200 and data.get("ok") is True and action.get("action") == "exec":
         command = str(action.get("command") or "").strip()
-        if command in STATE["history"]:
+        obs_sig = hashlib.sha256(obs.encode("utf-8", "ignore")).hexdigest()[:16]
+        m = re.search(r"pyautogui\.(?:click|doubleClick|rightClick|moveTo|dragTo)\s*\(\s*(\d+)\s*,\s*(\d+)", command)
+        target = f"{m.group(1)},{m.group(2)}" if m else command
+        if command in STATE["history"] or (target == STATE["last_target"] and obs_sig == STATE["last_obs_sig"]):
             return "WAIT"
         STATE["previous"] = command
         STATE["executed"] += 1
+        summary = str(action.get("summary") or "").strip()
+        if summary:
+            STATE["memory"].append(f"step {STATE["step"]}: {summary[:900]}")
+            STATE["memory"] = STATE["memory"][-6:]
+        STATE["last_obs_sig"], STATE["last_target"] = obs_sig, target
         STATE["history"].append(command)
         STATE["history"] = STATE["history"][-8:]
         return "```python\n" + command + "\n```"
