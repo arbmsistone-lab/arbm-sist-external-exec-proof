@@ -39,6 +39,8 @@ on:
       - 'test_capacity_revalidation_gate.py'
       - 'capacity_contract_probe.py'
       - 'test_capacity_contract_probe.py'
+      - 'live_capacity_survival_gate.py'
+      - 'test_live_capacity_survival_gate.py'
       - 'supabase_guardrail_live_probe.py'
       - 'test_capacity_excellence.py'
       - 'workload_useful_capacity.py'
@@ -60,8 +62,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Test proof gates and mesh regressions
         run: |
-          python -m unittest test_provider_probe.py test_mesh_capacity.py test_distributed_capacity.py test_cloudflare_granite_capacity.py test_resilience_capacity.py test_vikasit_capacity_probe.py test_cerebras_capacity_probe.py test_capacity_excellence.py test_workload_useful_capacity.py test_audit_30x10_capacity.py test_audit_50x10_capacity.py test_capacity_ceiling_gate.py test_openrouter_capacity_probe.py test_capacity_configuration_gate.py test_adaptive_capacity_router.py test_capacity_revalidation_gate.py test_capacity_contract_probe.py test_sambanova_capacity_probe.py test_vercel_gateway_capacity_probe.py test_netlify_capacity_probe.py test_merge_live_capacity_evidence.py test_zero_capacity_pool_gate.py
-          python -m py_compile account_capacity_probe.py cerebras_capacity_probe.py sambanova_capacity_probe.py distributed_capacity.py cloudflare_granite_capacity.py resilience_capacity.py vikasit_capacity_probe.py capacity_excellence.py workload_useful_capacity.py audit_30x10_capacity.py audit_50x10_capacity.py capacity_ceiling_gate.py openrouter_capacity_probe.py groq_model_bucket_probe.py vercel_gateway_capacity_probe.py netlify_capacity_probe.py capacity_configuration_gate.py adaptive_capacity_router.py capacity_revalidation_gate.py capacity_contract_probe.py supabase_guardrail_live_probe.py merge_live_capacity_evidence.py
+          python -m unittest test_provider_probe.py test_mesh_capacity.py test_distributed_capacity.py test_cloudflare_granite_capacity.py test_resilience_capacity.py test_vikasit_capacity_probe.py test_cerebras_capacity_probe.py test_capacity_excellence.py test_workload_useful_capacity.py test_audit_30x10_capacity.py test_audit_50x10_capacity.py test_capacity_ceiling_gate.py test_openrouter_capacity_probe.py test_capacity_configuration_gate.py test_adaptive_capacity_router.py test_capacity_revalidation_gate.py test_capacity_contract_probe.py test_live_capacity_survival_gate.py test_sambanova_capacity_probe.py test_vercel_gateway_capacity_probe.py test_netlify_capacity_probe.py test_merge_live_capacity_evidence.py test_zero_capacity_pool_gate.py
+          python -m py_compile account_capacity_probe.py cerebras_capacity_probe.py sambanova_capacity_probe.py distributed_capacity.py cloudflare_granite_capacity.py resilience_capacity.py vikasit_capacity_probe.py capacity_excellence.py workload_useful_capacity.py audit_30x10_capacity.py audit_50x10_capacity.py capacity_ceiling_gate.py openrouter_capacity_probe.py groq_model_bucket_probe.py vercel_gateway_capacity_probe.py netlify_capacity_probe.py capacity_configuration_gate.py adaptive_capacity_router.py capacity_revalidation_gate.py capacity_contract_probe.py supabase_guardrail_live_probe.py live_capacity_survival_gate.py merge_live_capacity_evidence.py
           node --test test_mistral_mesh.mjs
           python - <<'PY'
           import json
@@ -99,12 +101,16 @@ jobs:
         run: |
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
-          python groq_model_bucket_probe.py
+          python groq_model_bucket_probe.py | tee groq-live.json
 
       - name: Probe Mistral free moderation lane
-        run: python mistral_free_moderation_probe.py
+        run: |
+          set -o pipefail
+          python mistral_free_moderation_probe.py | tee mistral-live.json
       - name: Probe Supabase FREE guardrail live
-        run: python supabase_guardrail_live_probe.py
+        run: |
+          set -o pipefail
+          python supabase_guardrail_live_probe.py | tee supabase-live.json
 
       - name: Probe ARBM FREE provider mesh
         run: |
@@ -115,7 +121,11 @@ jobs:
         run: |
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
-          python account_capacity_probe.py --require-certified
+          python account_capacity_probe.py | tee account-live.jsonl
+      - name: Enforce live degraded-mode survival floor
+        run: |
+          python live_capacity_survival_gate.py --account account-live.jsonl --mistral mistral-live.json --supabase supabase-live.json
+
       - name: Probe SambaNova recurring FREE capacity when configured
         env:
           SAMBANOVA_API_KEY: ${{ secrets.SAMBANOVA_API_KEY }}
