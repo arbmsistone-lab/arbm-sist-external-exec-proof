@@ -8,3 +8,5 @@ Stretch 10M: PASS
 Independent pools: 5
 ZERO_SPEND_MODE: HARD
 Branch protection: provider_probe strict, admins enforced, linear history, no force-push, no deletion, required signatures
+CircleCI legacy webhook: disabled (hook 675339771)
+CircleCI status on new certification SHA: must be absent
