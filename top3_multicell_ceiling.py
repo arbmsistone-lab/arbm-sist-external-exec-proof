@@ -25,7 +25,7 @@ def setup():
         for _ in range(POOL_PER_CELL): POOLS[cell].put(psycopg.connect(dsn,autocommit=True))
     return {'rows':sum(counts),'cells':CELLS,'rowsPerCell':counts,'poolPerCell':POOL_PER_CELL,'seedMs':round((time.perf_counter()-started)*1000,3)}
 def one_op(i):
-    n=(i%TENANTS)+1; cell=(n-1)//250000; tenant=f'tenant-{n:07d}'
+    n=((i*7919)%TENANTS)+1; cell=(n-1)//250000; tenant=f'tenant-{n:07d}'
     wait_t=time.perf_counter(); c=POOLS[cell].get(); wait_ms=(time.perf_counter()-wait_t)*1000
     try:
         t=time.perf_counter(); mode=i%10
