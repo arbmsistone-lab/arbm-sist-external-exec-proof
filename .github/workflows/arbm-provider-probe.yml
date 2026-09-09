@@ -9,6 +9,7 @@ on:
       - 'arbm_provider_probe.py'
       - 'account_capacity_probe.py'
       - 'cerebras_capacity_probe.py'
+      - 'sambanova_capacity_probe.py'
       - 'distributed_capacity.py'
       - 'test_provider_probe.py'
       - 'test_distributed_capacity.py'
@@ -34,7 +35,7 @@ jobs:
       - name: Test proof gates and mesh regressions
         run: |
           python -m unittest test_provider_probe.py test_mesh_capacity.py test_distributed_capacity.py
-          python -m py_compile account_capacity_probe.py cerebras_capacity_probe.py distributed_capacity.py
+          python -m py_compile account_capacity_probe.py cerebras_capacity_probe.py sambanova_capacity_probe.py distributed_capacity.py
           node --test test_mistral_mesh.mjs
       - name: Probe ARBM FREE provider mesh
         run: |
@@ -46,6 +47,13 @@ jobs:
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
           python account_capacity_probe.py
+      - name: Probe SambaNova recurring FREE capacity when configured
+        env:
+          SAMBANOVA_API_KEY: ${{ secrets.SAMBANOVA_API_KEY }}
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = "HARD"
+          python sambanova_capacity_probe.py
       - name: Probe Cerebras FREE capacity when configured
         env:
           CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
