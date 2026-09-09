@@ -109,6 +109,11 @@ jobs:
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
           python openrouter_capacity_probe.py
+      - name: Enforce current capacity configuration truth
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          python capacity_configuration_gate.py
 
       - name: Probe Cerebras FREE capacity when configured
         env:
