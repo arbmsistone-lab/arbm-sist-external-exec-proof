@@ -56,7 +56,7 @@ async function auth(req: Request) {
   });
   if (payload.repository !== REPO) throw new Error("OIDC_REPOSITORY");
   const ref = String(payload.ref || "");
-  if (!(ref.startsWith("refs/heads/p3/terminal-bench-") || (ref.startsWith("refs/heads/codex/terminal-capacity-") || ref.startsWith("refs/heads/codex/free-capacity-")))) throw new Error("OIDC_REF");
+  if (!(ref.startsWith("refs/heads/p3/terminal-bench-") || (ref.startsWith("refs/heads/codex/terminal-capacity-") || ref.startsWith("refs/heads/codex/free-capacity-") || ref.startsWith("refs/heads/codex/osworld-close-")))) throw new Error("OIDC_REF");
   if (!["push", "workflow_dispatch"].includes(String(payload.event_name || ""))) {
     throw new Error("OIDC_EVENT");
   }
@@ -130,9 +130,10 @@ async function callGroq(prompt: string, step = 1, modelHint = "") {
         const rpd = res.headers.get("x-ratelimit-limit-requests"), tpm = res.headers.get("x-ratelimit-limit-tokens");
         const retryAfter = res.headers.get("retry-after") || res.headers.get("x-ratelimit-reset-tokens");
         const remainingReq = res.headers.get("x-ratelimit-remaining-requests"), remainingTokens = res.headers.get("x-ratelimit-remaining-tokens");
+        const rateHeaders = Object.fromEntries([...res.headers.entries()].filter(([k]) => k.toLowerCase().startsWith("x-ratelimit-")).map(([k,v]) => [k.toLowerCase(), String(v).slice(0,120)]));
         if (res.status === 429 || remainingTokens === "0") cool("groq:"+model, retryAfter, 60);
         const freePlanProven = rpd === "1000" && tpm === "8000";
-        attempts.push({ route: structured ? "groq-json-object" : "groq-json-text", model, status: res.status, parsed: !!action, usage_tokens: Number.isFinite(raw?.usage?.total_tokens) ? raw.usage.total_tokens : null, free_plan_proven: freePlanProven, rate_limit_rpd: rpd, rate_limit_tpm: tpm, retry_after: retryAfter, remaining_requests: remainingReq, remaining_tokens: remainingTokens, error_message: scrub(raw?.error?.message) });
+        attempts.push({ route: structured ? "groq-json-object" : "groq-json-text", model, status: res.status, parsed: !!action, usage_tokens: Number.isFinite(raw?.usage?.total_tokens) ? raw.usage.total_tokens : null, free_plan_proven: freePlanProven, rate_limit_rpd: rpd, rate_limit_tpm: tpm, rate_limit_headers: rateHeaders, retry_after: retryAfter, remaining_requests: remainingReq, remaining_tokens: remainingTokens, error_message: scrub(raw?.error?.message) });
         if (action && freePlanProven) return { result: { action, model, provider: "groqcloud-free" }, attempts };
         if ([401,403,429].includes(res.status) || res.status >= 500) return {result:null,attempts};
         if (structured && res.status === 400 && /response.?format|json.?object/i.test(String(raw?.error?.message || ""))) continue;
@@ -293,6 +294,8 @@ async function controlled(provider:string,prompt:string,call:()=>Promise<any>) {
   if(completed?.accepted!==true) return {result:null,attempts:[...attempts,{route:provider,status:"shared_completion_failed",mandatory_cost_usd:0,paid_fallback_used:false}]};
   return {result:out.result,attempts:attempts.map((a:any)=>({...a,mandatory_cost_usd:0,paid_fallback_used:false,latency_ms:Date.now()-started,shared_control:true,quota_kind:"internal_policy_not_account_allowance"}))};
 }
+function osworldBoxes(text:string){const out:number[][]=[];for(const line of text.split("\n")){const ms=[...line.matchAll(/\((-?\d+),\s*(-?\d+)\)/g)];if(ms.length<2)continue;const a=ms[ms.length-2],b=ms[ms.length-1];const x=+a[1],y=+a[2],w=+b[1],h=+b[2];if([x,y,w,h].every(Number.isFinite)&&w>0&&h>0)out.push([x,y,w,h]);}return out;}
+function validateOsworld(command:string,observation:string,previous:string){const v=String(command||"").trim();if(!v||v.length>2200)return "EMPTY_OR_TOO_LONG";if(previous&&v===previous.trim())return "REPEATED_NO_PROGRESS_ACTION";if(/\b(?:subprocess|requests|urllib|socket|pathlib|shutil|powershell|bash|cmd\.exe|os\.|open\s*\(|eval\s*\(|exec\s*\(|__import__)\b/i.test(v))return "NON_GUI_CAPABILITY";const lines=v.split(/\n|;/).map(x=>x.trim()).filter(x=>x&&!x.startsWith("#"));const ok=/^pyautogui\.(?:click|doubleClick|rightClick|moveTo|press|hotkey|write|typewrite|scroll|sleep|mouseDown|mouseUp|dragTo)\s*\(/;if(!lines.length||lines.some(x=>!ok.test(x)))return "NON_PYAUTOGUI_ACTION";const boxes=osworldBoxes(observation);for(const line of lines){const m=/pyautogui\.(?:click|doubleClick|rightClick|moveTo|dragTo)\s*\(\s*(\d+)\s*,\s*(\d+)/.exec(line);if(!m)continue;const x=+m[1],y=+m[2];if(x<1||x>1918||y<1||y>1078)return "OUT_OF_SCREEN";if(boxes.length&&!boxes.some(([bx,by,bw,bh])=>x>=bx&&x<=bx+bw&&y>=by&&y<=by+bh))return "UNGROUNDED_COORDINATE";}return "";}
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return respond({ error: "METHOD_NOT_ALLOWED" }, 405);
   try {
@@ -302,6 +305,18 @@ Deno.serve(async (req: Request) => {
     const observation = String(body?.observation || "").slice(-16000);
     const step = Math.max(1, Math.min(20, Number(body?.step || 1)));
     if (!instruction) return respond({ error: "INSTRUCTION_REQUIRED" }, 400);
+
+    const osworldBranch = oidc.ref.startsWith("refs/heads/codex/osworld-close-");
+    if ((Deno.env.get("ZERO_SPEND_MODE") || "HARD") !== "HARD") return respond({ok:false,status:"ZERO_SPEND_HARD_REQUIRED",mandatory_cost_usd:0,paid_fallback_used:false},503);
+    if (osworldBranch) {
+      const previous=String(body?.previous_command||"").slice(-2200); const obs=String(body?.observation||"").slice(-26000);
+      if(!obs)return respond({error:"OSWORLD_OBSERVATION_REQUIRED"},400);
+      const p=`You control the official OSWorld Ubuntu desktop through PyAutoGUI. Return exactly one JSON object with keys action, command, summary; action is exec or finish. For exec, command may contain only pyautogui calls. Ground mouse coordinates strictly inside a bounding box from CURRENT ACCESSIBILITY TREE. Never invent coordinates, never click screen edges, never repeat PREVIOUS COMMAND after no progress. Prefer keyboard navigation, app search, hotkeys, typing, Tab/Enter and named controls when reliable. No shell, terminal, filesystem, network, clipboard, subprocess, os, eval or hidden state. One meaningful atomic UI action sequence only.\nSTEP:${step}\nTASK:\n${instruction}\nPREVIOUS COMMAND:\n${previous||"none"}\nCURRENT ACCESSIBILITY TREE:\n${obs}`;
+      const attempts:any[]=[]; let result:any=null; const order=["groq","lightning","google","mistral"];
+      for(const provider of order){const invoke=()=>provider==="mistral"?callMistral(p,""):provider==="lightning"?callLightning(p,3,""):provider==="groq"?callGroq(p,3,""):callGemini(p,3,"");const response=await controlled(provider,p,invoke);attempts.push(...response.attempts);const a=response.result?.action||{};const reason=a.action==="exec"?validateOsworld(String(a.command||""),obs,previous):"";if(response.result&&["exec","finish"].includes(String(a.action))&&!reason){result=response.result;break;}if(reason)attempts.push({route:provider,status:"osworld_action_rejected",reason,mandatory_cost_usd:0,paid_fallback_used:false});}
+      if(!result)return respond({ok:false,status:"WAITING_FREE_CAPACITY_OR_VALID_GROUNDING",provider_attempts:attempts,mandatory_cost_usd:0,paid_fallback_used:false,scoreable:false},503);
+      const a=result.action;return respond({ok:true,status:"PASS",action:{action:String(a.action),command:String(a.command||"").slice(0,2200),summary:String(a.summary||"").slice(0,1000)},model:result.model,provider:result.provider,provider_attempts:attempts,pipeline:"osworld-free-mesh-v1",mandatory_cost_usd:0,paid_fallback_used:false,scoreable:false,github_run_id:oidc.runId,github_sha:oidc.sha});
+    }
 
     const prompt = `Solve this Terminal-Bench task by inspecting the sandbox, making the smallest correct changes, and verifying them. Return JSON only. Use exec with exactly one bash command, or finish only after verification succeeded. Never repeat a failed or no-progress command.\nSTEP:${step}\nTASK:\n${instruction}\nRECENT HISTORY:\n${observation || "No commands executed yet."}`;
     const attempts: any[] = [];
