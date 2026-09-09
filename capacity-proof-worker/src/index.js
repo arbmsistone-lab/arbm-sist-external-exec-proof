@@ -6,6 +6,7 @@ const ALLOWED=new Set(['@cf/meta/llama-3.2-1b-instruct',GRANITE]);
 const MIN_PROMPT_TOKENS=1024;
 const OUTPUT_DENOMINATOR=5;
 const CONCISE_MAX_OUTPUT_TOKENS=102;
+const CONCISE32_MAX_OUTPUT_TOKENS=32;
 const b64u=s=>Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(s.length/4)*4,'=')),c=>c.charCodeAt(0));
 const jsonPart=s=>JSON.parse(new TextDecoder().decode(b64u(s)));
 async function verifyOidc(token){
@@ -42,6 +43,16 @@ const validUsage=u=>Number.isInteger(u.prompt_tokens)&&u.prompt_tokens>0&&Number
   if(mainUsage.completion_tokens>requested) return Response.json({ok:false,error:'output_limit_failed'},{status:422});
   return Response.json({ok:text.trim().length>0,provider:'cloudflare',model:GRANITE,mode:'GRANITE_RATIO_20',mandatory_cost_usd:0,paid_fallback_used:false,github_run_id:oidc.run_id,preflight_usage:preUsage,main_usage:mainUsage,max_output_tokens:requested,max_allowed_output_tokens:ceiling,ratio_denominator:OUTPUT_DENOMINATOR,min_prompt_tokens:MIN_PROMPT_TOKENS,response_nonempty:text.trim().length>0},{status:text.trim().length>0?200:422});
 }
+async function concise32Lane(env,body,oidc){
+  const prompt=String(body.prompt||'').trim();
+  if(!prompt) return Response.json({ok:false,error:'prompt_required'},{status:400});
+  const main=await env.AI.run(GRANITE,{messages:[{role:'user',content:prompt}],max_tokens:CONCISE32_MAX_OUTPUT_TOKENS});
+  const mainUsage=usage(main),text=String(main?.response||main?.choices?.[0]?.message?.content||'');
+  if(!validUsage(mainUsage)) return Response.json({ok:false,error:'usage_unavailable'},{status:422});
+  if(mainUsage.prompt_tokens<MIN_PROMPT_TOKENS) return Response.json({ok:false,error:'prompt_too_short',prompt_tokens:mainUsage.prompt_tokens},{status:422});
+  if(mainUsage.completion_tokens>CONCISE32_MAX_OUTPUT_TOKENS) return Response.json({ok:false,error:'output_limit_failed'},{status:422});
+  return Response.json({ok:text.trim().length>0,provider:'cloudflare',model:GRANITE,mode:'GRANITE_CONCISE_32',mandatory_cost_usd:0,paid_fallback_used:false,github_run_id:oidc.run_id,main_usage:mainUsage,max_output_tokens:CONCISE32_MAX_OUTPUT_TOKENS,min_prompt_tokens:MIN_PROMPT_TOKENS,response_nonempty:text.trim().length>0},{status:text.trim().length>0?200:422});
+}
 async function conciseLane(env,body,oidc){
   const prompt=String(body.prompt||'').trim();
   if(!prompt) return Response.json({ok:false,error:'prompt_required'},{status:400});
@@ -61,6 +72,7 @@ export default {async fetch(req,env){
     const body=await req.json().catch(()=>({}));
     if(body.mode==='capacity_lane') return capacityLane(env,body,oidc);
     if(body.mode==='concise_lane') return conciseLane(env,body,oidc);
+    if(body.mode==='concise32_lane') return concise32Lane(env,body,oidc);
     const model=String(body.model||'');
     if(!ALLOWED.has(model)) return Response.json({ok:false,error:'model_not_allowed'},{status:403});    const result=await env.AI.run(model,{messages:[{role:'user',content:'Reply with a short capacity probe response.'}],max_tokens:24});
     const text=String(result?.response||result?.choices?.[0]?.message?.content||'');

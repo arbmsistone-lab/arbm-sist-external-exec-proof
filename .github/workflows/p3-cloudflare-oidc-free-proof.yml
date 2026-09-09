@@ -1,7 +1,7 @@
 name: P3 Cloudflare OIDC FREE Proof
 on:
   push:
-    branches: [p3/cloudflare-free-dev-20260908]
+    branches: [p3/cloudflare-free-dev-*]
   workflow_dispatch:
 permissions:
   contents: read
@@ -49,5 +49,12 @@ jobs:
           jq '{ok,error,model,mode,main_usage,max_output_tokens,min_prompt_tokens}' concise.json
           test "$code" = 200
           jq -e '.ok and .model=="@cf/ibm-granite/granite-4.0-h-micro" and .mode=="GRANITE_CONCISE_10" and .main_usage.prompt_tokens>=1024 and .main_usage.completion_tokens<=102 and .max_output_tokens==102 and .mandatory_cost_usd==0 and .paid_fallback_used==false' concise.json >/dev/null
+          concise32="$(jq -nc --rawfile prompt prompt.txt '{mode:"concise32_lane",prompt:$prompt}')"
+          code="$(curl -sS -o concise32.json -w '%{http_code}' -H "Authorization: Bearer ${oidc}" -H 'content-type: application/json' --data "$concise32" "$endpoint")"
+          echo "CONCISE32_HTTP=$code"
+          jq '{ok,error,model,mode,main_usage,max_output_tokens,min_prompt_tokens}' concise32.json
+          test "$code" = 200
+          jq -e '.ok and .model=="@cf/ibm-granite/granite-4.0-h-micro" and .mode=="GRANITE_CONCISE_32" and .main_usage.prompt_tokens>=1024 and .main_usage.completion_tokens<=32 and .max_output_tokens==32 and .mandatory_cost_usd==0 and .paid_fallback_used==false and .response_nonempty' concise32.json >/dev/null
+          echo 'ARBM_P3_CLOUDFLARE_GRANITE_CONCISE_32=PASS'
           echo 'ARBM_P3_CLOUDFLARE_GRANITE_RATIO_LANE=PASS'
           echo 'ARBM_P3_CLOUDFLARE_GRANITE_CONCISE_10=PASS'
