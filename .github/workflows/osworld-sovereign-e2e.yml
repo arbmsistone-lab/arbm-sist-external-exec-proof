@@ -5,10 +5,29 @@ on:
       - 'codex/osworld-close-*'
     paths:
       - '.github/workflows/osworld-sovereign-e2e.yml'
+      - 'scripts/osworld_free_mesh_shim.py'
+      - 'scripts/osworld_mesh_preflight.py'
 permissions:
   contents: read
+  id-token: write
 jobs:
+  mesh-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      ZERO_SPEND_MODE: HARD
+    steps:
+      - uses: actions/checkout@v7
+      - name: Prove remote FREE OSWorld agent
+        run: python scripts/osworld_mesh_preflight.py
+      - name: Upload sanitized preflight evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: osworld-mesh-preflight
+          path: osworld-mesh-preflight.json
+          if-no-files-found: error
   task:
+    needs: mesh-preflight
     strategy:
       fail-fast: false
       matrix:
@@ -18,13 +37,10 @@ jobs:
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       ZERO_SPEND_MODE: HARD
-      MODEL_DIR: ${{ github.workspace }}/.cache/arbm-models
-      MODEL_FILE: qwen2.5-coder-3b-instruct-q4_k_m.gguf
-      MODEL_SHA256: 724fb256bec1ff062b2f65e4569e871ad2e95ab2a3989723d1769c54294730b7
-      LLAMA_TAG: b10516
-      LLAMA_SHA256: f263a91280471b4c33c4999d7c76259c0f3a0a53a0b3e692b2c0b84380137a35
       OPENAI_BASE_URL: http://127.0.0.1:8088/v1
-      OPENAI_API_KEY: zero-spend-local
+      OPENAI_API_KEY: zero-spend-oidc-shim
+      ARBM_OSWORLD_SHIM_LOG: ${{ github.workspace }}/osworld-free-mesh-shim.log
+      OSWORLD_AGENT_VERSION: supabase-arbm-terminal-agent-v7-v20
       AWS_REGION: us-east-1
       AWS_SUBNET_ID: unused-docker-provider
       AWS_SECURITY_GROUP_ID: unused-docker-provider
@@ -75,27 +91,14 @@ jobs:
           QCOW=$(find vm -type f -name '*.qcow2' | head -1)
           test -n "$QCOW"
           echo "QCOW_PATH=$PWD/$QCOW" >> "$GITHUB_ENV"
-      - name: Restore sovereign model cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.MODEL_DIR }}/${{ env.MODEL_FILE }}
-          key: qwen25-coder-3b-q4km-${{ env.MODEL_SHA256 }}
-      - name: Start verified sovereign model
+      - name: Start verified remote FREE mesh shim
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$MODEL_DIR"
-          MODEL="$MODEL_DIR/$MODEL_FILE"
-          if [ ! -f "$MODEL" ]; then curl -fL --retry 5 --retry-delay 5 -o "$MODEL" "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/aebf6a0f72261b12fb8199bc580fe172fe86c901/$MODEL_FILE?download=true"; fi
-          echo "$MODEL_SHA256  $MODEL" | sha256sum -c -
-          curl -fL --retry 4 -o /tmp/llama.tgz "https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA_TAG/llama-$LLAMA_TAG-bin-ubuntu-x64.tar.gz"
-          echo "$LLAMA_SHA256  /tmp/llama.tgz" | sha256sum -c -
-          mkdir -p /tmp/llama && tar -xzf /tmp/llama.tgz -C /tmp/llama
-          LLAMA_SERVER=$(find /tmp/llama -type f -name llama-server -print -quit)
-          chmod +x "$LLAMA_SERVER"
-          "$LLAMA_SERVER" -m "$MODEL" --host 127.0.0.1 --port 8088 -c 32768 -np 1 -t 4 -ctk q8_0 -ctv q8_0 --no-warmup --no-webui -a gpt-arbm-sovereign > sovereign-osworld.log 2>&1 &
+          test "$ZERO_SPEND_MODE" = "HARD"
+          python scripts/osworld_free_mesh_shim.py > shim-runtime.log 2>&1 &
           echo "ARBM_SOVEREIGN_SERVER_PID=$!" >> "$GITHUB_ENV"
-          for i in $(seq 1 90); do curl -fsS http://127.0.0.1:8088/health >/dev/null && break; sleep 2; done
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8088/health >/dev/null && break; sleep 1; done
           curl -fsS http://127.0.0.1:8088/health
       - name: Run official OSWorld sovereign task
         shell: bash
@@ -129,9 +132,10 @@ jobs:
           mkdir -p "$DIR"
           printf '%s\n' "$GITHUB_SHA" > "$DIR/candidate-sha.txt"
           printf '%s\n' "$ZERO_SPEND_MODE" > "$DIR/zero-spend-mode.txt"
-          printf '%s\n' "$MODEL_SHA256" > "$DIR/sovereign-model-sha256.txt"
+          printf '%s\n' "$OSWORLD_AGENT_VERSION" > "$DIR/osworld-agent-version.txt"
           printf '%s\n' "$TASK_ID" > "$DIR/task-id.txt"
-          cp -f sovereign-osworld.log "$DIR/" 2>/dev/null || true
+          cp -f "$ARBM_OSWORLD_SHIM_LOG" "$DIR/" 2>/dev/null || true
+          cp -f shim-runtime.log "$DIR/" 2>/dev/null || true
           find "$DIR" -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > "$DIR/SHA256SUMS.txt"
       - name: Upload task evidence
         if: always()
