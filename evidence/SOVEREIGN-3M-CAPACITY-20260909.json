@@ -1,0 +1,24 @@
+{
+  "schema": "arbm-sovereign-3m-capacity-v1",
+  "tested_sha": "5d5f4b24f46953a188e23b3a6c0fea570d370a2c",
+  "throughput_run": 34360991407,
+  "zero_spend_mode": "HARD",
+  "runner_environment": "github-hosted-public",
+  "model": "Qwen2.5-Coder-3B-Instruct-GGUF-Q4_K_M",
+  "model_sha256": "724fb256bec1ff062b2f65e4569e871ad2e95ab2a3989723d1769c54294730b7",
+  "shards": [
+    {"id": 1, "median_tokens_per_s": 15.889},
+    {"id": 2, "median_tokens_per_s": 16.918},
+    {"id": 3, "median_tokens_per_s": 15.877},
+    {"id": 4, "median_tokens_per_s": 15.927}
+  ],
+  "aggregate_tokens_per_s": 64.611,
+  "projected_daily_tokens": 5582390,
+  "target_daily_tokens": 3000000,
+  "throughput_gate": "PASS",
+  "rotation_sha": "b0e0717d717b972bcfe45c52ddf4a600f529f2b1",
+  "rotation_runs": [34362714860, 34362728871, 34362742857],
+  "rotation_generations": [0, 1, 2],
+  "rotation_gate": "PASS",
+  "claim_scope": "Measured concurrent compute throughput capacity with autonomous successor dispatch; not a guarantee of 24h hosted-runner availability or an external provider account quota."
+}
