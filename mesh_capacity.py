@@ -94,7 +94,7 @@ def certify_mesh(routes, target_tpd=TARGET_TPD):
                     route.get("no_paid_fallback") is True and
                     route.get("reset_verified") is True and pool)
         daily = route.get("certified_tokens_per_day")
-        if not required or type(daily) is not int or daily < 0:
+        if not required or type(daily) is not int or daily <= 0:
             rejected.append({"name": name, "reason": "evidence_incomplete"})
             continue
         if pool in seen_pools:
