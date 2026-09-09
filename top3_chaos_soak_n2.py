@@ -15,7 +15,12 @@ def pct(xs,p):
     s=sorted(xs); return 0.0 if not s else s[min(len(s)-1,int((len(s)-1)*p))]
 
 def docker_id(port):
-    return subprocess.check_output(['docker','ps','-aq','--filter',f'publish={port}'],text=True).strip()
+    ids=subprocess.check_output(['docker','ps','-aq'],text=True).split()
+    for cid in ids:
+        info=json.loads(subprocess.check_output(['docker','inspect',cid],text=True))[0]
+        binds=(info.get('HostConfig',{}).get('PortBindings',{}).get('5432/tcp') or [])
+        if any(str(b.get('HostPort'))==str(port) for b in binds): return cid
+    return ''
 
 def ensure_cell_up(cell):
     cid=docker_id(5432+cell)

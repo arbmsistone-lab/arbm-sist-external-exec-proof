@@ -8,7 +8,7 @@ DURATION=45.0
 CLIENTS=256
 FAILED_CELL=1
 POOL_PER_CELL=24
-state={'down':set(),'reroutes':0}
+state={'down':set(),'reroutes':0,'containerId':None}
 lock=threading.Lock()
 pools=[queue.Queue(maxsize=POOL_PER_CELL) for _ in range(4)]
 
@@ -54,6 +54,7 @@ def kill_cell_after(delay):
     time.sleep(delay)
     with lock: state['down'].add(FAILED_CELL)
     cid=subprocess.check_output(['docker','ps','-q','--filter','publish=5433'],text=True).strip()
+    state['containerId']=cid
     if cid: subprocess.run(['docker','stop',cid],check=True,stdout=subprocess.DEVNULL)
 
 setup()
@@ -71,16 +72,26 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=CLIENTS) as ex:
             if cell>=0: per_cell[cell]+=1
             if err: errors.append(err)
 elapsed=time.perf_counter()-start
+restored=False
+cid=state.get('containerId')
+if cid:
+    subprocess.run(['docker','start',cid],check=True,stdout=subprocess.DEVNULL)
+    deadline=time.time()+10
+    while time.time()<deadline:
+        try:
+            with psycopg.connect(DSNS[FAILED_CELL],autocommit=True,connect_timeout=1) as c: c.execute('select 1')
+            restored=True; break
+        except Exception: time.sleep(.2)
 out={
  'schema':'arbm-top3-chaos-soak-v2','remoteOnly':True,'zeroSpendHard':True,
  'durationSec':round(elapsed,3),'clients':CLIENTS,'failedCell':FAILED_CELL,
  'ops':len(lat),'errors':len(errors),'errorRate':round(len(errors)/max(1,len(lat)),6),
  'reroutes':state['reroutes'],'perCellOps':per_cell,'p95Ms':round(pct(lat,.95),3),
  'p99Ms':round(pct(lat,.99),3),'throughputOpsSec':round(len(lat)/elapsed,2),
- 'paidFallbackUsed':False,'mandatoryCostUsd':0,'poolPerCell':POOL_PER_CELL,
+ 'paidFallbackUsed':False,'mandatoryCostUsd':0,'poolPerCell':POOL_PER_CELL,'restoredBaseline':restored,
  'thresholds':{'errorRateMax':0,'p99MsMax':1500,'throughputMinOpsSec':500,'reroutesMin':1}
 }
-out['pass']=(out['errorRate']==0 and out['p99Ms']<1500 and out['throughputOpsSec']>500 and out['reroutes']>0 and not out['paidFallbackUsed'])
+out['pass']=(out['errorRate']==0 and out['p99Ms']<1500 and out['throughputOpsSec']>500 and out['reroutes']>0 and out['restoredBaseline'] and not out['paidFallbackUsed'])
 raw=json.dumps(out,indent=2,sort_keys=True)+'\n'
 (OUT/'chaos-soak.json').write_text(raw)
 (OUT/'chaos-soak.sha256').write_text(hashlib.sha256(raw.encode()).hexdigest()+'  chaos-soak.json\n')
