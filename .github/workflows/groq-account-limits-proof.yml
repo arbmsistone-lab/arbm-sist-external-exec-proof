@@ -1,4 +1,4 @@
-name: Groq Account Tier Readonly Proof
+name: Groq Account Daily Floor Proof
 on:
   push:
     branches: ['codex/free-capacity-*']
@@ -9,14 +9,23 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     steps:
-      - name: Probe paid-tier-only Batch listing without inference
+      - name: Prove account-bound recurring free token floor
         shell: bash
         run: |
           set -euo pipefail
           SEP='?'; [[ "$ACTIONS_ID_TOKEN_REQUEST_URL" == *'?'* ]] && SEP='&'
           R=$(curl -fsS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}${SEP}audience=arbm-sist-benchmark")
           T=$(python -c 'import json,sys;print(json.load(sys.stdin)["value"])' <<<"$R")
-          O=$(curl -fsS -X POST -H "Authorization: Bearer $T" 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-cf-ai-probe-once-20260905')
-          echo "$O"
-          python -c 'import json,sys;d=json.load(sys.stdin);assert d.get("status")=="PASS_READONLY",d' <<<"$O"
+          TOTAL=0
+          for I in 1 2 3 4 5; do
+            O=$(curl -fsS -X POST -H "Authorization: Bearer $T" 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-cf-ai-probe-once-20260905')
+            echo "$O"
+            N=$(python -c 'import json,sys;d=json.load(sys.stdin);assert d.get("status")=="PASS",d;print(int(d["total_tokens"]))' <<<"$O")
+            TOTAL=$((TOTAL+N)); echo "CUMULATIVE_TOKENS=$TOTAL"
+            if [ "$TOTAL" -ge 32259 ]; then break; fi
+            sleep 62
+          done
+          test "$TOTAL" -ge 32259
+          echo "ACCOUNT_BOUND_DAILY_FLOOR_PROVEN=$TOTAL"
