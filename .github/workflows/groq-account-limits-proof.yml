@@ -1,9 +1,8 @@
-name: Groq Account Limits Proof
+name: Mistral Account Limits Proof
 on:
   push:
     branches: ['codex/free-capacity-*']
     paths: ['.github/workflows/groq-account-limits-proof.yml']
-  workflow_dispatch:
 permissions:
   contents: read
   id-token: write
@@ -11,13 +10,13 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Acquire OIDC and query sanitized Groq org limits
+      - name: Query sanitized Mistral organization token limits
         shell: bash
         run: |
           set -euo pipefail
           SEP='?'; [[ "$ACTIONS_ID_TOKEN_REQUEST_URL" == *'?'* ]] && SEP='&'
-          RESP=$(curl -fsS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}${SEP}audience=arbm-sist-benchmark")
-          TOKEN=$(python -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<<"$RESP")
-          OUT=$(curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-cf-ai-probe-once-20260905')
-          echo "$OUT"
-          python -c 'import json,sys; d=json.load(sys.stdin); assert d.get("status") in ("PASS_READONLY","ORG_LOOKUP_UNAVAILABLE"), d' <<<"$OUT"
+          R=$(curl -fsS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}${SEP}audience=arbm-sist-benchmark")
+          T=$(python -c 'import json,sys;print(json.load(sys.stdin)["value"])' <<<"$R")
+          O=$(curl -fsS -X POST -H "Authorization: Bearer $T" 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-cf-ai-probe-once-20260905')
+          echo "$O"
+          python -c 'import json,sys;d=json.load(sys.stdin);assert d.get("status") in ("PASS_READONLY","ADMIN_LIMITS_UNAVAILABLE"),d' <<<"$O"
