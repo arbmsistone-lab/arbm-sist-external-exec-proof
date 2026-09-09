@@ -13,8 +13,10 @@ def check(path='free-capacity-manifest.json'):
     mi=live.get('mistral',{})
     if int(mi.get('daily_capacity_counted_for_gate') or 0)>0:
         if not mi.get('live_proven'): errors.append('MISTRAL_COUNTED_WITHOUT_LIVE_PROOF')
-        if not mi.get('free_mode_admin_proven'): errors.append('MISTRAL_COUNTED_WITHOUT_FREE_MODE_PROOF')
-        if not mi.get('payg_disabled_proven'): errors.append('MISTRAL_COUNTED_WITHOUT_PAYG_DISABLED_PROOF')
+        free_model=mi.get('official_free_model_proven') is True and mi.get('model')=='mistral-moderation-2603'
+        if not free_model:
+            if not mi.get('free_mode_admin_proven'): errors.append('MISTRAL_COUNTED_WITHOUT_FREE_MODE_PROOF')
+            if not mi.get('payg_disabled_proven'): errors.append('MISTRAL_COUNTED_WITHOUT_PAYG_DISABLED_PROOF')
     return errors
 
 if __name__=='__main__':

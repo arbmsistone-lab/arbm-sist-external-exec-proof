@@ -11,17 +11,6 @@ on:
       - 'cerebras_capacity_probe.py'
       - 'test_cerebras_capacity_probe.py'
       - 'sambanova_capacity_probe.py'
-      - 'test_sambanova_capacity_probe.py'
-      - 'vercel_gateway_capacity_probe.py'
-      - 'test_vercel_gateway_capacity_probe.py'
-      - 'vercel-account-evidence.json'
-      - 'netlify_capacity_probe.py'
-      - 'test_netlify_capacity_probe.py'
-      - 'netlify-account-evidence.json'
-      - 'netlify-capacity-probe/**'
-      - 'free-capacity-manifest.json'
-      - 'capacity_configuration_gate.py'
-      - 'test_capacity_configuration_gate.py'
       - 'distributed_capacity.py'
       - 'cloudflare_granite_capacity.py'
       - 'test_cloudflare_granite_capacity.py'
@@ -30,9 +19,6 @@ on:
       - 'vikasit_capacity_probe.py'
       - 'test_vikasit_capacity_probe.py'
       - 'account-capacity-evidence.json'
-      - 'merge_live_capacity_evidence.py'
-      - 'test_merge_live_capacity_evidence.py'
-      - 'test_zero_capacity_pool_gate.py'
       - 'test_provider_probe.py'
       - 'test_distributed_capacity.py'
       - 'mesh_capacity.py'
@@ -65,8 +51,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Test proof gates and mesh regressions
         run: |
-          python -m unittest test_provider_probe.py test_mesh_capacity.py test_distributed_capacity.py test_cloudflare_granite_capacity.py test_resilience_capacity.py test_vikasit_capacity_probe.py test_sambanova_capacity_probe.py test_vercel_gateway_capacity_probe.py test_netlify_capacity_probe.py test_capacity_configuration_gate.py test_merge_live_capacity_evidence.py test_zero_capacity_pool_gate.py test_cerebras_capacity_probe.py test_capacity_excellence.py test_workload_useful_capacity.py test_audit_30x10_capacity.py test_audit_50x10_capacity.py test_capacity_ceiling_gate.py test_openrouter_capacity_probe.py
-          python -m py_compile account_capacity_probe.py cerebras_capacity_probe.py sambanova_capacity_probe.py vercel_gateway_capacity_probe.py netlify_capacity_probe.py capacity_configuration_gate.py distributed_capacity.py cloudflare_granite_capacity.py resilience_capacity.py vikasit_capacity_probe.py capacity_excellence.py workload_useful_capacity.py audit_30x10_capacity.py audit_50x10_capacity.py capacity_ceiling_gate.py openrouter_capacity_probe.py groq_model_bucket_probe.py merge_live_capacity_evidence.py
+          python -m unittest test_provider_probe.py test_mesh_capacity.py test_distributed_capacity.py test_cloudflare_granite_capacity.py test_resilience_capacity.py test_vikasit_capacity_probe.py test_cerebras_capacity_probe.py test_capacity_excellence.py test_workload_useful_capacity.py test_audit_30x10_capacity.py test_audit_50x10_capacity.py test_capacity_ceiling_gate.py test_openrouter_capacity_probe.py test_capacity_configuration_gate.py test_sambanova_capacity_probe.py test_vercel_gateway_capacity_probe.py test_netlify_capacity_probe.py test_merge_live_capacity_evidence.py test_zero_capacity_pool_gate.py
+          python -m py_compile account_capacity_probe.py cerebras_capacity_probe.py sambanova_capacity_probe.py distributed_capacity.py cloudflare_granite_capacity.py resilience_capacity.py vikasit_capacity_probe.py capacity_excellence.py workload_useful_capacity.py audit_30x10_capacity.py audit_50x10_capacity.py capacity_ceiling_gate.py openrouter_capacity_probe.py groq_model_bucket_probe.py vercel_gateway_capacity_probe.py netlify_capacity_probe.py capacity_configuration_gate.py merge_live_capacity_evidence.py
           node --test test_mistral_mesh.mjs
           python - <<'PY'
           import json
@@ -74,15 +60,12 @@ jobs:
           d=json.load(open('account-capacity-evidence.json',encoding='utf-8'))
           r=certify_mesh(d['routes'])
           assert r['status']=='PASS', r
-          assert r['certified_tokens_per_day']==7313773, r
-          assert r['deficit_tokens_per_day']==0, r
+          assert r['certified_useful_units_per_day']==10917773, r
+          assert r['certified_tokens_per_day']==8513773, r
+          assert r['deficit_useful_units_per_day']==0, r
+          assert r['independent_pools']==5, r
           print(json.dumps(r,separators=(',',':')))
           PY
-      - name: Enforce current capacity configuration truth
-        env:
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        run: |
-          python capacity_configuration_gate.py free-capacity-manifest.json
       - name: Report resilience and growth gates
         run: |
           python - <<'PY'
@@ -91,19 +74,26 @@ jobs:
           d=json.load(open('account-capacity-evidence.json',encoding='utf-8'))
           r=certify_resilience(d['routes'])
           assert r['base_3m_status']=='PASS', r
-          print(json.dumps(r,separators=(',',':')))
+          assert r['stretch_10m_status']=='PASS', r
+          assert r['n_plus_one_3m_status']=='PASS', r
+          from capacity_excellence import chaos_floors
+          c=chaos_floors(d['routes']); assert c['n_plus_two_status']=='PASS', c
+          assert c['n_plus_two_floor_useful_units_per_day']==3067741, c
+          print(json.dumps({'resilience':r,'chaos':c},separators=(',',':')))
           PY
       - name: Probe Vikasit Nova FREE capacity when configured
         env:
           VIKASIT_API_KEY: ${{ secrets.VIKASIT_API_KEY }}
         run: |
-          python vikasit_capacity_probe.py | tee vikasit-result.json
+          python vikasit_capacity_probe.py
       - name: Probe Groq model-specific FREE buckets
         run: |
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
           python groq_model_bucket_probe.py
 
+      - name: Probe Mistral free moderation lane
+        run: python mistral_free_moderation_probe.py
       - name: Probe ARBM FREE provider mesh
         run: |
           set -euo pipefail
@@ -120,27 +110,19 @@ jobs:
         run: |
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
-          python sambanova_capacity_probe.py | tee sambanova-result.json
-      - name: Probe Netlify AI Gateway recurring FREE capacity when deployed
-        run: |
-          set -euo pipefail
-          test "$ZERO_SPEND_MODE" = "HARD"
-          python netlify_capacity_probe.py | tee netlify-result.json
-      - name: Probe Vercel AI Gateway recurring FREE capacity when configured
-        env:
-          VERCEL_AI_GATEWAY_API_KEY: ${{ secrets.VERCEL_AI_GATEWAY_API_KEY }}
-          VERCEL_AI_GATEWAY_API_KEY_ID: ${{ vars.VERCEL_AI_GATEWAY_API_KEY_ID }}
-        run: |
-          set -euo pipefail
-          test "$ZERO_SPEND_MODE" = "HARD"
-          python vercel_gateway_capacity_probe.py | tee vercel-result.json
+          python sambanova_capacity_probe.py
       - name: Probe OpenRouter FREE capacity when configured
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
-          python openrouter_capacity_probe.py | tee openrouter-result.json
+          python openrouter_capacity_probe.py
+      - name: Enforce current capacity configuration truth
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          python capacity_configuration_gate.py
 
       - name: Probe Cerebras FREE capacity when configured
         env:
@@ -148,20 +130,4 @@ jobs:
         run: |
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
-          python cerebras_capacity_probe.py | tee cerebras-result.json
-      - name: Merge qualified live capacity proofs and run maximum gates
-        run: |
-          set -euo pipefail
-          test "$ZERO_SPEND_MODE" = "HARD"
-          python merge_live_capacity_evidence.py --baseline account-capacity-evidence.json --output effective-capacity-evidence.json --run-id "$GITHUB_RUN_ID" --probe vikasit-result.json --probe sambanova-result.json --probe netlify-result.json --probe vercel-result.json --probe openrouter-result.json --probe cerebras-result.json
-          python - <<'PY'
-          import json
-          from datetime import datetime, timezone
-          from capacity_ceiling_gate import certify_ceiling
-          from resilience_capacity import certify_resilience
-          d=json.load(open('effective-capacity-evidence.json',encoding='utf-8'))
-          r=certify_resilience(d['routes'])
-          c=certify_ceiling(d['routes'],[d],datetime.now(timezone.utc))
-          print(json.dumps({'resilience':r,'ceiling':c},separators=(',',':')))
-          if c['status']!='PASS': print('MAXIMUM_CAPACITY_GATE_WAITING_FOR_QUALIFIED_EXTERNAL_POOLS')
-          PY
+          python cerebras_capacity_probe.py

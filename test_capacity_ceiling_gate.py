@@ -8,7 +8,7 @@ EVID=[{"observed_at":"2026-09-09T18:00:00Z"}]
 def r(name,pool,tpd):
     return {"name":name,"independence_pool":pool,"account_verified":True,
             "recurring_free":True,"no_paid_fallback":True,"reset_verified":True,
-            "certified_tokens_per_day":tpd}
+            "certified_useful_units_per_day":tpd}
 
 class CeilingGateTests(unittest.TestCase):
     def test_current_mesh_fails_ceiling_without_overclaim(self):

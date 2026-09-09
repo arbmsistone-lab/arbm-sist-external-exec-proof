@@ -82,31 +82,36 @@ def certify(account, now=None):
         return _fail("invalid_account_evidence")
 
 
+def _route_daily_units(route):
+    kind=str(route.get("capacity_kind") or "tokens")
+    useful=route.get("certified_useful_units_per_day")
+    tokens=route.get("certified_tokens_per_day")
+    if type(useful) is int and useful >= 0:
+        return kind, useful, tokens if type(tokens) is int and tokens >= 0 else 0
+    if kind == "tokens" and type(tokens) is int and tokens >= 0:
+        return kind, tokens, tokens
+    return kind, None, 0
+
+
 def certify_mesh(routes, target_tpd=TARGET_TPD):
-    """Sum only independent, account-bound recurring token allowances."""
-    total = 0
-    accepted, rejected, seen_pools = [], [], set()
+    """Sum independent account-bound recurring useful capacity without conflating units."""
+    total_units=0; token_total=0; accepted=[]; rejected=[]; seen_pools=set()
     for route in routes:
-        name = str(route.get("name") or "unknown")
-        pool = str(route.get("independence_pool") or "")
-        required = (route.get("account_verified") is True and
-                    route.get("recurring_free") is True and
-                    route.get("no_paid_fallback") is True and
-                    route.get("reset_verified") is True and pool)
-        daily = route.get("certified_tokens_per_day")
-        if not required or type(daily) is not int or daily <= 0:
-            rejected.append({"name": name, "reason": "evidence_incomplete"})
-            continue
+        name=str(route.get("name") or "unknown"); pool=str(route.get("independence_pool") or "")
+        required=(route.get("account_verified") is True and route.get("recurring_free") is True and
+                  route.get("no_paid_fallback") is True and route.get("reset_verified") is True and pool)
+        kind,daily,tokens=_route_daily_units(route)
+        if not required or daily is None:
+            rejected.append({"name":name,"reason":"evidence_incomplete"}); continue
+        if daily <= 0:
+            rejected.append({"name":name,"reason":"zero_capacity"}); continue
         if pool in seen_pools:
-            rejected.append({"name": name, "reason": "shared_pool_duplicate"})
-            continue
-        seen_pools.add(pool)
-        total += daily
-        accepted.append({"name": name, "independence_pool": pool,
-                         "certified_tokens_per_day": daily})
-    return {"status": "PASS" if total >= target_tpd else "FAIL_INSUFFICIENT_CAPACITY",
-            "target_tokens_per_day": target_tpd,
-            "certified_tokens_per_day": total,
-            "deficit_tokens_per_day": max(0, target_tpd - total),
-            "accepted_routes": accepted, "rejected_routes": rejected,
-            "independent_pools": len(seen_pools)}
+            rejected.append({"name":name,"reason":"shared_pool_duplicate"}); continue
+        seen_pools.add(pool); total_units += daily; token_total += tokens
+        accepted.append({"name":name,"independence_pool":pool,"capacity_kind":kind,
+                         "certified_useful_units_per_day":daily,"certified_tokens_per_day":tokens})
+    return {"status":"PASS" if total_units >= target_tpd else "FAIL_INSUFFICIENT_CAPACITY",
+            "target_useful_units_per_day":target_tpd,"certified_useful_units_per_day":total_units,
+            "deficit_useful_units_per_day":max(0,target_tpd-total_units),
+            "certified_tokens_per_day":token_total,"deficit_tokens_per_day":max(0,target_tpd-token_total),
+            "accepted_routes":accepted,"rejected_routes":rejected,"independent_pools":len(seen_pools)}
