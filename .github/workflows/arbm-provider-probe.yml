@@ -8,6 +8,8 @@ on:
     paths:
       - 'arbm_provider_probe.py'
       - 'test_provider_probe.py'
+      - 'mesh_capacity.py'
+      - 'test_mesh_capacity.py'
       - 'test_mistral_mesh.mjs'
       - 'supabase/functions/arbm-terminal-agent-v7/**'
       - '.github/workflows/arbm-provider-probe.yml'
@@ -33,7 +35,7 @@ jobs:
       - uses: actions/checkout@v7
       - name: Test proof gates and mesh regressions
         run: |
-          python -m unittest test_provider_probe.py
+          python -m unittest test_provider_probe.py test_mesh_capacity.py
           node --test test_mistral_mesh.mjs
       - name: Probe ARBM FREE provider mesh
         env:
