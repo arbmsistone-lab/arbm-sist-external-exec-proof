@@ -55,6 +55,20 @@
       "daily_capacity_counted_for_gate": 0,
       "reason": "Minute throughput headers do not establish included daily/monthly free allowance. Admin > API > Limits evidence is still required.",
       "final_diagnostic_run": 34291365140
+    },
+    "openrouter": {
+      "independent_provider": true,
+      "connected": true,
+      "live_qualified": true,
+      "account_specific": true,
+      "is_free_tier": true,
+      "mandatory_cost_usd": 0,
+      "paid_fallback": false,
+      "official_free_request_limit_per_day": 50,
+      "certified_tokens_per_day": null,
+      "daily_capacity_counted_for_gate": 0,
+      "reason": "Account is verified Free Tier, but quota is request-based rather than token/day; no TPD conversion is permitted.",
+      "account_audit_at": "2026-09-09T13:14:19Z"
     }
   },
   "blocked_or_separate": {
@@ -79,8 +93,11 @@
     },
     "cerebras": {
       "active": false,
-      "class": "trial_promotional",
-      "reason": "current pricing describes $5 free trial credits"
+      "independent_provider": true,
+      "official_free_tokens_per_day": 1000000,
+      "account_specific_proof": false,
+      "daily_capacity_counted_for_gate": 0,
+      "blocker": "No Cerebras credential is present in the ARBM secure store; public plan quota alone is not account-specific evidence."
     }
   },
   "policy": {
@@ -111,7 +128,7 @@
     "status": "FAIL_INSUFFICIENT_QUANTITATIVE_EVIDENCE",
     "target_tokens_per_day": 3000000,
     "verified_daily_capacity_counted": 0,
-    "reason": "Mistral real HTTP 200 proves operation, not 3M/day. Account daily/monthly free allowance and independent mesh quotas remain unproven."
+    "reason": "Quantitative certifier is proven. Mistral has live TPM only; OpenRouter account is Free Tier but request-limited; Cerebras offers 1M TPD publicly but lacks ARBM account credential. Account-specific token/day evidence remains below 3M."
   },
   "capacity_audit": {
     "method": "Sum only independently verified, recurring daily free allowances. Unknown is excluded, never extrapolated from TPM, observed tokens, monthly averages or shared model pools.",
