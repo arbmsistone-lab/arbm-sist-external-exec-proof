@@ -31,3 +31,35 @@ class CapacityTests(unittest.TestCase):
     def test_other_shared_credit_consumption(self):
         a,t=self.sample();a["other_usage_credit_usd"]=5;self.assertEqual(certify(a,t)["certified_monthly_capacity"],50000000)
 if __name__=="__main__":unittest.main()
+
+class MeshAggregationTests(unittest.TestCase):
+    def route(self, name, pool, daily):
+        return {"name": name, "independence_pool": pool,
+                "certified_tokens_per_day": daily,
+                "account_verified": True, "recurring_free": True,
+                "no_paid_fallback": True, "reset_verified": True}
+
+    def test_three_independent_routes_can_close_gate(self):
+        from mesh_capacity import certify_mesh
+        routes = [self.route("a", "provider-a", 1_000_000),
+                  self.route("b", "provider-b", 1_200_000),
+                  self.route("c", "provider-c", 800_000)]
+        result = certify_mesh(routes)
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(result["certified_tokens_per_day"], 3_000_000)
+
+    def test_shared_pool_cannot_be_double_counted(self):
+        from mesh_capacity import certify_mesh
+        routes = [self.route("model-a", "same-org-pool", 2_000_000),
+                  self.route("model-b", "same-org-pool", 2_000_000)]
+        result = certify_mesh(routes)
+        self.assertNotEqual(result["status"], "PASS")
+        self.assertEqual(result["certified_tokens_per_day"], 2_000_000)
+
+    def test_unknown_or_non_account_evidence_counts_zero(self):
+        from mesh_capacity import certify_mesh
+        route = self.route("claimed", "p", 4_000_000)
+        route["account_verified"] = False
+        result = certify_mesh([route])
+        self.assertEqual(result["certified_tokens_per_day"], 0)
+        self.assertEqual(result["deficit_tokens_per_day"], 3_000_000)
