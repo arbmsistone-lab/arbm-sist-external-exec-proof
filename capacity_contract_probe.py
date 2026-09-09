@@ -1,5 +1,5 @@
 """Daily public-contract drift probe for certified ZERO_SPEND capacity."""
-import json, urllib.request
+import html, json, re, urllib.request
 
 CHECKS={
  'cloudflare':('https://developers.cloudflare.com/workers-ai/platform/pricing/',('10,000 Neurons per day','reset daily at 00:00 UTC')),
@@ -10,7 +10,12 @@ CHECKS={
 
 def fetch(url):
     req=urllib.request.Request(url,headers={'User-Agent':'ARBM-SIST-capacity-contract-audit/1.0','Accept':'text/html,text/plain'})
-    with urllib.request.urlopen(req,timeout=25) as r: return r.status,r.read().decode('utf-8','ignore')
+    with urllib.request.urlopen(req,timeout=25) as r:
+        raw=r.read().decode('utf-8','ignore')
+        raw=re.sub(r'<!--.*?-->','',raw,flags=re.S)
+        text=html.unescape(re.sub(r'<[^>]+>',' ',raw))
+        text=re.sub(r'\s+',' ',text)
+        return r.status,text
 
 def probe(fetcher=fetch):
     rows=[]
