@@ -27,7 +27,12 @@ def task_from(messages):
 
 def latest_observation(messages):
     users = [text_of(m.get("content")) for m in messages if m.get("role") == "user"]
-    return users[-1][-26000:] if users else ""
+    if not users:
+        return ""
+    text = users[-1]
+    if len(text) <= 26000:
+        return text
+    return text[:13000] + "\n...[middle accessibility tree omitted]...\n" + text[-13000:]
 
 def log_event(data):
     safe = {k: data.get(k) for k in ("step", "http", "status", "provider", "model")}
