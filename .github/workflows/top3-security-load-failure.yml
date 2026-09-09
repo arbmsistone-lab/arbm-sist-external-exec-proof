@@ -54,6 +54,10 @@ jobs:
         run: |
           set -euo pipefail
           python top3_load_ceiling.py
+      - name: Remote 1m pooled extreme proof
+        run: |
+          set -euo pipefail
+          python top3_load_ceiling_v2.py
       - name: Freeze combined evidence
         run: |
           set -euo pipefail
