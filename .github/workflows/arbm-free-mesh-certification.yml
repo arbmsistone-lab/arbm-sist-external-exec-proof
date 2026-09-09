@@ -1,11 +1,12 @@
 name: ARBM FREE Mesh Certification
 on:
   push:
-    branches: ['codex/free-capacity-v3-20260908']
-    paths: ['supabase/**', 'test_mesh*', 'test_shared_control.py', 'mesh_capacity.py', 'certify_mesh.py', '.github/workflows/arbm-free-mesh-certification.yml']
+    branches: ['codex/free-capacity-*']
+    paths: ['supabase/**', 'test_mesh*', 'test_shared_control.py', 'mesh_capacity.py', 'certify_mesh.py', 'sovereign_capacity_gate.py', 'evidence/SOVEREIGN-3M-CAPACITY-20260909.json', '.github/workflows/arbm-free-mesh-certification.yml']
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
   id-token: write
 jobs:
   certification:
@@ -26,6 +27,8 @@ jobs:
           --health-retries 10
     env:
       ZERO_SPEND_MODE: HARD
+      REQUIRE_REMOTE_SOVEREIGN_EVIDENCE: '1'
+      GITHUB_TOKEN: ${{ github.token }}
       PGHOST: localhost
       PGPORT: 5432
       PGUSER: postgres
