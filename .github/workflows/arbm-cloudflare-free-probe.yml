@@ -27,7 +27,7 @@ jobs:
           import json,sys
           http=int(sys.argv[1]); d=json.load(open(sys.argv[2],encoding='utf-8'))
           attempts=d.get('provider_attempts') or []
-          safe={'http':http,'ok':d.get('ok'),'status':d.get('status'),'provider':d.get('provider'),'model':d.get('model'),'mandatory_cost_usd':d.get('mandatory_cost_usd'),'paid_fallback_used':d.get('paid_fallback_used'),'attempts':[{k:a.get(k) for k in ('route','model','status','parsed') if k in a} for a in attempts]}
+          safe={'http':http,'ok':d.get('ok'),'status':d.get('status'),'provider':d.get('provider'),'model':d.get('model'),'mandatory_cost_usd':d.get('mandatory_cost_usd'),'paid_fallback_used':d.get('paid_fallback_used'),'attempts':[{k:a.get(k) for k in ('route','model','status','parsed','error_message') if k in a} for a in attempts]}
           print(json.dumps(safe,separators=(',',':')))
           assert http==200 and d.get('ok') is True and d.get('status')=='PASS'
           assert d.get('provider') in ('cloudflare-workers-ai','cloudflare-free')
