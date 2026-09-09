@@ -1,0 +1,26 @@
+version: 2.1
+
+jobs:
+  capacity-regression:
+    docker:
+      - image: cimg/python:3.12-node
+    resource_class: small
+    environment:
+      ZERO_SPEND_MODE: HARD
+    steps:
+      - checkout
+      - run:
+          name: Deterministic capacity regression
+          command: |
+            python -m unittest test_provider_probe.py test_mesh_capacity.py test_distributed_capacity.py test_cloudflare_granite_capacity.py test_resilience_capacity.py test_vikasit_capacity_probe.py test_cerebras_capacity_probe.py test_capacity_excellence.py test_workload_useful_capacity.py test_audit_30x10_capacity.py test_audit_50x10_capacity.py test_capacity_ceiling_gate.py test_openrouter_capacity_probe.py test_capacity_configuration_gate.py test_adaptive_capacity_router.py test_capacity_revalidation_gate.py test_capacity_contract_probe.py test_live_capacity_survival_gate.py test_sambanova_capacity_probe.py test_vercel_gateway_capacity_probe.py test_netlify_capacity_probe.py test_merge_live_capacity_evidence.py test_zero_capacity_pool_gate.py
+            node --test test_mistral_mesh.mjs
+      - run:
+          name: Enforce static zero-spend floors
+          command: |
+            python capacity_configuration_gate.py
+            python capacity_ceiling_gate.py
+
+workflows:
+  capacity-proof:
+    jobs:
+      - capacity-regression
