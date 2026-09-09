@@ -116,7 +116,7 @@ jobs:
             --temperature 0 \
             --max_steps 12 \
             --max_trajectory_length 1 \
-            --max_tokens 192 \
+            --max_tokens 512 \
             --num_envs 1 \
             --result_dir ../top3-evidence/osworld-sovereign-${TASK_ID}/results \
             2>&1 | tee ../top3-evidence/osworld-sovereign-${TASK_ID}/osworld.log
