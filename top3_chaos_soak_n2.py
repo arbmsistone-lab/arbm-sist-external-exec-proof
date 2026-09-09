@@ -4,7 +4,7 @@ import psycopg
 
 DSNS=[os.environ[f'LOAD_DSN_{i}'] for i in range(4)]
 OUT=Path('top3-evidence/security-load-failure'); OUT.mkdir(parents=True,exist_ok=True)
-DURATION=90.0; CLIENTS=384; POOL_PER_CELL=32
+DURATION=90.0; CLIENTS=384; POOL_PER_CELL=48
 FAILED_CELLS=(1,2); KILL_AT=20.0; RECOVER_AT=50.0; QUORUM=2
 RECOVERY_WRITER_LIMIT=64
 FINAL_DELTA_MAX=2048
