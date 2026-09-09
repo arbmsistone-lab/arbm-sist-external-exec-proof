@@ -30,7 +30,7 @@ def one_op(i):
             if mode<7:
                 c.execute('select state,priority from arbm_load.jobs where tenant_id=%s and idempotency_key=%s',(tenant,f'seed-{(i%10000)+1}')).fetchone()
             elif mode<9:
-                c.execute('update arbm_load.jobs set priority=(priority+1)%8 where tenant_id=%s and idempotency_key=%s',(tenant,f'seed-{(i%10000)+1}'))
+                c.execute('update arbm_load.jobs set priority=mod(priority+1,8) where tenant_id=%s and idempotency_key=%s',(tenant,f'seed-{(i%10000)+1}'))
             else:
                 c.execute('insert into arbm_load.jobs(tenant_id,idempotency_key,priority) values(%s,%s,%s) on conflict do nothing',(tenant,f'burst-{i}',i%8))
             lat.append((time.perf_counter()-t)*1000)
