@@ -32,7 +32,7 @@ jobs:
           createdb source_v3
           psql -d source_v3 -v ON_ERROR_STOP=1 -f dr/top3_v3_fixture.sql
           psql -d source_v3 -Atc "select md5(string_agg(job_id||':'||tenant_id||':'||payload::text,'|' order by job_id)) from arbm_sist_top3.tenant_jobs" > source.sha
-          pg_dump -Fc -d source_v3 -f top3-v3.dump
+          docker run --rm --network host -e PGPASSWORD=postgres -v "$PWD:/work" postgres:17 pg_dump -h 127.0.0.1 -U postgres -Fc -d source_v3 -f /work/top3-v3.dump
           test -s top3-v3.dump
       - name: Simulate provider loss and restore
         shell: bash
@@ -41,7 +41,7 @@ jobs:
           dropdb source_v3
           createdb restored_v3
           start=$(date +%s%3N)
-          pg_restore --exit-on-error -d restored_v3 top3-v3.dump
+          docker run --rm --network host -e PGPASSWORD=postgres -v "$PWD:/work" postgres:17 pg_restore -h 127.0.0.1 -U postgres --exit-on-error -d restored_v3 /work/top3-v3.dump
           end=$(date +%s%3N)
           echo $((end-start)) > restore-ms.txt
           psql -d restored_v3 -Atc "select md5(string_agg(job_id||':'||tenant_id||':'||payload::text,'|' order by job_id)) from arbm_sist_top3.tenant_jobs" > restored.sha
