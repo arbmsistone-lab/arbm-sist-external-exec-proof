@@ -6,6 +6,8 @@ DSNS=[os.environ[f'LOAD_DSN_{i}'] for i in range(4)]
 OUT=Path('top3-evidence/security-load-failure'); OUT.mkdir(parents=True,exist_ok=True)
 DURATION=90.0; CLIENTS=384; POOL_PER_CELL=32
 FAILED_CELLS=(1,2); KILL_AT=20.0; RECOVER_AT=50.0; QUORUM=2
+RECOVERY_WRITER_LIMIT=64
+recovery_gate=threading.BoundedSemaphore(RECOVERY_WRITER_LIMIT)
 state={'down':set(),'phase':'healthy','reroutes':0,'rejoined':False,'recoveryRtoSec':None,'cellRecoverySec':[]}
 state_lock=threading.Lock(); wal_lock=threading.Lock(); wal=[]; next_event=0
 pools=[queue.Queue(maxsize=POOL_PER_CELL) for _ in range(4)]
@@ -61,18 +63,24 @@ def apply_event(cell,event):
     finally: pools[cell].put(conn)
 def one_op(i):
     global next_event
-    tenant_num=(i%1000000)+1; tenant=f'tenant-{tenant_num:07d}'; primary=tenant_num%4
-    with wal_lock:
-        next_event+=1; event=(next_event,tenant); wal.append(event)
-    started=time.perf_counter(); ack=0; touched=[]
-    for cell in healthy_order(primary):
-        try:
-            apply_event(cell,event); ack+=1; touched.append(cell)
-            if cell!=primary:
-                with state_lock: state['reroutes']+=1
-        except Exception:
-            with state_lock: state['down'].add(cell)
-    return (time.perf_counter()-started)*1000,touched,(None if ack>=QUORUM else 'quorum_unavailable')
+    started=time.perf_counter(); gated=False
+    with state_lock: repairing=(state['phase']=='repair')
+    if repairing: recovery_gate.acquire(); gated=True
+    try:
+        tenant_num=(i%1000000)+1; tenant=f'tenant-{tenant_num:07d}'; primary=tenant_num%4
+        with wal_lock:
+            next_event+=1; event=(next_event,tenant); wal.append(event)
+        ack=0; touched=[]
+        for cell in healthy_order(primary):
+            try:
+                apply_event(cell,event); ack+=1; touched.append(cell)
+                if cell!=primary:
+                    with state_lock: state['reroutes']+=1
+            except Exception:
+                with state_lock: state['down'].add(cell)
+        return (time.perf_counter()-started)*1000,touched,(None if ack>=QUORUM else 'quorum_unavailable')
+    finally:
+        if gated: recovery_gate.release()
 
 def stop_cells():
     with state_lock: state['down'].update(FAILED_CELLS); state['phase']='n2'
@@ -91,29 +99,46 @@ def bulk_replay(cell,events):
             cur.execute('insert into arbm_n2.events select event_id,tenant_id from n2_replay on conflict do nothing')
         conn.commit()
     finally: conn.close()
-def replay_cell(cell):
-    started=time.perf_counter(); ensure_cell_up(cell); cursor=0
+def prepare_repair_cell(cell):
+    started=time.perf_counter(); ensure_cell_up(cell)
     with new_conn(cell) as c: c.execute('drop index if exists arbm_n2.events_tenant_idx')
-    while True:
-        with wal_lock:
-            target=len(wal); snapshot=list(wal[cursor:target])
-        bulk_replay(cell,snapshot); cursor=target
-        with wal_lock:
-            stable=(cursor==len(wal))
-            if stable:
-                with state_lock: state['down'].discard(cell)
-        if stable: break
-        time.sleep(.005)
+    return started
+
+def replay_to_target(cell,cursor,target):
+    with wal_lock: snapshot=list(wal[cursor:target])
+    bulk_replay(cell,snapshot)
+    return target
+
+def warm_repair_cell(cell):
     with new_conn(cell) as c: c.execute('create index if not exists events_tenant_idx on arbm_n2.events(tenant_id)')
     fill_pool(cell)
-    return time.perf_counter()-started
 
 def recover_cells():
     started=time.perf_counter()
+    with state_lock: state['phase']='repair'
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(FAILED_CELLS)) as ex:
-        rtos=list(ex.map(replay_cell,FAILED_CELLS))
-    with state_lock:
-        state['phase']='recovered'; state['rejoined']=True; state['recoveryRtoSec']=round(time.perf_counter()-started,3); state['cellRecoverySec']=[round(x,3) for x in rtos]
+        cell_started=list(ex.map(prepare_repair_cell,FAILED_CELLS))
+    cursors={cell:0 for cell in FAILED_CELLS}
+    while True:
+        with wal_lock: target=len(wal)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(FAILED_CELLS)) as ex:
+            vals=list(ex.map(lambda c: replay_to_target(c,cursors[c],target),FAILED_CELLS))
+        for cell,cursor in zip(FAILED_CELLS,vals): cursors[cell]=cursor
+        with wal_lock:
+            if all(cursors[c]==len(wal) for c in FAILED_CELLS): break
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(FAILED_CELLS)) as ex:
+        list(ex.map(warm_repair_cell,FAILED_CELLS))
+    while True:
+        with wal_lock: target=len(wal)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(FAILED_CELLS)) as ex:
+            vals=list(ex.map(lambda c: replay_to_target(c,cursors[c],target),FAILED_CELLS))
+        for cell,cursor in zip(FAILED_CELLS,vals): cursors[cell]=cursor
+        with wal_lock:
+            if all(cursors[c]==len(wal) for c in FAILED_CELLS):
+                with state_lock:
+                    state['down'].difference_update(FAILED_CELLS); state['phase']='recovered'; state['rejoined']=True
+                    state['recoveryRtoSec']=round(time.perf_counter()-started,3); state['cellRecoverySec']=[round(time.perf_counter()-x,3) for x in cell_started]
+                break
 
 def fault_schedule():
     time.sleep(KILL_AT); stop_cells(); time.sleep(RECOVER_AT-KILL_AT); recover_cells()
@@ -126,7 +151,7 @@ def checksum(cell):
     finally: conn.close()
 
 setup(); threading.Thread(target=fault_schedule,daemon=True).start()
-lat=[]; errors=[]; touched=[0,0,0,0]; phase_ops={'healthy':0,'n2':0,'recovered':0}
+lat=[]; errors=[]; touched=[0,0,0,0]; phase_ops={'healthy':0,'n2':0,'repair':0,'recovered':0}
 start=time.perf_counter(); i=0
 with concurrent.futures.ThreadPoolExecutor(max_workers=CLIENTS) as ex:
     pending=set()
