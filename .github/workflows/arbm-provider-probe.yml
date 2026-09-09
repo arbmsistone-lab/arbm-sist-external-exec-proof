@@ -85,8 +85,8 @@ jobs:
           test "$ZERO_SPEND_MODE" = "HARD"
           python groq_model_bucket_probe.py
 
-      - name: Probe Pollinations anonymous cloud lane
-        run: python pollinations_cloud_probe.py
+      - name: Probe Mistral free moderation lane
+        run: python mistral_free_moderation_probe.py
       - name: Probe ARBM FREE provider mesh
         run: |
           set -euo pipefail
