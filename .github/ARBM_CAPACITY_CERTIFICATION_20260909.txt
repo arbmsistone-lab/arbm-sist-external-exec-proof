@@ -1,0 +1,10 @@
+ARBM SIST FREE CAPACITY CERTIFICATION
+Base SHA: 3f772ecbdaeb04a23ebacb0397366cd650a65e8f
+Official run: 34414160429
+Certified useful units/day: 10917773
+N+1 floor: 5371741 PASS
+N+2 floor: 3067741 PASS
+Stretch 10M: PASS
+Independent pools: 5
+ZERO_SPEND_MODE: HARD
+Branch protection: provider_probe strict, admins enforced, linear history, no force-push, no deletion, required signatures
