@@ -1,0 +1,22 @@
+name: HF ZeroGPU Eligibility Probe
+on:
+  push:
+    branches: [codex/free-capacity-hf-zerogpu-20260909]
+    paths:
+      - 'hf_zerogpu_eligibility_probe.py'
+      - '.github/workflows/hf-zerogpu-eligibility-probe.yml'
+permissions:
+  contents: read
+jobs:
+  eligibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      ZERO_SPEND_MODE: HARD
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: test "$ZERO_SPEND_MODE" = "HARD"
+      - run: python -m pip install --quiet 'huggingface_hub>=0.35,<2'
+      - run: python -m py_compile hf_zerogpu_eligibility_probe.py
+      - run: python hf_zerogpu_eligibility_probe.py
