@@ -7,6 +7,7 @@ on:
       - 'codex/free-capacity-*'
     paths:
       - 'arbm_provider_probe.py'
+      - 'account_capacity_probe.py'
       - 'test_provider_probe.py'
       - 'mesh_capacity.py'
       - 'test_mesh_capacity.py'
@@ -38,16 +39,10 @@ jobs:
           python -m unittest test_provider_probe.py test_mesh_capacity.py
           node --test test_mistral_mesh.mjs
       - name: Probe ARBM FREE provider mesh
-        env:
-          PROBE_MODE: ${{ inputs.mode || 'diagnostic' }}
         run: |
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
-          if [ "$PROBE_MODE" = "normal_mesh" ]; then
-            python arbm_provider_probe.py --mesh
-          else
-            python arbm_provider_probe.py
-          fi
+          python arbm_provider_probe.py
       - name: Probe account-bound FREE capacity
         run: |
           set -euo pipefail
