@@ -1,4 +1,4 @@
-name: Mistral Admin Key Presence Proof
+name: ARBM Remote Provider Key Presence Proof
 on:
   push:
     branches: ['codex/free-capacity-*']
@@ -10,7 +10,7 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Check sanitized Mistral admin-key presence
+      - name: Check sanitized remote provider-key presence
         shell: bash
         run: |
           set -euo pipefail
