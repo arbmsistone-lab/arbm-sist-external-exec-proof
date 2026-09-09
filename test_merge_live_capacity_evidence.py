@@ -20,6 +20,12 @@ class MergeEvidenceTests(unittest.TestCase):
         self.assertEqual(r["certified_tokens_per_day"],3_000_000)
         self.assertEqual(len(r["routes"]),1)
 
+    def test_decision_pool_promotes_without_fake_tokens(self):
+        d=proof('decision-pool',0,capacity_kind='decisions',certified_useful_units_per_day=2_500_000)
+        r=merge(BASE,[d],'123')
+        self.assertEqual(r['certified_useful_units_per_day'],5_500_000)
+        self.assertEqual(r['certified_tokens_per_day'],3_000_000)
+
     def test_same_pool_uses_max_not_sum(self):
         r=merge(BASE,[proof("base-pool",2_000_000)],"123")
         self.assertEqual(r["certified_tokens_per_day"],3_000_000)

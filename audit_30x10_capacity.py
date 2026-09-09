@@ -9,7 +9,7 @@ def audit(routes,evidence,now):
  if r["growth_5m_status"]!="PASS":findings.append("growth_5m")
  if r["stretch_10m_status"]!="PASS":findings.append("stretch_10m")
  if r["n_plus_one_3m_status"]!="PASS":findings.append("n_plus_one")
- if c["n_plus_two_floor_useful_units_per_day"]<3_000_000:findings.append("n_plus_two")
+ if c["n_plus_two_floor_useful_units_per_day"]<5_000_000:findings.append("n_plus_two")
  pos=[x for x in routes if (_route_daily_units(x)[1] or 0)>0]
  if len({x.get("independence_pool") for x in pos})<4:findings.append("independent_pools_lt_4")
  if any(x.get("mandatory_cost_usd",0)!=0 or x.get("paid_fallback_used") is True or x.get("no_paid_fallback") is not True for x in pos):findings.append("zero_spend_violation")

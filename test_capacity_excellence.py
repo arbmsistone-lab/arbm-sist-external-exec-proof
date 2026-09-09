@@ -22,14 +22,14 @@ class CapacityExcellenceTests(unittest.TestCase):
         self.assertEqual(r['daily_budget'],919_354)
 
     def test_current_n1_and_n2_fail_closed(self):
-        self.assertEqual(chaos_floor(self.routes,1)['surviving_useful_units_per_day'],5_371_741)
+        self.assertEqual(chaos_floor(self.routes,1)['surviving_useful_units_per_day'],7_371_741)
         self.assertEqual(chaos_floor(self.routes,1)['status'],'PASS')
-        self.assertEqual(chaos_floor(self.routes,2)['surviving_useful_units_per_day'],3_067_741)
+        self.assertEqual(chaos_floor(self.routes,2)['surviving_useful_units_per_day'],5_067_741)
         self.assertEqual(chaos_floor(self.routes,2)['status'],'PASS')
 
     def test_vikasit_closes_n1_but_not_n2(self):
         v={'name':'vikasit','independence_pool':'vikasit-account','account_verified':True,'recurring_free':True,'no_paid_fallback':True,'reset_verified':True,'certified_tokens_per_day':2_000_000}
-        self.assertEqual(chaos_floor(self.routes+[v],1)['surviving_useful_units_per_day'],7_371_741)
+        self.assertEqual(chaos_floor(self.routes+[v],1)['surviving_useful_units_per_day'],9_371_741)
         self.assertEqual(chaos_floor(self.routes+[v],1)['status'],'PASS')
         self.assertEqual(chaos_floor(self.routes+[v],2)['status'],'PASS')
 

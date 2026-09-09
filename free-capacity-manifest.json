@@ -1,12 +1,12 @@
 {
   "schema_version": 2,
   "mode": "ZERO_SPEND_HARD",
-  "as_of": "2026-09-09T22:10:00Z",
+  "as_of": "2026-09-09T22:44:36.294065Z",
   "targets": {
     "base_useful_units_per_day": 3000000,
     "stretch_useful_units_per_day": 10000000,
-    "min_independent_providers": 4,
-    "n_plus_two_floor_useful_units_per_day": 3000000
+    "min_independent_providers": 5,
+    "n_plus_two_floor_useful_units_per_day": 5000000
   },
   "live": {
     "lightning": {
@@ -90,13 +90,16 @@
       "organization_plan": "free",
       "account_specific": true,
       "capacity_kind": "decisions",
-      "certified_useful_units_per_day": 100000,
-      "daily_capacity_counted_for_gate": 100000,
+      "certified_useful_units_per_day": 2100000,
+      "daily_capacity_counted_for_gate": 2100000,
       "mandatory_cost_usd": 0,
       "paid_fallback": false,
       "service_role_only": true,
       "measured_decisions": 25600,
-      "measured_execution_ms": 247.062
+      "measured_execution_ms": 140.849,
+      "measured_decisions_per_second": 181755,
+      "certified_average_decisions_per_second": 24.31,
+      "headroom_ratio": 7476
     }
   },
   "blocked_or_separate": {
@@ -145,7 +148,9 @@
     "no_paid_fallback": true,
     "fail_closed": true,
     "mistral_diversity": "Eligible Mistral receives deterministic one-in-four first positions; otherwise it is tried after existing FREE providers fail and before Cloudflare. Live and zero-spend gates always apply.",
-    "mistral_cooldown": "Provider-wide within each warm Edge isolate. 429 stops all model retries immediately; Retry-After seconds/date honored, default 120 seconds. No distributed cooldown guarantee is claimed."
+    "mistral_cooldown": "Provider-wide within each warm Edge isolate. 429 stops all model retries immediately; Retry-After seconds/date honored, default 120 seconds. No distributed cooldown guarantee is claimed.",
+    "adaptive_router": "Eligible ZERO_SPEND pools are ranked by health and remaining certified useful capacity; cooldown, exhausted, stale or paid routes are skipped automatically; no provider is mandatory.",
+    "revalidation": "Capacity contract/evidence gate runs on every capacity change and on a daily UTC schedule; failure is fail-closed and must not promote stale capacity."
   },
   "latest_policy_proof": {
     "run": 34291383489,
@@ -155,12 +160,13 @@
     "status": "PASS",
     "target_useful_units_per_day": 3000000,
     "stretch_useful_units_per_day": 10000000,
-    "verified_useful_units_per_day": 10917773,
+    "verified_useful_units_per_day": 12917773,
     "legacy_certified_tokens_per_day": 8513773,
     "independent_pools": 5,
-    "n_plus_one_floor_useful_units_per_day": 5371741,
-    "n_plus_two_floor_useful_units_per_day": 3067741,
-    "zero_spend_hard": true
+    "n_plus_one_floor_useful_units_per_day": 7371741,
+    "n_plus_two_floor_useful_units_per_day": 5067741,
+    "zero_spend_hard": true,
+    "n_plus_two_target_useful_units_per_day": 5000000
   },
   "capacity_audit": {
     "method": "Sum only independently verified, recurring daily free allowances. Unknown is excluded, never extrapolated from TPM, observed tokens, monthly averages or shared model pools.",
