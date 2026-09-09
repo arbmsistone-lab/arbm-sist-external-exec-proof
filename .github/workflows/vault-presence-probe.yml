@@ -1,0 +1,13 @@
+name: Vault Presence Probe
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v7
+      - run: python vault_presence_probe.py
