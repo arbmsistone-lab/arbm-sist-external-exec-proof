@@ -1,49 +1,38 @@
-"""Probe account-bound FREE capacity without executing model output."""
+"""Account-bound FREE capacity probe; never executes model output."""
 import json, os, urllib.error, urllib.request
-
-API = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v7"
-PROVIDERS = ("groq", "google", "lightning", "cloudflare", "mistral")
-SAFE = ("route", "model", "status", "parsed", "usage_tokens", "usage",
-        "retry_after", "rate_limit_headers", "rate_limit_remaining",
-        "error_message", "mandatory_cost_usd", "paid_fallback_used")
-
+API="https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v7"
+PROVIDERS=("groq","google","lightning","cloudflare","mistral")
+SAFE=("route","model","status","parsed","usage_tokens","usage","retry_after",
+      "rate_limit_headers","rate_limit_remaining","error_message",
+      "mandatory_cost_usd","paid_fallback_used")
 def oidc():
-    url = os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"]
-    tok = os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]
-    sep = "&" if "?" in url else "?"
-    req = urllib.request.Request(url + sep + "audience=arbm-sist-benchmark",
-        headers={"Authorization": "Bearer " + tok})
-    with urllib.request.urlopen(req, timeout=20) as r:
-        return json.loads(r.read())["value"]
-
-def probe(token, provider):
-    body = {"instruction": "Return one safe inspection command as JSON.",
-            "observation": "Account capacity evidence probe. No commands executed.",
-            "step": 1, "provider_hint": provider}
-    req = urllib.request.Request(API, data=json.dumps(body).encode(), method="POST",
-        headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})    try:
-        with urllib.request.urlopen(req, timeout=45) as r:
-            return r.status, json.loads(r.read())
+    url=os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"]
+    tok=os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]
+    sep="&" if "?" in url else "?"
+    req=urllib.request.Request(url+sep+"audience=arbm-sist-benchmark",
+        headers={"Authorization":"Bearer "+tok})
+    with urllib.request.urlopen(req,timeout=20) as r:return json.loads(r.read())["value"]
+def probe(token,provider):
+    body={"instruction":"Return one safe inspection command as JSON.",
+          "observation":"Account capacity evidence probe. No commands executed.",
+          "step":1,"provider_hint":provider}
+    req=urllib.request.Request(API,data=json.dumps(body).encode(),method="POST",
+        headers={"Authorization":"Bearer "+token,"Content-Type":"application/json"})
+    try:
+        with urllib.request.urlopen(req,timeout=45) as r:return r.status,json.loads(r.read())
     except urllib.error.HTTPError as e:
-        try:
-            return e.code, json.loads(e.read())
-        except Exception:
-            return e.code, {"status": "INVALID_RESPONSE"}
-    except Exception:
-        return None, {"status": "TRANSPORT_OR_INVALID_RESPONSE"}
-
+        try:return e.code,json.loads(e.read())
+        except Exception:return e.code,{"status":"INVALID_RESPONSE"}
+    except Exception:return None,{"status":"TRANSPORT_OR_INVALID_RESPONSE"}
 def main():
-    if os.environ.get("ZERO_SPEND_MODE") != "HARD":
-        raise SystemExit("ZERO_SPEND_HARD_REQUIRED")
-    token = oidc()
+    if os.environ.get("ZERO_SPEND_MODE")!="HARD":raise SystemExit("ZERO_SPEND_HARD_REQUIRED")
+    token=oidc()
     for provider in PROVIDERS:
-        http, data = probe(token, provider)
-        out = {"provider_hint": provider, "http": http, "status": data.get("status"),
-               "provider": data.get("provider"), "mandatory_cost_usd": data.get("mandatory_cost_usd"),
-               "paid_fallback_used": data.get("paid_fallback_used"),
-               "provider_attempts": [{k: a[k] for k in SAFE if k in a}
-                                     for a in data.get("provider_attempts", [])]}
-        print(json.dumps(out, separators=(",", ":")), flush=True)
-
-if __name__ == "__main__":
-    main()
+        http,data=probe(token,provider)
+        out={"provider_hint":provider,"http":http,"status":data.get("status"),
+             "provider":data.get("provider"),"mandatory_cost_usd":data.get("mandatory_cost_usd"),
+             "paid_fallback_used":data.get("paid_fallback_used"),
+             "provider_attempts":[{k:a[k] for k in SAFE if k in a}
+                                  for a in data.get("provider_attempts",[])]}
+        print(json.dumps(out,separators=(",",":")),flush=True)
+if __name__=="__main__":main()
