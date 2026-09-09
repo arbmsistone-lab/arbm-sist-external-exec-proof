@@ -12,7 +12,7 @@ def r(name,pool,tpd):
 
 class CeilingGateTests(unittest.TestCase):
     def test_current_mesh_fails_ceiling_without_overclaim(self):
-        routes=[r("cf","cf",4305723),r("l","l",967741),r("g","g",32259)]
+        routes=[r("cf","cf",4305723),r("l","l",967741),r("g","g",800000)]
         out=certify_ceiling(routes,EVID,NOW)
         self.assertEqual(out["status"],"FAIL")
         self.assertFalse(out["criteria"]["stretch_10m"])

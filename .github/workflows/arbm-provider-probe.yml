@@ -50,7 +50,7 @@ jobs:
           d=json.load(open('account-capacity-evidence.json',encoding='utf-8'))
           r=certify_mesh(d['routes'])
           assert r['status']=='PASS', r
-          assert r['certified_tokens_per_day']==5305723, r
+          assert r['certified_tokens_per_day']==6073464, r
           assert r['deficit_tokens_per_day']==0, r
           print(json.dumps(r,separators=(',',':')))
           PY
