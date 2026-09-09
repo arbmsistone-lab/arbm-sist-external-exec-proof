@@ -1,49 +1,44 @@
-"""Fail-closed OpenRouter FREE useful-capacity probe."""
+"""Fail-closed OpenRouter FREE account-bound useful-capacity probe."""
 import json, os, urllib.error, urllib.request
-
-API="https://openrouter.ai/api/v1/chat/completions"
+KEY_API="https://openrouter.ai/api/v1/key"
+CHAT_API="https://openrouter.ai/api/v1/chat/completions"
 MODEL="openrouter/free"
-MIN_REQUESTS_PER_DAY=50
-MIN_USEFUL_INPUT_TOKENS=40_000
-CERTIFIED_TPD=MIN_REQUESTS_PER_DAY*MIN_USEFUL_INPUT_TOKENS
+CERTIFIED_REQUESTS_PER_DAY=50
+CAPACITY_KIND="decisions"
 
-SAFE_HEADERS=("x-ratelimit-limit","x-ratelimit-remaining","x-ratelimit-reset","retry-after")
+def call(url,key,data=None):
+    headers={"Authorization":"Bearer "+key,"Content-Type":"application/json"}
+    req=urllib.request.Request(url,data=data,method="POST" if data else "GET",headers=headers)
+    with urllib.request.urlopen(req,timeout=45) as r:
+        return r.status,json.loads(r.read() or b'{}')
 
-def _safe(headers):
-    return {k.lower():v for k,v in headers.items() if k.lower() in SAFE_HEADERS}
+def result(status,**extra):
+    return {"provider":"openrouter-free","independence_pool":"openrouter-account",
+            "model":MODEL,"capacity_kind":CAPACITY_KIND,"mandatory_cost_usd":0,
+            "paid_fallback_used":False,"certified_useful_units_per_day":0,
+            "certified_tokens_per_day":0,"status":status,**extra}
 
 def main():
-    if os.environ.get("ZERO_SPEND_MODE")!="HARD":
-        raise SystemExit("ZERO_SPEND_HARD_REQUIRED")
+    if os.environ.get("ZERO_SPEND_MODE")!="HARD": raise SystemExit("ZERO_SPEND_HARD_REQUIRED")
     key=os.environ.get("OPENROUTER_API_KEY","").strip()
     if not key:
-        print(json.dumps({"provider":"openrouter","status":"NOT_CONFIGURED","certified_tokens_per_day":0}))
-        return 0
-    prompt=("ARBM capacity evidence. Return only OK. "+("x "*MIN_USEFUL_INPUT_TOKENS)).strip()
-    body=json.dumps({"model":MODEL,"messages":[{"role":"user","content":prompt}],"max_tokens":4,"temperature":0}).encode()
-    req=urllib.request.Request(API,data=body,method="POST",headers={
-        "Authorization":"Bearer "+key,"Content-Type":"application/json"})
+        print(json.dumps(result("NOT_CONFIGURED"),separators=(",",":"))); return 0
     try:
-        with urllib.request.urlopen(req,timeout=45) as r:
-            raw=json.loads(r.read())
-            usage=raw.get("usage") or {}
-            prompt_tokens=usage.get("prompt_tokens")
-            ok=r.status==200 and type(prompt_tokens) is int and prompt_tokens>=MIN_USEFUL_INPUT_TOKENS
-            result={"provider":"openrouter","http":r.status,"model":MODEL,
-                    "prompt_tokens":prompt_tokens,"headers":_safe(r.headers),
-                    "mandatory_cost_usd":0,"paid_fallback_used":False,
-                    "certified_tokens_per_day":CERTIFIED_TPD if ok else 0,
-                    "status":"PASS" if ok else "LIVE_UNCERTIFIED"}
-            print(json.dumps(result,separators=(",",":")))
-            return 0 if ok else 2
+        http,meta=call(KEY_API,key); data=meta.get("data") or {}
+        free=(http==200 and data.get("is_free_tier") is True)
+        if not free:
+            print(json.dumps(result("ACCOUNT_NOT_PROVEN_FREE",key_http=http,is_free_tier=data.get("is_free_tier")),separators=(",",":"))); return 2
+        body=json.dumps({"model":MODEL,"messages":[{"role":"user","content":"Reply only ARBM_OPENROUTER_PASS"}],"max_tokens":16,"temperature":0}).encode()
+        chat_http,raw=call(CHAT_API,key,body)
+        parsed=bool((raw.get("choices") or [{}])[0].get("message",{}).get("content"))
+        ok=chat_http==200 and parsed
+        row=result("PASS" if ok else "LIVE_UNCERTIFIED",key_http=http,chat_http=chat_http,
+                   is_free_tier=True,parsed=parsed,official_free_requests_per_day=CERTIFIED_REQUESTS_PER_DAY)
+        if ok: row["certified_useful_units_per_day"]=CERTIFIED_REQUESTS_PER_DAY
+        print(json.dumps(row,separators=(",",":"))); return 0 if ok else 2
     except urllib.error.HTTPError as e:
-        print(json.dumps({"provider":"openrouter","status":"HTTP_ERROR","http":e.code,
-                          "headers":_safe(e.headers),"certified_tokens_per_day":0}))
-        return 2
+        print(json.dumps(result("HTTP_ERROR",http=e.code),separators=(",",":"))); return 2
     except Exception as e:
-        print(json.dumps({"provider":"openrouter","status":"TRANSPORT_ERROR",
-                          "error":type(e).__name__,"certified_tokens_per_day":0}))
-        return 2
+        print(json.dumps(result("TRANSPORT_ERROR",error=type(e).__name__),separators=(",",":"))); return 2
 
-if __name__=="__main__":
-    raise SystemExit(main())
+if __name__=="__main__": raise SystemExit(main())
