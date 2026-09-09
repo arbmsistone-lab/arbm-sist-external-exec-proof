@@ -112,11 +112,11 @@ async function callGemini(prompt: string, step = 1, modelHint = "") {
   }
   return { result: null, attempts };
 }
-async function callGroq(prompt: string, step = 1, modelHint = "") {
+async function callGroq(prompt: string, step = 1, modelHint = "", systemOverride = "") {
   const key = String(Deno.env.get("GROQ_API_KEY") || "").trim();
   if (!key) return { result: null, attempts: [{ route: "groq", status: "not_configured" }] };
   const attempts: any[] = [];
-  const system = "You are ARBM SIST in a Terminal-Bench sandbox. No tools are available. Never emit tool calls. Output exactly one JSON object with keys action, command, summary. action must be exec or finish.";
+  const system = systemOverride || "You are ARBM SIST in a Terminal-Bench sandbox. No tools are available. Never emit tool calls. Output exactly one JSON object with keys action, command, summary. action must be exec or finish.";
   const models = modelHint && GROQ_MODELS.includes(modelHint) ? [modelHint] : ranked(GROQ_EFFICIENT,GROQ_STRONG,step,prompt);
   for (const model of models.slice(0, 3)) {
     if (cooling("groq:"+model)) { attempts.push({ route: "groq", model, status: "cooldown" }); continue; }
@@ -148,7 +148,7 @@ async function callGroq(prompt: string, step = 1, modelHint = "") {
   }
   return { result: null, attempts };
 }
-async function callLightning(prompt: string, step = 1, modelHint = "") {
+async function callLightning(prompt: string, step = 1, modelHint = "", systemOverride = "") {
   const storedKey = String(Deno.env.get("LIGHTNING_API_KEY") || "").trim();
   const key = storedKey.split("/")[0];
   const hardFree = String(Deno.env.get("ARBM_LIGHTNING_ZERO_SPEND_CONFIRMED") || "") === "1";
@@ -156,7 +156,7 @@ async function callLightning(prompt: string, step = 1, modelHint = "") {
   if (!hardFree) return { result: null, attempts: [{ route: "lightning", status: "zero_spend_unconfirmed" }] };
   const attempts: any[] = [];
   const models = modelHint && LIGHTNING_MODELS.includes(modelHint) ? [modelHint] : (step <= 2 ? LIGHTNING_MODELS : [LIGHTNING_MODELS[1], LIGHTNING_MODELS[2], LIGHTNING_MODELS[0]]);
-  const system = "You are ARBM SIST in a Terminal-Bench sandbox. Return exactly one JSON object with keys action, command, summary. action must be exec or finish.";
+  const system = systemOverride || "You are ARBM SIST in a Terminal-Bench sandbox. Return exactly one JSON object with keys action, command, summary. action must be exec or finish.";
   for (const model of models.slice(0, 3)) {
     if (cooling("lightning:"+model)) { attempts.push({ route: "lightning", model, status: "cooldown" }); continue; }
     try {
@@ -191,7 +191,7 @@ function mistralModelUnavailable(status: number, message: string) {
   return [400,404,422].includes(status) && /model/i.test(message) &&
     /not found|does not exist|unavailable|not available|unsupported|invalid model/i.test(message);
 }
-async function callMistral(prompt: string, modelHint = "") {
+async function callMistral(prompt: string, modelHint = "", systemOverride = "") {
   const key = String(Deno.env.get("MISTRAL_API_KEY") || "").trim();
   const hardFree = Deno.env.get("ARBM_MISTRAL_ZERO_SPEND_CONFIRMED") === "1";
   const liveProven = Deno.env.get("ARBM_MISTRAL_LIVE_PROVEN") === "1";
@@ -205,7 +205,7 @@ async function callMistral(prompt: string, modelHint = "") {
   if (cooling("mistral")) return blocked("cooldown");
   const attempts: any[] = [];
   const models = modelHint ? [modelHint] : MISTRAL_MODELS;
-  const system = "Return exactly one JSON object with keys action, command, summary. action must be exec or finish.";
+  const system = systemOverride || "Return exactly one JSON object with keys action, command, summary. action must be exec or finish.";
   for (const model of models.slice(0, 3)) {
     try {
       const res = await fetch(MISTRAL_URL, {method:"POST",headers:{"content-type":"application/json",authorization:`Bearer ${key}`},body:JSON.stringify({model,messages:[{role:"system",content:system},{role:"user",content:prompt}],max_tokens:192,response_format:{type:"json_object"}}),signal:AbortSignal.timeout(10000)});
@@ -309,11 +309,11 @@ Deno.serve(async (req: Request) => {
     const osworldBranch = oidc.ref.startsWith("refs/heads/codex/osworld-close-");
     if ((Deno.env.get("ZERO_SPEND_MODE") || "HARD") !== "HARD") return respond({ok:false,status:"ZERO_SPEND_HARD_REQUIRED",mandatory_cost_usd:0,paid_fallback_used:false},503);
     if (osworldBranch) {
-      const previous=String(body?.previous_command||"").slice(-2200); const obs=String(body?.observation||"").slice(0,30000); const executedCount=Math.max(0,Math.min(20,Number(body?.executed_count||0)));
+      const previous=String(body?.previous_command||"").slice(-2200); const obs=String(body?.observation||"").slice(0,30000); const memory=String(body?.memory||"").slice(-8000); const executedCount=Math.max(0,Math.min(20,Number(body?.executed_count||0)));
       if(!obs)return respond({error:"OSWORLD_OBSERVATION_REQUIRED"},400);
-      const p=`You control the official OSWorld Ubuntu desktop through PyAutoGUI. Return exactly one JSON object with keys action, command, summary; action is exec or finish. Never return finish in this OSWorld smoke. Use exec only. If the requested task already appears complete, return pyautogui.sleep(1) so the official evaluator can score the unchanged final state. For exec, command may contain only pyautogui calls. Ground mouse coordinates strictly inside a bounding box from CURRENT ACCESSIBILITY TREE. Never invent coordinates, never click screen edges, never repeat PREVIOUS COMMAND after no progress. Prefer keyboard navigation, app search, hotkeys, typing, Tab/Enter and named controls when reliable. No shell, terminal, filesystem, network, clipboard, subprocess, os, eval or hidden state. One meaningful atomic UI action sequence only.\nEXECUTED_COUNT:${executedCount}\nSTEP:${step}\nTASK:\n${instruction}\nPREVIOUS COMMAND:\n${previous||"none"}\nCURRENT ACCESSIBILITY TREE:\n${obs}`;
+      const p=`You control the official OSWorld Ubuntu desktop through PyAutoGUI. Return exactly one JSON object with keys action, command, summary; action is exec or finish. Never return finish in this OSWorld smoke. Use exec only. If the requested task already appears complete, return pyautogui.sleep(1) so the official evaluator can score the unchanged final state. For exec, command may contain only pyautogui calls. Ground mouse coordinates strictly inside a bounding box from CURRENT ACCESSIBILITY TREE. Never invent coordinates, never click screen edges, never repeat PREVIOUS COMMAND after no progress. Prefer keyboard navigation, app search, hotkeys, typing, Tab/Enter and named controls when reliable. No shell, terminal, filesystem, network, clipboard, subprocess, os, eval or hidden state. One meaningful atomic UI action sequence only.\nEXECUTED_COUNT:${executedCount}\nRECENT WORKING MEMORY:\n${memory||"none"}\nSTEP:${step}\nTASK:\n${instruction}\nPREVIOUS COMMAND:\n${previous||"none"}\nCURRENT ACCESSIBILITY TREE:\n${obs}`;
       const preferred=["groq","lightning","google","mistral"].includes(String(body?.provider_hint||""))?String(body.provider_hint):""; const attempts:any[]=[]; let result:any=null; const base=["groq","lightning","google","mistral"]; const order=preferred?[preferred,...base.filter(x=>x!==preferred)]:base;
-      for(const provider of order){const invoke=()=>provider==="mistral"?callMistral(p,""):provider==="lightning"?callLightning(p,3,""):provider==="groq"?callGroq(p,3,""):callGemini(p,3,"");const response=await controlled(provider,p,invoke);attempts.push(...response.attempts);const a=response.result?.action||{};const reason=a.action==="exec"?validateOsworld(String(a.command||""),obs,previous):"";const premature=a.action==="finish"; if(response.result&&a.action==="exec"&&!reason){result=response.result;break;}if(premature)attempts.push({route:provider,status:"osworld_finish_rejected",reason:"EVALUATOR_OWNS_COMPLETION",mandatory_cost_usd:0,paid_fallback_used:false});if(reason)attempts.push({route:provider,status:"osworld_action_rejected",reason,mandatory_cost_usd:0,paid_fallback_used:false});}
+      const osSystem="You are a precise OSWorld desktop-control agent. This is a GUI benchmark, not Terminal-Bench. Use only the visible accessibility-tree state and PyAutoGUI actions. Preserve task facts across steps through the supplied working memory. Return exactly one JSON object with action, command, summary."; for(const provider of order){const invoke=()=>provider==="mistral"?callMistral(p,"",osSystem):provider==="lightning"?callLightning(p,3,"lightning-ai/gpt-oss-120b",osSystem):provider==="groq"?callGroq(p,3,"qwen/qwen3.8-27b",osSystem):callGemini(p,3,"");const response=await controlled(provider,p,invoke);attempts.push(...response.attempts);const a=response.result?.action||{};const reason=a.action==="exec"?validateOsworld(String(a.command||""),obs,previous):"";const premature=a.action==="finish"; if(response.result&&a.action==="exec"&&!reason){result=response.result;break;}if(premature)attempts.push({route:provider,status:"osworld_finish_rejected",reason:"EVALUATOR_OWNS_COMPLETION",mandatory_cost_usd:0,paid_fallback_used:false});if(reason)attempts.push({route:provider,status:"osworld_action_rejected",reason,mandatory_cost_usd:0,paid_fallback_used:false});}
       if(!result)return respond({ok:false,status:"WAITING_FREE_CAPACITY_OR_VALID_GROUNDING",provider_attempts:attempts,mandatory_cost_usd:0,paid_fallback_used:false,scoreable:false},503);
       const a=result.action;return respond({ok:true,status:"PASS",action:{action:String(a.action),command:String(a.command||"").slice(0,2200),summary:String(a.summary||"").slice(0,1000)},model:result.model,provider:result.provider,provider_attempts:attempts,pipeline:"osworld-free-mesh-v1",mandatory_cost_usd:0,paid_fallback_used:false,scoreable:false,github_run_id:oidc.runId,github_sha:oidc.sha});
     }
