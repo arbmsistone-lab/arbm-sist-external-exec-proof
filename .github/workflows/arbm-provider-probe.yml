@@ -48,3 +48,8 @@ jobs:
           else
             python arbm_provider_probe.py
           fi
+      - name: Probe account-bound FREE capacity
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = "HARD"
+          python account_capacity_probe.py
