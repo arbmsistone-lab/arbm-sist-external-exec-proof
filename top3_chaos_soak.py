@@ -7,7 +7,7 @@ OUT=Path('top3-evidence/security-load-failure'); OUT.mkdir(parents=True,exist_ok
 DURATION=45.0
 CLIENTS=256
 FAILED_CELL=1
-POOL_PER_CELL=24
+POOL_PER_CELL=40
 state={'down':set(),'reroutes':0,'containerId':None}
 lock=threading.Lock()
 pools=[queue.Queue(maxsize=POOL_PER_CELL) for _ in range(4)]
