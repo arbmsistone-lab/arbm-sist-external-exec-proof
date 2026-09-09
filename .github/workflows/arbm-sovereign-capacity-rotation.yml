@@ -1,0 +1,48 @@
+name: ARBM Sovereign Capacity Rotation Proof
+on:
+  workflow_dispatch:
+    inputs:
+      generation:
+        description: Rotation generation
+        required: true
+        default: '0'
+permissions:
+  contents: read
+  actions: write
+jobs:
+  rotate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      ZERO_SPEND_MODE: HARD
+    steps:
+      - name: Prove free public runner rotation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$ZERO_SPEND_MODE" = HARD
+          GEN='${{ inputs.generation }}'
+          test "$GEN" -ge 0
+          test "$GEN" -le 2
+          printf '{"generation":%s,"run_id":"%s","runner":"github-hosted","zero_spend":"HARD"}\n' "$GEN" "$GITHUB_RUN_ID" | tee rotation-evidence.json
+      - name: Dispatch successor generation
+        if: ${{ inputs.generation != '2' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          NEXT=$(( ${{ inputs.generation }} + 1 ))
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows/arbm-sovereign-capacity-rotation.yml/dispatches \
+            -d "{\"ref\":\"codex/free-capacity-live-proof-20260909\",\"inputs\":{\"generation\":\"$NEXT\"}}"
+      - name: Upload rotation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: sovereign-capacity-rotation-${{ inputs.generation }}
+          path: rotation-evidence.json
+          retention-days: 30
