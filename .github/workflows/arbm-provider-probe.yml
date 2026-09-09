@@ -11,6 +11,7 @@ on:
       - 'cerebras_capacity_probe.py'
       - 'test_cerebras_capacity_probe.py'
       - 'sambanova_capacity_probe.py'
+      - 'test_sambanova_capacity_probe.py'
       - 'distributed_capacity.py'
       - 'cloudflare_granite_capacity.py'
       - 'test_cloudflare_granite_capacity.py'
@@ -49,7 +50,7 @@ jobs:
       - uses: actions/checkout@v7
       - name: Test proof gates and mesh regressions
         run: |
-          python -m unittest test_provider_probe.py test_mesh_capacity.py test_distributed_capacity.py test_cloudflare_granite_capacity.py test_resilience_capacity.py test_vikasit_capacity_probe.py test_cerebras_capacity_probe.py test_capacity_excellence.py test_workload_useful_capacity.py test_audit_30x10_capacity.py test_capacity_ceiling_gate.py test_openrouter_capacity_probe.py
+          python -m unittest test_provider_probe.py test_mesh_capacity.py test_distributed_capacity.py test_cloudflare_granite_capacity.py test_resilience_capacity.py test_vikasit_capacity_probe.py test_sambanova_capacity_probe.py test_cerebras_capacity_probe.py test_capacity_excellence.py test_workload_useful_capacity.py test_audit_30x10_capacity.py test_capacity_ceiling_gate.py test_openrouter_capacity_probe.py
           python -m py_compile account_capacity_probe.py cerebras_capacity_probe.py sambanova_capacity_probe.py distributed_capacity.py cloudflare_granite_capacity.py resilience_capacity.py vikasit_capacity_probe.py capacity_excellence.py workload_useful_capacity.py audit_30x10_capacity.py capacity_ceiling_gate.py openrouter_capacity_probe.py groq_model_bucket_probe.py
           node --test test_mistral_mesh.mjs
           python - <<'PY'
