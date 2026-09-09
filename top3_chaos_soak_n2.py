@@ -86,7 +86,7 @@ def bulk_replay(cell,events):
     try:
         with conn.cursor() as cur:
             cur.execute('create temp table n2_replay(event_id bigint, tenant_id text) on commit drop')
-            payload=''.join(f'{event_id}\\t{tenant}\\n' for event_id,tenant in events).encode()
+            payload=''.join(f'{event_id}\t{tenant}\n' for event_id,tenant in events).encode()
             with cur.copy('copy n2_replay (event_id,tenant_id) from stdin') as cp: cp.write(payload)
             cur.execute('insert into arbm_n2.events select event_id,tenant_id from n2_replay on conflict do nothing')
         conn.commit()
