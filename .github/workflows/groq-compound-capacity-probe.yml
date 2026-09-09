@@ -1,0 +1,22 @@
+name: Groq Compound Capacity Probe
+on:
+  push:
+    branches: [codex/free-capacity-groq-compound-20260909]
+    paths:
+      - 'groq_compound_capacity_probe.py'
+      - '.github/workflows/groq-compound-capacity-probe.yml'
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  compound_probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ZERO_SPEND_MODE: HARD
+    steps:
+      - uses: actions/checkout@v7
+      - name: Compile probe
+        run: python -m py_compile groq_compound_capacity_probe.py
+      - name: Probe account-bound Compound buckets
+        run: python groq_compound_capacity_probe.py
