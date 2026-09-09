@@ -16,7 +16,7 @@ def oidc():
 def probe(token,provider):
     body={"instruction":"Return one safe inspection command as JSON.",
           "observation":"Account capacity evidence probe. No commands executed.",
-          "step":1,"provider_hint":provider}
+          "step":1,"provider_hint":provider, **({"model_hint":"@cf/meta/llama-3.2-1b-instruct"} if provider=="cloudflare" else {})}
     req=urllib.request.Request(API,data=json.dumps(body).encode(),method="POST",
         headers={"Authorization":"Bearer "+token,"Content-Type":"application/json"})
     try:
