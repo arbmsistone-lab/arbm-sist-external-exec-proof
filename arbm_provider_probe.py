@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 
@@ -64,6 +65,22 @@ def request_probe(token, model=None, sample=0):
         return None, {"status": "TRANSPORT_OR_INVALID_RESPONSE"}
 
 
+def transient_in_flight(http, data):
+    attempts = data.get("provider_attempts") or []
+    return (http == 503 and data.get("status") == "WAITING_FREE_CAPACITY"
+            and len(attempts) == 1 and attempts[0].get("route") == "mistral"
+            and attempts[0].get("status") == "in_flight")
+
+
+def request_with_transient_retry(token, model=None, sample=0, retries=3):
+    for attempt in range(retries + 1):
+        http, data = request_probe(token, model, sample)
+        if not transient_in_flight(http, data) or attempt == retries:
+            return http, data
+        time.sleep(min(2 ** attempt, 4))
+    raise AssertionError("unreachable")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--mesh", action="store_true", help="Use normal routing without provider/model hints")
@@ -73,7 +90,7 @@ def main():
         return 2
     token = oidc()
     for sample, model in enumerate([None] * 4 if args.mesh else MODELS):
-        http, data = request_probe(token, model, sample)
+        http, data = request_with_transient_retry(token, model, sample)
         safe_fields = ("route", "model", "status", "parsed", "usage_tokens", "usage",
                        "retry_after", "rate_limit_headers", "rate_limit_remaining", "mandatory_cost_usd", "paid_fallback_used")
         output = {"http": http, "ok": data.get("ok"), "status": data.get("status"),
