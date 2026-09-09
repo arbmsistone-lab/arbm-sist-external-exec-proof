@@ -1,0 +1,27 @@
+{
+  "schema": "arbm-n2-performance-panel-v1",
+  "panelType": "adversarial-specialist-roles-not-human-consultants",
+  "requiredRoles": 30,
+  "auditRounds": 10,
+  "policy": "ZERO_SPEND_HARD_REMOTE_ONLY_FAIL_CLOSED",
+  "vetoRule": "any role or runtime gate failure blocks certification",
+  "roles": [
+    "SRE-chaos-lead","SRE-capacity-lead","SRE-observability-lead","DR-recovery-lead","DR-reintegration-lead",
+    "PostgreSQL-WAL-lead","PostgreSQL-COPY-lead","PostgreSQL-index-lead","PostgreSQL-concurrency-lead","PostgreSQL-durability-lead",
+    "distributed-quorum-lead","distributed-replication-lead","distributed-anti-entropy-lead","distributed-idempotency-lead","distributed-split-brain-lead",
+    "performance-latency-lead","performance-throughput-lead","performance-backpressure-lead","performance-pool-lead","performance-tail-latency-lead",
+    "security-integrity-lead","security-isolation-lead","security-evidence-lead","security-fail-closed-lead","security-zero-spend-lead",
+    "QA-regression-lead","QA-race-condition-lead","QA-soak-lead","QA-reproducibility-lead","QA-adversarial-lead"
+  ],
+  "runtimeGates": {
+    "errorRateMax": 0,
+    "p99MsMax": 1500,
+    "throughputMinOpsSec": 500,
+    "recoveryRtoSecMax": 20,
+    "failedCells": 2,
+    "quorum": 2,
+    "consistent": true,
+    "rejoined": true,
+    "mandatoryCostUsd": 0
+  }
+}

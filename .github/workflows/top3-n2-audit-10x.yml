@@ -1,0 +1,68 @@
+name: Top3 N2 Audit 10x
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    strategy:
+      fail-fast: false
+      matrix:
+        round: [1,2,3,4,5,6,7,8,9,10]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres0:
+        image: postgres:17
+        env: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: loadtest}
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+      postgres1:
+        image: postgres:17
+        env: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: loadtest}
+        ports: ['5433:5432']
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+      postgres2:
+        image: postgres:17
+        env: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: loadtest}
+        ports: ['5434:5432']
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+      postgres3:
+        image: postgres:17
+        env: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: loadtest}
+        ports: ['5435:5432']
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      ZERO_SPEND_MODE: HARD
+      LOAD_DSN_0: postgresql://postgres:postgres@localhost:5432/loadtest
+      LOAD_DSN_1: postgresql://postgres:postgres@localhost:5433/loadtest
+      LOAD_DSN_2: postgresql://postgres:postgres@localhost:5434/loadtest
+      LOAD_DSN_3: postgresql://postgres:postgres@localhost:5435/loadtest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate 30-role panel
+        run: node certification/n2-performance-panel.mjs
+      - name: Install dependency
+        run: python -m pip install --disable-pip-version-check 'psycopg[binary]==3.2.10'
+      - name: Run N-2 audit
+        run: python top3_chaos_soak_n2.py
+      - name: Verify runtime evidence
+        run: |
+          python - <<'PY'
+          import json,pathlib
+          p=pathlib.Path('top3-evidence/security-load-failure/chaos-soak-n2.json')
+          x=json.loads(p.read_text())
+          assert x['pass'] is True
+          assert x['errorRate']==0 and x['p99Ms']<1500
+          assert x['throughputOpsSec']>500 and x['recoveryRtoSec']<20
+          assert x['consistent'] and x['rejoined'] and not x['finalDownCells']
+          assert x['mandatoryCostUsd']==0 and not x['paidFallbackUsed']
+          print(json.dumps({'round':'${{ matrix.round }}','pass':True,'rto':x['recoveryRtoSec'],'p99':x['p99Ms'],'throughput':x['throughputOpsSec']}))
+          PY
+      - name: Upload round evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: n2-audit-round-${{ matrix.round }}
+          path: top3-evidence/security-load-failure/chaos-soak-n2.*
+          if-no-files-found: error
+          retention-days: 90

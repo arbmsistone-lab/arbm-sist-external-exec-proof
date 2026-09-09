@@ -1,0 +1,14 @@
+import fs from 'node:fs';
+const p=JSON.parse(fs.readFileSync(new URL('./n2-performance-panel.json',import.meta.url),'utf8'));
+const fail=(m)=>{ console.error(`N2_PANEL_FAIL:${m}`); process.exit(2); };
+if(p.schema!=='arbm-n2-performance-panel-v1') fail('schema');
+if(p.panelType!=='adversarial-specialist-roles-not-human-consultants') fail('panel_type');
+if(p.requiredRoles!==30 || p.auditRounds!==10) fail('panel_size_or_rounds');
+if(p.policy!=='ZERO_SPEND_HARD_REMOTE_ONLY_FAIL_CLOSED') fail('policy');
+if(!Array.isArray(p.roles) || p.roles.length!==30 || new Set(p.roles).size!==30) fail('roles');
+const prefixes=['SRE','DR','PostgreSQL','distributed','performance','security','QA'];
+for(const prefix of prefixes) if(!p.roles.some(r=>r.startsWith(prefix))) fail(`missing_${prefix}`);
+const g=p.runtimeGates||{};
+const expected={errorRateMax:0,p99MsMax:1500,throughputMinOpsSec:500,recoveryRtoSecMax:20,failedCells:2,quorum:2,consistent:true,rejoined:true,mandatoryCostUsd:0};
+for(const [k,v] of Object.entries(expected)) if(g[k]!==v) fail(`gate_${k}`);
+console.log(JSON.stringify({pass:true,roles:p.roles.length,auditRounds:p.auditRounds,policy:p.policy,gates:g}));
