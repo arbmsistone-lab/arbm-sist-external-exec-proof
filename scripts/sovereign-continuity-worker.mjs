@@ -30,7 +30,14 @@ try{
   if(leased?.mission_kind!=='universal-remote-v1')throw new Error('unsupported_claimed_mission_kind');
   const payload=validatePayload(leased.payload||{});
   if(payload.source.repo!==leased.source_repo||payload.source.ref.toLowerCase()!==String(leased.source_sha||'').toLowerCase())throw new Error('claimed_source_binding_mismatch');
-  const report=await executePayloadSupervised(payload,{root:ROOT,renew:()=>call('renew',{missionId:leased.mission_id}),renewEveryMs:60000,maxRenewMisses:2});
+  const certFault=String(leased?.payload?.certFaultAfterClaim||'').trim();
+  if(certFault){
+    if(certFault!=='provider_timeout')throw new Error('unsupported_cert_fault');
+    const moved=await call('failover',{missionId:leased.mission_id,failureClass:'provider_timeout',error:'CERT_INJECTED_PROVIDER_TIMEOUT'});
+    if(moved.ok!==true)throw new Error('continuity_failover_rejected');
+    console.log(JSON.stringify({ok:true,claimed:true,missionId:leased.mission_id,state:'DEFERRED_AUTO_RETRY',faultInjected:certFault,provider:PROVIDER_ID}));
+    process.exit(0);
+  }  const report=await executePayloadSupervised(payload,{root:ROOT,renew:()=>call('renew',{missionId:leased.mission_id}),renewEveryMs:60000,maxRenewMisses:2});
   fs.mkdirSync(path.join(ROOT,'evidence'),{recursive:true});
   fs.writeFileSync(path.join(ROOT,'evidence','continuity-claim.json'),JSON.stringify({missionId:leased.mission_id,leaseUntil:leased.lease_until,provider:PROVIDER_ID,supervisedLease:true},null,2)+'\n');
   const state=report.success?'SUCCEEDED':'FAILED_FINAL';
