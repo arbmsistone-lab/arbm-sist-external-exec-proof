@@ -1,21 +1,28 @@
-version: 2.1
+﻿version: 2.1
 jobs:
   sovereign_oidc_heartbeat:
     docker:
       - image: cimg/base:stable
     resource_class: small
     steps:
+      - checkout
       - run:
-          name: Send authenticated sovereign heartbeat
+          name: Send sovereign heartbeat via CircleCI OIDC
           command: |
             test -n "$CIRCLE_OIDC_TOKEN_V2"
-            body='{"action":"heartbeat","healthy":true,"zeroSpendVerified":true,"capabilities":["git","tests","build","cloud","docker","circleci-runner"],"detail":{"source":"circleci-native-oidc","remote_only":true}}'
-            curl -fsS --retry 2 \
+            curl -fsS --retry 2 --max-time 15 \
               -H "Authorization: Bearer $CIRCLE_OIDC_TOKEN_V2" \
-              -H 'Content-Type: application/json' \
-              -d "$body" \
+              -H 'content-type: application/json' \
+              --data '{"action":"heartbeat","healthy":true,"zeroSpendVerified":true,"capabilities":["git","tests","build","cloud","circleci-runner"],"detail":{"source":"circleci-oidc-heartbeat","mode":"autonomous-continuity-worker"}}' \
               https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-continuity-coordinator-v1
 workflows:
   sovereign_oidc_heartbeat:
+    triggers:
+      - schedule:
+          cron: "0,15,30,45 * * * *"
+          filters:
+            branches:
+              only: assist/circleci-sovereign-oidc-20260909
     jobs:
       - sovereign_oidc_heartbeat
+
