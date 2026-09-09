@@ -28,6 +28,8 @@ jobs:
           python - <<'PY'
           text=('ARBM SIST capacity lane processes cloud-hosted operational context, evidence, constraints, audit state, routing policy, rollback state and verification requirements before returning a concise bounded decision. ' * 180)
           open('prompt.txt','w',encoding='utf-8').write(text)
+          ratio=('ARBM SIST bounded capacity ratio verification context with audit evidence and routing constraints. ' * 50)
+          open('ratio-prompt.txt','w',encoding='utf-8').write(ratio)
           PY
           body="$(jq -nc --rawfile prompt prompt.txt '{mode:"capacity_lane",prompt:$prompt,max_output_tokens:128}')"
           code="$(curl -sS -o lane.json -w '%{http_code}' -H "Authorization: Bearer ${oidc}" -H 'content-type: application/json' --data "$body" "$endpoint")"
@@ -38,7 +40,7 @@ jobs:
           short='{"mode":"capacity_lane","prompt":"short prompt","max_output_tokens":1}'
           test "$(curl -sS -o neg-short.json -w '%{http_code}' -H "Authorization: Bearer ${oidc}" -H 'content-type: application/json' --data "$short" "$endpoint")" = 422
           jq -e '.error=="prompt_too_short"' neg-short.json >/dev/null
-          body="$(jq -nc --rawfile prompt prompt.txt '{mode:"capacity_lane",prompt:$prompt,max_output_tokens:512}')"
+          body="$(jq -nc --rawfile prompt ratio-prompt.txt '{mode:"capacity_lane",prompt:$prompt,max_output_tokens:512}')"
           test "$(curl -sS -o neg-ratio.json -w '%{http_code}' -H "Authorization: Bearer ${oidc}" -H 'content-type: application/json' --data "$body" "$endpoint")" = 422
-          jq -e '.error=="output_ratio_exceeded"' neg-ratio.json >/dev/null
+          jq -e '.error=="output_ratio_exceeded" and .prompt_tokens>=1024 and .max_allowed_output_tokens<512' neg-ratio.json >/dev/null
           echo 'ARBM_P3_CLOUDFLARE_GRANITE_RATIO_LANE=PASS'
