@@ -20,7 +20,7 @@ def setup():
         with psycopg.connect(dsn,autocommit=True) as c:
             c.execute('drop schema if exists arbm_mc cascade; create schema arbm_mc')
             c.execute("create table arbm_mc.jobs(tenant_id text not null,idempotency_key text not null,state text not null default 'QUEUED',priority int not null default 0,primary key(tenant_id,idempotency_key))")
-            c.execute("insert into arbm_mc.jobs(tenant_id,idempotency_key,priority) select 'tenant-'||lpad(g::text,7,'0'),'seed-'||g,(g%8) from generate_series(%s,%s) g",(cell*250000+1,(cell+1)*250000))
+            c.execute("insert into arbm_mc.jobs(tenant_id,idempotency_key,priority) select 'tenant-'||lpad(g::text,7,'0'),'seed-'||g,mod(g,8) from generate_series(%s,%s) g",(cell*250000+1,(cell+1)*250000))
             counts.append(c.execute('select count(*) from arbm_mc.jobs').fetchone()[0])
         for _ in range(POOL_PER_CELL): POOLS[cell].put(psycopg.connect(dsn,autocommit=True))
     return {'rows':sum(counts),'cells':CELLS,'rowsPerCell':counts,'poolPerCell':POOL_PER_CELL,'seedMs':round((time.perf_counter()-started)*1000,3)}
