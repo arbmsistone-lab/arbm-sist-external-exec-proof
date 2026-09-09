@@ -8,6 +8,7 @@ on:
     paths:
       - 'arbm_provider_probe.py'
       - 'account_capacity_probe.py'
+      - 'cerebras_capacity_probe.py'
       - 'test_provider_probe.py'
       - 'mesh_capacity.py'
       - 'test_mesh_capacity.py'
@@ -15,12 +16,6 @@ on:
       - 'supabase/functions/arbm-terminal-agent-v7/**'
       - '.github/workflows/arbm-provider-probe.yml'
   workflow_dispatch:
-    inputs:
-      mode:
-        description: Probe route
-        type: choice
-        options: [diagnostic, normal_mesh]
-        default: diagnostic
 
 permissions:
   contents: read
@@ -37,6 +32,7 @@ jobs:
       - name: Test proof gates and mesh regressions
         run: |
           python -m unittest test_provider_probe.py test_mesh_capacity.py
+          python -m py_compile account_capacity_probe.py cerebras_capacity_probe.py
           node --test test_mistral_mesh.mjs
       - name: Probe ARBM FREE provider mesh
         run: |
@@ -48,3 +44,10 @@ jobs:
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
           python account_capacity_probe.py
+      - name: Probe Cerebras FREE capacity when configured
+        env:
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = "HARD"
+          python cerebras_capacity_probe.py
