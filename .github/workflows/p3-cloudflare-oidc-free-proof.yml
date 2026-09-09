@@ -28,7 +28,7 @@ jobs:
           python - <<'PY'
           text=('ARBM SIST capacity lane processes cloud-hosted operational context, evidence, constraints, audit state, routing policy, rollback state and verification requirements before returning a concise bounded decision. ' * 180)
           open('prompt.txt','w',encoding='utf-8').write(text)
-          ratio=('ARBM SIST bounded capacity ratio verification context with audit evidence and routing constraints. ' * 50)
+          ratio=('ARBM SIST bounded capacity ratio verification context with audit evidence and routing constraints. ' * 100)
           open('ratio-prompt.txt','w',encoding='utf-8').write(ratio)
           PY
           body="$(jq -nc --rawfile prompt prompt.txt '{mode:"capacity_lane",prompt:$prompt,max_output_tokens:128}')"
