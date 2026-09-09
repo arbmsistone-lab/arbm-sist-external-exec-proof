@@ -1,4 +1,4 @@
-﻿import unittest
+import unittest
 from datetime import datetime, timezone
 from audit_30x10_capacity import audit
 
@@ -36,4 +36,3 @@ class AuditTests(unittest.TestCase):
         self.assertEqual(r["passed_checks"],300)
 
 if __name__=='__main__': unittest.main()
-
