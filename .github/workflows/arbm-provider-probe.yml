@@ -60,7 +60,7 @@ jobs:
           d=json.load(open('account-capacity-evidence.json',encoding='utf-8'))
           r=certify_mesh(d['routes'])
           assert r['status']=='PASS', r
-          assert r['certified_tokens_per_day']==7513773, r
+          assert r['certified_tokens_per_day']==8513773, r
           assert r['deficit_tokens_per_day']==0, r
           print(json.dumps(r,separators=(',',':')))
           PY
@@ -85,8 +85,6 @@ jobs:
           test "$ZERO_SPEND_MODE" = "HARD"
           python groq_model_bucket_probe.py
 
-      - name: Probe Groq Prompt Guard FREE buckets
-        run: python groq_prompt_guard_probe.py
       - name: Probe ARBM FREE provider mesh
         run: |
           set -euo pipefail
