@@ -1,6 +1,5 @@
 name: ARBM Top3 V3 Migration Load Failure Proof
-on:
-  workflow_dispatch:
+on: [workflow_dispatch]
 permissions:
   contents: read
 jobs:
