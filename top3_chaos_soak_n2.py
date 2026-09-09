@@ -86,13 +86,14 @@ def bulk_replay(cell,events):
     try:
         with conn.cursor() as cur:
             cur.execute('create temp table n2_replay(event_id bigint, tenant_id text) on commit drop')
-            with cur.copy('copy n2_replay (event_id,tenant_id) from stdin') as cp:
-                for event in events: cp.write_row(event)
+            payload=''.join(f'{event_id}\\t{tenant}\\n' for event_id,tenant in events).encode()
+            with cur.copy('copy n2_replay (event_id,tenant_id) from stdin') as cp: cp.write(payload)
             cur.execute('insert into arbm_n2.events select event_id,tenant_id from n2_replay on conflict do nothing')
         conn.commit()
     finally: conn.close()
 def replay_cell(cell):
-    started=time.perf_counter(); ensure_cell_up(cell); fill_pool(cell); cursor=0
+    started=time.perf_counter(); ensure_cell_up(cell); cursor=0
+    with new_conn(cell) as c: c.execute('drop index if exists arbm_n2.events_tenant_idx')
     while True:
         with wal_lock:
             target=len(wal); snapshot=list(wal[cursor:target])
@@ -103,6 +104,8 @@ def replay_cell(cell):
                 with state_lock: state['down'].discard(cell)
         if stable: break
         time.sleep(.005)
+    with new_conn(cell) as c: c.execute('create index if not exists events_tenant_idx on arbm_n2.events(tenant_id)')
+    fill_pool(cell)
     return time.perf_counter()-started
 
 def recover_cells():
