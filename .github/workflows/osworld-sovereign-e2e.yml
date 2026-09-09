@@ -52,7 +52,8 @@ jobs:
           "$HOME/.local/bin/uv" run python scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
           "$HOME/.local/bin/uv" run python scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 --allow-pattern 'task_001/**' --allow-pattern 'task_002/**' --allow-pattern 'task_003/**' --target-dir cache/osworld_v2_assets
           printf '{"tasks":["001","002","003"]}\n' > evaluation_examples/test_arbm_sovereign.json
-          test "$(find evaluation_examples/task_class -maxdepth 1 -name 'task_*.py' -type f | wc -l)" -eq 108      - name: Download and verify official VM
+          test "$(find evaluation_examples/task_class -maxdepth 1 -name 'task_*.py' -type f | wc -l)" -eq 108
+      - name: Download and verify official VM
         shell: bash
         run: |
           set -euo pipefail
@@ -71,7 +72,6 @@ jobs:
         with:
           path: ${{ env.MODEL_DIR }}/${{ env.MODEL_FILE }}
           key: qwen25-coder-14b-q4km-${{ env.MODEL_SHA256 }}
-          save-always: true
       - name: Start verified sovereign model
         shell: bash
         run: |
@@ -81,7 +81,8 @@ jobs:
           if [ ! -f "$MODEL" ]; then curl -fL --retry 5 --retry-delay 5 -o "$MODEL" "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/resolve/main/$MODEL_FILE?download=true"; fi
           echo "$MODEL_SHA256  $MODEL" | sha256sum -c -
           curl -fL --retry 4 -o /tmp/llama.tgz "https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA_TAG/llama-$LLAMA_TAG-bin-ubuntu-x64.tar.gz"
-          echo "$LLAMA_SHA256  /tmp/llama.tgz" | sha256sum -c -          mkdir -p /tmp/llama && tar -xzf /tmp/llama.tgz -C /tmp/llama
+          echo "$LLAMA_SHA256  /tmp/llama.tgz" | sha256sum -c -
+          mkdir -p /tmp/llama && tar -xzf /tmp/llama.tgz -C /tmp/llama
           LLAMA_SERVER=$(find /tmp/llama -type f -name llama-server -print -quit)
           chmod +x "$LLAMA_SERVER"
           "$LLAMA_SERVER" -m "$MODEL" --host 127.0.0.1 --port 8088 -c 8192 -np 1 -t 4 -ctk q8_0 -ctv q8_0 --no-warmup --no-webui -a gpt-arbm-sovereign > sovereign-osworld.log 2>&1 &
@@ -109,7 +110,8 @@ jobs:
             --max_tokens 900 \
             --num_envs 1 \
             --result_dir ../top3-evidence/osworld-sovereign/results \
-            2>&1 | tee ../top3-evidence/osworld-sovereign/osworld.log      - name: Enforce official evaluator gate
+            2>&1 | tee ../top3-evidence/osworld-sovereign/osworld.log
+      - name: Enforce official evaluator gate
         shell: bash
         run: |
           set -euo pipefail
