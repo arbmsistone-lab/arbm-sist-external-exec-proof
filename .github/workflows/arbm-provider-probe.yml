@@ -98,6 +98,10 @@ jobs:
           VIKASIT_API_KEY: ${{ secrets.VIKASIT_API_KEY }}
         run: |
           python vikasit_capacity_probe.py
+      - name: Inspect existing Hugging Face resources read-only
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: python hf_existing_resources_probe.py | tee hf-existing.json
       - name: Probe Hugging Face Novita recurring FREE capacity
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
