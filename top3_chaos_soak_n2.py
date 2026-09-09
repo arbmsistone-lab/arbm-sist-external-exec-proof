@@ -80,25 +80,29 @@ def stop_cells():
         cid=container_ids[cell]
         subprocess.run(['docker','stop',cid],check=True,stdout=subprocess.DEVNULL)
 
-def batch_replay(cell,events):
+def bulk_replay(cell,events):
     if not events: return
-    conn=new_conn(cell)
+    conn=psycopg.connect(DSNS[cell],autocommit=False,connect_timeout=2)
     try:
         with conn.cursor() as cur:
-            cur.executemany('insert into arbm_n2.events(event_id,tenant_id) values (%s,%s) on conflict do nothing',events)
+            cur.execute('create temp table n2_replay(event_id bigint, tenant_id text) on commit drop')
+            with cur.copy('copy n2_replay (event_id,tenant_id) from stdin') as cp:
+                for event in events: cp.write_row(event)
+            cur.execute('insert into arbm_n2.events select event_id,tenant_id from n2_replay on conflict do nothing')
+        conn.commit()
     finally: conn.close()
 def replay_cell(cell):
     started=time.perf_counter(); ensure_cell_up(cell); fill_pool(cell); cursor=0
     while True:
         with wal_lock:
             target=len(wal); snapshot=list(wal[cursor:target])
-        for pos in range(0,len(snapshot),5000): batch_replay(cell,snapshot[pos:pos+5000])
-        cursor=target; time.sleep(.03)
+        bulk_replay(cell,snapshot); cursor=target
         with wal_lock:
             stable=(cursor==len(wal))
             if stable:
                 with state_lock: state['down'].discard(cell)
         if stable: break
+        time.sleep(.005)
     return time.perf_counter()-started
 
 def recover_cells():
