@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "mode": "ZERO_SPEND_HARD",
-  "as_of": "2026-09-08T23:36:54.772355+00:00",
+  "as_of": "2026-09-09T21:45:00Z",
   "targets": {
     "next_tokens_per_day": 3000000,
     "stretch_tokens_per_day": 10000000,
@@ -53,22 +53,27 @@
       "free_tokens_per_month": null,
       "conservative_daily_capacity": "UNKNOWN",
       "daily_capacity_counted_for_gate": 0,
-      "reason": "Minute throughput headers do not establish included daily/monthly free allowance. Admin > API > Limits evidence is still required.",
-      "final_diagnostic_run": 34291365140
+      "reason": "Live account-bound inference and zero mandatory cost are proven; organization Free-mode/PAYG state is not exposed by the standard API key, so no daily capacity is certified.",
+      "final_diagnostic_run": 34291365140,
+      "account_specific": true,
+      "free_mode_admin_proven": false,
+      "payg_disabled_proven": false,
+      "latest_live_run": 34408313526
     },
     "openrouter": {
       "independent_provider": true,
-      "connected": true,
-      "live_qualified": true,
-      "account_specific": true,
-      "is_free_tier": true,
+      "connected": false,
+      "live_qualified": false,
+      "account_specific": false,
+      "is_free_tier": null,
       "mandatory_cost_usd": 0,
       "paid_fallback": false,
       "official_free_request_limit_per_day": 50,
-      "certified_tokens_per_day": null,
+      "certified_tokens_per_day": 0,
       "daily_capacity_counted_for_gate": 0,
-      "reason": "Account is verified Free Tier, but quota is request-based rather than token/day; no TPD conversion is permitted.",
-      "account_audit_at": "2026-09-09T13:14:19Z"
+      "reason": "OPENROUTER_API_KEY is absent from the current proof repository; no current account-bound capacity is promotable.",
+      "account_audit_at": "2026-09-09T13:14:19Z",
+      "latest_probe_run": 34408313526
     }
   },
   "blocked_or_separate": {
