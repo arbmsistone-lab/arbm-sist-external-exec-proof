@@ -1,4 +1,4 @@
-﻿name: OSWorld sovereign zero-spend E2E
+name: OSWorld sovereign zero-spend E2E
 on:
   push:
     branches:
@@ -88,7 +88,7 @@ jobs:
           mkdir -p /tmp/llama && tar -xzf /tmp/llama.tgz -C /tmp/llama
           LLAMA_SERVER=$(find /tmp/llama -type f -name llama-server -print -quit)
           chmod +x "$LLAMA_SERVER"
-          "$LLAMA_SERVER" -m "$MODEL" --host 127.0.0.1 --port 8088 -c 8192 -np 1 -t 4 -ctk q8_0 -ctv q8_0 --no-warmup --no-webui -a gpt-arbm-sovereign > sovereign-osworld.log 2>&1 &
+          "$LLAMA_SERVER" -m "$MODEL" --host 127.0.0.1 --port 8088 -c 32768 -np 1 -t 4 -ctk q8_0 -ctv q8_0 --no-warmup --no-webui -a gpt-arbm-sovereign > sovereign-osworld.log 2>&1 &
           echo "ARBM_SOVEREIGN_SERVER_PID=$!" >> "$GITHUB_ENV"
           for i in $(seq 1 90); do curl -fsS http://127.0.0.1:8088/health >/dev/null && break; sleep 2; done
           curl -fsS http://127.0.0.1:8088/health
