@@ -13,6 +13,10 @@ on:
       - 'distributed_capacity.py'
       - 'cloudflare_granite_capacity.py'
       - 'test_cloudflare_granite_capacity.py'
+      - 'resilience_capacity.py'
+      - 'test_resilience_capacity.py'
+      - 'vikasit_capacity_probe.py'
+      - 'test_vikasit_capacity_probe.py'
       - 'account-capacity-evidence.json'
       - 'test_provider_probe.py'
       - 'test_distributed_capacity.py'
@@ -22,10 +26,10 @@ on:
       - 'supabase/functions/arbm-terminal-agent-v7/**'
       - '.github/workflows/arbm-provider-probe.yml'
   workflow_dispatch:
-
 permissions:
   contents: read
   id-token: write
+
 jobs:
   provider_probe:
     runs-on: ubuntu-latest
@@ -36,8 +40,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Test proof gates and mesh regressions
         run: |
-          python -m unittest test_provider_probe.py test_mesh_capacity.py test_distributed_capacity.py test_cloudflare_granite_capacity.py
-          python -m py_compile account_capacity_probe.py cerebras_capacity_probe.py sambanova_capacity_probe.py distributed_capacity.py cloudflare_granite_capacity.py
+          python -m unittest test_provider_probe.py test_mesh_capacity.py test_distributed_capacity.py test_cloudflare_granite_capacity.py test_resilience_capacity.py test_vikasit_capacity_probe.py
+          python -m py_compile account_capacity_probe.py cerebras_capacity_probe.py sambanova_capacity_probe.py distributed_capacity.py cloudflare_granite_capacity.py resilience_capacity.py vikasit_capacity_probe.py
           node --test test_mistral_mesh.mjs
           python - <<'PY'
           import json
@@ -49,6 +53,21 @@ jobs:
           assert r['deficit_tokens_per_day']==0, r
           print(json.dumps(r,separators=(',',':')))
           PY
+      - name: Report resilience and growth gates
+        run: |
+          python - <<'PY'
+          import json
+          from resilience_capacity import certify_resilience
+          d=json.load(open('account-capacity-evidence.json',encoding='utf-8'))
+          r=certify_resilience(d['routes'])
+          assert r['base_3m_status']=='PASS', r
+          print(json.dumps(r,separators=(',',':')))
+          PY
+      - name: Probe Vikasit Nova FREE capacity when configured
+        env:
+          VIKASIT_API_KEY: ${{ secrets.VIKASIT_API_KEY }}
+        run: |
+          python vikasit_capacity_probe.py
       - name: Probe ARBM FREE provider mesh
         run: |
           set -euo pipefail
