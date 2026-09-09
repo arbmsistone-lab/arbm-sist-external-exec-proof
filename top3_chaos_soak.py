@@ -36,7 +36,7 @@ def one_op(i):
     for cell in healthy_order(primary):
         conn=None
         try:
-            conn=pools[cell].get()
+            conn=pools[cell].get(timeout=.25)
             row=conn.execute('select v from arbm_soak.jobs where tenant_id=%s',(tenant,)).fetchone()
             if row is None: raise RuntimeError('replica_miss')
             pools[cell].put(conn); conn=None
