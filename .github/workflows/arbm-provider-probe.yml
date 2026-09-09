@@ -15,6 +15,10 @@ on:
       - 'vercel_gateway_capacity_probe.py'
       - 'test_vercel_gateway_capacity_probe.py'
       - 'vercel-account-evidence.json'
+      - 'netlify_capacity_probe.py'
+      - 'test_netlify_capacity_probe.py'
+      - 'netlify-account-evidence.json'
+      - 'netlify-capacity-probe/**'
       - 'distributed_capacity.py'
       - 'cloudflare_granite_capacity.py'
       - 'test_cloudflare_granite_capacity.py'
@@ -58,9 +62,10 @@ jobs:
       - uses: actions/checkout@v7
       - name: Test proof gates and mesh regressions
         run: |
-          python -m unittest test_provider_probe.py test_mesh_capacity.py test_distributed_capacity.py test_cloudflare_granite_capacity.py test_resilience_capacity.py test_vikasit_capacity_probe.py test_sambanova_capacity_probe.py test_vercel_gateway_capacity_probe.py test_merge_live_capacity_evidence.py test_zero_capacity_pool_gate.py test_cerebras_capacity_probe.py test_capacity_excellence.py test_workload_useful_capacity.py test_audit_30x10_capacity.py test_audit_50x10_capacity.py test_capacity_ceiling_gate.py test_openrouter_capacity_probe.py
-          python -m py_compile account_capacity_probe.py cerebras_capacity_probe.py sambanova_capacity_probe.py vercel_gateway_capacity_probe.py distributed_capacity.py cloudflare_granite_capacity.py resilience_capacity.py vikasit_capacity_probe.py capacity_excellence.py workload_useful_capacity.py audit_30x10_capacity.py audit_50x10_capacity.py capacity_ceiling_gate.py openrouter_capacity_probe.py groq_model_bucket_probe.py merge_live_capacity_evidence.py
-          node --test test_mistral_mesh.mjs          python - <<'PY'
+          python -m unittest test_provider_probe.py test_mesh_capacity.py test_distributed_capacity.py test_cloudflare_granite_capacity.py test_resilience_capacity.py test_vikasit_capacity_probe.py test_sambanova_capacity_probe.py test_vercel_gateway_capacity_probe.py test_netlify_capacity_probe.py test_merge_live_capacity_evidence.py test_zero_capacity_pool_gate.py test_cerebras_capacity_probe.py test_capacity_excellence.py test_workload_useful_capacity.py test_audit_30x10_capacity.py test_audit_50x10_capacity.py test_capacity_ceiling_gate.py test_openrouter_capacity_probe.py
+          python -m py_compile account_capacity_probe.py cerebras_capacity_probe.py sambanova_capacity_probe.py vercel_gateway_capacity_probe.py netlify_capacity_probe.py distributed_capacity.py cloudflare_granite_capacity.py resilience_capacity.py vikasit_capacity_probe.py capacity_excellence.py workload_useful_capacity.py audit_30x10_capacity.py audit_50x10_capacity.py capacity_ceiling_gate.py openrouter_capacity_probe.py groq_model_bucket_probe.py merge_live_capacity_evidence.py
+          node --test test_mistral_mesh.mjs
+          python - <<'PY'
           import json
           from mesh_capacity import certify_mesh
           d=json.load(open('account-capacity-evidence.json',encoding='utf-8'))
@@ -108,6 +113,11 @@ jobs:
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
           python sambanova_capacity_probe.py | tee sambanova-result.json
+      - name: Probe Netlify AI Gateway recurring FREE capacity when deployed
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = "HARD"
+          python netlify_capacity_probe.py | tee netlify-result.json
       - name: Probe Vercel AI Gateway recurring FREE capacity when configured
         env:
           VERCEL_AI_GATEWAY_API_KEY: ${{ secrets.VERCEL_AI_GATEWAY_API_KEY }}
@@ -134,7 +144,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
-          python merge_live_capacity_evidence.py --baseline account-capacity-evidence.json --output effective-capacity-evidence.json --run-id "$GITHUB_RUN_ID" --probe vikasit-result.json --probe sambanova-result.json --probe vercel-result.json --probe openrouter-result.json --probe cerebras-result.json
+          python merge_live_capacity_evidence.py --baseline account-capacity-evidence.json --output effective-capacity-evidence.json --run-id "$GITHUB_RUN_ID" --probe vikasit-result.json --probe sambanova-result.json --probe netlify-result.json --probe vercel-result.json --probe openrouter-result.json --probe cerebras-result.json
           python - <<'PY'
           import json
           from datetime import datetime, timezone
