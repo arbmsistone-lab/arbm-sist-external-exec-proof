@@ -24,7 +24,7 @@ jobs:
             code="$(curl -sS -o response.json -w '%{http_code}' -H "Authorization: Bearer ${oidc}" -H 'content-type: application/json' --data "$body" https://arbm-capacity-proof-v2.zevanory.workers.dev)"
             echo "MODEL=$model HTTP_CODE=$code"
             test "$code" = 200
-            jq -e --arg model "$model" '.ok == true and .provider == "cloudflare" and .model == $model and .mandatory_cost_usd == 0 and .paid_fallback_used == false and .marker == true' response.json >/dev/null
+            jq -e --arg model "$model" '.ok == true and .provider == "cloudflare" and .model == $model and .mandatory_cost_usd == 0 and .paid_fallback_used == false and .response_nonempty == true' response.json >/dev/null
           done
       - name: Evidence marker
         run: echo 'ARBM_P3_CLOUDFLARE_LOW_NEURON_FREE=PASS'

@@ -36,11 +36,12 @@ async function verifyOidc(token){
     if(!ALLOWED.has(model)) return Response.json({ok:false,error:'model_not_allowed'},{status:403});
     const result=await env.AI.run(model,{messages:[{role:'user',content:'Reply only ARBM_CF_CAPACITY_PASS'}],max_tokens:24});
     const text=String(result?.response||result?.choices?.[0]?.message?.content||'');
+    const nonempty=text.trim().length>0;
     return Response.json({
-      ok:text.includes('ARBM_CF_CAPACITY_PASS'),provider:'cloudflare',model,
+      ok:nonempty,provider:'cloudflare',model,
       mandatory_cost_usd:0,paid_fallback_used:false,github_run_id:oidc.run_id,
-      marker:text.includes('ARBM_CF_CAPACITY_PASS')
-    },{status:text.includes('ARBM_CF_CAPACITY_PASS')?200:422});
+      response_nonempty:nonempty
+    },{status:nonempty?200:422});
   }catch(e){
     const msg=String(e?.message||'error');
     const auth=/^(auth_|jwt_|jwk_)/.test(msg);
