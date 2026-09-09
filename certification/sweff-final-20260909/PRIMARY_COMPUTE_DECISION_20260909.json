@@ -1,0 +1,40 @@
+{
+  "schema": "arbm-primary-compute-decision-v1",
+  "observedAt": "2026-09-09",
+  "goal": "Permanent external compute anchor for ARBM SIST heavy workloads",
+  "principles": {
+    "freeFirst": true,
+    "fixedCostAnchor": true,
+    "localHeavyCompute": false,
+    "singleProviderDependencyForbidden": true,
+    "automaticPaidActivation": false
+  },
+  "preferredPaidAnchor": {
+    "provider": "Kimsufi by OVHcloud",
+    "target": "KS-2",
+    "class": "bare-metal",
+    "cpu": "Intel Xeon-D 1540",
+    "physicalCores": 8,
+    "threads": 16,
+    "memoryGB": 64,
+    "virtualization": ["KVM", "Proxmox", "Hyper-V", "VMware ESXi"],
+    "containers": ["Docker", "Kubernetes"],
+    "billing": "monthly/no long-term commitment advertised",
+    "priceReference": "from EUR 26.99 excl. VAT/month depending on region",
+    "state": "PREFERRED_PAID_ANCHOR_UNPROVISIONED"
+  },
+  "qualityUpgrade": {
+    "provider": "Kimsufi by OVHcloud",
+    "target": "RISE-S",
+    "cpu": "AMD Ryzen 7 9700X",
+    "physicalCores": 8,
+    "threads": 16,
+    "memoryGB": 64,
+    "storage": "2x512GB NVMe",
+    "priceReference": "EUR 64.99 excl. VAT/month plus setup fee",
+    "state": "PERFORMANCE_UPGRADE_OPTION"
+  },
+  "freeBurstOrder": ["Latchkey OSS", "Blacksmith free/OSS"],
+  "paidFallbackOrder": ["Kimsufi KS-2", "Kimsufi RISE-S", "Hetzner Server Auction", "Brazilian bare metal when qualified"],
+  "doNotUseAsUniversalAnchor": ["netcup Root Server due disabled nested virtualization", "shared-vCPU VPS without measured topology"]
+}
