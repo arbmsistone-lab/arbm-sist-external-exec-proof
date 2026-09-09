@@ -1,4 +1,4 @@
-name: OSWorld sovereign zero-spend E2E
+﻿name: OSWorld sovereign zero-spend E2E
 on:
   push:
     branches:
@@ -21,6 +21,7 @@ jobs:
       LLAMA_SHA256: f263a91280471b4c33c4999d7c76259c0f3a0a53a0b3e692b2c0b84380137a35
       OPENAI_BASE_URL: http://127.0.0.1:8088/v1
       OPENAI_API_KEY: zero-spend-local
+      AWS_REGION: us-east-1
       OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
     steps:
       - uses: actions/checkout@v7
