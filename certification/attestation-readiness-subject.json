@@ -1,22 +1,23 @@
 {
-  "schema": "arbm-independent-attestation-readiness-v1",
+  "schema": "arbm-independent-attestation-v3-v1",
   "project": "ARBM SIST",
-  "purpose": "prove public Sigstore/GitHub attestation path before final certification",
+  "purpose": "public attestation of the signed Top3 V3 evidence subject without publishing proprietary source",
   "policy": {
     "zeroSpendHard": true,
     "heavyExecution": "REMOTE_ONLY",
     "failClosed": true
   },
-  "p9": {
-    "state": "GO",
-    "runId": 34003981543,
-    "certificationRunId": 34004140424,
-    "artifactDigest": "sha256:f3ee7b1914edfa4af0376207a4776dca88f821deb104b5b826a8ba728486fda6"
+  "release": {
+    "version": "11.3.5+top3-v3.20260909",
+    "packageSha256": "6754ffb6a23e977df5a016cb0db45a8298b25ce42b43ff68172506d4ea36579e",
+    "sbomSha256": "458fc47e7df01b11ea6d6935a227a2c5710dac4172aacc0db85d547ffe51f5e4",
+    "provenanceSha256": "0ccdd33b5c435aa1270e9cd0c05385471fc492a6f5a14c099e525f99e09d2688",
+    "baselineSha256": "c748105c047852a7459ea5721542f2bb3726ec73c9b315b2f9cab7bbbb96eb5f"
   },
   "benchmarkPolicy": {
     "requiredCompleteFamilies": 5,
     "finalAttestationRequiresAllFamilies": true,
     "thisDocumentIsReadinessProofOnly": true
   },
-  "releaseZipSha256": "70F233FA2AD84B66468CCB4789E3628A171ABA97A6C5C188C01A1EF56659B4E0"
+  "releaseZipSha256": "6754ffb6a23e977df5a016cb0db45a8298b25ce42b43ff68172506d4ea36579e"
 }
