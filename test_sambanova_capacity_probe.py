@@ -19,12 +19,16 @@ class SambaNovaProbeTests(unittest.TestCase):
         data=json.loads(out.getvalue()); self.assertEqual(code,0); self.assertEqual(data["certified_tokens_per_day"],0)
 
     def test_one_proven_model_only_certifies_200k(self):
-        code,data=run_rows([row(s.MODELS[0],True),row(s.MODELS[1],False)])
+        code,data=run_rows([row(s.MODELS[0],True),row(s.MODELS[1],False),row(s.MODELS[2],False)])
         self.assertEqual(code,0); self.assertEqual(data["status"],"PARTIAL_ACCOUNT_BOUND"); self.assertEqual(data["certified_tokens_per_day"],200_000)
 
-    def test_two_distinct_proven_models_certify_400k(self):
-        code,data=run_rows([row(s.MODELS[0],True),row(s.MODELS[1],True)])
-        self.assertEqual(code,0); self.assertEqual(data["status"],"PASS_ACCOUNT_BOUND"); self.assertEqual(data["certified_tokens_per_day"],400_000)
+    def test_two_proven_models_certify_400k(self):
+        code,data=run_rows([row(s.MODELS[0],True),row(s.MODELS[1],True),row(s.MODELS[2],False)])
+        self.assertEqual(code,0); self.assertEqual(data["status"],"PARTIAL_ACCOUNT_BOUND"); self.assertEqual(data["certified_tokens_per_day"],400_000)
+
+    def test_three_distinct_proven_models_certify_600k(self):
+        code,data=run_rows([row(s.MODELS[0],True),row(s.MODELS[1],True),row(s.MODELS[2],True)])
+        self.assertEqual(code,0); self.assertEqual(data["status"],"PASS_ACCOUNT_BOUND"); self.assertEqual(data["certified_tokens_per_day"],600_000)
         self.assertEqual(data["independence_pool"],"sambanova-account")
 
 if __name__=="__main__": unittest.main()

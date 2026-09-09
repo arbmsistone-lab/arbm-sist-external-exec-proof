@@ -1,7 +1,7 @@
 """Fail-closed SambaNova multi-model FREE-capacity probe."""
 import json, os, urllib.error, urllib.request
 API="https://api.sambanova.ai/v1/chat/completions"
-MODELS=("Meta-Llama-3.3-70B-Instruct","gpt-oss-120b")
+MODELS=("DeepSeek-V3.1","Meta-Llama-3.3-70B-Instruct","gpt-oss-120b")
 TPD_PER_MODEL=200_000
 SAFE_HEADERS=("x-ratelimit-limit-requests","x-ratelimit-remaining-requests","x-ratelimit-reset-requests","x-ratelimit-limit-requests-day","x-ratelimit-remaining-requests-day","x-ratelimit-reset-requests-day","x-ratelimit-limit-tokens-day","x-ratelimit-remaining-tokens-day","x-ratelimit-reset-tokens-day","retry-after")
 
