@@ -2,6 +2,7 @@ import io
 import json
 import os
 import statistics
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -32,12 +33,43 @@ def _json(path):
     return json.loads(_request(path))
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _artifact_zip(artifact_id):
+    token = os.environ.get("GITHUB_TOKEN")
+    if not token:
+        raise RuntimeError("GITHUB_TOKEN_REQUIRED")
+    req = urllib.request.Request(
+        API + f"/actions/artifacts/{artifact_id}/zip",
+        headers={
+            "Authorization": "Bearer " + token,
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    )
+    opener = urllib.request.build_opener(_NoRedirect)
+    try:
+        with opener.open(req, timeout=30) as response:
+            return response.read()
+    except urllib.error.HTTPError as exc:
+        if exc.code not in (301, 302, 303, 307, 308):
+            raise
+        location = exc.headers.get("Location")
+        if not location:
+            raise RuntimeError("ARTIFACT_REDIRECT_MISSING_LOCATION")
+        with urllib.request.urlopen(location, timeout=30) as response:
+            return response.read()
+
+
 def _artifact_json(run_id, artifact_name, member):
     listing = _json(f"/actions/runs/{run_id}/artifacts")
     matches = [a for a in listing.get("artifacts", []) if a.get("name") == artifact_name]
     if len(matches) != 1:
         raise RuntimeError(f"ARTIFACT_COUNT_{artifact_name}_{len(matches)}")
-    raw = _request(f"/actions/artifacts/{matches[0]['id']}/zip")
+    raw = _artifact_zip(matches[0]["id"])
     with zipfile.ZipFile(io.BytesIO(raw)) as archive:
         return json.loads(archive.read(member))
 
@@ -56,7 +88,6 @@ def _validate_static(data):
         and rotations == [0, 1, 2]
         and len(data.get("rotation_runs") or []) == 3
     )
-
 
 def _validate_remote(data):
     run_id = int(data["throughput_run"])
