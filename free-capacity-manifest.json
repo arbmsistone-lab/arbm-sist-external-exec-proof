@@ -18,10 +18,12 @@
     },
     "groq": {
       "independent_provider": true,
-      "models_proven": 4,
+      "models_proven": 5,
       "official_tpd_per_model_row": 200000,
       "aggregate_independence_guaranteed": false,
-      "paid_fallback": false
+      "paid_fallback": false,
+      "certified_tokens_per_day": 1000000,
+      "latest_account_bound_run": 34405320220
     },
     "gemini": {
       "independent_provider": true,
