@@ -3,8 +3,9 @@ import json, os, urllib.error, urllib.request
 API="https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v7"
 PROVIDERS=("groq","google","lightning","cloudflare","mistral")
 SAFE=("route","model","status","parsed","usage_tokens","usage","retry_after",
-      "rate_limit_headers","rate_limit_remaining","error_message",
-      "mandatory_cost_usd","paid_fallback_used")
+      "rate_limit_headers","rate_limit_remaining","error_message","free_plan_proven",
+      "rate_limit_rpd","rate_limit_tpm","remaining_requests","remaining_tokens",
+      "quota_limit","quota_metric","mandatory_cost_usd","paid_fallback_used")
 def oidc():
     url=os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"]
     tok=os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]
