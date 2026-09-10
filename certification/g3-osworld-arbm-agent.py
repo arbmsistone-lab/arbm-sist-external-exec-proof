@@ -10,6 +10,7 @@ class ArbmG3Agent(PromptAgent):
         self._action_signatures = []
         self._verifications = []
         self._last_llm_at = 0.0
+        self._fatal_model_error = None
 
     def reset(self, *args, **kwargs):
         self._previous_obs = None
@@ -17,6 +18,7 @@ class ArbmG3Agent(PromptAgent):
         self._action_signatures = []
         self._verifications = []
         self._last_llm_at = 0.0
+        self._fatal_model_error = None
         return super().reset(*args, **kwargs)
 
     def _state(self, obs):
@@ -39,6 +41,8 @@ class ArbmG3Agent(PromptAgent):
         if verification and verification.get('decision',{}).get('state')!='VERIFIED':
             instruction += '\nPrevious action produced no verified state transition. Recover by reassessing the current screenshot and choose a different safe action.'
         response, actions = super().predict(instruction, obs)
+        if self._fatal_model_error:
+            raise RuntimeError(self._fatal_model_error)
         if actions:
             sig=json.dumps(actions,sort_keys=True,default=str)
             if self._action_signatures[-3:].count(sig)>=3:
@@ -58,19 +62,11 @@ class ArbmG3Agent(PromptAgent):
         elapsed=time.monotonic()-self._last_llm_at
         if self._last_llm_at and elapsed < min_interval:
             time.sleep(min_interval-elapsed)
-        for attempt in range(4):
-            self._last_llm_at=time.monotonic()
-            r=requests.post(endpoint,headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'},json=request_payload,timeout=120)
-            if r.status_code != 429:
-                break
-            if attempt == 3:
-                raise RuntimeError('MODEL_TRANSPORT_429')
-            retry_after=r.headers.get('Retry-After','').strip()
-            try:
-                server_delay=float(retry_after)
-            except ValueError:
-                server_delay=0.0
-            time.sleep(min(60.0,max(min_interval,server_delay,min_interval*(attempt+1))))
+        self._last_llm_at=time.monotonic()
+        r=requests.post(endpoint,headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'},json=request_payload,timeout=120)
+        if r.status_code == 429:
+            self._fatal_model_error='MODEL_RATE_LIMIT'
+            raise RuntimeError('MODEL_RATE_LIMIT')
         r.raise_for_status()
         data=r.json()
         if data.get('model')!='gemini-3.5-flash':
