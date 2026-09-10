@@ -1,5 +1,6 @@
 import base64, json, os, subprocess, time
 import requests
+import re
 from mm_agents.agent import PromptAgent
 
 class ArbmG3Agent(PromptAgent):
@@ -36,6 +37,23 @@ class ArbmG3Agent(PromptAgent):
         self._verifications.append(result)
         return result
 
+    @staticmethod
+    def _semantic_signature(actions):
+        raw=' '.join(str(x) for x in (actions or []))
+        click=re.search(r'pyautogui\.(?:click|doubleClick)\s*\(\s*(\d+)\s*,\s*(\d+)',raw,re.I)
+        if click:
+            x,y=int(click.group(1)),int(click.group(2))
+            return f'click-region:{x//80}:{y//80}'
+        hotkey=re.search(r'pyautogui\.hotkey\s*\(([^)]*)\)',raw,re.I)
+        if hotkey:
+            return 'hotkey:'+re.sub(r'\s+','',hotkey.group(1).lower())
+        press=re.search(r'pyautogui\.press\s*\(([^)]*)\)',raw,re.I)
+        if press:
+            return 'press:'+re.sub(r'\s+','',press.group(1).lower())
+        if re.search(r'pyautogui\.(?:write|typewrite)\s*\(',raw,re.I):
+            return 'text-entry'
+        return re.sub(r'\s+',' ',raw.strip().lower())[:180]
+
     def predict(self, instruction, obs):
         grounding = (
             "\n\nVISUAL GROUNDING POLICY: The screenshot coordinates use origin (0,0) at the top-left and match the full screenshot pixel dimensions. "
@@ -50,18 +68,17 @@ class ArbmG3Agent(PromptAgent):
         )
         instruction += grounding
         if self._action_signatures:
-            recent=self._action_signatures[-3:]
-            instruction += "\nRecent actions already attempted: " + " | ".join(recent)[-1200:] + "\nAvoid repeating them unless the screenshot proves it is necessary."
+            recent=self._action_signatures[-4:]
+            instruction += "\nRecent semantic actions already attempted: " + " | ".join(recent)[-600:] + "\nAvoid repeating the same UI region or keyboard intent unless the screenshot proves progress."
         verification=self._verify_previous(obs)
         if verification and verification.get('decision',{}).get('state')!='VERIFIED':
-            instruction += '\nPrevious action produced no verified state transition. Recover by reassessing the current screenshot and choose a different safe action.'
+            blocked=self._action_signatures[-1] if self._action_signatures else 'unknown'
+            instruction += f'\nPrevious action produced no verified state transition. Treat semantic action {blocked!r} as blocked for this step; reassess the screenshot and choose a different safe strategy.'
         response, actions = super().predict(instruction, obs)
         if self._fatal_model_error:
             raise RuntimeError(self._fatal_model_error)
         if actions:
-            sig=json.dumps(actions,sort_keys=True,default=str)
-            if self._action_signatures[-3:].count(sig)>=3:
-                actions=['FAIL']
+            sig=self._semantic_signature(actions)
             self._action_signatures.append(sig)
             self._previous_action=actions[0] if actions else None
             self._previous_obs=obs
@@ -71,8 +88,8 @@ class ArbmG3Agent(PromptAgent):
         if not key:
             raise RuntimeError('GEMINI_G3_PAID_CERT_KEY_MISSING')
         messages=payload.get('messages',[]) if isinstance(payload,dict) else []
-        if len(messages) > 2:
-            messages = [messages[0], messages[-1]]
+        if len(messages) > 4:
+            messages = [messages[0], *messages[-3:]]
         system=''
         contents=[]
         for message in messages:
