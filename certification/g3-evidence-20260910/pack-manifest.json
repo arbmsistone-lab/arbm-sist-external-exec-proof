@@ -11,6 +11,14 @@
     "sha256": "dd9def28494665f72910b1433aaa6be88eb05aa7dbb6fea9449dfdf39c7c341a",
     "bytes": 1849
   },
+  "brl25-authorization-ledger.json": {
+    "sha256": "02c0f7e0ed5ed641570fc9f0738ef738f3f2b94ac4d7d759c041be41f0485627",
+    "bytes": 3505
+  },
+  "BRL25-AUTHORIZATION.md": {
+    "sha256": "58eafb49d962ba03e203d6d3316133131c37cb7ea2e83faf8597e03d966ae520",
+    "bytes": 2712
+  },
   "failed-run-artifact.zip": {
     "sha256": "6f3b2dd557191cb182d5981ca727bd76b3f4af5fd6b035f2372a99d113d425cb",
     "bytes": 1957
@@ -36,8 +44,8 @@
     "bytes": 3120
   },
   "README.md": {
-    "sha256": "bce8fa31c3d66c2b648e83c528b09987c8b1403bfc046e99757fbb57ed61e794",
-    "bytes": 8475
+    "sha256": "8f2c208ca47a64f07b3cc46c2ea1e091c57c662ef78314f5ed8cd8dd354fc754",
+    "bytes": 8713
   },
   "run-ledger.json": {
     "sha256": "f3a24a90f330399b87baf890e1ae40518ca41411066952f20b26296c52a1924e",

@@ -1,0 +1,84 @@
+{
+  "schema": "arbm-g3-new-disbursement-authorization-v1",
+  "observed_at_utc": "2026-09-10T23:14:47Z",
+  "repository": "arbmsistone-lab/arbm-sist-external-exec-proof",
+  "branch": "g3/paid-cert-lane-20260910",
+  "evidence_base_sha": "e9d76f7c82f4915774b31010cecb2d57ece3d887",
+  "state": "BLOCKED_NOT_GREEN_PROVEN",
+  "authorization": {
+    "source": "User authorization: AUTORIZACAO ATUALIZADA - ARBM SIST G3",
+    "currency": "BRL",
+    "new_disbursement_hard_cap": "25.00",
+    "replaces_previous_zero_topup_authorization": true,
+    "historical_usage_accounted_separately": true,
+    "automatic_recharge_allowed": false,
+    "subscription_or_recurring_charge_allowed": false,
+    "minimum_purchase_only": true,
+    "final_debit_must_be_proven_within_brl_cap": true,
+    "foreign_currency_conversion_estimate_is_not_checkout_proof": true
+  },
+  "historical_usage": {
+    "recorded_usage_usd": "3.7743690",
+    "source": "run-ledger.json",
+    "actually_billed_total_usd": null,
+    "reconciliation_complete": false,
+    "unknown_usage_run_ids": ["34511385723", "34535970921"]
+  },
+  "account_verification": {
+    "same_project_as_GEMINI_G3_PAID_CERT_KEY": "NOT_VERIFIED",
+    "project_id": null,
+    "billing_account_id": null,
+    "real_available_credit": null,
+    "usable_credit": null,
+    "safe_run_reservation": null,
+    "single_call_proven_maximum_usd": null
+  },
+  "read_only_observations": [
+    {
+      "source": "https://aistudio.google.com/billing",
+      "result": "Billing shell loaded, then redirected to available-regions documentation before account balances or checkout appeared",
+      "redirect": "https://ai.google.dev/gemini-api/docs/available-regions?hl=pt-br",
+      "underlying_reason": "NOT_DETERMINED"
+    },
+    {
+      "source": "Connected Gmail scoped receipt search",
+      "result": "No matching Google Gemini/AI Studio/Cloud Billing payment or credit messages in the queried period 2026-08-01 through 2026-09-11",
+      "browser_and_connector_accounts_match": false,
+      "account_ownership_of_paid_key": "NOT_VERIFIED",
+      "emails_sent_or_modified": 0
+    },
+    {
+      "source": "https://console.cloud.google.com/billing",
+      "result": "Google account session handoff returned HTTP 400 before any billing data",
+      "retry_attempts": 0,
+      "authentication_query_parameters_preserved": false
+    }
+  ],
+  "purchase": {
+    "published_terms_source": "https://ai.google.dev/gemini-api/docs/billing",
+    "published_minimum_usd": "5.00",
+    "published_terms_are_checkout_proof": false,
+    "checkout_reached": false,
+    "minimum_required_brl": null,
+    "amount_missing_brl": null,
+    "final_debit_brl": null,
+    "checkout_proof": null,
+    "confirmation_submitted": false,
+    "actual_new_disbursement_brl": "0.00",
+    "automatic_recharge_enabled_by_agent": false,
+    "account_or_plan_changed": false,
+    "decision": "DO_NOT_PURCHASE_UNVERIFIED_CHECKOUT"
+  },
+  "execution": {
+    "paid_calls_started": 0,
+    "probes_started": 0,
+    "smokes_started": 0,
+    "vms_prepared": 0,
+    "heavy_local": 0,
+    "official_result": "NO_RESULT/BLOCKED",
+    "audit_A": "PRIOR_LOCAL_PASS_PRESERVED",
+    "audit_B": "PRIOR_LOCAL_PASS_PRESERVED",
+    "audit_C": "BLOCKED_ACCOUNT_ACCESS_AND_UNRECONCILED_FINANCE"
+  },
+  "human_access_action": "Open https://aistudio.google.com/billing in the Codex browser with the account that owns the project of GEMINI_G3_PAID_CERT_KEY and leave the authenticated billing page accessible. No manual purchase is requested."
+}

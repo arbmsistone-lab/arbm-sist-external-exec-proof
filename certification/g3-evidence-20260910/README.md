@@ -2,8 +2,11 @@
 
 Estado: **BLOCKED_NOT_GREEN_PROVEN**. Este pacote não certifica o benchmark.
 
-Atualização da consulta financeira: [acesso à conta bloqueado](FINANCIAL-BLOCKER.md).
-Nenhum saldo ou valor faturado foi presumido; pagamento admissível nesta etapa: US$0,00.
+Autorização vigente de novo desembolso: **até R$25,00**, sem recarga automática.
+Veja a [consulta financeira atualizada](BRL25-AUTHORIZATION.md): checkout não
+alcançado, desembolso realizado **R$0,00**, saldo e faturamento não presumidos.
+O [registro anterior](FINANCIAL-BLOCKER.md) conserva a autorização zero histórica,
+substituída pela autorização atual; os resultados anteriores permanecem válidos.
 
 ## ACHADO
 
