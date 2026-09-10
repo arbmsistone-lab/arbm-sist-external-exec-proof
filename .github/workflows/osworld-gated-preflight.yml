@@ -70,7 +70,8 @@ jobs:
           import hashlib,json,pathlib,sys
           manifest=json.load(open(sys.argv[1],encoding='utf-8'))
           rows=manifest.get('files',manifest)
-          if isinstance(rows,dict): rows=[{'path':k,'sha256':v} for k,v in rows.items()]
+          if isinstance(rows,dict):
+              rows=[({'path':k,**v} if isinstance(v,dict) else {'path':k,'sha256':v}) for k,v in rows.items()]
           assert len(rows)==108, len(rows)
           root=pathlib.Path('evaluation_examples/task_class')
           for row in rows:
