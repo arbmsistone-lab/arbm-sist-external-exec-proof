@@ -1,6 +1,11 @@
 name: OSWorld G3 paid certification model probe
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - g3/paid-cert-lane-20260910
+    paths:
+      - '.g3-paid-probe-trigger'
 jobs:
   probe:
     runs-on: ubuntu-24.04
