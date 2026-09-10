@@ -52,6 +52,13 @@ class ArbmG3Agent(PromptAgent):
                     self._fact_memory.append(clean[:300])
         self._fact_memory=self._fact_memory[-24:]
 
+    def _late_discovery_action(self, actions):
+        if not actions:
+            return False
+        joined=json.dumps(actions,default=str).lower()
+        markers=('find all','find & replace','find and replace',"hotkey('ctrl', 'f')","hotkey('ctrl', 'h')",'search for')
+        return any(m in joined for m in markers)
+
     def _unsafe_gui_action(self, actions):
         if not actions:
             return False
@@ -110,9 +117,11 @@ class ArbmG3Agent(PromptAgent):
             lines = str(tree).splitlines()
             task_terms = {w.strip('.,:;!?()[]{}').lower() for w in instruction.split() if len(w.strip('.,:;!?()[]{}')) >= 5}
             task_terms.update({'calendar','inbox','attachment','schedule','find all'})
-            relevant = [line for line in lines if any(k in line.lower() for k in task_terms)]
+            match_indexes = [i for i,line in enumerate(lines) if any(k in line.lower() for k in task_terms)]
+            window_indexes = sorted({j for i in match_indexes for j in range(max(0,i-5), min(len(lines),i+7))})
+            relevant = [lines[i] for i in window_indexes]
             if relevant:
-                instruction += "\nCURRENT_A11Y_EVIDENCE:\n" + "\n".join(relevant[-40:])[-5000:]
+                instruction += "\nCURRENT_A11Y_EVIDENCE_WITH_NEIGHBORS:\n" + "\n".join(relevant[-120:])[-14000:]
         if self._fact_memory:
             instruction += "\nSTRUCTURED_TASK_MEMORY:\n" + "\n".join(self._fact_memory[-12:])
         if step_no >= 8:
@@ -126,6 +135,10 @@ class ArbmG3Agent(PromptAgent):
             recovery = instruction + "\nAUTONOMY_RECOVERY: ASK_USER and Terminal/shell are forbidden. Continue autonomously using only the visible desktop UI and current accessibility evidence. Preserve discovered task facts, do not restart discovery, and choose the next action that materially advances completion. Return executable pyautogui only, or DONE/FAIL."
             response, actions = super().predict(recovery, obs)
         self._remember_facts(response)
+        if step_no >= 10 and self._fact_memory and self._late_discovery_action(actions):
+            recovery = instruction + "\nLATE_DISCOVERY_REJECTED: facts already exist and the discovery budget is exhausted. Do not search again. Switch to the target application and perform the required mutations using STRUCTURED_TASK_MEMORY."
+            response, actions = super().predict(recovery, obs)
+            self._remember_facts(response)
         if self._fatal_model_error:
             raise RuntimeError(self._fatal_model_error)
         if actions:
