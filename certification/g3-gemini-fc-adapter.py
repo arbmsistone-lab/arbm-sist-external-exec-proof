@@ -1,6 +1,7 @@
 import json
 import os
 from google import genai
+from google.genai import types
 from mm_agents.gemini_agent import GeminiFCAgent
 
 INPUT_USD_PER_M = 1.50
@@ -12,6 +13,8 @@ class CappedGeminiFCAgent(GeminiFCAgent):
         self._cost_usd = 0.0
         self._last_cost_usd = 0.0
         self._cost_cap_usd = float(os.environ.get('ARBM_G3_TASK_COST_CAP_USD', '1.00'))
+        self._instruction = ''
+        self._context_tail = max(2, int(os.environ.get('ARBM_G3_CONTEXT_TAIL_MESSAGES', '6')))
 
     @staticmethod
     def _usage_value(usage, *names):
@@ -21,7 +24,28 @@ class CappedGeminiFCAgent(GeminiFCAgent):
                 return int(value or 0)
         return 0
 
+    def _system_instruction(self):
+        base = super()._system_instruction()
+        return base + '''\nPerformance rules:\n- Continue from the current screen state; do not restart completed navigation.\n- Prefer direct GUI actions over opening a terminal or installing packages.\n- Avoid repeating the same action when the screen did not meaningfully change.\n- Keep waits short (normally <=2 seconds) unless a visible load requires more.\n- Complete the requested end state as soon as enough information is available.'''
+
+    def _compact_context(self):
+        if len(self.messages) <= self._context_tail + 1:
+            return
+        task = self._instruction or 'Continue the original task.'
+        summary = types.Content(role='user', parts=[types.Part.from_text(text=(
+            'Original task: ' + task + '\n'
+            'Earlier interaction history was compacted for efficiency. Continue from the current state shown in the recent observations; do not redo completed work.'
+        ))])
+        self.messages = [summary] + list(self.messages[-self._context_tail:])
+
+    def reset(self, runtime_logger=None):
+        self._cost_usd = 0.0
+        self._last_cost_usd = 0.0
+        self._instruction = ''
+        return super().reset(runtime_logger)
+
     def _call_model(self):
+        self._compact_context()
         reserve = max(0.05, self._last_cost_usd * 1.5)
         if self._cost_usd + reserve >= self._cost_cap_usd:
             raise RuntimeError('G3_TASK_COST_CAP_REACHED')
@@ -44,6 +68,7 @@ class CappedGeminiFCAgent(GeminiFCAgent):
                 'cumulative_cost_usd': round(self._cost_usd, 8),
                 'model': self.model_id,
                 'agent': 'osworld-official-gemini-fc',
+                'context_messages': len(self.messages),
             }
             with open(usage_path, 'a', encoding='utf-8') as fh:
                 fh.write(json.dumps(row, separators=(',', ':')) + '\n')
@@ -84,6 +109,8 @@ class ArbmG3Agent:
         return self._core.reset(runtime_logger)
 
     def predict(self, instruction, obs):
+        if not self._core._instruction:
+            self._core._instruction = instruction
         response, structured = self._core.predict(instruction, obs)
         commands = [item.get('command') for item in structured if item.get('command')]
         return response, commands
