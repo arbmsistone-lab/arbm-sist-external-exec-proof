@@ -1,0 +1,10 @@
+# Keep G3 evidence byte-identical across Windows and Linux checkouts.
+certification/g3-evidence-20260910/** -text
+certification/g3_paid_control.py text eol=lf
+certification/g3_build_evidence.py text eol=lf
+certification/g3-gemini-fc-adapter.py text eol=lf
+certification/g3-paid-budget.json text eol=lf
+.github/workflows/osworld-g3-paid-smoke-v2.yml text eol=lf
+.github/workflows/osworld-g3-paid-model-probe.yml text eol=lf
+tests/test_g3_paid_control.py text eol=lf
+tests/test_g3_paid_workflows.py text eol=lf

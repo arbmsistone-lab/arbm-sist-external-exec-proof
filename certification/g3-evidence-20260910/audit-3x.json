@@ -1,0 +1,42 @@
+{
+  "schema": "arbm-g3-audit-3x-v1",
+  "A": {
+    "status": "PASS_LOCAL",
+    "tests_passed": 22,
+    "lint": "PASS",
+    "py_compile": "PASS",
+    "diff_check": "PASS",
+    "limits": [
+      "No live Gemini or official evaluator execution after these changes."
+    ]
+  },
+  "B": {
+    "status": "PASS_LOCAL",
+    "free_lane_source": "UNCHANGED",
+    "vendor_agent_and_parser": "UNCHANGED",
+    "benchmark_sha": "d578d2d4e0dc82b43e270fdaa7fa89d9708cd154",
+    "task_evaluator_assets_vm_modified": false,
+    "current_artifact_sha256_verified": "6f3b2dd557191cb182d5981ca727bd76b3f4af5fd6b035f2372a99d113d425cb",
+    "historical_action_findings": "17 shell/install steps flagged in prior trajectories; not clean certification evidence."
+  },
+  "C": {
+    "status": "BLOCKED",
+    "recorded_cost_usd": "3.7743690",
+    "authorized_cap_usd": "5.00",
+    "billing_reconciliation": "INCOMPLETE",
+    "provider_credit": "DEPLETED",
+    "per_call_cost_bound": "UNPROVEN_HEURISTIC",
+    "stability": "NOT_PROVEN",
+    "full_certification_projection": "UNAVAILABLE_WITHOUT_VALID_PASS_BASELINE",
+    "new_paid_runs": 0,
+    "heavy_local": 0
+  },
+  "audited_files_sha256": {
+    "certification/g3_paid_control.py": "c2d59bfe8f54a1a81e6ac4a20f0dc39a3ffbe7ab7963cfeb44aeca5757871f3c",
+    "certification/g3-gemini-fc-adapter.py": "70576d4d3f357a955d4a247ecf000996317ddffd6be0e2f1dd1042365d598593",
+    ".github/workflows/osworld-g3-paid-smoke-v2.yml": "abc9f8397fd23ac8edf30cd232abc85e486561634a1914f848435d6a5d911c59",
+    ".github/workflows/osworld-g3-paid-model-probe.yml": "1be635a7d538ec9f9c201cba973ad9383dea7b7a6c0b8adba4bd9a745aef809a",
+    "tests/test_g3_paid_control.py": "d87ddebaebe154f25748238453077c4a7b5832c94d20f94ed406579379d887d9",
+    "tests/test_g3_paid_workflows.py": "4f967af6484699219ce9bf33de791e04367887bc6d272d72a4467bd3abac90fe"
+  }
+}

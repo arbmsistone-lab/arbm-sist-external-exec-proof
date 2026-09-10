@@ -8,9 +8,14 @@ on:
       - '.g3-paid-smoke-trigger'
 permissions:
   contents: read
+  actions: read
   id-token: write
+concurrency:
+  group: arbm-g3-paid-total-budget
+  cancel-in-progress: false
 jobs:
   smoke:
+    if: github.repository == 'arbmsistone-lab/arbm-sist-external-exec-proof' && github.ref == 'refs/heads/g3/paid-cert-lane-20260910'
     runs-on: ubuntu-24.04
     timeout-minutes: 55
     env:
@@ -18,6 +23,10 @@ jobs:
     steps:
       - name: Checkout G3 tooling
         uses: actions/checkout@v4
+      - name: Audit 3X and reconcile total budget before VM preparation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python certification/g3_paid_control.py --ledger certification/g3-paid-budget.json --output g3-paid-admission.json
       - name: Prepare remote KVM runner
         shell: bash
         run: |
@@ -44,6 +53,7 @@ jobs:
           cp ../certification/vendor-gemini-agent.py mm_agents/gemini_agent.py
           cp ../certification/vendor-gemini-action-parser.py mm_agents/gemini_action_parser.py
           cp ../certification/g3-gemini-fc-adapter.py mm_agents/arbm_g3_agent.py
+          cp ../certification/g3_paid_control.py mm_agents/g3_paid_control.py
           python - <<'PY'
           p='scripts/python/run_multienv.py'
           s=open(p,encoding='utf-8').read()
@@ -105,6 +115,7 @@ jobs:
           ARBM_G3_TASK_COST_CAP_USD: '1.00'
         run: |
           set -euo pipefail
+          export ARBM_G3_TASK_COST_CAP_USD=$(python -c "import json; print(json.load(open('g3-paid-admission.json'))['reserved_run_usd'])")
           export OSWORLD_FILE_BASE_URL="$PWD/osworld/cache/osworld_v2_assets"
           qcow=$(cat vm-path.txt)
           cd osworld
@@ -119,17 +130,26 @@ jobs:
           set -euo pipefail
           p='osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/result.txt'
           test -f "$p"
-          score=$(cat "$p")
-          python - "$score" <<'PY'
+          python - "$p" <<'PY'
           import sys
-          score=float(sys.argv[1]); assert score>0, score
+          sys.path.insert(0, 'certification')
+          from g3_paid_control import official_result
+          score = official_result(sys.argv[1])
           print(f'OFFICIAL_SMOKE_SCORE={score}')
           PY
-          printf 'OFFICIAL_ONE_TASK_SMOKE=PASS\nMODEL=gemini-3.5-flash\nPAID_LANE=true\nCOST_ACCOUNTED=true\n' >> smoke-evidence.txt
+          printf 'OFFICIAL_ONE_TASK_SMOKE=PASS\nMODEL=gemini-3.5-flash\nPAID_LANE=true\n' >> smoke-evidence.txt
+      - name: Account usage even when execution or evaluator fails
+        if: always()
+        shell: bash
+        run: |
           python - <<'PY'
           import json, pathlib
           p=pathlib.Path('g3-paid-usage.jsonl')
           rows=[json.loads(x) for x in p.read_text().splitlines() if x.strip()] if p.exists() else []
+          started={r['call_index'] for r in rows if r.get('event')=='request_started'}
+          completed={r['call_index'] for r in rows if r.get('event')=='request_completed'}
+          accounted=bool(started) and started==completed and all(r.get('usage_status')!='UNKNOWN' for r in rows)
+          rows=[r for r in rows if r.get('event')=='request_completed']
           calls=len(rows); prompt=sum(r['prompt_tokens'] for r in rows); out=sum(r['output_tokens'] for r in rows); thought=sum(r['thought_tokens'] for r in rows); total=sum(r['total_tokens'] for r in rows)
           print(f'PAID_MODEL_CALLS={calls}')
           print(f'PROMPT_TOKENS={prompt}')
@@ -137,7 +157,10 @@ jobs:
           print(f'THOUGHT_TOKENS={thought}')
           print(f'TOTAL_TOKENS={total}')
           with open('smoke-evidence.txt','a') as f:
+              f.write(f'COST_ACCOUNTED={str(accounted).lower()}\nRECORDED_COST_USD={sum(r["call_cost_usd"] for r in rows):.8f}\n')
               f.write(f'PAID_MODEL_CALLS={calls}\nPROMPT_TOKENS={prompt}\nOUTPUT_TOKENS={out}\nTHOUGHT_TOKENS={thought}\nTOTAL_TOKENS={total}\n')
+          if started and not accounted:
+              raise SystemExit('G3_USAGE_RECONCILIATION_REQUIRED')
           PY
       - name: Cleanup remote runtime
         if: always()
@@ -154,7 +177,8 @@ jobs:
           name: osworld-g3-paid-cert-smoke-evidence
           path: |
             smoke-evidence.txt
+            g3-paid-admission.json
             g3-paid-usage.jsonl
             osworld/results-smoke
-          retention-days: 1
+          retention-days: 30
           if-no-files-found: warn

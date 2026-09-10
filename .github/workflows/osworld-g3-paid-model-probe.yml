@@ -6,13 +6,25 @@ on:
       - g3/paid-cert-lane-20260910
     paths:
       - '.g3-paid-probe-trigger'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: arbm-g3-paid-total-budget
+  cancel-in-progress: false
 jobs:
   probe:
+    if: github.repository == 'arbmsistone-lab/arbm-sist-external-exec-proof' && github.ref == 'refs/heads/g3/paid-cert-lane-20260910'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
       GEMINI_G3_PAID_CERT_KEY: ${{ secrets.GEMINI_G3_PAID_CERT_KEY }}
     steps:
+      - uses: actions/checkout@v4
+      - name: Audit 3X and reconcile total budget before paid probe
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python certification/g3_paid_control.py --ledger certification/g3-paid-budget.json --output g3-paid-admission.json
       - name: Probe paid fixed multimodal model directly
         shell: bash
         run: |
@@ -21,5 +33,15 @@ jobs:
           img='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
           python -c "import json; img='$img'; print(json.dumps({'contents':[{'role':'user','parts':[{'text':'Describe the supplied image in one short sentence.'},{'inline_data':{'mime_type':'image/png','data':img}}]}],'generationConfig':{'temperature':0,'maxOutputTokens':128}}))" > body.json
           code=$(curl -sS -o model-probe.json -w '%{http_code}' -H 'content-type: application/json' -H "x-goog-api-key: ${GEMINI_G3_PAID_CERT_KEY}" -d @body.json 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent')
+          python -c "import json; x=json.load(open('model-probe.json')); u=x.get('usageMetadata'); json.dump({'http_status':'$code','usage_status':'RECORDED' if u else 'UNKNOWN','usage':u},open('g3-probe-usage.json','w'))"
           test "$code" = 200
           python -c "import json; x=json.load(open('model-probe.json')); cs=x.get('candidates') or []; assert cs, x.get('error'); c=cs[0]; parts=c.get('content',{}).get('parts') or []; txt=''.join(str(i.get('text','')) for i in parts if isinstance(i,dict)).strip(); u=x.get('usageMetadata',{}); print('PAID_MODEL_GATE=PASS' if txt else 'PAID_MODEL_GATE=NO_TEXT'); print('HTTP=200'); print('MODEL=gemini-3.5-flash'); print('FINISH_REASON='+str(c.get('finishReason'))); print('PART_TYPES='+','.join(sorted({','.join(i.keys()) for i in parts if isinstance(i,dict)}))); print('PROMPT_TOKENS='+str(u.get('promptTokenCount'))); print('OUTPUT_TOKENS='+str(u.get('candidatesTokenCount'))); print('TOTAL_TOKENS='+str(u.get('totalTokenCount'))); assert txt"
+      - name: Preserve admission and usage even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g3-paid-probe-evidence
+          retention-days: 30
+          path: |
+            g3-paid-admission.json
+            g3-probe-usage.json

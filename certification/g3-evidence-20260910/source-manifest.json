@@ -1,0 +1,1050 @@
+{
+  "34512337788/osworld-g3-paid-cert-smoke-evidence/g3-paid-usage.jsonl": {
+    "sha256": "027132026c4f7cd4482b01e3cf01a35a48f49f77f19f015484553db2fd91ebed",
+    "bytes": 1644
+  },
+  "34512337788/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/args.json": {
+    "sha256": "0d0d02e11eddcfd50368296166086b1d6efa722b6d34288f87b47a066b2bd4fb",
+    "bytes": 853
+  },
+  "34512337788/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/result.txt": {
+    "sha256": "51ff0d2f0d3a5d61edec31785532ea0d570f8c348d58b15b94ff9c2ca6e926a4",
+    "bytes": 4
+  },
+  "34512337788/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/runtime.log": {
+    "sha256": "e0422f584d37a13b7a37d99b010007ad72c2ccd83b25b623d298e72061d0aa8b",
+    "bytes": 2714
+  },
+  "34512337788/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_11_20260910@181801012906.png": {
+    "sha256": "b998246eb07721e06949530671b2b75f9c2e00582bade1af51886e4ff5215af3",
+    "bytes": 243808
+  },
+  "34512337788/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_12_20260910@181817249815.png": {
+    "sha256": "52d847c3cc7154935ab4d2ba25250dae3d5e09ecad04b25843abd364fb048d07",
+    "bytes": 445237
+  },
+  "34512337788/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_13_20260910@181829761221.png": {
+    "sha256": "b998246eb07721e06949530671b2b75f9c2e00582bade1af51886e4ff5215af3",
+    "bytes": 243808
+  },
+  "34512337788/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_14_20260910@181845076862.png": {
+    "sha256": "87731d64ed97bfccf051a0bbfbc12b6c98dca6599239a53b67086451bf2a8980",
+    "bytes": 446885
+  },
+  "34512337788/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_15_20260910@181904176463.png": {
+    "sha256": "075c74028c8a5717f5b74386e5334765b5d313ca8c344d60f1ce84fed9bf71c3",
+    "bytes": 246057
+  },
+  "34512337788/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_1_20260910@181530466751.png": {
+    "sha256": "fa036b973dde284dfb5b2aaf97a8ef4ac02dcc58f9d35e8b8940f622a3855109",
+    "bytes": 853419
+  },
+  "34512337788/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_2_20260910@181544219155.png": {
+    "sha256": "3dc5f75704c9625f76a99203003ba92b0f8d899da5f8801865254c8f3c22d4ef",
+    "bytes": 444524
+  },
+  "34512337788/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_3_20260910@181600927151.png": {
+    "sha256": "3225da018eecbfa058c186de9d8c175f9ac6f08edcc6502713daad2caaf17fa2",
+    "bytes": 393598
+  },
+  "34512337788/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_4_20260910@181613944507.png": {
+    "sha256": "c176a473d9e256c910786cf5458bd7cb383f838efef4bb0a68cda66f824072e7",
+    "bytes": 319214
+  },
+  "34512337788/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_5_20260910@181630546527.png": {
+    "sha256": "ddcfb00cc99f0ead43375c077eb863290729586cf4804653364445cba34a5db6",
+    "bytes": 319422
+  },
+  "34512337788/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_6_20260910@181644703881.png": {
+    "sha256": "18ec234eb34a531a4d622c262b27c203ec7f9fa0b009d0557cda4dd0026d5d92",
+    "bytes": 244251
+  },
+  "34512337788/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_7_20260910@181700089323.png": {
+    "sha256": "9f9a5c17025dcf4b3f7b46f5cc165f6fbcc0112cfb72a647c0c42f88eeb9ca55",
+    "bytes": 445063
+  },
+  "34512337788/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_8_20260910@181715508332.png": {
+    "sha256": "003bc25bc1b3f56adb90c548c2614b739a8816f14d0a73e796099c31d86c53ec",
+    "bytes": 243681
+  },
+  "34512337788/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_9_20260910@181728763991.png": {
+    "sha256": "af3b88c7c0ba8d2466ab7a6446c067d06feafd6373cc91b3a1f31ec30f016e13",
+    "bytes": 445251
+  },
+  "34512337788/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/traj.jsonl": {
+    "sha256": "e1951014b8193f643e21554b3a7d125e49f8d285c5480341d3ce6171a311a150",
+    "bytes": 7353
+  },
+  "34512337788/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/summary/results.json": {
+    "sha256": "c995a67c599e077bb48b1359342f58c0f92ee412816628071f2455ac335e9cba",
+    "bytes": 144
+  },
+  "34512337788/osworld-g3-paid-cert-smoke-evidence/smoke-evidence.txt": {
+    "sha256": "e22069b2776a66d32594ae718e84dcd4f83182f4cebbc31853feae40b5652efd",
+    "bytes": 81
+  },
+  "34514332454/osworld-g3-paid-cert-smoke-evidence/g3-paid-usage.jsonl": {
+    "sha256": "224a15753ce99c054c2e771774d799f443f9c8a0c0b69dd2fec4720aa3f7ce12",
+    "bytes": 1654
+  },
+  "34514332454/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/args.json": {
+    "sha256": "0d0d02e11eddcfd50368296166086b1d6efa722b6d34288f87b47a066b2bd4fb",
+    "bytes": 853
+  },
+  "34514332454/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/result.txt": {
+    "sha256": "51ff0d2f0d3a5d61edec31785532ea0d570f8c348d58b15b94ff9c2ca6e926a4",
+    "bytes": 4
+  },
+  "34514332454/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/runtime.log": {
+    "sha256": "a04671964de714144ec8874baba82273757668f277b9a72f113135dec1776a87",
+    "bytes": 2538
+  },
+  "34514332454/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_10_20260910@185013109079.png": {
+    "sha256": "4fa26972e96e726fb004b5c5fa1cac74dfd015c85e7b22e88855e472a97a3b6c",
+    "bytes": 243431
+  },
+  "34514332454/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_12_20260910@185050067791.png": {
+    "sha256": "ee055699e0449a86102947861f8340ca90bba6e9d3422f74316fe468cdeacd07",
+    "bytes": 445306
+  },
+  "34514332454/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_13_20260910@185058138848.png": {
+    "sha256": "1afd8e3c8893e919d5cf8c9ca2df497d4e54138b47b37585b05966e05e575ec9",
+    "bytes": 243441
+  },
+  "34514332454/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_14_20260910@185116207363.png": {
+    "sha256": "841781a4e61a516ef55153e9d9cbe60ead6a248d834ad8bf02de698e1b877cce",
+    "bytes": 318333
+  },
+  "34514332454/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_15_20260910@185127060733.png": {
+    "sha256": "e59d9e95e9553a5c6b3c773e3f4207d4d6706ac35533ac58ab63307b5b94c8b3",
+    "bytes": 243919
+  },
+  "34514332454/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_1_20260910@184756062577.png": {
+    "sha256": "b7456b8f8ee58017c566b5641559fe86fa09b3c6320545673d2845edef487775",
+    "bytes": 1567102
+  },
+  "34514332454/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_2_20260910@184813105646.png": {
+    "sha256": "e2b0f39ae49f6a80d95c911d309982cb4f1a4f9e586080beaae312342ffda0a8",
+    "bytes": 443443
+  },
+  "34514332454/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_3_20260910@184828189429.png": {
+    "sha256": "7b04f0378b0c6270f0fe3ba6f2d33a3d8c17e1b8ead34da049aa574942c455d1",
+    "bytes": 390764
+  },
+  "34514332454/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_4_20260910@184843216149.png": {
+    "sha256": "acc0faeed3e97303742e842679e2d9d171cdd960b6a2900fd0aa1a629a249f8b",
+    "bytes": 319061
+  },
+  "34514332454/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_5_20260910@184904502491.png": {
+    "sha256": "2924bedaca3dbceadee3a0793579ec381ebc8007ba91875b3567222303121d3f",
+    "bytes": 319262
+  },
+  "34514332454/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_6_20260910@184913986131.png": {
+    "sha256": "db5e7baf767f71937ad045065ccc64adfe277a9f3996fb85b6211a4a933eab88",
+    "bytes": 319266
+  },
+  "34514332454/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_7_20260910@184931727446.png": {
+    "sha256": "6f146107d2fa670743946bd2548eb9230f6ec85f96eb01fac80e141577427061",
+    "bytes": 317991
+  },
+  "34514332454/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_8_20260910@184950216553.png": {
+    "sha256": "9716cedf2c6a45906a3724749650fda5e185623c94586d7a359c3cfa63331759",
+    "bytes": 244072
+  },
+  "34514332454/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_9_20260910@185003195939.png": {
+    "sha256": "945cdba64e3b2e53f805ee577298140e8d53b4565514f5f18a68744c73b10227",
+    "bytes": 445434
+  },
+  "34514332454/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/traj.jsonl": {
+    "sha256": "37c0567f5eb3ee0836430fdfe9eda1935981ac5ccc7a3fb3bb271eef94948b51",
+    "bytes": 7078
+  },
+  "34514332454/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/summary/results.json": {
+    "sha256": "f46ad12352270c7de561cfddd926e125e1c45a4d5ba3f71c40c17bc2a5013ad3",
+    "bytes": 144
+  },
+  "34514332454/osworld-g3-paid-cert-smoke-evidence/smoke-evidence.txt": {
+    "sha256": "ddb7891df4a59b73d37dab4df1a1d5fdb65df9d817d38682ec88f51ad0f634e0",
+    "bytes": 81
+  },
+  "34515106463/osworld-g3-paid-cert-smoke-evidence/g3-paid-usage.jsonl": {
+    "sha256": "3c21b42c2e8a43cb3461385af810b3a9145e9516acf54bf5bbaa48f849ac688b",
+    "bytes": 1653
+  },
+  "34515106463/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/args.json": {
+    "sha256": "0d0d02e11eddcfd50368296166086b1d6efa722b6d34288f87b47a066b2bd4fb",
+    "bytes": 853
+  },
+  "34515106463/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/result.txt": {
+    "sha256": "51ff0d2f0d3a5d61edec31785532ea0d570f8c348d58b15b94ff9c2ca6e926a4",
+    "bytes": 4
+  },
+  "34515106463/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/runtime.log": {
+    "sha256": "25076a044c3b2dab1e16e4a4457e2bc35e299bafa357a3f6137cf839697c566f",
+    "bytes": 2608
+  },
+  "34515106463/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_10_20260910@184640148833.png": {
+    "sha256": "7f30e408a481a87bc21e3388a80ca54590dc2ab3a2eeb3ab826a579d0f8c8133",
+    "bytes": 446401
+  },
+  "34515106463/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_11_20260910@184656737876.png": {
+    "sha256": "d77b7f8a3975d6a56aa350745e1714a06c1fd9139dbe5aa2d83ea574c871de4c",
+    "bytes": 243617
+  },
+  "34515106463/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_12_20260910@184710673629.png": {
+    "sha256": "671b794635ace188fa2201bfe42547fc2bc841130a38194c7500303b75c25791",
+    "bytes": 445755
+  },
+  "34515106463/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_14_20260910@184745201230.png": {
+    "sha256": "8133ad06b2b0e531849cb6c94c41a869bf8edd639b1f001880e7f07d4beb6cc4",
+    "bytes": 243535
+  },
+  "34515106463/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_1_20260910@184423668391.png": {
+    "sha256": "d9245f24af247df5b4d8023680cda43f2289d2568a848b365cd40633235685b4",
+    "bytes": 635421
+  },
+  "34515106463/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_2_20260910@184437604812.png": {
+    "sha256": "fb6b09e8264ee11fff0e6f40bf7486be76a33580933e94b9503a616105bb4bb1",
+    "bytes": 445800
+  },
+  "34515106463/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_3_20260910@184453353623.png": {
+    "sha256": "79315a2d4f649f72e1b4a63a304c6ba1a1633e785bd2b5166f0826ace2aa3d13",
+    "bytes": 390517
+  },
+  "34515106463/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_4_20260910@184508394190.png": {
+    "sha256": "660eb0d2c576393f41afaa8d9e4636829cee009f577f2fd4ab4625ec7278fc4a",
+    "bytes": 319007
+  },
+  "34515106463/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_5_20260910@184523849614.png": {
+    "sha256": "6ec5c7516ef6cf2d769f20a0babe10024bad72ddf824f635e5c30116baf0cd7c",
+    "bytes": 319218
+  },
+  "34515106463/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_6_20260910@184538710412.png": {
+    "sha256": "e353a78963eca8d08f5b3d85a42386e855ffd83e8cae606f0201377000d37b38",
+    "bytes": 244073
+  },
+  "34515106463/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_7_20260910@184553403201.png": {
+    "sha256": "b10d8af794c9a02d67c601f8d2413311f24a6c713d25e0d1ad4e9570d09719ce",
+    "bytes": 446114
+  },
+  "34515106463/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_8_20260910@184607700582.png": {
+    "sha256": "a30af06d05fdd3547e6c75631f20f3be496851af4ed1952d1f651277b5e05307",
+    "bytes": 243609
+  },
+  "34515106463/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/traj.jsonl": {
+    "sha256": "f0f169b0245d7059ee5eeff055ebc50ef49207dc921363bc042dc85c00a380df",
+    "bytes": 7123
+  },
+  "34515106463/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/summary/results.json": {
+    "sha256": "6664b9f81fc7773f44597153e29cd56379d319ae1623a42ca8689ab0fad89149",
+    "bytes": 144
+  },
+  "34515106463/osworld-g3-paid-cert-smoke-evidence/smoke-evidence.txt": {
+    "sha256": "f25d5dcc0d97308ef9f4ee5678f08588d762f8efcca8a5cd8ac97cad3320013e",
+    "bytes": 81
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/g3-paid-usage.jsonl": {
+    "sha256": "3bef0cc66652c437741e6394fddc5569507a2eeb98c3ceaf73e747f17b451e0a",
+    "bytes": 1650
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/args.json": {
+    "sha256": "0d0d02e11eddcfd50368296166086b1d6efa722b6d34288f87b47a066b2bd4fb",
+    "bytes": 853
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/result.txt": {
+    "sha256": "51ff0d2f0d3a5d61edec31785532ea0d570f8c348d58b15b94ff9c2ca6e926a4",
+    "bytes": 4
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/runtime.log": {
+    "sha256": "8672ad4294ff3516b941691d530e82936c1cf9dfcffaa70f357db1eb211b3f7b",
+    "bytes": 2669
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_10_20260910@190829697088.png": {
+    "sha256": "cb97cf782bb00799612e78054a0555545ae4a7f25184aaa6e62c06000f421337",
+    "bytes": 243480
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_11_20260910@190845958085.png": {
+    "sha256": "a64ab0cd64ad86ef197b5dc4d9c1b8940755c2017a53a9bfc575e9e4784bf48c",
+    "bytes": 318192
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_12_20260910@190859506328.png": {
+    "sha256": "37be4ea6fb97363409d60820c86d13b82ef140bf356947dcb51c5f889a4523a0",
+    "bytes": 243917
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_13_20260910@190916001438.png": {
+    "sha256": "df00f0363d9356a2fc9a8ceefc81fdd43ac8f208661f817f4532e058861b1caa",
+    "bytes": 444703
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_14_20260910@190931706916.png": {
+    "sha256": "fdac3f652a4211fc947f2e00d919fe5a6a6ee7197cc6209d5fd5a693159add27",
+    "bytes": 243517
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_15_20260910@190946045928.png": {
+    "sha256": "7383f04adaf6aa5342d5b38454826251028120dbd648ee19d10467a8a4e637fb",
+    "bytes": 375931
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_1_20260910@190615801716.png": {
+    "sha256": "1bea34ce76917f7bf40c256778656c97c49d7ca20258878afb6cad902afac418",
+    "bytes": 618849
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_2_20260910@190629909984.png": {
+    "sha256": "89a32fd4107d02dc1aedbf7320264bfaad1d090de7602f8bc71e812bfe80e1dc",
+    "bytes": 444552
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_3_20260910@190645376156.png": {
+    "sha256": "3e40f32a771d651b9a6a550e33eff79560cbc88e4aa215f78dbf1953e0b24e3d",
+    "bytes": 390904
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_4_20260910@190659214581.png": {
+    "sha256": "8f3024c37297af3352567724cf729afb334be91a68e1ad1b669c4b57f05ecdfe",
+    "bytes": 318837
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_5_20260910@190714729671.png": {
+    "sha256": "2127deceb65035dabbaa66915b08a3f70982cd6ab48bf23bd3aad0282de595fd",
+    "bytes": 245091
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_6_20260910@190729271206.png": {
+    "sha256": "92ea1113ddb63cc2df87de4d823247b43a115d3b1fd4ae4458d163df38f177e0",
+    "bytes": 446138
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_7_20260910@190744513597.png": {
+    "sha256": "c816fa3d485a97c475a116236e8e77559366e1ffd8e4b83c86bbd653a52b13fc",
+    "bytes": 243377
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_8_20260910@190800175016.png": {
+    "sha256": "89983e4fbb55bfba902b5866c9f26944fa5d8315a0528279f3d6f407f31ea203",
+    "bytes": 444080
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/step_9_20260910@190814822305.png": {
+    "sha256": "2665b033ad9ddb4d159ee7c1b909d8b3a38698107f839013f3e8aaf91d900ff0",
+    "bytes": 445177
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/traj.jsonl": {
+    "sha256": "a429d50bb752baa77ebfc16c2fb86515e89f53220bf3a053689b77272b4ebdd9",
+    "bytes": 7314
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/summary/results.json": {
+    "sha256": "3c8b52a9d3bc68c9052671746a4b4ea6ca41e7eb0a72bdd74cc25b904729f2ad",
+    "bytes": 144
+  },
+  "34517441498/osworld-g3-paid-cert-smoke-evidence/smoke-evidence.txt": {
+    "sha256": "f99352a8ac662d2ac2093b40d383c13aa8dda5511a8ac71600a498512db1c76e",
+    "bytes": 81
+  },
+  "34520100242/osworld-g3-paid-cert-smoke-evidence/g3-paid-usage.jsonl": {
+    "sha256": "fde809bf5e1ed19a6caab1a4f3550f418c83e02adb208f64ace7726e1b8b67f2",
+    "bytes": 1669
+  },
+  "34520100242/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/args.json": {
+    "sha256": "ed35964ec59d59b28a59ebb48a0b8b5c6521bf8041b0ab564e2ea421f42fc1db",
+    "bytes": 863
+  },
+  "34520100242/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/result.txt": {
+    "sha256": "51ff0d2f0d3a5d61edec31785532ea0d570f8c348d58b15b94ff9c2ca6e926a4",
+    "bytes": 4
+  },
+  "34520100242/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/runtime.log": {
+    "sha256": "8471351f9885935338768450be95743b351390cd54d61b989cfce832d638db1d",
+    "bytes": 497869
+  },
+  "34520100242/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_10_20260910@193731022381.png": {
+    "sha256": "481001e44b56015312342030ea794e1706813654e0b6707822d565b75727e364",
+    "bytes": 326514
+  },
+  "34520100242/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_11_20260910@193746522768.png": {
+    "sha256": "df68c555777f2950eb4c31c2d3059fe508e11fe8b06ec485a89ea23650c2969d",
+    "bytes": 325862
+  },
+  "34520100242/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_15_20260910@193849456667.png": {
+    "sha256": "02351d871780ae81ad57984dcab901385604e7b13fda7895fd435bddcfc95abd",
+    "bytes": 311082
+  },
+  "34520100242/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_1_20260910@193505939563.png": {
+    "sha256": "e7b41ee33137439323d20d8bb0279b854bb6f37f99390975a04c81fa3d6838f8",
+    "bytes": 852867
+  },
+  "34520100242/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_2_20260910@193529109572.png": {
+    "sha256": "48b1f9f9464448288443e9b3a63a3e84ab1f08f16ab8c6b24af4adc5cea3a1c0",
+    "bytes": 444785
+  },
+  "34520100242/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_3_20260910@193544074185.png": {
+    "sha256": "89ed44137ee3f3f6a0aef7fd9c4171f40d8ac74eacaae4d10b9506825cba4758",
+    "bytes": 393377
+  },
+  "34520100242/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_4_20260910@193600580006.png": {
+    "sha256": "c9a97be0ffbdcfea741acfb4c656f6a7959add354b39424df152eb443e6b9e29",
+    "bytes": 320391
+  },
+  "34520100242/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_5_20260910@193614245812.png": {
+    "sha256": "e899206461e952d0dab7409ce445d95f72d2dab7bf9aab49c59a2046e27893a7",
+    "bytes": 362206
+  },
+  "34520100242/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_6_20260910@193628839008.png": {
+    "sha256": "46453a08f7c4f3f3675ca887bf547d156686bad6038306391b440a963e79f805",
+    "bytes": 328835
+  },
+  "34520100242/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_7_20260910@193645112894.png": {
+    "sha256": "34cb2c152639a64866cd24e9fe7590358253bb523fe59b9bf6fc5def11ed668c",
+    "bytes": 353280
+  },
+  "34520100242/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_8_20260910@193659544176.png": {
+    "sha256": "5d2eb1385d48eb4bf6daa845dceac598e8c31af956b97f649d0a8d346c704b48",
+    "bytes": 326755
+  },
+  "34520100242/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_9_20260910@193714379895.png": {
+    "sha256": "542bdf49d52a3362c50c00d8027c6259fc132d969856f9ffc49f186f8109819d",
+    "bytes": 326438
+  },
+  "34520100242/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/traj.jsonl": {
+    "sha256": "c6d1d2a5199a537df3819e75880129a339fda939c030e5dc7fa71fdcf5478793",
+    "bytes": 7151
+  },
+  "34520100242/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/summary/results.json": {
+    "sha256": "7cdaac7229b246abe2d02c730e1f5074649d1353747aba85fafe920aaa98f4f0",
+    "bytes": 144
+  },
+  "34520100242/osworld-g3-paid-cert-smoke-evidence/smoke-evidence.txt": {
+    "sha256": "432606344d7b48dba466ae8010183309c64bd5ef94a6b6efdde5d08ed09396ef",
+    "bytes": 81
+  },
+  "34523300589/osworld-g3-paid-cert-smoke-evidence/g3-paid-usage.jsonl": {
+    "sha256": "e9d1dfdfe06388cd303056c8880385841833091eb490017e1729a295ac0e9974",
+    "bytes": 1790
+  },
+  "34523300589/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/args.json": {
+    "sha256": "ed35964ec59d59b28a59ebb48a0b8b5c6521bf8041b0ab564e2ea421f42fc1db",
+    "bytes": 863
+  },
+  "34523300589/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/result.txt": {
+    "sha256": "51ff0d2f0d3a5d61edec31785532ea0d570f8c348d58b15b94ff9c2ca6e926a4",
+    "bytes": 4
+  },
+  "34523300589/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/runtime.log": {
+    "sha256": "e440e420a5c6924eb8533c18baa74ff3b691e4978f4023fd2205523472515ba6",
+    "bytes": 615050
+  },
+  "34523300589/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_10_20260910@200711834319.png": {
+    "sha256": "d510828e9621737418debeb29dd6df111a134296614e5b545584cfa05c94b22b",
+    "bytes": 325974
+  },
+  "34523300589/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_12_20260910@200743977315.png": {
+    "sha256": "7b56fcc9453770e527c9c8cc140766c109a2d4e56c60d3eec988b7d507aec513",
+    "bytes": 325787
+  },
+  "34523300589/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_14_20260910@200818164229.png": {
+    "sha256": "069211f13d1ff69bd56fc7ce9ad9f87618d3f83ca3de2932e9ecf711266b9a3a",
+    "bytes": 325922
+  },
+  "34523300589/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_15_20260910@200850335190.png": {
+    "sha256": "75cd5526d4911400b84a4418046529ea9c3f3f4734cee1a065baba8971c96abc",
+    "bytes": 327679
+  },
+  "34523300589/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_1_20260910@200450694700.png": {
+    "sha256": "5f48a38b0ca6482a79e1c6aa405fced45bdaa5793cdeda2524281af23970662b",
+    "bytes": 852595
+  },
+  "34523300589/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_2_20260910@200505668683.png": {
+    "sha256": "198a6aa6d9c5061205c9ff9a3b3c8b11c21e9b00e4c65b573c518957126bf297",
+    "bytes": 444201
+  },
+  "34523300589/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_3_20260910@200521210510.png": {
+    "sha256": "089ce2e41f246201a272fc7b8e65e93494ce7477f5716ad6bb012a0f4717663b",
+    "bytes": 393213
+  },
+  "34523300589/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_4_20260910@200535971104.png": {
+    "sha256": "5ce955cf90877af454078c4aa4e4fb64b7d59d5543d3c6a7dd46b6d547baad9e",
+    "bytes": 377734
+  },
+  "34523300589/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_5_20260910@200552411738.png": {
+    "sha256": "359636e18aadbd5d09e0bc828656f495e1639928849e6ff3e86d4cdc45d0cd86",
+    "bytes": 405762
+  },
+  "34523300589/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_6_20260910@200606469980.png": {
+    "sha256": "0ff5d424ed6489918ee4b264237a8ea50d24d53f6e6b13bd48f6fabc14b9ae34",
+    "bytes": 77144
+  },
+  "34523300589/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_7_20260910@200620721943.png": {
+    "sha256": "29acb1cafdbcce5b122b2600c647ea558882f309622221598a85952e1048b8b8",
+    "bytes": 352235
+  },
+  "34523300589/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_8_20260910@200636687364.png": {
+    "sha256": "cc948ba36169f99678f5fe1ace9acd965162e0623f5d4287dd5c48062e31a4a0",
+    "bytes": 326844
+  },
+  "34523300589/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_9_20260910@200652546180.png": {
+    "sha256": "e86b67cd291ff1353ee2a0d03f207721c49ebc76395fdebdb3b3ed9d7ecc7906",
+    "bytes": 326633
+  },
+  "34523300589/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/traj.jsonl": {
+    "sha256": "a27e7fa7f2cc53b3af1a82debc7fa4857e3b026000427486c53c0b3e6a7b3052",
+    "bytes": 10150
+  },
+  "34523300589/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/summary/results.json": {
+    "sha256": "ceec914348c25d4b7189f5a2f0ef243b06a968e9b79df5afcae2baea12860300",
+    "bytes": 144
+  },
+  "34523300589/osworld-g3-paid-cert-smoke-evidence/smoke-evidence.txt": {
+    "sha256": "2c51d5cd5146b274870b23151da2b4c8133467add2cdd1523504e24216eb8bfa",
+    "bytes": 81
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/g3-paid-usage.jsonl": {
+    "sha256": "7f496182530e7ec2fa794304e7c4818b36ef3a8966b2cf065b8821da3b238265",
+    "bytes": 1651
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/args.json": {
+    "sha256": "ed35964ec59d59b28a59ebb48a0b8b5c6521bf8041b0ab564e2ea421f42fc1db",
+    "bytes": 863
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/result.txt": {
+    "sha256": "51ff0d2f0d3a5d61edec31785532ea0d570f8c348d58b15b94ff9c2ca6e926a4",
+    "bytes": 4
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/runtime.log": {
+    "sha256": "4427e1616c526e31399b3c7b3d9eed6021031f6cee33b814245b4914d8321c87",
+    "bytes": 185173
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_10_20260910@205150322505.png": {
+    "sha256": "7bf54e0d95c2e81da8146952368a0bd2315241798899b2f0e6ebb675470b1514",
+    "bytes": 320372
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_11_20260910@205205557462.png": {
+    "sha256": "b3e2f82ecdf392325432e27d429d9e8997501c4429f30e38253b98ac1feb1e21",
+    "bytes": 320580
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_12_20260910@205226250660.png": {
+    "sha256": "bf0965eb361b10062769cb16d141d9f7f170e07892198ba800150d098feec31e",
+    "bytes": 320577
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_13_20260910@205237769113.png": {
+    "sha256": "357b6e1512ae4d7673be39b75beab8521f54ee62ad05d5ad0520442cd189cec2",
+    "bytes": 347629
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_14_20260910@205251616274.png": {
+    "sha256": "913e5aa02a8d3ffadaa743ffc2e04bbe22946ab3e300146edbb00035e405d583",
+    "bytes": 320567
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_15_20260910@205304488042.png": {
+    "sha256": "edd19a2b04a55a923413d8b5de41469766388bdf61c52e07dc7a46cb386fb7aa",
+    "bytes": 320585
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_1_20260910@204932402122.png": {
+    "sha256": "88a8a3b40df7562aad5ffe19ea451c4f8628404e8abcfb219d314fcb6bc5b2c6",
+    "bytes": 1568009
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_2_20260910@204951530829.png": {
+    "sha256": "dc4f254e316499645c404b2ce41ac88740850e89c04d7e40af91f24c73099d07",
+    "bytes": 303517
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_3_20260910@205004686678.png": {
+    "sha256": "72761cac8e47758c3b3556170e5c87a5d63778c3478850cb5beca74b634e1382",
+    "bytes": 288066
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_4_20260910@205019117349.png": {
+    "sha256": "cb3c722a871cf57de2669790bd2e4fefc6927268e8b1b87b08ce182c04136856",
+    "bytes": 390950
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_5_20260910@205036134591.png": {
+    "sha256": "1477d2fd608b2b94d4bf8b2319bb1f78da368ae2997b21bed3fdcca8759e1095",
+    "bytes": 318813
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_6_20260910@205049211580.png": {
+    "sha256": "fdf182800089a43a5659a1be713c30c17b5c37a41499f37bd91137e64b67d567",
+    "bytes": 387497
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_7_20260910@205104664102.png": {
+    "sha256": "36c6f1ed309c389b8c1d454351051e6af6404ad80489bcbf74f5e5c1778b7cea",
+    "bytes": 230607
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_8_20260910@205120253426.png": {
+    "sha256": "10fabdad72814f35d73213d402af394381a355731205b79fa608eb977d782cbe",
+    "bytes": 320196
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_9_20260910@205135524833.png": {
+    "sha256": "7bf54e0d95c2e81da8146952368a0bd2315241798899b2f0e6ebb675470b1514",
+    "bytes": 320372
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/traj.jsonl": {
+    "sha256": "59b2c0173a740a18e23a858c5bd1f00ee54029ab9e557edebc0a25b5e1fac999",
+    "bytes": 5916
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/summary/results.json": {
+    "sha256": "a12d44e594ddae4e5c5e9957b10440a8f88bdcfa62de0837a74a7e4e5c4d37ea",
+    "bytes": 144
+  },
+  "34527201621/osworld-g3-paid-cert-smoke-evidence/smoke-evidence.txt": {
+    "sha256": "600d11c51e91fbe9455eaa56ac8bf1c19b8e6f72961fd3ab95719d0c7f73ab20",
+    "bytes": 81
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/g3-paid-usage.jsonl": {
+    "sha256": "c162f43aa09e47ace9ab54f969c0ad565efe1aa034c8e8a4f3df31e6785e80df",
+    "bytes": 1651
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/args.json": {
+    "sha256": "ed35964ec59d59b28a59ebb48a0b8b5c6521bf8041b0ab564e2ea421f42fc1db",
+    "bytes": 863
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/result.txt": {
+    "sha256": "51ff0d2f0d3a5d61edec31785532ea0d570f8c348d58b15b94ff9c2ca6e926a4",
+    "bytes": 4
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/runtime.log": {
+    "sha256": "a5dff9907febe8f839908035ea8b3b9a481bd0dfccb5083f5fb948cfb9c6226c",
+    "bytes": 188191
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_10_20260910@211717279237.png": {
+    "sha256": "63cb757883b82466d40085d59c33c2d164d09f151cbf25d5a39385297bfb75f0",
+    "bytes": 320255
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_11_20260910@211735030496.png": {
+    "sha256": "5420691d2c76883ee98aa23d5a40ee9b44644c65303daeb9ff7f184ad2626d26",
+    "bytes": 320340
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_12_20260910@211748562026.png": {
+    "sha256": "7dd3aa64a13bccf0f167ae202e53eed8be7f4b38b841ec0a87ab204a57051331",
+    "bytes": 346946
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_13_20260910@211802856579.png": {
+    "sha256": "06628c5a62f6e729369c9da05539d98603d91fe01f5b15a5c6cff25f43d03b67",
+    "bytes": 320462
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_14_20260910@211820357805.png": {
+    "sha256": "7eab1b33ba76b9de2cfbcc43f22d4ea3a1b14ce8ac7ffc9ba2844a4602ef63ce",
+    "bytes": 320469
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_15_20260910@211832572863.png": {
+    "sha256": "7eab1b33ba76b9de2cfbcc43f22d4ea3a1b14ce8ac7ffc9ba2844a4602ef63ce",
+    "bytes": 320469
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_1_20260910@211457732644.png": {
+    "sha256": "6df0178665ed74cd5ce06f0ac0b3a46eb920ab9da0074af03ff3d1288b34406d",
+    "bytes": 635454
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_2_20260910@211512998497.png": {
+    "sha256": "3a197a09960f3af6421fae6e6c26d771ade25fc734b5b87a5fee9bfba0a6f96c",
+    "bytes": 444276
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_3_20260910@211530378024.png": {
+    "sha256": "4265ac95fa0b5e84c94db01a5eb30335302d5d71f5634f3e38ec1e327b336a56",
+    "bytes": 390595
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_4_20260910@211543294026.png": {
+    "sha256": "514a0e51edbdbd12b83497f366fc738d90c43d955b6ed26d4138a9b469ac2470",
+    "bytes": 377621
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_5_20260910@211559226215.png": {
+    "sha256": "b8355cd99dfe24116cee016a381756853f2c232097f5cf7b6b2f2a329597c40c",
+    "bytes": 320647
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_6_20260910@211614361521.png": {
+    "sha256": "1ff2e78d95b962ae12d52ecdac7ca37aeb7c13a44c562af9e447df464effb77f",
+    "bytes": 347037
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_7_20260910@211628976578.png": {
+    "sha256": "f566eac710ffd8d7d04be9f48eb3c4669db05b1c8352b8487fb2d2f409ef1a89",
+    "bytes": 320437
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_8_20260910@211652706574.png": {
+    "sha256": "9ed0c83983be83d1c06f00c0fb30726cabb22723045606b757e2a62b8e438841",
+    "bytes": 320433
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/step_9_20260910@211702726749.png": {
+    "sha256": "24c8101c4aca23fa99b1473026dbeab13311945cc6296e6968bda768680a847e",
+    "bytes": 320333
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot_a11y_tree/gpt-arbm-g3-fixed/tasks/001/traj.jsonl": {
+    "sha256": "eea2e130615778dd33776860fe1e13a6371c8213538833d57dbe3ebf74f03036",
+    "bytes": 7358
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/summary/results.json": {
+    "sha256": "d085d9197518f0f10f11febc12d0bb77be65b66df4d5ec964fb7651797cf3fba",
+    "bytes": 144
+  },
+  "34530224908/osworld-g3-paid-cert-smoke-evidence/smoke-evidence.txt": {
+    "sha256": "345ccae24808876add6a6977dfdbb27a17bb270bb246d8f6767acea7830d06e2",
+    "bytes": 81
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/g3-paid-usage.jsonl": {
+    "sha256": "6a3fbde9e5abd31b2e10c8f0f10098406029f553331a959369ccdbbb7b12ab35",
+    "bytes": 6733
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/args.json": {
+    "sha256": "b2623889f41e83d7541128cf7b5d22eeee9a56b5ab4158a56c7b21b4d978ff5e",
+    "bytes": 853
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/runtime.log": {
+    "sha256": "bf256cd5e67858ce8424bdb80f8796c90a734f515add9cd058f31ea9b64bcfec",
+    "bytes": 92751
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_10_20260910@214107890484.png": {
+    "sha256": "eca79bab4f69e769147654a5e76007e9507dcd0c59b6c3a47533136aaf0d0003",
+    "bytes": 239103
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_11_20260910@214112426560.png": {
+    "sha256": "cb3a646dd3fdc04f18fc702bb4de6a8b351ac90d0732672f16f47f72f72d2a0b",
+    "bytes": 238886
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_12_20260910@214117458024.png": {
+    "sha256": "7f1c4cb3ef1508aa53eeaa8c2dbc777aa7ee6659d467d8b7249363ac78f51a70",
+    "bytes": 319393
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_13_20260910@214123933873.png": {
+    "sha256": "a3204fdc523b153b3cd8456cf3c3fd4d6399edb4c2ecc6cc7661dfd280dbf36e",
+    "bytes": 276373
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_14_20260910@214128349018.png": {
+    "sha256": "558642724f0f8de829219cff00dcd876490c473777751bf989e393f5fe704da0",
+    "bytes": 238486
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_15_20260910@214133626226.png": {
+    "sha256": "b654732d427c34f97c838d217a1595bf59688f50f0c3f59745fb1bd69c0a3a32",
+    "bytes": 243671
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_16_20260910@214137886156.png": {
+    "sha256": "28a6ca2fe0ed9717f3dc5587ebe56d36c4546ac35be9fae53816d9ae9b4729d8",
+    "bytes": 238071
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_17_20260910@214143867364.png": {
+    "sha256": "3913824d3fb63bf7ab650d563bf7538c05ec9fdbe1b4eedce19561887989a4a4",
+    "bytes": 78490
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_18_20260910@214148501144.png": {
+    "sha256": "6afcd342677d3bbc3b2d646c31420af25e70f7318b54cc62987f1620ec166480",
+    "bytes": 172150
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_19_20260910@214159963987.png": {
+    "sha256": "b66139ab30988a318a031dcfb7bc11762a9bd122d970453a446328d26e315864",
+    "bytes": 210703
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_1_20260910@214015201970.png": {
+    "sha256": "ccd471fd93ed71e50dc976e7804ea1ec9c128b527da4663d613f008bba5f258c",
+    "bytes": 1563625
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_20_20260910@214209887536.png": {
+    "sha256": "3d4e5b426ab42a0fcde09c58e3ddee5488e4b4aabb5044059aaa402f5a597987",
+    "bytes": 348377
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_21_20260910@214218806423.png": {
+    "sha256": "85177b8fc9edc95f28bde343384f442e7288b530c47c244d05302f2b9318db3b",
+    "bytes": 342018
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_22_20260910@214228841547.png": {
+    "sha256": "5496fa4622757a4ed45ab306edc77d81fab8e252e78389bdc740d006ffbfe307",
+    "bytes": 225539
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_23_20260910@214240348766.png": {
+    "sha256": "47e937ca999b59ad9230f21d9e50b6a6da17a7ffe3ab10c4de3911ea6d777192",
+    "bytes": 209926
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_24_20260910@214248927661.png": {
+    "sha256": "12d550c9de3cf7322dc3e48dda572d7698463df849850693a8b5a8aa23e9cabd",
+    "bytes": 234013
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_25_20260910@214259071969.png": {
+    "sha256": "0b6600ba831211125c2cfe241ae16239cb694c87def0a28b816c6ab5c7349f34",
+    "bytes": 240085
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_26_20260910@214312611906.png": {
+    "sha256": "37556758c8452af884f0e8730e4035fa8b6b3c1ee5c05b8943fc35169c6cb5fe",
+    "bytes": 320027
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_27_20260910@214331663740.png": {
+    "sha256": "e3c457efb786817553fae60d5fcc86e09c1ae02370587e9cdc2de9bbfdd7066c",
+    "bytes": 182678
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_28_20260910@214408765263.png": {
+    "sha256": "0938d0c0b395977d3c17ddc777c5ec4691923ab89cd3fb6d7621fbdf2fab4357",
+    "bytes": 207716
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_29_20260910@214419441709.png": {
+    "sha256": "b1310d5eda67a33640692a49d711c7ae14f3f9332b7eaf91a5a46683f2e32af0",
+    "bytes": 215322
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_30_20260910@214426676211.png": {
+    "sha256": "0adc622a6855ecb885cc2456ad9880d534dc403b8015639638534d55a0c733d8",
+    "bytes": 225676
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_31_20260910@214453025115.png": {
+    "sha256": "28f31d84c45c8c27b2763645dd68af72720d218e5208d7770fc150f7534bc89a",
+    "bytes": 236335
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_32_20260910@214542599061.png": {
+    "sha256": "341def4671c3a6e37fbd2c24802ffab307d45f3cc961a8294899312b03944673",
+    "bytes": 237464
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_33_20260910@214548569721.png": {
+    "sha256": "f997dacbc9136bdfaf2e366b05c07a03da0ea806c79c9b6bf4d1a29a6d752bbf",
+    "bytes": 239207
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_3_20260910@214029298377.png": {
+    "sha256": "d60ef6c3dafd62e60431fe234df04477b18e2a68e285a618a39d245d9ce2a0fc",
+    "bytes": 446446
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_4_20260910@214039394086.png": {
+    "sha256": "a20c8836665d70c4b5613d229f4e282bf429cffbf7038907ff124456e33b0dd9",
+    "bytes": 390602
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_5_20260910@214044170952.png": {
+    "sha256": "9d9ff31447bab2eb54c77ddd9487ffc79d7d3ac589d9763bbc0331f60f09f45b",
+    "bytes": 231616
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_6_20260910@214048551375.png": {
+    "sha256": "70b2a07c682dbd0a6a7039246a35dc94e66aa2e8785cb2bda2f48a282dd79805",
+    "bytes": 180988
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_7_20260910@214052052685.png": {
+    "sha256": "8f2509e571ba8a6b213a0f7b88cac97382271616c6bba876a474ef202491975b",
+    "bytes": 320243
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_8_20260910@214059466621.png": {
+    "sha256": "013c41a391332da4eb7ca8e4624d9590ac84ab2a59ff75eacae305e6323bcbf0",
+    "bytes": 320413
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_9_20260910@214103414888.png": {
+    "sha256": "1448a581ff6069b68daa1eeac2f15013a75cea14e123f1f61b1c5830fe15d587",
+    "bytes": 300123
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/traj.jsonl": {
+    "sha256": "33053bb3e06f099277ec7fc7b3621a8da8658192ed8efae3591a06a6196caccb",
+    "bytes": 54368
+  },
+  "34532578089/osworld-g3-paid-cert-smoke-evidence/smoke-evidence.txt": {
+    "sha256": "cfe1799420537ba48f5c07d985f0da12f69187248a4f28129840bb233392ec80",
+    "bytes": 81
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/g3-paid-usage.jsonl": {
+    "sha256": "1bbda4d706d693bc730dfc12ef249f11ce5ffe9ba01aefc4f8f3a4bdd156012b",
+    "bytes": 7729
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/args.json": {
+    "sha256": "b2623889f41e83d7541128cf7b5d22eeee9a56b5ab4158a56c7b21b4d978ff5e",
+    "bytes": 853
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/runtime.log": {
+    "sha256": "0709aaa90f522020037fc4d4b3260ee7a5015a7fdf12cf0d91bdfed9ad2dd800",
+    "bytes": 76057
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_10_20260910@215632615110.png": {
+    "sha256": "ca40641025f063dca9f8b56750a3d44c3ee90db0e8e5798790be4e8b5402d4de",
+    "bytes": 149268
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_11_20260910@215640996640.png": {
+    "sha256": "ca40641025f063dca9f8b56750a3d44c3ee90db0e8e5798790be4e8b5402d4de",
+    "bytes": 149268
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_12_20260910@215643970825.png": {
+    "sha256": "7104f1348bfe388f421868dc6f0c9d5e59c282a63486ec2c1019ad9418ec698a",
+    "bytes": 170763
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_13_20260910@215648217579.png": {
+    "sha256": "252291f82d59ee8b244af5a28567c58a9d398663a7d37743d1f6dc8e66007a54",
+    "bytes": 256077
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_14_20260910@215652345616.png": {
+    "sha256": "387dde445c66bd1b36e79dfe4b1ee4df711ad1776ae9766ca96e6dad31ca4a15",
+    "bytes": 257671
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_15_20260910@215656791031.png": {
+    "sha256": "ac7f0e5015771bbf131a2db75a83156fda23f033bafe7240683e66c54ec06f36",
+    "bytes": 351624
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_16_20260910@215702876853.png": {
+    "sha256": "4445ba84e82d32f44adcd944d65cfc562e48ecf22f05481fd43c22855e63b969",
+    "bytes": 356680
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_17_20260910@215707028841.png": {
+    "sha256": "1ce6fb586aaca98e3eaab8334b9292cf1bd59a61cab0abf1c9ba325cfd2d3936",
+    "bytes": 356452
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_18_20260910@215711138433.png": {
+    "sha256": "20a563e04fe4008723d39389347c02ed537a8ab4b1715812a761c735b548f3ff",
+    "bytes": 358711
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_19_20260910@215716301716.png": {
+    "sha256": "fcb1a810b94f0e10016df0f8bb72272fe0b6160c72a797650934b5ea5c8d69d0",
+    "bytes": 335030
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_1_20260910@215535144489.png": {
+    "sha256": "eb2860288e3b66851e401fcb24c052e8e88d6cf255bc8ed600ca3cf688c962ab",
+    "bytes": 1563567
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_20_20260910@215720971054.png": {
+    "sha256": "dfa40ec2c000c7b1429cfca4131e49cebc791c723487d43f2c73b9db78aefcd8",
+    "bytes": 338643
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_21_20260910@215726025835.png": {
+    "sha256": "a51bdca7703583cea3bd7ee4667d8399be11f529379bd7f2af458792d5c8a41b",
+    "bytes": 379008
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_22_20260910@215732102784.png": {
+    "sha256": "7eabf3ad169d8b66bc1bdefb383aa7d7c8dbb939e8298b5ed46de5b10ac48979",
+    "bytes": 339012
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_23_20260910@215736697538.png": {
+    "sha256": "ab93ba37be4339c630123259d94c6f346f39e946aacefb2969fc8eb8a70217fb",
+    "bytes": 339454
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_24_20260910@215741163713.png": {
+    "sha256": "619eff0bea6ab8713c3ad4ec5e11cf67a3d653385fd47c0dfb3a6d6c763f76ad",
+    "bytes": 302043
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_25_20260910@215746927129.png": {
+    "sha256": "f1b78a222ca155509f13c381453d737a10814dbf08d05bcd7acf376092b7494e",
+    "bytes": 333919
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_26_20260910@215754611033.png": {
+    "sha256": "af78aa1b740c76fea6d1c88c3e7a1d1492a57f7dca68aa176e66bf40c381da7b",
+    "bytes": 296353
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_27_20260910@215759874774.png": {
+    "sha256": "1e124fcebf89de1a302439c4e765cdcf9051d03fd74f29251d27adabd6a30856",
+    "bytes": 301703
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_28_20260910@215805160143.png": {
+    "sha256": "19a5158570f6efcb9469a6da49a35a4b9bdb0fdfbf914ce13ba9ab44ffc010fc",
+    "bytes": 301519
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_29_20260910@215810817950.png": {
+    "sha256": "af419e4dd0e0d13ac53f8459dda09a6f9b427655f4eed7d6ede6af832b9bb4d9",
+    "bytes": 315841
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_2_20260910@215545159251.png": {
+    "sha256": "2df1d99f2f29b412f9ad1d44116b055ed8383411d67cfa2a577da0c1e56979c1",
+    "bytes": 445485
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_30_20260910@215816811462.png": {
+    "sha256": "1d8e2eb972301d3e3b6e39227d79fbd7e4f437e508a2481b2345982dc0524069",
+    "bytes": 318615
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_31_20260910@215822461537.png": {
+    "sha256": "7fac039c57a867a368d8baf9e9c87d4191de1f441c5ee51177ff14b79555bdcd",
+    "bytes": 391813
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_32_20260910@215835454548.png": {
+    "sha256": "5a81452010e78dcd7125961c3eab22818ed9927fa61e9b6e36fd82a1296581ba",
+    "bytes": 368024
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_33_20260910@215847855520.png": {
+    "sha256": "62ef3122a73604f44b4f631c5af5ca284c67d29400c611be98ec8d174b222254",
+    "bytes": 367663
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_34_20260910@215859823412.png": {
+    "sha256": "b0992cea07aa64f7752c6dd9e2e6a2eb8eb454648246f75e845fb60956b08891",
+    "bytes": 365862
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_35_20260910@215918675116.png": {
+    "sha256": "3c367710e8df334c904d3bd49bb5d20ffc421266d2d076be192049e2efaac493",
+    "bytes": 353964
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_36_20260910@215926184281.png": {
+    "sha256": "5cdb494d75a6e41f3987e94d55187a60e96044af7e1696e9aa4e69d19d4760fb",
+    "bytes": 356542
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_37_20260910@215936434951.png": {
+    "sha256": "55631f4373c18cb6d005bbd4e4176bf73e8a7feb4a087529044fcb0406107081",
+    "bytes": 372720
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_38_20260910@215950941884.png": {
+    "sha256": "4025bc81fd3bef5978d3303dcadbde0f6d5be0226c058717849702f08312ae75",
+    "bytes": 413734
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_3_20260910@215556513349.png": {
+    "sha256": "e2b09810775923ed805868a82b8d944085a24c9d118baeb48a42207abd301507",
+    "bytes": 390439
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_4_20260910@215602094431.png": {
+    "sha256": "83ade5830ed96f7b19802c9db1f756877bbb54ce680640bbf91db86e80514c15",
+    "bytes": 231985
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_5_20260910@215607569269.png": {
+    "sha256": "cd5d4bd1c28d1c157ae551471c87b58e1b75d0af3f11c892739523d97e366f14",
+    "bytes": 377947
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_6_20260910@215617575383.png": {
+    "sha256": "1a3852310e8c6fe0c1b3765f2c0f883f8b4a5fbb02a6b055167c512577133f60",
+    "bytes": 377910
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_7_20260910@215621404677.png": {
+    "sha256": "9614d20edb0df7a9e0f7df408394d90b44517a7db4e4c246b2852703e13616f8",
+    "bytes": 298615
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_8_20260910@215625501231.png": {
+    "sha256": "dc3e3cf6f8933cb603571ffb3a8771abf2acaaee5aba60e225ddc495f5a31258",
+    "bytes": 298454
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/step_9_20260910@215629349506.png": {
+    "sha256": "8dde416e8a40301e02a6916113cee514ea6db0a59b7da76cce19eb13dea9d6d4",
+    "bytes": 378455
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/traj.jsonl": {
+    "sha256": "0fd4916856bce498705efb333de687825fdc7e3c3980f63c4d989abda2c00f51",
+    "bytes": 31463
+  },
+  "34534274446/osworld-g3-paid-cert-smoke-evidence/smoke-evidence.txt": {
+    "sha256": "810f616a06ffdbd977d76075b2307c88e17c2f1ef8afff59f241be40bcf3880f",
+    "bytes": 81
+  },
+  "34535970921/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/args.json": {
+    "sha256": "b2623889f41e83d7541128cf7b5d22eeee9a56b5ab4158a56c7b21b4d978ff5e",
+    "bytes": 853
+  },
+  "34535970921/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/runtime.log": {
+    "sha256": "7eef915147592dc8b670b134776d7617a5d2f011dc518fab3914b87fb6f53e5c",
+    "bytes": 2574
+  },
+  "34535970921/osworld-g3-paid-cert-smoke-evidence/osworld/results-smoke/pyautogui/screenshot/gemini-3.5-flash/tasks/001/traj.jsonl": {
+    "sha256": "f3ea0405842942881197d0fd2be503ba6df06815e27ba6764a2318145c34c1ef",
+    "bytes": 316
+  },
+  "34535970921/osworld-g3-paid-cert-smoke-evidence/smoke-evidence.txt": {
+    "sha256": "8f6736898afb9eb4f9c08a13a77554f202913ebb876d5ae5ddbd16952b29260a",
+    "bytes": 81
+  },
+  "artifacts.json": {
+    "sha256": "3d8852859da64cbeb228393d837999c38c8264e15857ee8fc476b6b2c93d6ba5",
+    "bytes": 428258
+  },
+  "run-34511385723.log": {
+    "sha256": "1b664381c01b19c0f532d4d026aea374f80c29060c8859169c5f77b1381cb0fa",
+    "bytes": 4652
+  },
+  "run-34511560530.log": {
+    "sha256": "a1e09d1990f8c545634a529c100e6989b363ef9af79c90fc12f5844b93198bc5",
+    "bytes": 5157
+  },
+  "run-34511653309.log": {
+    "sha256": "a2083cd5eedb04033bc58c92c0be3e9f6088ee7cb4fcff04e8daaae5bd340bc1",
+    "bytes": 5158
+  },
+  "run-34512337788.log": {
+    "sha256": "7474f5c54573ecede624717a88659b11dc538042cd9e546df5b5daabf76eac26",
+    "bytes": 117941
+  },
+  "run-34514332454.log": {
+    "sha256": "be06722e9db78189297c1441a2629387c48c689503476c9a7902366d329fb148",
+    "bytes": 118191
+  },
+  "run-34515106463.log": {
+    "sha256": "c43b1fbc0787ee1819e81409f1d80ccc77825696e221b433b4436af5e434b8c5",
+    "bytes": 114167
+  },
+  "run-34517441498.log": {
+    "sha256": "4221f6f62a30c61032ea43d41b3df0ba858030a33fd781ac2f0811e559b20a97",
+    "bytes": 120593
+  },
+  "run-34535970921-artifact-10175736158.zip": {
+    "sha256": "6f3b2dd557191cb182d5981ca727bd76b3f4af5fd6b035f2372a99d113d425cb",
+    "bytes": 1957
+  },
+  "run-34535970921.json": {
+    "sha256": "f3db532e201f3335fa00c2e8711ebb7c4f2a9e8b1aaacf87fe1b15acc8b03981",
+    "bytes": 2745
+  },
+  "run-34535970921.log": {
+    "sha256": "4867d794aac8cb9ff3420a9655654017d7c17576f9f5310e3878a5dec9686b23",
+    "bytes": 105215
+  },
+  "runs.json": {
+    "sha256": "e2ac9eca659defe262bb604e5ea613b37ccd0a1a10470f5cd84c00e1c777e5da",
+    "bytes": 3610
+  }
+}

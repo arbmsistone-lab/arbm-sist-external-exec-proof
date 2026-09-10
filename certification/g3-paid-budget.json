@@ -1,0 +1,47 @@
+{
+  "schema": "arbm-g3-paid-budget-v1",
+  "authorized_total_usd": "5.00",
+  "recorded_usage_usd": "3.7743690",
+  "reconciled_total_usd": null,
+  "reconciliation_status": "INCOMPLETE",
+  "provider_credit_status": "DEPLETED",
+  "per_call_cost_bound_status": "UNPROVEN",
+  "reserved_run_usd": "0",
+  "accounted_run_ids": [],
+  "observed_run_ids": [
+    "34535970921",
+    "34534274446",
+    "34532578089",
+    "34530224908",
+    "34527201621",
+    "34523300589",
+    "34520100242",
+    "34517441498",
+    "34515106463",
+    "34514332454",
+    "34512337788",
+    "34511653309",
+    "34511560530",
+    "34511385723"
+  ],
+  "audit_3x": {
+    "A": "PASS_LOCAL",
+    "B": "PASS_LOCAL",
+    "C": "BLOCKED"
+  },
+  "audited_files_sha256": {
+    "certification/g3_paid_control.py": "c2d59bfe8f54a1a81e6ac4a20f0dc39a3ffbe7ab7963cfeb44aeca5757871f3c",
+    "certification/g3-gemini-fc-adapter.py": "70576d4d3f357a955d4a247ecf000996317ddffd6be0e2f1dd1042365d598593",
+    ".github/workflows/osworld-g3-paid-smoke-v2.yml": "abc9f8397fd23ac8edf30cd232abc85e486561634a1914f848435d6a5d911c59",
+    ".github/workflows/osworld-g3-paid-model-probe.yml": "1be635a7d538ec9f9c201cba973ad9383dea7b7a6c0b8adba4bd9a745aef809a",
+    "tests/test_g3_paid_control.py": "d87ddebaebe154f25748238453077c4a7b5832c94d20f94ed406579379d887d9",
+    "tests/test_g3_paid_workflows.py": "4f967af6484699219ce9bf33de791e04367887bc6d272d72a4467bd3abac90fe"
+  },
+  "blockers": [
+    "Probe 34511385723 returned HTTP 200 but discarded usage before assertion failure.",
+    "Run 34535970921 received eight credit-depleted rejections; no usage or official result.",
+    "Provider account credit/billing reconciliation is required; do not assume unlogged requests cost zero.",
+    "The per-call reserve is heuristic; a proven input/output cost bound is required before paid admission.",
+    "Official score, functional stability and complete certification remain unproven."
+  ]
+}

@@ -1,0 +1,27 @@
+test_budget_edge_and_nonfinite_values (test_g3_paid_control.AdmissionTests.test_budget_edge_and_nonfinite_values) ... ok
+test_checked_in_ledger_blocks_without_network_or_vm (test_g3_paid_control.AdmissionTests.test_checked_in_ledger_blocks_without_network_or_vm) ... ok
+test_hash_tamper (test_g3_paid_control.AdmissionTests.test_hash_tamper) ... ok
+test_missing_current_or_truncated_history (test_g3_paid_control.AdmissionTests.test_missing_current_or_truncated_history) ... ok
+test_official_full_pass_only (test_g3_paid_control.AdmissionTests.test_official_full_pass_only) ... ok
+test_unaccounted_or_concurrent_run_and_reused_sha (test_g3_paid_control.AdmissionTests.test_unaccounted_or_concurrent_run_and_reused_sha) ... ok
+test_unknown_cost_missing_credit_and_all_three_audits (test_g3_paid_control.AdmissionTests.test_unknown_cost_missing_credit_and_all_three_audits) ... ok
+test_valid_fully_reconciled_reservation (test_g3_paid_control.AdmissionTests.test_valid_fully_reconciled_reservation) ... ok
+test_wrong_repository_branch_and_rerun_are_rejected (test_g3_paid_control.AdmissionTests.test_wrong_repository_branch_and_rerun_are_rejected) ... ok
+test_allow_direct_gui_actions_and_short_wait (test_g3_paid_control.AgentTests.test_allow_direct_gui_actions_and_short_wait) ... ok
+test_compaction_preserves_function_pairs_and_signatures (test_g3_paid_control.AgentTests.test_compaction_preserves_function_pairs_and_signatures) ... ok
+test_compaction_with_parse_repair_never_starts_with_orphan_response (test_g3_paid_control.AgentTests.test_compaction_with_parse_repair_never_starts_with_orphan_response) ... ok
+test_credit_depletion_one_attempt_no_sleep_no_secret (test_g3_paid_control.AgentTests.test_credit_depletion_one_attempt_no_sleep_no_secret) ... ok
+test_http_retry_and_output_cap_configured_on_wrapper (test_g3_paid_control.AgentTests.test_http_retry_and_output_cap_configured_on_wrapper) ... ok
+test_journal_must_exist_before_request (test_g3_paid_control.AgentTests.test_journal_must_exist_before_request) ... ok
+test_missing_usage_blocks_continuation (test_g3_paid_control.AgentTests.test_missing_usage_blocks_continuation) ... ok
+test_reject_shell_install_and_terminal_before_accepting_actions (test_g3_paid_control.AgentTests.test_reject_shell_install_and_terminal_before_accepting_actions) ... ok
+test_spend_survives_reset_task_context_does_not (test_g3_paid_control.AgentTests.test_spend_survives_reset_task_context_does_not) ... ok
+test_visual_stall_stops_before_fifth_model_request (test_g3_paid_control.AgentTests.test_visual_stall_stops_before_fifth_model_request) ... ok
+test_free_lane_and_vendor_blobs_unchanged (test_g3_paid_workflows.WorkflowTests.test_free_lane_and_vendor_blobs_unchanged) ... ok
+test_paid_lanes_share_budget_lock_and_gate_before_work (test_g3_paid_workflows.WorkflowTests.test_paid_lanes_share_budget_lock_and_gate_before_work) ... ok
+test_smoke_pins_and_harness_contract_preserved (test_g3_paid_workflows.WorkflowTests.test_smoke_pins_and_harness_contract_preserved) ... ok
+
+----------------------------------------------------------------------
+Ran 22 tests in 0.490s
+
+OK
