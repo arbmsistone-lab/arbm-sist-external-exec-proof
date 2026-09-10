@@ -40,6 +40,22 @@ class ArbmG3Agent(PromptAgent):
         self._verifications.append(result)
         return result
 
+    def _unsafe_gui_action(self, actions):
+        if not actions:
+            return False
+        joined = json.dumps(actions, default=str).lower()
+        forbidden = (
+            'ask_user', 'terminal', "ctrl', 'alt', 't", 'subprocess', 'openpyxl',
+            'pandas', 'pathlib', 'requests.', 'socket', 'shutil', 'glob.', '/tmp/',
+            'os.', 'powershell', 'bash ', 'shell=', 'open('
+        )
+        if any(token in joined for token in forbidden):
+            return True
+        code_like = any(token in joined for token in ('import ', 'pyautogui.', 'time.sleep'))
+        if code_like and 'pyautogui' not in joined and 'time.sleep' not in joined:
+            return True
+        return False
+
     def predict(self, instruction, obs):
         grounding = (
             "\n\nVISUAL GROUNDING POLICY: The screenshot coordinates use origin (0,0) at the top-left and match the full screenshot pixel dimensions. "
@@ -53,6 +69,13 @@ class ArbmG3Agent(PromptAgent):
             "If the last action did not change state, do not repeat it; switch strategy using keyboard navigation, search, menus, or a different visible target."
         )
         instruction += grounding
+        step_no = len(self._action_signatures) + 1
+        if step_no >= 7:
+            instruction += "\nPHASE_BUDGET: Discovery time is limited. If enough source facts are visible or already discovered, stop exploratory searching and begin the target-side task mutations now. Preserve known facts and reserve later steps for completion and verification."
+        if step_no >= 10:
+            instruction += "\nEXECUTION_PRIORITY: Do not spend more steps on exploratory browsing unless a specific missing fact makes execution impossible. Prefer direct target-app mutations, conflict resolution, verification, and DONE."
+        instruction += "\nGUI_ONLY_CONTRACT: Every executable action must use the visible desktop through pyautogui (plus time.sleep if needed). Do not use filesystem APIs, shell/terminal, subprocess, openpyxl/pandas, OS/path libraries, network calls, or hidden programmatic access to task files."
+
         if self._action_signatures:
             recent=self._action_signatures[-3:]
             instruction += "\nRecent actions already attempted: " + " | ".join(recent)[-1200:] + "\nAvoid repeating them unless the screenshot proves it is necessary."
@@ -80,17 +103,14 @@ class ArbmG3Agent(PromptAgent):
                 instruction += "\nCURRENT_A11Y_EVIDENCE:\n" + "\n".join(relevant[-40:])[-5000:]
         response, actions = super().predict(instruction, obs)
         for _ in range(2):
-            joined = json.dumps(actions, default=str).lower() if actions else ''
-            forbidden = ('ask_user' in joined or "ctrl', 'alt', 't" in joined or 'open terminal' in joined or 'terminal' in joined)
-            if not forbidden:
+            if not self._unsafe_gui_action(actions):
                 break
             recovery = instruction + "\nAUTONOMY_RECOVERY: ASK_USER and Terminal/shell are forbidden. Continue autonomously using only the visible desktop UI and current accessibility evidence. Preserve discovered task facts, do not restart discovery, and choose the next action that materially advances completion. Return executable pyautogui only, or DONE/FAIL."
             response, actions = super().predict(recovery, obs)
         if self._fatal_model_error:
             raise RuntimeError(self._fatal_model_error)
         if actions:
-            joined = json.dumps(actions, default=str).lower()
-            if 'ask_user' in joined or "ctrl', 'alt', 't" in joined or 'terminal' in joined:
+            if self._unsafe_gui_action(actions):
                 actions=['FAIL']
             sig=json.dumps(actions,sort_keys=True,default=str)
             if self._action_signatures[-3:].count(sig)>=3:
@@ -104,8 +124,8 @@ class ArbmG3Agent(PromptAgent):
         if not key:
             raise RuntimeError('GEMINI_G3_PAID_CERT_KEY_MISSING')
         messages=payload.get('messages',[]) if isinstance(payload,dict) else []
-        if len(messages) > 2:
-            messages = [messages[0], messages[-1]]
+        if len(messages) > 4:
+            messages = [messages[0], *messages[-3:]]
         system=''
         contents=[]
         for message in messages:
