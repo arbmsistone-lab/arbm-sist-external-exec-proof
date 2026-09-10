@@ -15,6 +15,14 @@
     "sha256": "6f3b2dd557191cb182d5981ca727bd76b3f4af5fd6b035f2372a99d113d425cb",
     "bytes": 1957
   },
+  "financial-access-blocker.json": {
+    "sha256": "4add9cd7d248ca071545cc515860362c30f1a19485d182bbf5cc856e895b5696",
+    "bytes": 3169
+  },
+  "FINANCIAL-BLOCKER.md": {
+    "sha256": "3f3110ac104f99ac09b488738b999c0b41220ab9795f0102f961d59540146d0f",
+    "bytes": 2516
+  },
   "historical-action-audit.json": {
     "sha256": "57dfb49a821e64d1e974657b07df417dfcf9a529e8cbb3f2458861db6bf513a9",
     "bytes": 1601
@@ -28,8 +36,8 @@
     "bytes": 3120
   },
   "README.md": {
-    "sha256": "50793a4dc9e5bb44ed89a2779f592b8ebf1af3275fbdc6d4de697fb1f45a36b5",
-    "bytes": 8295
+    "sha256": "bce8fa31c3d66c2b648e83c528b09987c8b1403bfc046e99757fbb57ed61e794",
+    "bytes": 8475
   },
   "run-ledger.json": {
     "sha256": "f3a24a90f330399b87baf890e1ae40518ca41411066952f20b26296c52a1924e",

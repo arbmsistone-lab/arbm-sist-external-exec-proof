@@ -1,0 +1,65 @@
+{
+  "schema": "arbm-g3-financial-access-audit-v1",
+  "observed_at_utc": "2026-09-10T22:58:46Z",
+  "state": "BLOCKED_NOT_GREEN_PROVEN",
+  "official_result": "NO_RESULT/BLOCKED",
+  "code_sha_preserved": "f7a3da12bfa72ce57c85b218a58f533f77450bf7",
+  "same_gemini_project_identity": "NOT_VERIFIED",
+  "authorized_total_usd": "5.00",
+  "recorded_usage_usd": "3.7743690",
+  "actually_billed_total_usd": null,
+  "available_prepay_credit_usd": null,
+  "usable_credit_usd": null,
+  "safe_remaining_margin_usd": null,
+  "maximum_admissible_new_spend_usd": "0.00",
+  "single_call_proven_maximum_usd": null,
+  "usage_gaps": [
+    {
+      "run_id": "34511385723",
+      "reason": "HTTP 200 response; usage lost before failed assertion",
+      "billed_usd": null
+    },
+    {
+      "run_id": "34535970921",
+      "reason": "Eight provider credit-depleted rejections; no usage receipt",
+      "billed_usd": null,
+      "official_result": "NO_RESULT/BLOCKED"
+    }
+  ],
+  "read_only_sources_checked": {
+    "available_connectors": "No Google/Gemini billing connector available",
+    "local_google_cloud_cli_and_configuration": "Not found in PATH or standard user installation/configuration locations",
+    "repository_metadata": "No Gemini project or billing-account identifier found in scoped configuration; no Actions variables; paid API secret name exists, value not read",
+    "browser_projects_page": "Redirected to Google available-regions documentation",
+    "browser_billing_page": "Billing shell briefly loaded, then redirected to available-regions documentation before account or financial data appeared",
+    "billing_page_url": "https://aistudio.google.com/billing",
+    "redirect_url": "https://ai.google.dev/gemini-api/docs/available-regions?hl=pt-br",
+    "signin_action": "Auto-review rejected clicking documentation sign-in because billing target and authentication scope were not verified; no workaround attempted"
+  },
+  "published_provider_terms": {
+    "source": "https://ai.google.dev/gemini-api/docs/billing",
+    "minimum_credit_purchase_usd": "5.00",
+    "minimum_is_account_observation": false,
+    "balance_and_transactions_location": "AI Studio Billing",
+    "billing_reporting_can_be_delayed": true,
+    "generic_failed_request_statement_does_not_reconcile_these_429s": true
+  },
+  "admission": {
+    "A": "PRIOR_LOCAL_PASS_PRESERVED",
+    "B": "PRIOR_LOCAL_PASS_PRESERVED",
+    "C": "BLOCKED_NO_FINANCIAL_ACCESS",
+    "paid_generation_calls": 0,
+    "probes": 0,
+    "smokes": 0,
+    "vms_prepared": 0,
+    "credit_purchases": 0,
+    "new_infrastructure": 0
+  },
+  "single_human_action": {
+    "action": "Open AI Studio Billing in an authenticated browser using the Google account that owns the project of GEMINI_G3_PAID_CERT_KEY, and provide access to that billing page for read-only reconciliation.",
+    "url": "https://aistudio.google.com/billing",
+    "payment_amount_usd": "0.00",
+    "purchase_credits": false,
+    "reason": "No exact positive top-up can be authorized without account identity, real balance, billed history, and a proven next-call maximum. The published minimum purchase is also above the unreconciled arithmetic remainder."
+  }
+}

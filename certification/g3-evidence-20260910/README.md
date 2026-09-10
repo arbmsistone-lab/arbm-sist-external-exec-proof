@@ -2,6 +2,9 @@
 
 Estado: **BLOCKED_NOT_GREEN_PROVEN**. Este pacote não certifica o benchmark.
 
+Atualização da consulta financeira: [acesso à conta bloqueado](FINANCIAL-BLOCKER.md).
+Nenhum saldo ou valor faturado foi presumido; pagamento admissível nesta etapa: US$0,00.
+
 ## ACHADO
 
 O [run 34535970921](https://github.com/arbmsistone-lab/arbm-sist-external-exec-proof/actions/runs/34535970921)
