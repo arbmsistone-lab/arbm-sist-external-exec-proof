@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - '.github/workflows/osworld-g3-smoke-v2.yml'
+      - 'certification/g3-osworld-arbm-agent.py'
 permissions:
   contents: read
   id-token: write
