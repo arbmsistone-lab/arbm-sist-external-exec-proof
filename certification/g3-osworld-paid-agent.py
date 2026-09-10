@@ -1,4 +1,4 @@
-import base64, json, os, subprocess, time
+import base64, json, os, re, subprocess, time
 import requests
 from mm_agents.agent import PromptAgent
 
@@ -45,10 +45,13 @@ class ArbmG3Agent(PromptAgent):
     def _remember_facts(self, response):
         text = str(response or '')
         for line in text.splitlines():
-            low=line.lower()
-            if any(k in low for k in ('fyp', 'location', 'venue', 'schedule', 'calendar')) and any(ch.isdigit() for ch in line):
-                clean=' '.join(line.strip(' #`').split())
-                if clean and clean not in self._fact_memory:
+            clean=' '.join(line.strip(' #`').split())
+            if not clean or len(clean) > 500:
+                continue
+            structured = bool(re.search(r'\b(?:[A-Za-z][A-Za-z0-9_-]{1,20}\d{2,}|\d{1,2}[:.]\d{2}|\d{3,4}-\d{3,4}|\d{4}-\d{2}-\d{2})\b', clean))
+            labeled = any(k in clean.lower() for k in ('location','venue','room','title','date','time','start','end','schedule','calendar','id','identifier'))
+            if structured or (labeled and any(ch.isdigit() for ch in clean)):
+                if clean not in self._fact_memory:
                     self._fact_memory.append(clean[:300])
         self._fact_memory=self._fact_memory[-24:]
 
