@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 55
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      AWS_REGION: us-east-1
+      AWS_REGION: us-east-1`n      AWS_SUBNET_ID: unused-docker`n      AWS_SECURITY_GROUP_ID: unused-docker
     steps:
       - name: Checkout G3 tooling
         uses: actions/checkout@v4
