@@ -1,0 +1,121 @@
+name: OSWorld G3 official one-task smoke v2
+on:
+  push:
+    paths:
+      - '.github/workflows/osworld-g3-smoke-v2.yml'
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    steps:
+      - name: Checkout G3 tooling
+        uses: actions/checkout@v4
+      - name: Prepare remote KVM runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          sudo apt-get clean
+          test -c /dev/kvm
+          sudo chmod 666 /dev/kvm
+          printf 'HEAVY_LOCAL=0\nZERO_SPEND_COMPUTE=PASS\n' > smoke-evidence.txt      - name: Checkout pinned OSWorld
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v2026.08.08 https://github.com/xlang-ai/OSWorld-V2.git osworld
+          test "$(git -C osworld rev-parse HEAD)" = "d578d2d4e0dc82b43e270fdaa7fa89d9708cd154"
+          cd osworld
+          python -m pip install --disable-pip-version-check -q -U uv huggingface_hub
+          uv sync --frozen
+          mkdir -p certification/g3-computer-use-snapshot
+          cp ../certification/g3-computer-use-snapshot/*.mjs certification/g3-computer-use-snapshot/
+          cp ../certification/g3-osworld-arbm-agent.py mm_agents/arbm_g3_agent.py
+          python - <<'PY'
+          p='scripts/python/run_multienv.py'
+          s=open(p,encoding='utf-8').read()
+          s=s.replace('from mm_agents.agent import PromptAgent','from mm_agents.arbm_g3_agent import ArbmG3Agent')
+          s=s.replace('agent = PromptAgent(', 'agent = ArbmG3Agent(')
+          open(p,'w',encoding='utf-8').write(s)
+          assert 'agent = ArbmG3Agent(' in s
+          PY
+      - name: Materialize official task 001 assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd osworld
+          export HF_TOKEN HF_XET_HIGH_PERFORMANCE=1
+          uv run scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
+          uv run scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 --target-dir cache/osworld_v2_assets --clean --allow-pattern 'task_001/**'
+          test -f evaluation_examples/task_class/task_001.py
+          printf '{"tasks":["001"]}\n' > smoke-one.json
+      - name: Pin runtime and official VM
+        shell: bash
+        run: |
+          set -euo pipefail
+          digest='sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9'
+          docker pull "happysixd/osworld-docker@${digest}"
+          docker tag "happysixd/osworld-docker@${digest}" happysixd/osworld-docker:latest
+          export HF_TOKEN HF_XET_HIGH_PERFORMANCE=1
+          hf download xlangai/v2-image osworld-v2-ubuntu-x86.qcow2.zip --repo-type dataset --revision 8213366932c553e5fe758d0f2c8c8b81ffc3be8c --local-dir hf-vm
+          cp hf-vm/osworld-v2-ubuntu-x86.qcow2.zip osworld-vm.zip
+          test "$(sha256sum osworld-vm.zip | awk '{print $1}')" = "eb737ae70b49849e24af407de6a518439a23de05a8497096a948334ce0a909aa"
+          unzip -q osworld-vm.zip -d vm
+          find vm -type f -name '*.qcow2' | head -1 | xargs realpath > vm-path.txt      - name: Acquire scoped OIDC token
+        id: oidc
+        uses: actions/github-script@v7
+        with:
+          result-encoding: string
+          script: |
+            const token = await core.getIDToken('arbm-sist-benchmark')
+            core.setSecret(token)
+            return token
+      - name: Execute official one-task smoke
+        shell: bash
+        env:
+          ARBM_G3_OIDC: ${{ steps.oidc.outputs.result }}
+          ARBM_G3_MODEL_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-cf-ai-probe-once-20260905
+        run: |
+          set -euo pipefail
+          export OSWORLD_FILE_BASE_URL="$PWD/osworld/cache/osworld_v2_assets"
+          qcow=$(cat vm-path.txt)
+          cd osworld
+          uv run scripts/python/run_multienv.py --path_to_vm "$qcow" --headless --provider_name docker \
+            --action_space pyautogui --observation_type screenshot --model gpt-arbm-g3-fixed \
+            --temperature 0 --top_p 0.9 --max_tokens 1500 --max_steps 15 --max_trajectory_length 3 \
+            --num_envs 1 --test_config_base_dir evaluation_examples --test_all_meta_path smoke-one.json \
+            --domain tasks --eval_version v2 --result_dir results-smoke      - name: Verify official evaluator result
+        shell: bash
+        run: |
+          set -euo pipefail
+          p='osworld/results-smoke/pyautogui/screenshot/gpt-arbm-g3-fixed/tasks/001/result.txt'
+          test -f "$p"
+          score=$(cat "$p")
+          python - "$score" <<'PY'
+          import sys
+          score=float(sys.argv[1]); assert score>0, score
+          print(f'OFFICIAL_SMOKE_SCORE={score}')
+          PY
+          printf 'OFFICIAL_ONE_TASK_SMOKE=PASS\nMODEL=gemini-3.5-flash\nPAID_FALLBACK=false\nMANDATORY_COST=0\n' >> smoke-evidence.txt
+      - name: Cleanup remote runtime
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          docker ps -aq | xargs -r docker rm -f
+          echo "RUN_UTC=$(date -u +%FT%TZ)" >> smoke-evidence.txt
+          echo "CONTAINERS_LEFT=$(docker ps -aq | wc -l)" >> smoke-evidence.txt
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: osworld-g3-official-smoke-evidence
+          path: |
+            smoke-evidence.txt
+            osworld/results-smoke
+          retention-days: 1
+          if-no-files-found: warn
