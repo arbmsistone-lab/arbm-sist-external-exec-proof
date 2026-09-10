@@ -50,6 +50,11 @@
         "bytes":  1546
     },
     {
+        "file":  "quota-shield.mjs",
+        "sha256":  "0908fb6aa456f90672c5bf1ac0b2bc370ce45769e3c5b8eeadd9e9ca3bc6d418",
+        "bytes":  3886
+    },
+    {
         "file":  "research-engine.mjs",
         "sha256":  "d777bf04968826a73fc2c88a5047b5c245bd4474f647123def6ae59ee2adcbdf",
         "bytes":  1349
