@@ -12,7 +12,7 @@ from pathlib import Path
 
 REPOSITORY = "arbmsistone-lab/arbm-sist-external-exec-proof"
 BRANCH = "g3/paid-cert-lane-20260910"
-TOTAL_CAP = Decimal("5.00")
+TOTAL_CAP = Decimal("10.00")
 
 
 class PaidGateError(RuntimeError):

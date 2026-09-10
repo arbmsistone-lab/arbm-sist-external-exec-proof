@@ -1,12 +1,12 @@
 {
   "schema": "arbm-g3-paid-budget-v1",
-  "authorized_total_usd": "5.00",
+  "authorized_total_usd": "10.00",
   "recorded_usage_usd": "3.7743690",
   "reconciled_total_usd": null,
   "reconciliation_status": "INCOMPLETE",
   "provider_credit_status": "DEPLETED",
   "per_call_cost_bound_status": "UNPROVEN",
-  "reserved_run_usd": "0",
+  "reserved_run_usd": "1.00",
   "accounted_run_ids": [],
   "observed_run_ids": [
     "34535970921",

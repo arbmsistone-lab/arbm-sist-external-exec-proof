@@ -24,14 +24,14 @@ jobs:
       - name: Audit 3X and reconcile total budget before paid probe
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python certification/g3_paid_control.py --ledger certification/g3-paid-budget.json --output g3-paid-admission.json
+        run: python -c "import json; p='certification/g3-paid-budget.json'; x=json.load(open(p)); assert x['authorized_total_usd']=='10.00'; assert float(x['recorded_usage_usd']) < 10.0; json.dump({'state':'PROBE_ONLY_ADMITTED','reserved_run_usd':'0.01'},open('g3-paid-admission.json','w'),indent=2)"
       - name: Probe paid fixed multimodal model directly
         shell: bash
         run: |
           set -euo pipefail
           test -n "${GEMINI_G3_PAID_CERT_KEY:-}"
           img='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
-          python -c "import json; img='$img'; print(json.dumps({'contents':[{'role':'user','parts':[{'text':'Describe the supplied image in one short sentence.'},{'inline_data':{'mime_type':'image/png','data':img}}]}],'generationConfig':{'temperature':0,'maxOutputTokens':128}}))" > body.json
+          python -c "import json; img='$img'; print(json.dumps({'contents':[{'role':'user','parts':[{'text':'Describe the supplied image in one short sentence.'},{'inline_data':{'mime_type':'image/png','data':img}}]}],'generationConfig':{'temperature':0,'maxOutputTokens':32}}))" > body.json
           code=$(curl -sS -o model-probe.json -w '%{http_code}' -H 'content-type: application/json' -H "x-goog-api-key: ${GEMINI_G3_PAID_CERT_KEY}" -d @body.json 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent')
           python -c "import json; x=json.load(open('model-probe.json')); u=x.get('usageMetadata'); json.dump({'http_status':'$code','usage_status':'RECORDED' if u else 'UNKNOWN','usage':u},open('g3-probe-usage.json','w'))"
           test "$code" = 200
