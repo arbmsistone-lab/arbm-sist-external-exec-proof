@@ -1,0 +1,33 @@
+﻿name: OSWorld G3 paid certification model probe
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Probe fixed paid-cert multimodal model via OIDC
+        shell: bash
+        run: |
+          set -euo pipefail
+          tok=$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=arbm-sist-benchmark-paid" | python -c "import sys,json; print(json.load(sys.stdin)['value'])")
+          img='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+          body=$(python -c "import json,sys; print(json.dumps({'image_base64':sys.argv[1]}))" "$img")
+          curl -fsS -H "Authorization: Bearer $tok" -H 'content-type: application/json' \
+            -d "$body" 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-g3-paid-cert-v1' | tee model-probe.json
+          python - <<'PY'
+          import json
+          d=json.load(open('model-probe.json'))
+          assert d.get('status')=='PASS',d
+          assert d.get('http')==200,d
+          assert d.get('requested_model')=='gemini-3.5-flash',d
+          assert d.get('image_input') and d.get('text_input') and d.get('multimodal_response') and d.get('parsed_response'),d
+          assert d.get('paid_lane') is True,d
+          assert d.get('billing_mode')=='PAID_CERTIFICATION_LANE',d
+          assert d.get('secret_values_present') is False,d
+          print('PAID_MODEL_GATE=PASS')
+          PY
+
