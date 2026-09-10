@@ -43,9 +43,13 @@ def main():
                          "tools":[tool],"tool_choice":{"type":"function","function":{"name":TOOL_NAME}},
                          "provider":{"only":[EXPECTED_PROVIDER],"allow_fallbacks":False}}).encode()
         chat_http,raw=call(CHAT_API,key,body,True); provider=selected_provider(raw); parsed=has_pass_tool(raw)
+        choice=(raw.get("choices") or [{}])[0]; message=choice.get("message") or {}; content=message.get("content")
         ok=chat_http==200 and parsed and provider and provider.lower()==EXPECTED_PROVIDER
         row=result("PASS" if ok else "LIVE_UNCERTIFIED",key_http=key_http,chat_http=chat_http,is_free_tier=True,
-                   parsed=parsed,selected_provider=provider,official_free_requests_per_day=CERTIFIED_REQUESTS_PER_DAY)
+                   parsed=parsed,selected_provider=provider,official_free_requests_per_day=CERTIFIED_REQUESTS_PER_DAY,
+                   finish_reason=choice.get("finish_reason"),message_keys=sorted(message.keys()),content_type=type(content).__name__,
+                   content_len=len(content) if isinstance(content,(str,list)) else 0,tool_call_count=len(message.get("tool_calls") or []),
+                   reasoning_present=bool(message.get("reasoning") or message.get("reasoning_details")))
         if ok: row.update({"account_verified":True,"recurring_free":True,"reset_verified":True,"no_paid_fallback":True,
                            "certified_useful_units_per_day":CERTIFIED_REQUESTS_PER_DAY})
         print(json.dumps(row,separators=(",",":"))); return 0 if ok else 2
