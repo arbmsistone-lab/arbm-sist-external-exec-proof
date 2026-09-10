@@ -1,0 +1,61 @@
+name: OSWorld G3 official one-task smoke
+on:
+  push:
+    paths:
+      - '.github/workflows/osworld-g3-smoke.yml'
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    steps:
+      - name: Prepare remote KVM runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          sudo apt-get clean
+          test -c /dev/kvm
+          sudo chmod 666 /dev/kvm
+          echo 'HEAVY_LOCAL=0' | tee smoke-evidence.txt
+          echo 'ZERO_SPEND_COMPUTE=PASS' | tee -a smoke-evidence.txt
+      - name: Checkout pinned OSWorld and dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v2026.08.08 https://github.com/xlang-ai/OSWorld-V2.git osworld
+          test "$(git -C osworld rev-parse HEAD)" = "d578d2d4e0dc82b43e270fdaa7fa89d9708cd154"
+          cd osworld
+          python -m pip install --disable-pip-version-check -q -U uv huggingface_hub
+          uv sync --frozen
+      - name: Download official task and scoped assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd osworld
+          export HF_TOKEN HF_XET_HIGH_PERFORMANCE=1
+          uv run scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
+          uv run scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 --target-dir cache/osworld_v2_assets --clean --allow-pattern 'task_001/**'
+          test -f evaluation_examples/task_class/task_001.py
+          test -d cache/osworld_v2_assets
+          printf '{"tasks":["001"]}\n' > smoke-one.json
+      - name: Pin runtime and official VM
+        shell: bash
+        run: |
+          set -euo pipefail
+          digest='sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9'
+          docker pull "happysixd/osworld-docker@${digest}"
+          docker tag "happysixd/osworld-docker@${digest}" happysixd/osworld-docker:latest
+          python -m pip install --disable-pip-version-check -q -U huggingface_hub
+          export HF_TOKEN HF_XET_HIGH_PERFORMANCE=1
+          hf download xlangai/v2-image osworld-v2-ubuntu-x86.qcow2.zip --repo-type dataset --revision 8213366932c553e5fe758d0f2c8c8b81ffc3be8c --local-dir hf-vm
+          cp hf-vm/osworld-v2-ubuntu-x86.qcow2.zip osworld-vm.zip
+          test "$(sha256sum osworld-vm.zip | awk '{print $1}')" = "eb737ae70b49849e24af407de6a518439a23de05a8497096a948334ce0a909aa"
+          unzip -q osworld-vm.zip -d vm
+          qcow=$(find vm -type f -name '*.qcow2' | head -1)
+          test -n "$qcow"
+          echo "$PWD/$qcow" > vm-path.txt
