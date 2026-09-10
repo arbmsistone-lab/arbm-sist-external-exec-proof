@@ -1,0 +1,32 @@
+﻿name: OSWorld G3 zero-spend model probe
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/osworld-g3-model-probe.yml'
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - name: Probe fixed free multimodal model
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os,json,requests
+          key=os.environ['OPENROUTER_API_KEY']
+          h={'Authorization':f'Bearer {key}','Content-Type':'application/json'}
+          keyinfo=requests.get('https://openrouter.ai/api/v1/key',headers=h,timeout=30).json().get('data',{})
+          safe={k:keyinfo.get(k) for k in ('label','limit','usage','limit_remaining','is_free_tier') if k in keyinfo}
+          print('OPENROUTER_KEY_INFO='+json.dumps(safe,sort_keys=True))
+          payload={'model':'google/gemma-4-26b-a4b-it:free','messages':[{'role':'user','content':[{'type':'text','text':'Reply exactly VISION_OK if you can inspect the attached image.'},{'type':'image_url','image_url':{'url':'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='}}]}],'max_tokens':16,'temperature':0}
+          r=requests.post('https://openrouter.ai/api/v1/chat/completions',headers=h,json=payload,timeout=90)
+          print('HTTP_STATUS='+str(r.status_code)); r.raise_for_status()
+          d=r.json(); print('MODEL_RETURNED='+str(d.get('model'))); print('VISION_RESPONSE='+str(d['choices'][0]['message']['content'])[:120])
+          print('ZERO_SPEND_MODEL=PASS')
+          PY
