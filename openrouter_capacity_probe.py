@@ -1,4 +1,4 @@
-"""Fail-closed OpenRouter FREE account-bound Liquid inference proof."""
+﻿"""Fail-closed OpenRouter FREE account-bound Liquid inference proof."""
 import json, os, urllib.error, urllib.request
 KEY_API="https://openrouter.ai/api/v1/key"
 CHAT_API="https://openrouter.ai/api/v1/chat/completions"
@@ -39,7 +39,7 @@ def main():
         if key_http!=200 or data.get("is_free_tier") is not True:
             print(json.dumps(result("ACCOUNT_NOT_PROVEN_FREE",key_http=key_http,is_free_tier=data.get("is_free_tier")),separators=(",",":"))); return 2
         tool={"type":"function","function":{"name":TOOL_NAME,"description":"Emit the ARBM provider proof marker.","parameters":{"type":"object","properties":{},"additionalProperties":False}}}
-        body=json.dumps({"model":MODEL,"messages":[{"role":"user","content":"Call the proof function now."}],"max_tokens":64,"temperature":0,
+        body=json.dumps({"model":MODEL,"messages":[{"role":"user","content":"Call the proof function now."}],"max_tokens":128,"temperature":0,"reasoning":{"max_tokens":16},
                          "tools":[tool],"tool_choice":{"type":"function","function":{"name":TOOL_NAME}},
                          "provider":{"only":[EXPECTED_PROVIDER],"allow_fallbacks":False}}).encode()
         chat_http,raw=call(CHAT_API,key,body,True); provider=selected_provider(raw); parsed=has_pass_tool(raw)
@@ -59,3 +59,4 @@ def main():
         print(json.dumps(result("TRANSPORT_ERROR",error=type(e).__name__),separators=(",",":"))); return 2
 
 if __name__=="__main__": raise SystemExit(main())
+
