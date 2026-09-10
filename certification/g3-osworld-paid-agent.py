@@ -15,6 +15,7 @@ class ArbmG3Agent(PromptAgent):
         self._state_keys = []
         self._no_progress_streak = 0
         self._fact_lines = []
+        self._action_families = []
 
     def reset(self, *args, **kwargs):
         self._previous_obs = None
@@ -26,6 +27,7 @@ class ArbmG3Agent(PromptAgent):
         self._state_keys = []
         self._no_progress_streak = 0
         self._fact_lines = []
+        self._action_families = []
         return super().reset(*args, **kwargs)
 
     def _state(self, obs):
@@ -43,6 +45,15 @@ class ArbmG3Agent(PromptAgent):
         self._verifications.append(result)
         return result
 
+    def _action_family(self, action):
+        text=str(action).lower()
+        if 'save' in text: return 'SAVE'
+        if 'doubleclick' in text or 'open' in text: return 'OPEN'
+        if 'find' in text or 'search' in text or ("'ctrl'" in text and "'f'" in text): return 'SEARCH'
+        if 'inbox' in text or ("'alt'" in text and "'tab'" in text): return 'FOCUS'
+        if 'calendar' in text: return 'CALENDAR'
+        return 'OTHER'
+
     def predict(self, instruction, obs):
         grounding = (
             "\n\nVISUAL GROUNDING POLICY: The screenshot coordinates use origin (0,0) at the top-left and match the full screenshot pixel dimensions. "
@@ -53,7 +64,7 @@ class ArbmG3Agent(PromptAgent):
             "Use the current screenshot as ground truth and complete the user's task efficiently within the remaining step budget. "
             "Return only executable pyautogui Python in a code fence, or WAIT/DONE/FAIL; never ask the user questions or output prose. "
             "If application focus is uncertain, prefer Alt+Tab or another keyboard focus strategy, then inspect the next screenshot; never click a dock coordinate from memory. "
-            "If the last action did not change state, do not repeat it; switch strategy using keyboard navigation, search, menus, or a different visible target."
+            "If the last action did not change state, do not repeat it; switch strategy using keyboard navigation, search, menus, or a different visible target. If an attachment contains needed information, inspect/open it; repeatedly saving the same attachment is not progress. After one failed save/open path, use a different visible Open/Open With path."
         )
         instruction += grounding
         if self._action_signatures:
@@ -73,6 +84,8 @@ class ArbmG3Agent(PromptAgent):
                 self._no_progress_streak = 0
         if self._no_progress_streak >= 2:
             instruction += '\nANTI_LOOP_ESCALATION: two or more consecutive no-progress/revisited states were detected. Stop launcher/dock/window-toggle cycling. Prefer direct in-app controls, keyboard shortcuts, search, or closing an unrelated foreground window. The next action must materially change task state.'
+        if len(self._action_families)>=2 and self._action_families[-1]==self._action_families[-2]:
+            instruction += '\nSEMANTIC_WATCHDOG: the last two actions used the same action family ('+self._action_families[-1]+'). Do not use that family again now; choose a materially different visible-UI strategy that advances the task.'
         tree = obs.get('accessibility_tree') if isinstance(obs, dict) else None
         if tree:
             lines = str(tree).splitlines()
@@ -107,6 +120,7 @@ class ArbmG3Agent(PromptAgent):
             if self._action_signatures[-3:].count(sig)>=3:
                 actions=['FAIL']
             self._action_signatures.append(sig)
+            self._action_families.append(self._action_family(actions[0]) if actions else 'OTHER')
             self._previous_action=actions[0] if actions else None
             self._previous_obs=obs
         return response, actions
