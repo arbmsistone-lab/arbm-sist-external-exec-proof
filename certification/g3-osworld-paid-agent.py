@@ -70,10 +70,28 @@ class ArbmG3Agent(PromptAgent):
                 self._no_progress_streak = 0
         if self._no_progress_streak >= 2:
             instruction += '\nANTI_LOOP_ESCALATION: two or more consecutive no-progress/revisited states were detected. Stop launcher/dock/window-toggle cycling. Prefer direct in-app controls, keyboard shortcuts, search, or closing an unrelated foreground window. The next action must materially change task state.'
+        tree = obs.get('accessibility_tree') if isinstance(obs, dict) else None
+        if tree:
+            lines = str(tree).splitlines()
+            task_terms = {w.strip('.,:;!?()[]{}').lower() for w in instruction.split() if len(w.strip('.,:;!?()[]{}')) >= 5}
+            task_terms.update({'calendar','inbox','attachment','schedule','find all'})
+            relevant = [line for line in lines if any(k in line.lower() for k in task_terms)]
+            if relevant:
+                instruction += "\nCURRENT_A11Y_EVIDENCE:\n" + "\n".join(relevant[-40:])[-5000:]
         response, actions = super().predict(instruction, obs)
+        for _ in range(2):
+            joined = json.dumps(actions, default=str).lower() if actions else ''
+            forbidden = ('ask_user' in joined or "ctrl', 'alt', 't" in joined or 'open terminal' in joined or 'terminal' in joined)
+            if not forbidden:
+                break
+            recovery = instruction + "\nAUTONOMY_RECOVERY: ASK_USER and Terminal/shell are forbidden. Continue autonomously using only the visible desktop UI and current accessibility evidence. Preserve discovered task facts, do not restart discovery, and choose the next action that materially advances completion. Return executable pyautogui only, or DONE/FAIL."
+            response, actions = super().predict(recovery, obs)
         if self._fatal_model_error:
             raise RuntimeError(self._fatal_model_error)
         if actions:
+            joined = json.dumps(actions, default=str).lower()
+            if 'ask_user' in joined or "ctrl', 'alt', 't" in joined or 'terminal' in joined:
+                actions=['FAIL']
             sig=json.dumps(actions,sort_keys=True,default=str)
             if self._action_signatures[-3:].count(sig)>=3:
                 actions=['FAIL']
