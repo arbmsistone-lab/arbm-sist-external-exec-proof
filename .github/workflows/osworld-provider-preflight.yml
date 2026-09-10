@@ -1,5 +1,6 @@
 name: OSWorld official provider zero-spend preflight
 on:
+  workflow_dispatch:
   push:
     paths:
       - '.github/workflows/osworld-provider-preflight.yml'
