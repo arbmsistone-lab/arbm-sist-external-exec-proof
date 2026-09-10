@@ -37,6 +37,18 @@ class ArbmG3Agent(PromptAgent):
         return result
 
     def predict(self, instruction, obs):
+        grounding = (
+            "\n\nVISUAL GROUNDING POLICY: The screenshot coordinates use origin (0,0) at the top-left and match the full screenshot pixel dimensions. "
+            "Before acting, identify which application/window is already active and do not reopen or toggle it if the needed UI is already visible. "
+            "When clicking a visible target, choose the center of the target element itself, not adjacent navigation chrome, folders, borders, or dock icons. "
+            "If a target is not unambiguously visible, prefer a robust keyboard navigation/search strategy over guessing coordinates. "
+            "Track task progress across steps. Do not repeat a semantically equivalent action that failed to make progress; change strategy instead. "
+            "Use the current screenshot as ground truth and complete the user's task efficiently within the remaining step budget."
+        )
+        instruction += grounding
+        if self._action_signatures:
+            recent=self._action_signatures[-3:]
+            instruction += "\nRecent actions already attempted: " + " | ".join(recent)[-1200:] + "\nAvoid repeating them unless the screenshot proves it is necessary."
         verification=self._verify_previous(obs)
         if verification and verification.get('decision',{}).get('state')!='VERIFIED':
             instruction += '\nPrevious action produced no verified state transition. Recover by reassessing the current screenshot and choose a different safe action.'
