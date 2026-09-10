@@ -102,6 +102,12 @@ jobs:
           VIKASIT_API_KEY: ${{ secrets.VIKASIT_API_KEY }}
         run: |
           python vikasit_capacity_probe.py
+      - name: Prove Hugging Face account billing status
+        if: github.event_name != 'pull_request'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python hf_account_status_probe.py | tee hf-account-status.json
       - name: Probe Hugging Face recurring FREE account envelope
         if: github.event_name != 'pull_request'
         env:
