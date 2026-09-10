@@ -43,7 +43,10 @@ class ArbmG3Agent(PromptAgent):
             "When clicking a visible target, choose the center of the target element itself, not adjacent navigation chrome, folders, borders, or dock icons. "
             "If a target is not unambiguously visible, prefer a robust keyboard navigation/search strategy over guessing coordinates. "
             "Track task progress across steps. Do not repeat a semantically equivalent action that failed to make progress; change strategy instead. "
-            "Use the current screenshot as ground truth and complete the user's task efficiently within the remaining step budget."
+            "Use the current screenshot as ground truth and complete the user's task efficiently within the remaining step budget. "
+            "Return only executable pyautogui Python in a code fence, or WAIT/DONE/FAIL; never ask the user questions or output prose. "
+            "If application focus is uncertain, prefer Alt+Tab or another keyboard focus strategy, then inspect the next screenshot; never click a dock coordinate from memory. "
+            "If the last action did not change state, do not repeat it; switch strategy using keyboard navigation, search, menus, or a different visible target."
         )
         instruction += grounding
         if self._action_signatures:
@@ -68,6 +71,8 @@ class ArbmG3Agent(PromptAgent):
         if not key:
             raise RuntimeError('GEMINI_G3_PAID_CERT_KEY_MISSING')
         messages=payload.get('messages',[]) if isinstance(payload,dict) else []
+        if len(messages) > 2:
+            messages = [messages[0], messages[-1]]
         system=''
         contents=[]
         for message in messages:
@@ -86,7 +91,7 @@ class ArbmG3Agent(PromptAgent):
                         parts.append({'inline_data':{'mime_type':head[5:],'data':data}})
             if parts:
                 contents.append({'role':'model' if role=='assistant' else 'user','parts':parts})
-        body={'contents':contents,'generationConfig':{'temperature':float(payload.get('temperature',0) or 0),'maxOutputTokens':min(4096,max(16,int(payload.get('max_tokens',512) or 512)))}}
+        body={'contents':contents,'generationConfig':{'maxOutputTokens':min(4096,max(16,int(payload.get('max_tokens',512) or 512))),'thinkingConfig':{'thinkingLevel':'LOW'}}}
         if system: body['systemInstruction']={'parts':[{'text':system}]}
         min_interval=max(1.0,float(os.environ.get('ARBM_G3_MIN_REQUEST_INTERVAL_SEC','15')))
         elapsed=time.monotonic()-self._last_llm_at
