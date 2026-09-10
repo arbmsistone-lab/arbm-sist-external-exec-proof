@@ -1,4 +1,4 @@
-"""Fail-closed OpenRouter FREE account-bound Liquid inference proof."""
+﻿"""Fail-closed OpenRouter FREE account-bound Liquid inference proof."""
 import json, os, urllib.error, urllib.request
 KEY_API="https://openrouter.ai/api/v1/key"
 CHAT_API="https://openrouter.ai/api/v1/chat/completions"
@@ -39,7 +39,7 @@ def main():
         key_http,meta=call(KEY_API,key); data=meta.get("data") or {}
         if key_http!=200 or data.get("is_free_tier") is not True:
             print(json.dumps(result("ACCOUNT_NOT_PROVEN_FREE",key_http=key_http,is_free_tier=data.get("is_free_tier")),separators=(",",":"))); return 2
-        body=json.dumps({"model":MODEL,"messages":[{"role":"user","content":"Reply exactly with "+MARKER}],"max_tokens":96,"temperature":0,
+        body=json.dumps({"model":MODEL,"messages":[{"role":"user","content":"Reply exactly with "+MARKER}],"max_tokens":96,"temperature":0,"reasoning":{"effort":"none"},
                          "provider":{"only":[EXPECTED_PROVIDER],"allow_fallbacks":False}}).encode()
         chat_http,raw=call(CHAT_API,key,body,True); provider=selected_provider(raw); text=extract_text(raw)
         ok=chat_http==200 and MARKER in text and provider and provider.lower()==EXPECTED_PROVIDER
@@ -54,3 +54,4 @@ def main():
         print(json.dumps(result("TRANSPORT_ERROR",error=type(e).__name__),separators=(",",":"))); return 2
 
 if __name__=="__main__": raise SystemExit(main())
+
