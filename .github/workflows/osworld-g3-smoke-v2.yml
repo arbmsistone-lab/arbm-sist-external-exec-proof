@@ -12,6 +12,7 @@ jobs:
     timeout-minutes: 55
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      AWS_REGION: us-east-1
     steps:
       - name: Checkout G3 tooling
         uses: actions/checkout@v4
