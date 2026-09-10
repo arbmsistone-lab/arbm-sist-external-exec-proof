@@ -23,6 +23,12 @@ class OpenRouterCapacityProbeTests(unittest.TestCase):
         self.assertEqual(p.selected_provider({"openrouter_metadata":{"endpoints":{"available":[{"provider":"liquid","selected":True}]}}}),"liquid")
         self.assertIsNone(p.selected_provider({"openrouter_metadata":{"endpoints":{"available":[{"provider":"other","selected":True},{"provider":"liquid","selected":True}]}}}))
 
+    def test_forced_tool_proof_requires_exact_tool(self):
+        good={"choices":[{"message":{"tool_calls":[{"function":{"name":p.TOOL_NAME}}]}}]}
+        bad={"choices":[{"message":{"tool_calls":[{"function":{"name":"other"}}]}}]}
+        self.assertTrue(p.has_pass_tool(good))
+        self.assertFalse(p.has_pass_tool(bad))
+
     def test_non_free_account_is_rejected(self):
         out=io.StringIO()
         with patch.dict(os.environ,{"ZERO_SPEND_MODE":"HARD","OPENROUTER_API_KEY":"x"},clear=True), \
