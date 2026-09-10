@@ -33,7 +33,7 @@ jobs:
           img='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
           python -c "import json; img='$img'; print(json.dumps({'contents':[{'role':'user','parts':[{'text':'Describe the supplied image in one short sentence.'},{'inline_data':{'mime_type':'image/png','data':img}}]}],'generationConfig':{'temperature':0,'maxOutputTokens':32}}))" > body.json
           code=$(curl -sS -o model-probe.json -w '%{http_code}' -H 'content-type: application/json' -H "x-goog-api-key: ${GEMINI_G3_PAID_CERT_KEY}" -d @body.json 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent')
-          python -c "import json; x=json.load(open('model-probe.json')); u=x.get('usageMetadata'); json.dump({'http_status':'$code','usage_status':'RECORDED' if u else 'UNKNOWN','usage':u},open('g3-probe-usage.json','w'))"
+          python -c "import json; x=json.load(open('model-probe.json')); u=x.get('usageMetadata'); e=x.get('error') or {}; m=str(e.get('message','')).lower(); reason='CREDIT_DEPLETED' if ('prepayment credits are depleted' in m or 'insufficient credit' in m) else ('RATE_OR_QUOTA_429' if '$code'=='429' else str(e.get('status','UNKNOWN'))); json.dump({'http_status':'$code','usage_status':'RECORDED' if u else 'UNKNOWN','usage':u,'error_code':e.get('code'),'error_status':e.get('status'),'reason':reason},open('g3-probe-usage.json','w'))"
           test "$code" = 200
           python -c "import json; x=json.load(open('model-probe.json')); cs=x.get('candidates') or []; assert cs, x.get('error'); c=cs[0]; parts=c.get('content',{}).get('parts') or []; txt=''.join(str(i.get('text','')) for i in parts if isinstance(i,dict)).strip(); u=x.get('usageMetadata',{}); print('PAID_MODEL_GATE=PASS' if txt else 'PAID_MODEL_GATE=NO_TEXT'); print('HTTP=200'); print('MODEL=gemini-3.5-flash'); print('FINISH_REASON='+str(c.get('finishReason'))); print('PART_TYPES='+','.join(sorted({','.join(i.keys()) for i in parts if isinstance(i,dict)}))); print('PROMPT_TOKENS='+str(u.get('promptTokenCount'))); print('OUTPUT_TOKENS='+str(u.get('candidatesTokenCount'))); print('TOTAL_TOKENS='+str(u.get('totalTokenCount'))); assert txt"
       - name: Preserve admission and usage even on failure
@@ -45,3 +45,4 @@ jobs:
           path: |
             g3-paid-admission.json
             g3-probe-usage.json
+            model-probe.json
