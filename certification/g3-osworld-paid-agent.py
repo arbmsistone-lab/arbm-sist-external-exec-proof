@@ -4,6 +4,7 @@ from mm_agents.agent import PromptAgent
 
 class ArbmG3Agent(PromptAgent):
     def __init__(self, *args, **kwargs):
+        kwargs.setdefault('a11y_tree_max_tokens', 2500)
         super().__init__(*args, **kwargs)
         self._previous_obs = None
         self._previous_action = None
@@ -13,6 +14,7 @@ class ArbmG3Agent(PromptAgent):
         self._fatal_model_error = None
         self._state_keys = []
         self._no_progress_streak = 0
+        self._fact_lines = []
 
     def reset(self, *args, **kwargs):
         self._previous_obs = None
@@ -23,6 +25,7 @@ class ArbmG3Agent(PromptAgent):
         self._fatal_model_error = None
         self._state_keys = []
         self._no_progress_streak = 0
+        self._fact_lines = []
         return super().reset(*args, **kwargs)
 
     def _state(self, obs):
@@ -76,21 +79,29 @@ class ArbmG3Agent(PromptAgent):
             task_terms = {w.strip('.,:;!?()[]{}').lower() for w in instruction.split() if len(w.strip('.,:;!?()[]{}')) >= 5}
             task_terms.update({'calendar','inbox','attachment','schedule','find all'})
             relevant = [line for line in lines if any(k in line.lower() for k in task_terms)]
+            for line in relevant:
+                if line not in self._fact_lines:
+                    self._fact_lines.append(line)
+            self._fact_lines = self._fact_lines[-24:]
             if relevant:
-                instruction += "\nCURRENT_A11Y_EVIDENCE:\n" + "\n".join(relevant[-40:])[-5000:]
+                instruction += "\nCURRENT_A11Y_EVIDENCE:\n" + "\n".join(relevant[-24:])[-3500:]
+            if self._fact_lines:
+                instruction += "\nDISCOVERED_FACTS_MEMORY:\n" + "\n".join(self._fact_lines)[-3500:]
         response, actions = super().predict(instruction, obs)
         for _ in range(2):
             joined = json.dumps(actions, default=str).lower() if actions else ''
-            forbidden = ('ask_user' in joined or "ctrl', 'alt', 't" in joined or 'open terminal' in joined or 'terminal' in joined)
-            if not forbidden:
+            invalid = (not actions or 'ask_user' in joined or "ctrl', 'alt', 't" in joined or 'terminal' in joined or 'openpyxl' in joined or 'subprocess' in joined or 'pathlib' in joined)
+            if not invalid:
                 break
-            recovery = instruction + "\nAUTONOMY_RECOVERY: ASK_USER and Terminal/shell are forbidden. Continue autonomously using only the visible desktop UI and current accessibility evidence. Preserve discovered task facts, do not restart discovery, and choose the next action that materially advances completion. Return executable pyautogui only, or DONE/FAIL."
+            while len(self.observations) > len(self.actions): self.observations.pop()
+            while len(self.thoughts) > len(self.actions): self.thoughts.pop()
+            recovery = instruction + "\nAUTONOMY_RECOVERY: No user questions, Terminal/shell, filesystem libraries, or non-UI shortcuts are allowed. Continue autonomously through visible desktop UI only. Preserve discovered facts and move directly toward task completion. Return executable pyautogui only, or DONE/FAIL."
             response, actions = super().predict(recovery, obs)
         if self._fatal_model_error:
             raise RuntimeError(self._fatal_model_error)
         if actions:
             joined = json.dumps(actions, default=str).lower()
-            if 'ask_user' in joined or "ctrl', 'alt', 't" in joined or 'terminal' in joined:
+            if 'ask_user' in joined or "ctrl', 'alt', 't" in joined or 'terminal' in joined or 'openpyxl' in joined or 'subprocess' in joined or 'pathlib' in joined:
                 actions=['FAIL']
             sig=json.dumps(actions,sort_keys=True,default=str)
             if self._action_signatures[-3:].count(sig)>=3:
