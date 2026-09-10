@@ -5,12 +5,20 @@ CHAT_API="https://openrouter.ai/api/v1/chat/completions"
 MODEL="liquid/lfm-2.5-2.6b:free"
 EXPECTED_PROVIDER="liquid"
 CERTIFIED_REQUESTS_PER_DAY=50
+MARKER="ARBM_OPENROUTER_PASS"
 
 def call(url,key,data=None,metadata=False):
     h={"Authorization":"Bearer "+key,"Content-Type":"application/json"}
     if metadata: h["X-OpenRouter-Metadata"]="enabled"
     q=urllib.request.Request(url,data=data,method="POST" if data else "GET",headers=h)
     with urllib.request.urlopen(q,timeout=45) as r:return r.status,json.loads(r.read() or b'{}')
+
+def extract_text(raw):
+    content=((raw.get("choices") or [{}])[0].get("message") or {}).get("content")
+    if isinstance(content,str): return content
+    if isinstance(content,list):
+        return "".join(str(x.get("text") or "") for x in content if isinstance(x,dict))
+    return ""
 
 def result(status,**extra):
     return {"provider":"openrouter-liquid-free","independence_pool":"openrouter-account-liquid-runtime",
@@ -21,6 +29,7 @@ def selected_provider(raw):
     meta=raw.get("openrouter_metadata") or {}; eps=(meta.get("endpoints") or {}).get("available") or []
     chosen=[str(e.get("provider") or "") for e in eps if e.get("selected") is True]
     return chosen[0] if len(chosen)==1 else None
+
 def main():
     if os.environ.get("ZERO_SPEND_MODE")!="HARD": raise SystemExit("ZERO_SPEND_HARD_REQUIRED")
     key=os.environ.get("OPENROUTER_API_KEY","").strip()
@@ -30,13 +39,12 @@ def main():
         key_http,meta=call(KEY_API,key); data=meta.get("data") or {}
         if key_http!=200 or data.get("is_free_tier") is not True:
             print(json.dumps(result("ACCOUNT_NOT_PROVEN_FREE",key_http=key_http,is_free_tier=data.get("is_free_tier")),separators=(",",":"))); return 2
-        body=json.dumps({"model":MODEL,"messages":[{"role":"user","content":"Reply only ARBM_OPENROUTER_PASS"}],"max_tokens":16,"temperature":0,
+        body=json.dumps({"model":MODEL,"messages":[{"role":"user","content":"Reply exactly with "+MARKER}],"max_tokens":96,"temperature":0,
                          "provider":{"only":[EXPECTED_PROVIDER],"allow_fallbacks":False}}).encode()
-        chat_http,raw=call(CHAT_API,key,body,True); provider=selected_provider(raw)
-        text=str(((raw.get("choices") or [{}])[0].get("message") or {}).get("content") or "")
-        ok=chat_http==200 and bool(text) and provider and provider.lower()==EXPECTED_PROVIDER
+        chat_http,raw=call(CHAT_API,key,body,True); provider=selected_provider(raw); text=extract_text(raw)
+        ok=chat_http==200 and MARKER in text and provider and provider.lower()==EXPECTED_PROVIDER
         row=result("PASS" if ok else "LIVE_UNCERTIFIED",key_http=key_http,chat_http=chat_http,is_free_tier=True,
-                   parsed=bool(text),selected_provider=provider,official_free_requests_per_day=CERTIFIED_REQUESTS_PER_DAY)
+                   parsed=MARKER in text,selected_provider=provider,official_free_requests_per_day=CERTIFIED_REQUESTS_PER_DAY)
         if ok: row.update({"account_verified":True,"recurring_free":True,"reset_verified":True,"no_paid_fallback":True,
                            "certified_useful_units_per_day":CERTIFIED_REQUESTS_PER_DAY})
         print(json.dumps(row,separators=(",",":"))); return 0 if ok else 2
