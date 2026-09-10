@@ -1,5 +1,5 @@
 import json, unittest
-from merge_live_capacity_evidence import merge
+from merge_live_capacity_evidence import merge, qualified
 from capacity_excellence import chaos_floors
 
 class SevenOfSevenPromotionPathTests(unittest.TestCase):
@@ -18,7 +18,7 @@ class SevenOfSevenPromotionPathTests(unittest.TestCase):
         openrouter=self.proof('openrouter-liquid-free','openrouter-account-liquid-runtime','decisions',50)
         hf=self.proof('huggingface-novita-free','huggingface-account-novita-runtime','tokens',74441,74441)
         out=merge(self.base,[openrouter,hf],'synthetic-integration-test')
-        pools={r.get('independence_pool') for r in out['routes'] if r.get('independence_pool')}
+        pools={r.get('independence_pool') for r in out['routes'] if qualified({'provider':r.get('name'),'independence_pool':r.get('independence_pool'),'capacity_kind':r.get('capacity_kind','tokens'),'account_verified':r.get('account_verified'),'recurring_free':r.get('recurring_free'),'reset_verified':r.get('reset_verified'),'no_paid_fallback':r.get('no_paid_fallback'),'mandatory_cost_usd':r.get('mandatory_cost_usd',0),'paid_fallback_used':r.get('paid_fallback_used',False),'certified_useful_units_per_day':r.get('certified_useful_units_per_day'),'certified_tokens_per_day':r.get('certified_tokens_per_day')})}
         self.assertEqual(len(pools),7)
         self.assertEqual(out['certified_useful_units_per_day'],12992264)
         self.assertEqual(out['certified_tokens_per_day'],8588214)
@@ -30,7 +30,7 @@ class SevenOfSevenPromotionPathTests(unittest.TestCase):
         bad=self.proof('bad','bad-pool','decisions',50)
         bad['account_verified']=False
         out=merge(self.base,[bad],'synthetic-integration-test')
-        pools={r.get('independence_pool') for r in out['routes'] if r.get('independence_pool')}
+        pools={r.get('independence_pool') for r in out['routes'] if qualified({'provider':r.get('name'),'independence_pool':r.get('independence_pool'),'capacity_kind':r.get('capacity_kind','tokens'),'account_verified':r.get('account_verified'),'recurring_free':r.get('recurring_free'),'reset_verified':r.get('reset_verified'),'no_paid_fallback':r.get('no_paid_fallback'),'mandatory_cost_usd':r.get('mandatory_cost_usd',0),'paid_fallback_used':r.get('paid_fallback_used',False),'certified_useful_units_per_day':r.get('certified_useful_units_per_day'),'certified_tokens_per_day':r.get('certified_tokens_per_day')})}
         self.assertEqual(len(pools),5)
         self.assertNotIn('bad-pool',pools)
         self.assertEqual(out['certified_useful_units_per_day'],12917773)
