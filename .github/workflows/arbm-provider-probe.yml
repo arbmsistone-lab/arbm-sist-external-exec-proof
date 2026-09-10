@@ -102,6 +102,12 @@ jobs:
           VIKASIT_API_KEY: ${{ secrets.VIKASIT_API_KEY }}
         run: |
           python vikasit_capacity_probe.py
+      - name: Probe Hugging Face recurring FREE account envelope
+        if: github.event_name != 'pull_request'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python huggingface_capacity_probe.py | tee hf-account-live.json
       - name: Probe Groq model-specific FREE buckets
         if: github.event_name != 'pull_request'
         run: |
