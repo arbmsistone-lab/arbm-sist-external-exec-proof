@@ -12,9 +12,6 @@ jobs:
     timeout-minutes: 55
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      AWS_REGION: us-east-1
-      AWS_SUBNET_ID: unused-docker
-      AWS_SECURITY_GROUP_ID: unused-docker
     steps:
       - name: Checkout G3 tooling
         uses: actions/checkout@v4
@@ -44,6 +41,13 @@ jobs:
           s=open(p,encoding='utf-8').read()
           s=s.replace('from mm_agents.agent import PromptAgent','from mm_agents.arbm_g3_agent import ArbmG3Agent')
           s=s.replace('agent = PromptAgent(', 'agent = ArbmG3Agent(')
+          aws_old = "        from desktop_env.providers.aws.manager import IMAGE_ID_MAP\n        REGION = args.region\n        screen_size = (args.screen_width, args.screen_height)\n        ami_id = IMAGE_ID_MAP[REGION].get(screen_size, IMAGE_ID_MAP[REGION][(1920, 1080)])\n"
+          aws_new = "        REGION = args.region\n        screen_size = (args.screen_width, args.screen_height)\n        snapshot_name = None\n        if args.provider_name == \"aws\":\n            from desktop_env.providers.aws.manager import IMAGE_ID_MAP\n            snapshot_name = IMAGE_ID_MAP[REGION].get(screen_size, IMAGE_ID_MAP[REGION][(1920, 1080)])\n"
+          assert aws_old in s, 'upstream aws bootstrap block changed'
+          s=s.replace(aws_old, aws_new, 1)
+          assert 'snapshot_name=ami_id,' in s, 'upstream snapshot argument changed'
+          s=s.replace('snapshot_name=ami_id,','snapshot_name=snapshot_name,',1)
+          assert 'if args.provider_name == "aws":' in s
           open(p,'w',encoding='utf-8').write(s)
           assert 'agent = ArbmG3Agent(' in s
           PY
