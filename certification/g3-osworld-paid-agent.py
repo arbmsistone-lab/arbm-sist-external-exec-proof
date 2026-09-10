@@ -1,4 +1,4 @@
-﻿import base64, json, os, subprocess, time
+import base64, json, os, subprocess, time
 import requests
 from mm_agents.agent import PromptAgent
 
@@ -88,6 +88,18 @@ class ArbmG3Agent(PromptAgent):
             raise RuntimeError('MODEL_RATE_LIMIT')
         r.raise_for_status()
         data=r.json()
+        usage=data.get('usageMetadata',{}) or {}
+        usage_path=os.environ.get('ARBM_G3_USAGE_LOG','').strip()
+        if usage_path:
+            row={
+                'prompt_tokens':int(usage.get('promptTokenCount') or 0),
+                'output_tokens':int(usage.get('candidatesTokenCount') or 0),
+                'thought_tokens':int(usage.get('thoughtsTokenCount') or 0),
+                'total_tokens':int(usage.get('totalTokenCount') or 0),
+                'model':'gemini-3.5-flash',
+            }
+            with open(usage_path,'a',encoding='utf-8') as fh:
+                fh.write(json.dumps(row,separators=(',',':'))+'\n')
         text=''.join(p.get('text','') for p in data.get('candidates',[{}])[0].get('content',{}).get('parts',[])).strip()
         if not text:
             raise RuntimeError('EMPTY_MODEL_RESPONSE')

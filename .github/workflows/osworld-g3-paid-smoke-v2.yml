@@ -1,6 +1,11 @@
 name: OSWorld G3 paid certification one-task smoke v2
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - g3/paid-cert-lane-20260910
+    paths:
+      - '.g3-paid-smoke-trigger'
 permissions:
   contents: read
   id-token: write
@@ -86,6 +91,7 @@ jobs:
         env:
           ARBM_G3_OIDC: ${{ steps.oidc.outputs.result }}
           GEMINI_G3_PAID_CERT_KEY: ${{ secrets.GEMINI_G3_PAID_CERT_KEY }}
+          ARBM_G3_USAGE_LOG: ${{ github.workspace }}/g3-paid-usage.jsonl
         run: |
           set -euo pipefail
           export OSWORLD_FILE_BASE_URL="$PWD/osworld/cache/osworld_v2_assets"
@@ -109,6 +115,19 @@ jobs:
           print(f'OFFICIAL_SMOKE_SCORE={score}')
           PY
           printf 'OFFICIAL_ONE_TASK_SMOKE=PASS\nMODEL=gemini-3.5-flash\nPAID_LANE=true\nCOST_ACCOUNTED=true\n' >> smoke-evidence.txt
+          python - <<'PY'
+          import json, pathlib
+          p=pathlib.Path('g3-paid-usage.jsonl')
+          rows=[json.loads(x) for x in p.read_text().splitlines() if x.strip()] if p.exists() else []
+          calls=len(rows); prompt=sum(r['prompt_tokens'] for r in rows); out=sum(r['output_tokens'] for r in rows); thought=sum(r['thought_tokens'] for r in rows); total=sum(r['total_tokens'] for r in rows)
+          print(f'PAID_MODEL_CALLS={calls}')
+          print(f'PROMPT_TOKENS={prompt}')
+          print(f'OUTPUT_TOKENS={out}')
+          print(f'THOUGHT_TOKENS={thought}')
+          print(f'TOTAL_TOKENS={total}')
+          with open('smoke-evidence.txt','a') as f:
+              f.write(f'PAID_MODEL_CALLS={calls}\nPROMPT_TOKENS={prompt}\nOUTPUT_TOKENS={out}\nTHOUGHT_TOKENS={thought}\nTOTAL_TOKENS={total}\n')
+          PY
       - name: Cleanup remote runtime
         if: always()
         shell: bash
@@ -124,6 +143,7 @@ jobs:
           name: osworld-g3-paid-cert-smoke-evidence
           path: |
             smoke-evidence.txt
+            g3-paid-usage.jsonl
             osworld/results-smoke
           retention-days: 1
           if-no-files-found: warn
