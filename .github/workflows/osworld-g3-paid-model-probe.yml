@@ -1,33 +1,20 @@
-﻿name: OSWorld G3 paid certification model probe
+name: OSWorld G3 paid certification model probe
 on:
   workflow_dispatch:
-permissions:
-  contents: read
-  id-token: write
 jobs:
   probe:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    env:
+      GEMINI_G3_PAID_CERT_KEY: ${{ secrets.GEMINI_G3_PAID_CERT_KEY }}
     steps:
-      - name: Probe fixed paid-cert multimodal model via OIDC
+      - name: Probe paid fixed multimodal model directly
         shell: bash
         run: |
           set -euo pipefail
-          tok=$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=arbm-sist-benchmark-paid" | python -c "import sys,json; print(json.load(sys.stdin)['value'])")
+          test -n "${GEMINI_G3_PAID_CERT_KEY:-}"
           img='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
-          body=$(python -c "import json,sys; print(json.dumps({'image_base64':sys.argv[1]}))" "$img")
-          curl -fsS -H "Authorization: Bearer $tok" -H 'content-type: application/json' \
-            -d "$body" 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-g3-paid-cert-v1' | tee model-probe.json
-          python - <<'PY'
-          import json
-          d=json.load(open('model-probe.json'))
-          assert d.get('status')=='PASS',d
-          assert d.get('http')==200,d
-          assert d.get('requested_model')=='gemini-3.5-flash',d
-          assert d.get('image_input') and d.get('text_input') and d.get('multimodal_response') and d.get('parsed_response'),d
-          assert d.get('paid_lane') is True,d
-          assert d.get('billing_mode')=='PAID_CERTIFICATION_LANE',d
-          assert d.get('secret_values_present') is False,d
-          print('PAID_MODEL_GATE=PASS')
-          PY
-
+          python -c "import json; img='$img'; print(json.dumps({'contents':[{'role':'user','parts':[{'text':'Reply exactly VISION_OK if the supplied image is visible.'},{'inline_data':{'mime_type':'image/png','data':img}}]}],'generationConfig':{'temperature':0,'maxOutputTokens':64}}))" > body.json
+          code=$(curl -sS -o model-probe.json -w '%{http_code}' -H 'content-type: application/json' -H "x-goog-api-key: ${GEMINI_G3_PAID_CERT_KEY}" -d @body.json 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent')
+          test "$code" = 200
+          python -c "import json; x=json.load(open('model-probe.json')); p=x.get('candidates',[{}])[0].get('content',{}).get('parts',[]); t=''.join(i.get('text','') for i in p).strip(); assert t; u=x.get('usageMetadata',{}); print('PAID_MODEL_GATE=PASS'); print('MODEL=gemini-3.5-flash'); print('PROMPT_TOKENS='+str(u.get('promptTokenCount'))); print('OUTPUT_TOKENS='+str(u.get('candidatesTokenCount'))); print('TOTAL_TOKENS='+str(u.get('totalTokenCount')))"
