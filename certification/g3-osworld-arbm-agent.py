@@ -1,4 +1,4 @@
-import base64, json, os, subprocess
+import base64, json, os, subprocess, time
 import requests
 from mm_agents.agent import PromptAgent
 
@@ -9,12 +9,14 @@ class ArbmG3Agent(PromptAgent):
         self._previous_action = None
         self._action_signatures = []
         self._verifications = []
+        self._last_llm_at = 0.0
 
     def reset(self, *args, **kwargs):
         self._previous_obs = None
         self._previous_action = None
         self._action_signatures = []
         self._verifications = []
+        self._last_llm_at = 0.0
         return super().reset(*args, **kwargs)
 
     def _state(self, obs):
@@ -52,9 +54,23 @@ class ArbmG3Agent(PromptAgent):
         endpoint=os.environ['ARBM_G3_MODEL_ENDPOINT']
         request_payload=dict(payload)
         request_payload['model']='gpt-arbm-g3-fixed'
-        r=requests.post(endpoint,headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'},json=request_payload,timeout=120)
-        if r.status_code==429:
-            raise RuntimeError('MODEL_TRANSPORT_429')
+        min_interval=max(1.0,float(os.environ.get('ARBM_G3_MIN_REQUEST_INTERVAL_SEC','15')))
+        elapsed=time.monotonic()-self._last_llm_at
+        if self._last_llm_at and elapsed < min_interval:
+            time.sleep(min_interval-elapsed)
+        for attempt in range(4):
+            self._last_llm_at=time.monotonic()
+            r=requests.post(endpoint,headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'},json=request_payload,timeout=120)
+            if r.status_code != 429:
+                break
+            if attempt == 3:
+                raise RuntimeError('MODEL_TRANSPORT_429')
+            retry_after=r.headers.get('Retry-After','').strip()
+            try:
+                server_delay=float(retry_after)
+            except ValueError:
+                server_delay=0.0
+            time.sleep(min(60.0,max(min_interval,server_delay,min_interval*(attempt+1))))
         r.raise_for_status()
         data=r.json()
         if data.get('model')!='gemini-3.5-flash':
