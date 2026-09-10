@@ -11,6 +11,8 @@ class ArbmG3Agent(PromptAgent):
         self._verifications = []
         self._last_llm_at = 0.0
         self._fatal_model_error = None
+        self._state_keys = []
+        self._no_progress_streak = 0
 
     def reset(self, *args, **kwargs):
         self._previous_obs = None
@@ -19,6 +21,8 @@ class ArbmG3Agent(PromptAgent):
         self._verifications = []
         self._last_llm_at = 0.0
         self._fatal_model_error = None
+        self._state_keys = []
+        self._no_progress_streak = 0
         return super().reset(*args, **kwargs)
 
     def _state(self, obs):
@@ -53,8 +57,19 @@ class ArbmG3Agent(PromptAgent):
             recent=self._action_signatures[-3:]
             instruction += "\nRecent actions already attempted: " + " | ".join(recent)[-1200:] + "\nAvoid repeating them unless the screenshot proves it is necessary."
         verification=self._verify_previous(obs)
-        if verification and verification.get('decision',{}).get('state')!='VERIFIED':
-            instruction += '\nPrevious action produced no verified state transition. Recover by reassessing the current screenshot and choose a different safe action.'
+        if verification:
+            after=verification.get('after',{})
+            state_key=after.get('accessibilitySha256') or after.get('screenshotSha256')
+            repeated=bool(state_key and state_key in self._state_keys[-4:])
+            if state_key:
+                self._state_keys.append(state_key)
+            if verification.get('decision',{}).get('state')!='VERIFIED' or repeated:
+                self._no_progress_streak += 1
+                instruction += '\nPROGRESS_WATCHDOG: the previous action did not produce reliable task progress or revisited a recent state. Do NOT repeat the same focus/navigation family. Reassess the accessibility tree and current screenshot, then use a different strategy that advances toward the task objective.'
+            else:
+                self._no_progress_streak = 0
+        if self._no_progress_streak >= 2:
+            instruction += '\nANTI_LOOP_ESCALATION: two or more consecutive no-progress/revisited states were detected. Stop launcher/dock/window-toggle cycling. Prefer direct in-app controls, keyboard shortcuts, search, or closing an unrelated foreground window. The next action must materially change task state.'
         response, actions = super().predict(instruction, obs)
         if self._fatal_model_error:
             raise RuntimeError(self._fatal_model_error)
