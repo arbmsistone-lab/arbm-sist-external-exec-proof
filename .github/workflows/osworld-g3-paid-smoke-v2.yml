@@ -1,4 +1,4 @@
-﻿name: OSWorld G3 paid certification one-task smoke v2
+name: OSWorld G3 paid certification one-task smoke v2
 on:
   workflow_dispatch:
 permissions:
@@ -33,7 +33,7 @@ jobs:
           uv sync --frozen
           mkdir -p certification/g3-computer-use-snapshot
           cp ../certification/g3-computer-use-snapshot/*.mjs certification/g3-computer-use-snapshot/
-          cp ../certification/g3-osworld-arbm-agent.py mm_agents/arbm_g3_agent.py
+          cp ../certification/g3-osworld-paid-agent.py mm_agents/arbm_g3_agent.py
           python - <<'PY'
           p='scripts/python/run_multienv.py'
           s=open(p,encoding='utf-8').read()
@@ -85,7 +85,7 @@ jobs:
         shell: bash
         env:
           ARBM_G3_OIDC: ${{ steps.oidc.outputs.result }}
-          ARBM_G3_MODEL_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-g3-paid-cert-v1
+          GEMINI_G3_PAID_CERT_KEY: ${{ secrets.GEMINI_G3_PAID_CERT_KEY }}
         run: |
           set -euo pipefail
           export OSWORLD_FILE_BASE_URL="$PWD/osworld/cache/osworld_v2_assets"
@@ -127,5 +127,3 @@ jobs:
             osworld/results-smoke
           retention-days: 1
           if-no-files-found: warn
-
-
