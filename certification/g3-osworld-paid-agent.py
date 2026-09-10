@@ -13,6 +13,7 @@ class ArbmG3Agent(PromptAgent):
         self._fatal_model_error = None
         self._state_keys = []
         self._no_progress_streak = 0
+        self._fact_memory = []
 
     def reset(self, *args, **kwargs):
         self._previous_obs = None
@@ -23,6 +24,7 @@ class ArbmG3Agent(PromptAgent):
         self._fatal_model_error = None
         self._state_keys = []
         self._no_progress_streak = 0
+        self._fact_memory = []
         return super().reset(*args, **kwargs)
 
     def _state(self, obs):
@@ -39,6 +41,16 @@ class ArbmG3Agent(PromptAgent):
         result=json.loads(p.stdout)
         self._verifications.append(result)
         return result
+
+    def _remember_facts(self, response):
+        text = str(response or '')
+        for line in text.splitlines():
+            low=line.lower()
+            if any(k in low for k in ('fyp', 'location', 'venue', 'schedule', 'calendar')) and any(ch.isdigit() for ch in line):
+                clean=' '.join(line.strip(' #`').split())
+                if clean and clean not in self._fact_memory:
+                    self._fact_memory.append(clean[:300])
+        self._fact_memory=self._fact_memory[-24:]
 
     def _unsafe_gui_action(self, actions):
         if not actions:
@@ -101,12 +113,19 @@ class ArbmG3Agent(PromptAgent):
             relevant = [line for line in lines if any(k in line.lower() for k in task_terms)]
             if relevant:
                 instruction += "\nCURRENT_A11Y_EVIDENCE:\n" + "\n".join(relevant[-40:])[-5000:]
+        if self._fact_memory:
+            instruction += "\nSTRUCTURED_TASK_MEMORY:\n" + "\n".join(self._fact_memory[-12:])
+        if step_no >= 8:
+            instruction += "\nHIERARCHICAL_PLAN: finish source enumeration before target mutation. In spreadsheets, use one global search across all sheets, inspect all selected matches in the current GUI/a11y evidence, and preserve every discovered row fact before switching apps. Once source facts are sufficient, never restart discovery; execute target mutations in batches and verify."
+        if step_no >= 10:
+            instruction += "\nHARD_PHASE_SWITCH: repeated discovery/search actions are no longer acceptable. Use preserved facts and move to the target application now unless a specific missing field is explicitly identified."
         response, actions = super().predict(instruction, obs)
         for _ in range(2):
             if not self._unsafe_gui_action(actions):
                 break
             recovery = instruction + "\nAUTONOMY_RECOVERY: ASK_USER and Terminal/shell are forbidden. Continue autonomously using only the visible desktop UI and current accessibility evidence. Preserve discovered task facts, do not restart discovery, and choose the next action that materially advances completion. Return executable pyautogui only, or DONE/FAIL."
             response, actions = super().predict(recovery, obs)
+        self._remember_facts(response)
         if self._fatal_model_error:
             raise RuntimeError(self._fatal_model_error)
         if actions:
@@ -144,7 +163,7 @@ class ArbmG3Agent(PromptAgent):
                         parts.append({'inline_data':{'mime_type':head[5:],'data':data}})
             if parts:
                 contents.append({'role':'model' if role=='assistant' else 'user','parts':parts})
-        body={'contents':contents,'generationConfig':{'maxOutputTokens':min(4096,max(16,int(payload.get('max_tokens',512) or 512))),'thinkingConfig':{'thinkingLevel':'LOW'}}}
+        body={'contents':contents,'generationConfig':{'maxOutputTokens':min(4096,max(16,int(payload.get('max_tokens',512) or 512))),'thinkingConfig':{'thinkingLevel':('MEDIUM' if len(self._action_signatures) >= 6 else 'LOW')}}}
         if system: body['systemInstruction']={'parts':[{'text':system}]}
         min_interval=max(1.0,float(os.environ.get('ARBM_G3_MIN_REQUEST_INTERVAL_SEC','15')))
         elapsed=time.monotonic()-self._last_llm_at
