@@ -23,7 +23,8 @@ jobs:
           sudo apt-get clean
           test -c /dev/kvm
           sudo chmod 666 /dev/kvm
-          printf 'HEAVY_LOCAL=0\nZERO_SPEND_COMPUTE=PASS\n' > smoke-evidence.txt      - name: Checkout pinned OSWorld
+          printf 'HEAVY_LOCAL=0\nZERO_SPEND_COMPUTE=PASS\n' > smoke-evidence.txt
+      - name: Checkout pinned OSWorld
         shell: bash
         run: |
           set -euo pipefail
@@ -65,7 +66,8 @@ jobs:
           cp hf-vm/osworld-v2-ubuntu-x86.qcow2.zip osworld-vm.zip
           test "$(sha256sum osworld-vm.zip | awk '{print $1}')" = "eb737ae70b49849e24af407de6a518439a23de05a8497096a948334ce0a909aa"
           unzip -q osworld-vm.zip -d vm
-          find vm -type f -name '*.qcow2' | head -1 | xargs realpath > vm-path.txt      - name: Acquire scoped OIDC token
+          find vm -type f -name '*.qcow2' | head -1 | xargs realpath > vm-path.txt
+      - name: Acquire scoped OIDC token
         id: oidc
         uses: actions/github-script@v7
         with:
@@ -88,7 +90,8 @@ jobs:
             --action_space pyautogui --observation_type screenshot --model gpt-arbm-g3-fixed \
             --temperature 0 --top_p 0.9 --max_tokens 1500 --max_steps 15 --max_trajectory_length 3 \
             --num_envs 1 --test_config_base_dir evaluation_examples --test_all_meta_path smoke-one.json \
-            --domain tasks --eval_version v2 --result_dir results-smoke      - name: Verify official evaluator result
+            --domain tasks --eval_version v2 --result_dir results-smoke
+      - name: Verify official evaluator result
         shell: bash
         run: |
           set -euo pipefail

@@ -34,4 +34,3 @@ export async function runComputerMission({mission,observe,plan,act,recover,appro
   }
   return {state:goalReached(before,mission.goal)?'SUCCEEDED':'STEP_LIMIT',steps:mission.maxSteps,recoveries,trace,final:before};
 }
-
