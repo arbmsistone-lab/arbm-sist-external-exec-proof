@@ -227,7 +227,7 @@ def convert_to_pyautogui_action(
         text = parameters.get("text")
         if not isinstance(text, str):
             raise InvalidActionError("text must be a string")
-        commands = [f"pyautogui.write({text!r}, interval=0.01)"]
+        commands = [f"pyautogui.write({text!r}, interval=0.001)"]
         if parameters.get("press_enter", False):
             commands.append("pyautogui.press('enter')")
         return "; ".join(commands)
