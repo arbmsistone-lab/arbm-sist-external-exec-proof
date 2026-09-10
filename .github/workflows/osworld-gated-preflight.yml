@@ -47,7 +47,13 @@ jobs:
           set -euo pipefail
           cd osworld
           export HF_TOKEN
-          uv run scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 --target-dir cache/osworld_v2_assets --clean
+          for attempt in 1 2 3; do
+            if uv run scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 --target-dir cache/osworld_v2_assets --clean; then
+              break
+            fi
+            test "$attempt" -lt 3 || exit 1
+            sleep $((attempt * 5))
+          done
       - name: Verify pinned task manifest
         shell: bash
         run: |
