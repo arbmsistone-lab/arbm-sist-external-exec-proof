@@ -121,8 +121,18 @@ def probe(model, output):
     record = {'requested_model': model, 'state': 'BLOCKED', 'HEAVY_LOCAL': 0,
               'run_id': os.environ.get('GITHUB_RUN_ID'), 'SHA': os.environ.get('GITHUB_SHA')}
     try:
-        quota_admission()
-        record['catalog'] = catalog_admission(model)
+        provider = os.environ.get('ARBM_G3_PROVIDER', 'openrouter').strip().lower()
+        if provider == 'openrouter':
+            quota_admission()
+            record['catalog'] = catalog_admission(model)
+        elif provider == 'groq':
+            if model != 'qwen/qwen3.8-27b':
+                raise RuntimeError('G3_FREE_GROQ_MODEL_REQUIRED')
+            record['catalog'] = {'id': model, 'provider': 'groq',
+                                 'account_plan': 'Free',
+                                 'account_plan_evidence': 'OWNER_UI_2026-09-11'}
+        else:
+            raise RuntimeError('G3_FREE_PROVIDER_REQUIRED')
         os.environ['ARBM_G3_FREE_MODEL'] = model
         os.environ['ARBM_G3_TASK_ID'] = 'capability-probe'
         agent = load_agent().ArbmG3Agent()
