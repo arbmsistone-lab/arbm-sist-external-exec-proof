@@ -2,8 +2,8 @@ import base64, json, os, urllib.request
 
 API = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v6"
 EXPECTED_PIPELINE = "arbm-osworld-v31"
-EXPECTED_BUILD = "arbm-osworld-v31-20260911-a"
-EXPECTED_EZBR_SHA256 = "0b40e8e5a9d5a253f65bebf7814b5cfd83eba582aedc6cf7235b3e3d6b1c2478"
+EXPECTED_BUILD = "arbm-osworld-v31-20260911-b"
+EXPECTED_EZBR_SHA256 = "35367e7907dd3700ee13176ebb1ec02eccf05d52c52989db748bbb34d6d0f1f7"
 PNG_1X1 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nS8AAAAASUVORK5CYII="
 
 
@@ -24,13 +24,14 @@ body = {
     "visual_context": "Synthetic valid PNG plus focused accessibility button for multimodal route proof.",
     "previous_command": "", "executed_count": 0,
     "memory": "", "phase": "plan", "no_progress_count": 0, "step": 1,
-    "provider_hint": "groq",
+    "provider_hint": "groq", "require_multimodal": True,
 }
 req = urllib.request.Request(API, data=json.dumps(body).encode(), method="POST",
     headers={"Authorization": "Bearer " + oidc(), "Content-Type": "application/json"})
 with urllib.request.urlopen(req, timeout=75) as response:
     assert response.status == 200
     data = json.loads(response.read())
+print(json.dumps(data, separators=(",", ":")))
 assert data.get("ok") is True and data.get("status") == "PASS"
 assert data.get("pipeline") == EXPECTED_PIPELINE
 assert data.get("agent_build") == EXPECTED_BUILD
