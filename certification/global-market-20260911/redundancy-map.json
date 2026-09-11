@@ -1,0 +1,14 @@
+﻿{
+  "schema":"arbm-cert-infra-redundancy-v1",
+  "minimum_independent_paths":3,
+  "critical_functions":{
+    "source_control":["GitHub","GitLab","independent backup mirror"],
+    "ci_execution":["CircleCI","Buildkite","third remote runner/provider to validate"],
+    "edge_runtime":["Cloudflare","Supabase Edge","independent fallback route to validate"],
+    "evidence_storage":["Git repository","Supabase storage/database","independent object/archive copy to validate"],
+    "ai_inference":["Groq","Lightning","Mistral","Google"]
+  },
+  "github_dependency":"FORBIDDEN_AS_SINGLE_PATH",
+  "green":false,
+  "reason":"Third independent CI/runtime/storage paths must be proven live before certification green"
+}
