@@ -1,0 +1,194 @@
+{
+  "source_run": 34545605068,
+  "source_sha": "47aee38f0873cdd3964aea5ef03caf6c982483be",
+  "source_url": "https://github.com/arbmsistone-lab/arbm-sist-external-exec-proof/actions/runs/34545605068",
+  "downloaded_log_sha256": "505855769454f5619e6268f048f2bb740118b3a17000b77cd3a6b6a22576eedb",
+  "recorded_steps": 31,
+  "wait_actions": 4,
+  "repeated_commands": {
+    "pyautogui.click(x=38, y=129)": 2,
+    "WAIT": 4,
+    "pyautogui.click(x=871, y=703)": 2,
+    "pyautogui.click(x=67, y=129)": 2,
+    "pyautogui.click(x=960, y=1042)": 2,
+    "pyautogui.click(x=1090, y=703)": 2,
+    "pyautogui.click(x=883, y=702)": 3
+  },
+  "trajectory_from_log": [
+    {
+      "step": 1,
+      "action": "pyautogui.click(x=38, y=129)",
+      "timestamp": "2026-09-11T00:21:18.1352652Z"
+    },
+    {
+      "step": 2,
+      "action": "pyautogui.click(x=38, y=129)",
+      "timestamp": "2026-09-11T00:21:30.1982364Z"
+    },
+    {
+      "step": 3,
+      "action": "pyautogui.click(x=576, y=270)",
+      "timestamp": "2026-09-11T00:21:38.4126118Z"
+    },
+    {
+      "step": 4,
+      "action": "WAIT",
+      "timestamp": "2026-09-11T00:21:48.0892442Z"
+    },
+    {
+      "step": 5,
+      "action": "pyautogui.click(x=864, y=1036)",
+      "timestamp": "2026-09-11T00:21:58.4541150Z"
+    },
+    {
+      "step": 6,
+      "action": "WAIT",
+      "timestamp": "2026-09-11T00:22:05.2598082Z"
+    },
+    {
+      "step": 7,
+      "action": "pyautogui.click(x=451, y=567)",
+      "timestamp": "2026-09-11T00:22:15.3326654Z"
+    },
+    {
+      "step": 8,
+      "action": "pyautogui.click(x=480, y=567)",
+      "timestamp": "2026-09-11T00:22:28.3740003Z"
+    },
+    {
+      "step": 9,
+      "action": "pyautogui.click(x=871, y=703)",
+      "timestamp": "2026-09-11T00:22:37.5384390Z"
+    },
+    {
+      "step": 10,
+      "action": "pyautogui.click(x=1056, y=1042)",
+      "timestamp": "2026-09-11T00:22:49.2080157Z"
+    },
+    {
+      "step": 11,
+      "action": "pyautogui.click(x=67, y=129)",
+      "timestamp": "2026-09-11T00:23:00.8870906Z"
+    },
+    {
+      "step": 12,
+      "action": "WAIT",
+      "timestamp": "2026-09-11T00:23:09.8043028Z"
+    },
+    {
+      "step": 13,
+      "action": "pyautogui.click(x=864, y=1042)",
+      "timestamp": "2026-09-11T00:23:18.8970922Z"
+    },
+    {
+      "step": 14,
+      "action": "pyautogui.click(x=871, y=703)",
+      "timestamp": "2026-09-11T00:23:29.8337063Z"
+    },
+    {
+      "step": 15,
+      "action": "pyautogui.click(x=960, y=1042)",
+      "timestamp": "2026-09-11T00:23:37.6838380Z"
+    },
+    {
+      "step": 16,
+      "action": "WAIT",
+      "timestamp": "2026-09-11T00:23:46.8232500Z"
+    },
+    {
+      "step": 17,
+      "action": "pyautogui.click(x=67, y=129)",
+      "timestamp": "2026-09-11T00:23:58.8540285Z"
+    },
+    {
+      "step": 18,
+      "action": "pyautogui.click(x=960, y=1042)",
+      "timestamp": "2026-09-11T00:24:14.4002920Z"
+    },
+    {
+      "step": 19,
+      "action": "pyautogui.click(x=998, y=1036)",
+      "timestamp": "2026-09-11T00:24:21.0854266Z"
+    },
+    {
+      "step": 20,
+      "action": "pyautogui.click(x=1090, y=703)",
+      "timestamp": "2026-09-11T00:24:30.0582305Z"
+    },
+    {
+      "step": 21,
+      "action": "pyautogui.click(x=883, y=702)",
+      "timestamp": "2026-09-11T00:24:37.3378497Z"
+    },
+    {
+      "step": 22,
+      "action": "pyautogui.click(x=998, y=702)",
+      "timestamp": "2026-09-11T00:24:42.9977810Z"
+    },
+    {
+      "step": 23,
+      "action": "pyautogui.click(x=902, y=702)",
+      "timestamp": "2026-09-11T00:24:52.6803216Z"
+    },
+    {
+      "step": 24,
+      "action": "pyautogui.click(x=883, y=702)",
+      "timestamp": "2026-09-11T00:25:00.6650314Z"
+    },
+    {
+      "step": 25,
+      "action": "pyautogui.click(x=1090, y=703)",
+      "timestamp": "2026-09-11T00:25:10.3335797Z"
+    },
+    {
+      "step": 26,
+      "action": "pyautogui.click(x=57, y=124)",
+      "timestamp": "2026-09-11T00:25:31.9371629Z"
+    },
+    {
+      "step": 27,
+      "action": "pyautogui.click(x=883, y=702)",
+      "timestamp": "2026-09-11T00:25:51.4276159Z"
+    },
+    {
+      "step": 28,
+      "action": "pyautogui.click(x=1000, y=702)",
+      "timestamp": "2026-09-11T00:26:06.6970918Z"
+    },
+    {
+      "step": 29,
+      "action": "pyautogui.click(x=921, y=702)",
+      "timestamp": "2026-09-11T00:26:21.8432434Z"
+    },
+    {
+      "step": 30,
+      "action": "pyautogui.click(x=867, y=706)",
+      "timestamp": "2026-09-11T00:26:31.8216031Z"
+    },
+    {
+      "step": 31,
+      "action": "pyautogui.click(x=1536, y=540)",
+      "timestamp": "2026-09-11T00:26:45.6592759Z"
+    }
+  ],
+  "per_step_reward_observed": 0.0,
+  "final_result_file_recovered": false,
+  "raw_tool_call_count_at_failure": null,
+  "screenshots_recovered": false,
+  "artifact_api_count": 0,
+  "historic_journal_recoverable": false,
+  "last_step_to_failure_seconds": 535.946,
+  "root_causes": [
+    "tool_choice auto and at-most-one prompt conflict with exactly-one parser",
+    "journal completion after parsing loses invalid response accounting",
+    "no output token cap; SDK read timeout did not cap total response duration",
+    "raw provider model used as physical path includes forbidden colon",
+    "action-only history loses observed facts and does not prove visual progress"
+  ],
+  "unknowns": [
+    "zero versus multiple calls on failed response",
+    "per-call token counts and latency",
+    "visual state at repeated clicks",
+    "exact last provider response"
+  ]
+}

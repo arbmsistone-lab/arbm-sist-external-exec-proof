@@ -1,0 +1,34 @@
+{
+  "type": "pre-run audit; not functional certification",
+  "A_code_architecture": "PASS_LOCAL",
+  "B_benchmark_security_regression": "PASS_LOCAL",
+  "C_zero_spend_remote_execution": "PASS_FOR_GATED_RETEST",
+  "checks": [
+    "25 focused unit/workflow tests PASS",
+    "py_compile PASS",
+    "ruff PASS",
+    "diff check PASS",
+    "paid lane code/workflows unchanged",
+    "benchmark release/VM/task assets pins unchanged",
+    "no paid key used; public standard GitHub runner",
+    "model allowlist, live catalog, provider max_price=0 and no fallback",
+    "live capability and observed-zero-cost receipt required BEFORE VM",
+    "bounded structural retry never dispatches rejected action",
+    "artifact-safe physical path"
+  ],
+  "sources": [
+    "https://docs.github.com/en/billing/concepts/product-billing/github-actions",
+    "https://openrouter.ai/docs/guides/routing/provider-selection",
+    "https://openrouter.ai/api/v1/models"
+  ],
+  "content_sha256": {
+    "certification/g3-openrouter-free-adapter.py": "9bab0499ae511016386c2ce4d105e7f88152b6e8d8b035093d4e9943a918f8da",
+    "certification/g3_free_control.py": "307dd419c1950ea29dfa1d1dc9f0042674397d6ec69f8f963fff54fa0c1ebb7d",
+    ".github/workflows/osworld-g3-free-smoke-v1.yml": "3c1d6f6f63651ca7505c046d6ac9f206cbf4fb13ac357a00d6d1c3ff5cf81723",
+    "tests/test_g3_free_agent.py": "8045de0b4fd05867b4e4f425000d95234cfece896aa572b6886b4d92a46656bc",
+    "tests/test_g3_free_workflow.py": "8c108d2237dc6f3f92eff888d64e6ac7c08d78b7835617cabb0166f80651aca8"
+  },
+  "functional_result": "NOT_YET_RETESTED",
+  "official_suite": "NOT_RUN",
+  "top3": "NOT_PROVEN"
+}

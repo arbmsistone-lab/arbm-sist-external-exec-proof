@@ -8,3 +8,8 @@ certification/g3-paid-budget.json text eol=lf
 .github/workflows/osworld-g3-paid-model-probe.yml text eol=lf
 tests/test_g3_paid_control.py text eol=lf
 tests/test_g3_paid_workflows.py text eol=lf
+certification/g3-free-evidence-20260911/** -text
+certification/g3-openrouter-free-adapter.py text eol=lf
+certification/g3_free_control.py text eol=lf
+tests/test_g3_free*.py text eol=lf
+.github/workflows/osworld-g3-free-smoke-v1.yml text eol=lf
