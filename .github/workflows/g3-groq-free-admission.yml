@@ -1,0 +1,83 @@
+name: G3 Groq FREE admission proof
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: arbm-g3-groq-free-admission
+  cancel-in-progress: false
+jobs:
+  admission:
+    if: github.repository == 'arbmsistone-lab/arbm-sist-external-exec-proof' && github.ref == 'refs/heads/g3-free-cert-lane-20260910'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      ZERO_SPEND: 'true'
+      HEAVY_LOCAL: '0'
+      GROQ_MODEL: 'qwen/qwen3.8-27b'
+    steps:
+      - name: Checkout G3 tooling
+        uses: actions/checkout@v4
+      - name: Assert isolated FREE admission contract
+        env:
+          GROQ_G3_FREE_CERT_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GROQ_G3_FREE_CERT_KEY"
+          test "$ZERO_SPEND" = true
+          test "$HEAVY_LOCAL" = 0
+          printf 'credential_present=true\nzero_spend_contract=true\nheavy_local=0\n' > groq-admission.txt
+      - name: Verify credential and model catalog without inference
+        env:
+          GROQ_G3_FREE_CERT_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, urllib.request, urllib.error
+          key=os.environ['GROQ_G3_FREE_CERT_KEY']
+          req=urllib.request.Request('https://api.groq.com/openai/v1/models', headers={
+              'Authorization':'Bearer '+key,
+              'Accept':'application/json',
+              'User-Agent':'ARBM-SIST-G3-FREE-admission/1.0',
+          })
+          try:
+              with urllib.request.urlopen(req, timeout=20) as r:
+                  status=r.status
+                  data=json.load(r)
+                  headers={k.lower():v for k,v in r.headers.items()}
+          except urllib.error.HTTPError as e:
+              raise SystemExit('GROQ_AUTH_OR_CATALOG_FAILED_HTTP_'+str(e.code))
+          ids={x.get('id') for x in data.get('data',[]) if isinstance(x,dict)}
+          model=os.environ['GROQ_MODEL']
+          if status != 200 or model not in ids:
+              raise SystemExit('GROQ_MODEL_NOT_AVAILABLE')
+          safe_headers={k:headers[k] for k in (
+              'x-ratelimit-limit-requests','x-ratelimit-remaining-requests',
+              'x-ratelimit-limit-tokens','x-ratelimit-remaining-tokens',
+              'x-ratelimit-reset-requests','x-ratelimit-reset-tokens') if k in headers}
+          out={'state':'PASS','http_status':status,'provider':'groq','model':model,
+               'credential_authenticated':True,'model_catalog_present':True,
+               'inference_calls':0,'new_spend_usd':0,'ZERO_SPEND':True,'HEAVY_LOCAL':0,
+               'rate_limit_headers':safe_headers,
+               'account_plan':'NOT_PROVEN_BY_CATALOG'}
+          open('groq-catalog-proof.json','w',encoding='utf-8').write(json.dumps(out,indent=2)+'\n')
+          print(json.dumps({'state':'PASS','model':model,'inference_calls':0,'account_plan':out['account_plan']}))
+          PY
+      - name: Local contract regression
+        shell: bash
+        run: |
+          python -m pip install -q 'openai>=1.50,<3' 'pillow==11.3.0' 'pyyaml==6.0.2'
+          python -m unittest discover -s tests -p 'test_g3_free*.py' -v > groq-local-tests.txt 2>&1
+      - name: Upload admission evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g3-groq-free-admission-evidence
+          path: |
+            groq-admission.txt
+            groq-catalog-proof.json
+            groq-local-tests.txt
+          retention-days: 30
+          if-no-files-found: warn

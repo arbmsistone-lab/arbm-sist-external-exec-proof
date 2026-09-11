@@ -18,7 +18,8 @@ from PIL import Image, ImageChops
 from mm_agents.gemini_action_parser import convert_to_pyautogui_action
 
 ALLOWED_MODELS = ('dots-studio/dots-3-note-preview:free',
-                  'inclusionai/ling-3.0-flash-vl:free', 'nex-agi/nex-n2.5-mini:free')
+                  'inclusionai/ling-3.0-flash-vl:free', 'nex-agi/nex-n2.5-mini:free',
+                  'qwen/qwen3.8-27b')
 MODEL = ALLOWED_MODELS[0]
 ACTIONS = {
     'click': ({'x', 'y'}, set()), 'double_click': ({'x', 'y'}, set()),
@@ -217,13 +218,23 @@ class ArbmG3Agent:
         self.model_id = os.environ.get('ARBM_G3_FREE_MODEL', MODEL)
         if self.model_id not in ALLOWED_MODELS:
             raise RuntimeError('G3_FREE_MODEL_REQUIRED')
+        self.provider_gateway = os.environ.get('ARBM_G3_PROVIDER', 'openrouter').strip().lower()
+        if self.provider_gateway not in ('openrouter', 'groq'):
+            raise RuntimeError('G3_FREE_PROVIDER_REQUIRED')
         if client is None:
             from openai import OpenAI
-            key = os.environ.get('OPENROUTER_API_KEY', '').strip()
-            if not key:
-                raise RuntimeError('OPENROUTER_API_KEY_MISSING')
-            client = OpenAI(base_url='https://openrouter.ai/api/v1', api_key=key,
-                            timeout=40, max_retries=0)
+            if self.provider_gateway == 'groq':
+                key = os.environ.get('GROQ_G3_FREE_CERT_KEY', '').strip()
+                if not key:
+                    raise RuntimeError('GROQ_G3_FREE_CERT_KEY_MISSING')
+                client = OpenAI(base_url='https://api.groq.com/openai/v1', api_key=key,
+                                timeout=40, max_retries=0)
+            else:
+                key = os.environ.get('OPENROUTER_API_KEY', '').strip()
+                if not key:
+                    raise RuntimeError('OPENROUTER_API_KEY_MISSING')
+                client = OpenAI(base_url='https://openrouter.ai/api/v1', api_key=key,
+                                timeout=40, max_retries=0)
         self.client = client
         self.task_current_date = None
         self._call_index = 0
@@ -248,7 +259,7 @@ class ArbmG3Agent:
     def _record(self, row):
         row = {**self._context, **row, 'call_index': self._call_index,
                'requested_model': self.model_id, 'model': self.model_id,
-               'provider_gateway': 'openrouter', 'step': self._step_index,
+               'provider_gateway': self.provider_gateway, 'step': self._step_index,
                'run_id': os.environ.get('GITHUB_RUN_ID'), 'SHA': os.environ.get('GITHUB_SHA'),
                'task': os.environ.get('ARBM_G3_TASK_ID', hashlib.sha256(self._instruction.encode()).hexdigest()),
                'zero_spend_contract': True}
@@ -298,13 +309,18 @@ class ArbmG3Agent:
 
         def worker():
             try:
-                response = self.client.chat.completions.create(
+                kwargs = dict(
                     model=self.model_id, messages=messages, tools=TOOLS,
                     tool_choice={'type': 'function', 'function': {'name': 'desktop_action'}},
-                    parallel_tool_calls=False, temperature=0, max_tokens=1024,
-                    extra_body={'provider': {'allow_fallbacks': False,
-                                            'max_price': {'prompt': 0, 'completion': 0}},
-                                'reasoning': {'enabled': False}})
+                    parallel_tool_calls=False, max_tokens=1024)
+                if self.provider_gateway == 'groq':
+                    kwargs.update(temperature=0.7, reasoning_effort='none')
+                else:
+                    kwargs.update(temperature=0, extra_body={
+                        'provider': {'allow_fallbacks': False,
+                                     'max_price': {'prompt': 0, 'completion': 0}},
+                        'reasoning': {'enabled': False}})
+                response = self.client.chat.completions.create(**kwargs)
                 results.put((response, None))
             except BaseException as error:
                 results.put((None, error))

@@ -277,5 +277,20 @@ class FreeAgentTests(unittest.TestCase):
         self.assertFalse(report['all_calls_observed_zero_cost'])
 
 
+    def test_groq_transport_isolated_from_openrouter_parameters(self):
+        client = self.agent.client
+        self.responses = [response(model='qwen/qwen3.8-27b')]
+        with patch.dict(os.environ, {'ARBM_G3_PROVIDER': 'groq',
+                                     'ARBM_G3_FREE_MODEL': 'qwen/qwen3.8-27b'}):
+            agent = agent_module.ArbmG3Agent(client=client)
+            agent.predict('Complete the task using the GUI.', self.obs)
+        request = self.calls[-1]
+        self.assertNotIn('extra_body', request)
+        self.assertEqual(request['reasoning_effort'], 'none')
+        self.assertEqual(request['model'], 'qwen/qwen3.8-27b')
+        rows = [json.loads(line) for line in self.log.read_text().splitlines()]
+        self.assertEqual(rows[-1]['provider_gateway'], 'groq')
+
+
 if __name__ == '__main__':
     unittest.main()
