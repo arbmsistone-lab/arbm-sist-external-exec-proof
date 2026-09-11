@@ -14,7 +14,7 @@ jobs:
     env:
       ZERO_SPEND_MODE: HARD
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Prove v31 multimodal FREE route
         run: python scripts/osworld_mesh_preflight.py
   official-shard:
@@ -46,7 +46,7 @@ jobs:
       OSWORLD_AGENT_VERSION: supabase-arbm-terminal-agent-v6-v13-a1dae64388ce7129
       OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Prove FREE standard KVM runner
         shell: bash
         run: |
@@ -74,7 +74,15 @@ jobs:
         run: |
           set -euo pipefail
           cd osworld
-          test "$(sha256sum benchmark_releases/osworld-v2-2026.08.08.json | cut -d' ' -f1)" != ""
+          python - <<'PY'
+          import hashlib, os
+          from huggingface_hub import hf_hub_download
+          p=hf_hub_download('xlangai/osworld_v2_tasks','manifests/task_hashes.json',repo_type='dataset',revision='v2026.08.08',token=os.environ['HF_TOKEN'])
+          digest=hashlib.sha256(open(p,'rb').read()).hexdigest()
+          assert digest=='42f8f6f8939b8712997d5891456a575f8a2a5f53465e9e3e6747af5d6efd0915', digest
+          print('TASK_HASH_MANIFEST_SHA256='+digest)
+          PY
+          python -m compileall -q evaluation_examples/task_class
           cd ..
           docker pull happysixd/osworld-docker@sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9
           docker tag happysixd/osworld-docker@sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9 happysixd/osworld-docker:latest
@@ -127,7 +135,7 @@ jobs:
           exit "$overall"
       - name: Upload shard evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: osworld-v31-shard-${{ matrix.shard.id }}
           path: osworld-v31-evidence
@@ -139,7 +147,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
           pattern: osworld-v31-shard-*
           path: evidence
@@ -160,7 +168,7 @@ jobs:
           open('osworld-v31-official-108-summary.json','w',encoding='utf-8').write(json.dumps(out,indent=2))
           print(json.dumps({k:v for k,v in out.items() if k!='scores'}))
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: osworld-v31-official-108-summary
           path: osworld-v31-official-108-summary.json
