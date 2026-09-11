@@ -1,0 +1,57 @@
+{
+  "classification": "EXTERNAL_BLOCKED",
+  "candidate_sha": "073dd0f087fd74c22bd59ce4b138ac9441e6757f",
+  "branch": "g3-free-cert-lane-20260910",
+  "ZERO_SPEND": true,
+  "HEAVY_LOCAL": 0,
+  "local_tests_passed": 34,
+  "code_compile_lint": "PASS",
+  "closure_audit_rounds": 10,
+  "available_evidence_checks": "PASS",
+  "closure_audit_result": "BLOCKED: official result, stability, full suite and comparable ranking absent",
+  "task_001": "NO_RESULT/BLOCKED",
+  "official_score": null,
+  "top3_proven": false,
+  "paid_lane_and_production": "UNCHANGED",
+  "runtime_regression_gate": "OPEN",
+  "official_input_integrity": "17 files unchanged in run 34598530042",
+  "runs": [
+    {
+      "run": 34598530042,
+      "sha": "956a5b31f6a82c8897ccda5dafa49cb769c047ea",
+      "url": "https://github.com/arbmsistone-lab/arbm-sist-external-exec-proof/actions/runs/34598530042",
+      "result": "20 GUI actions then terminal provider quota error; no official evaluator result",
+      "artifact_id": 10263567252,
+      "artifact_sha256": "930b952b54ab4e3c2592fae713fa5e2561bf485d2b479a2d02eebbe142dc28cb",
+      "journal_pending": 0
+    },
+    {
+      "run": 34599624845,
+      "sha": "fbeeed015f1dff864f2e84d881ee6ab949f8052e",
+      "url": "https://github.com/arbmsistone-lab/arbm-sist-external-exec-proof/actions/runs/34599624845",
+      "result": "Read-only account inspection; no inference or VM"
+    },
+    {
+      "run": 34600163841,
+      "sha": "38e5bf53f69dfaf4aac4bbe520ab7c2f45234199",
+      "url": "https://github.com/arbmsistone-lab/arbm-sist-external-exec-proof/actions/runs/34600163841",
+      "result": "One independent model probe on same gateway confirms global daily quota; no retry or VM",
+      "journal_pending": 0
+    }
+  ],
+  "alternative": {
+    "gateway": "groq",
+    "model": "qwen/qwen3.8-27b",
+    "documented_image_tool_support": "https://console.groq.com/docs/vision",
+    "documented_free_plan_limits": "https://console.groq.com/docs/rate-limits",
+    "state": "OWNER_LOGIN_AND_FREE_ACCOUNT_PROOF_REQUIRED; transport and live probe not certified",
+    "login_page": "https://console.groq.com/keys",
+    "new_inference_calls": 0
+  },
+  "leaderboard": {
+    "source": "https://osworld-v2.xlang.ai/",
+    "methodology": "Full 108 tasks, 500 steps; not comparable to one-task 100-step smoke",
+    "arbm_position": null
+  },
+  "publication_scope": "Sanitized summary and references only. Raw Evidence Pack remains local; no raw logs, archive content or secret-name inventory is included in this index."
+}
