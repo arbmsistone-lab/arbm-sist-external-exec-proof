@@ -35,7 +35,7 @@ jobs:
       ZERO_SPEND_MODE: HARD
       OPENAI_BASE_URL: http://127.0.0.1:8088/v1
       OPENAI_API_KEY: zero-spend-oidc-shim
-      OSWORLD_AGENT_VERSION: supabase-arbm-terminal-agent-v7-v22-single-runner-v22
+      OSWORLD_AGENT_VERSION: supabase-arbm-terminal-agent-v7-v30-dd7b71a12a4d36e8
       AWS_REGION: us-east-1
       AWS_SUBNET_ID: unused-docker-provider
       AWS_SECURITY_GROUP_ID: unused-docker-provider
@@ -112,7 +112,7 @@ jobs:
               --headless --provider_name docker --path_to_vm "$QCOW_PATH" --eval_version v2 \
               --test_all_meta_path evaluation_examples/test_arbm_sovereign.json --domain tasks \
               --observation_type a11y_tree --action_space pyautogui --model gpt-arbm-sovereign \
-              --temperature 0 --max_steps 12 --max_trajectory_length 1 --max_tokens 512 --num_envs 1 \
+              --temperature 0 --max_steps 36 --max_trajectory_length 3 --max_tokens 1500 --num_envs 1 \
               --result_dir "../top3-evidence/osworld-sovereign-${TASK_ID}/results" \
               2>&1 | tee "../top3-evidence/osworld-sovereign-${TASK_ID}/osworld.log")
             rc=${PIPESTATUS[0]}
