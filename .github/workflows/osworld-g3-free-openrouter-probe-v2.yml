@@ -22,7 +22,8 @@ jobs:
           case "$FREE_MODEL" in *:free) ;; *) exit 1 ;; esac
           printf 'ZERO_SPEND=true\nMODEL=%s\n' "$FREE_MODEL" > g3-free-v2.txt
       - name: Install OpenAI-compatible client
-        run: python -m pip install -q 'openai>=1.50,<3'      - name: Probe fixed FREE multimodal tool model
+        run: python -m pip install -q 'openai>=1.50,<3'
+      - name: Probe fixed FREE multimodal tool model
         shell: bash
         run: |
           python - <<'PY'
@@ -47,7 +48,8 @@ jobs:
           out={'requested_model':os.environ['FREE_MODEL'],'returned_model':r.model,'tool_call':'PASS','image':'PASS','zero_spend_contract':os.environ['FREE_MODEL'].endswith(':free')}
           json.dump(out,open('g3-free-v2.json','w'),indent=2)
           print(json.dumps(out))
-          PY      - name: Preserve FREE v2 evidence
+          PY
+      - name: Preserve FREE v2 evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
