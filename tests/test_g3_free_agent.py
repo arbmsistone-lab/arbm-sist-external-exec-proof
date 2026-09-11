@@ -1,4 +1,5 @@
 import io
+import hashlib
 import json
 import os
 import sys
@@ -12,7 +13,7 @@ from unittest.mock import patch
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'certification'))
-from g3_free_control import journal_report, load_agent, safe_model_path
+from g3_free_control import journal_report, load_agent, safe_model_path, quota_admission
 
 agent_module = load_agent()
 
@@ -252,6 +253,28 @@ class FreeAgentTests(unittest.TestCase):
         self.assertEqual(out['labels'][0], {'text': 'Cancel', 'x': 500, 'y': 458})
         self.assertEqual(run.call_args.args[0][0], 'tesseract')
         self.assertNotIn('shell', run.call_args.kwargs)
+
+    def test_known_daily_quota_blocks_until_provider_reset(self):
+        root = Path(self.temp.name)
+        proof = {'http_status': 429, 'quota_scope': 'FREE_REQUESTS_PER_DAY',
+                 'quota_headers': {'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '2000'}}
+        receipt = root / 'receipt.json'
+        receipt.write_text(json.dumps(proof))
+        lock = {'receipt_path': 'receipt.json', 'receipt_sha256': hashlib.sha256(receipt.read_bytes()).hexdigest(),
+                'not_before_unix_ms': 2000, 'reset_utc': 'provider-reset'}
+        (root / 'g3-free-quota-lock.json').write_text(json.dumps(lock))
+        with self.assertRaisesRegex(RuntimeError, 'DAILY_QUOTA_BLOCKED'):
+            quota_admission(root, 1999)
+        quota_admission(root, 2000)
+        receipt.write_text('{}')
+        with self.assertRaisesRegex(RuntimeError, 'PROOF_INVALID'):
+            quota_admission(root, 1999)
+
+    def test_no_calls_is_not_missing_usage_or_model_proof(self):
+        report = journal_report(self.log)
+        self.assertTrue(report['accounting_complete'])
+        self.assertEqual(report['journal_state'], 'NO_REQUESTS_STARTED')
+        self.assertFalse(report['all_calls_observed_zero_cost'])
 
 
 if __name__ == '__main__':

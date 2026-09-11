@@ -1,0 +1,9 @@
+{
+  "requested_model": "dots-studio/dots-3-note-preview:free",
+  "state": "BLOCKED",
+  "HEAVY_LOCAL": 0,
+  "run_id": null,
+  "SHA": null,
+  "reason": "G3_FREE_DAILY_QUOTA_BLOCKED_UNTIL_2026-09-12T00:00:00+00:00",
+  "zero_spend": null
+}

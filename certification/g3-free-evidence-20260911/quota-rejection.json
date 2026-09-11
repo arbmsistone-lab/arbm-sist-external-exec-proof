@@ -1,0 +1,36 @@
+{
+  "screenshot_hash": "9b7274c28670c3cbffc601d728c922ad362a03ead2016b57c4f067e623f026c9",
+  "screen_changed": true,
+  "screenshot_delta_ratio": 1.0,
+  "retry_count": 0,
+  "returned_model": null,
+  "latency_ms": 563.495,
+  "structural_valid": null,
+  "action_status": "REJECTED",
+  "zero_spend": null,
+  "terminal_state": "BLOCKED",
+  "ocr": {
+    "state": "DISABLED",
+    "labels": []
+  },
+  "reason": "PROVIDER_RATE_LIMITED",
+  "http_status": 429,
+  "quota_headers": {
+    "x-ratelimit-limit": "50",
+    "x-ratelimit-remaining": "0",
+    "x-ratelimit-reset": "1789171200000"
+  },
+  "quota_scope": "FREE_REQUESTS_PER_DAY",
+  "provider_retry_attempts": 0,
+  "event": "request_failed_classified",
+  "request_state": "TERMINAL",
+  "call_index": 1,
+  "requested_model": "inclusionai/ling-3.0-flash-vl:free",
+  "model": "inclusionai/ling-3.0-flash-vl:free",
+  "provider_gateway": "openrouter",
+  "step": 1,
+  "run_id": "34600163841",
+  "SHA": "38e5bf53f69dfaf4aac4bbe520ab7c2f45234199",
+  "task": "capability-probe",
+  "zero_spend_contract": true
+}

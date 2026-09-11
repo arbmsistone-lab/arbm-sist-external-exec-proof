@@ -1,0 +1,15 @@
+{
+  "gateway": "openrouter",
+  "scope": "FREE_REQUESTS_PER_DAY",
+  "limit": 50,
+  "remaining": 0,
+  "not_before_unix_ms": 1789171200000,
+  "reset_utc": "2026-09-12T00:00:00+00:00",
+  "reset_sao_paulo": "2026-09-11T21:00:00-03:00",
+  "source_run_id": "34600163841",
+  "source_sha": "38e5bf53f69dfaf4aac4bbe520ab7c2f45234199",
+  "receipt_path": "g3-free-evidence-20260911/quota-rejection.json",
+  "receipt_sha256": "36cbb4b0829f424a0a6553bb4ddbadd1622cc5785547139ad527c124eae96828",
+  "new_model_calls_allowed_before_reset": 0,
+  "purchases_allowed": false
+}

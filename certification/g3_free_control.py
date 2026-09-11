@@ -7,6 +7,7 @@ import json
 import os
 import re
 import sys
+import time
 import types
 import urllib.request
 from collections import Counter
@@ -31,6 +32,26 @@ def load_agent():
 
 def safe_model_path(model):
     return re.sub(r'[^A-Za-z0-9._-]', '__', model)
+
+
+def quota_admission(root=ROOT, now_ms=None):
+    path = root / 'g3-free-quota-lock.json'
+    if not path.exists():
+        return
+    lock = json.loads(path.read_text())
+    receipt = (root / lock['receipt_path']).resolve()
+    if not receipt.is_relative_to(root.resolve()):
+        raise RuntimeError('G3_FREE_QUOTA_PROOF_INVALID')
+    if hashlib.sha256(receipt.read_bytes()).hexdigest() != lock['receipt_sha256']:
+        raise RuntimeError('G3_FREE_QUOTA_PROOF_INVALID')
+    proof = json.loads(receipt.read_text())
+    reset = int(proof['quota_headers']['x-ratelimit-reset'])
+    if (proof['quota_scope'] != 'FREE_REQUESTS_PER_DAY' or
+            proof['quota_headers']['x-ratelimit-remaining'] != '0' or
+            proof['http_status'] != 429 or reset != lock['not_before_unix_ms']):
+        raise RuntimeError('G3_FREE_QUOTA_PROOF_INVALID')
+    if (int(time.time() * 1000) if now_ms is None else now_ms) < reset:
+        raise RuntimeError('G3_FREE_DAILY_QUOTA_BLOCKED_UNTIL_' + lock['reset_utc'])
 
 
 def write_json(path, data):
@@ -59,17 +80,18 @@ def journal_report(path, close_interrupted=False):
                 terminals[key(row)] += 1
     completed = [r for r in rows if r.get('event') == 'request_completed']
     failed = [r for r in rows if r.get('event') == 'request_failed_classified']
-    complete = bool(starts) and starts == terminals and all(n == 1 for n in starts.values())
+    complete = starts == terminals and all(n == 1 for n in starts.values())
     costs_valid = all(r.get('zero_spend') is True and r.get('reported_cost_usd') is not None and
                       Decimal(str(r['reported_cost_usd'])) == 0 and
                       r.get('returned_model') == r.get('requested_model') for r in completed)
     return {'accounting_complete': complete, 'started': sum(starts.values()),
+            'journal_state': 'RECONCILED' if starts else 'NO_REQUESTS_STARTED',
             'completed': len(completed), 'failed_classified': len(failed),
             'structural_rejections': sum(r.get('structural_valid') is False for r in completed),
             'pending_requests': sum((starts - terminals).values()),
             'observed_completed_calls_zero_cost': costs_valid and bool(completed),
             'all_calls_observed_zero_cost': costs_valid and bool(completed) and not failed,
-            'zero_spend_contract': bool(starts) and all(r.get('zero_spend_contract') is True for r in rows),
+            'zero_spend_contract': all(r.get('zero_spend_contract') is True for r in rows),
             'execution_blocked': any(r.get('terminal_state') == 'BLOCKED' for r in rows),
             'failure_reasons': dict(Counter(r.get('reason') for r in failed))}
 
@@ -99,6 +121,7 @@ def probe(model, output):
     record = {'requested_model': model, 'state': 'BLOCKED', 'HEAVY_LOCAL': 0,
               'run_id': os.environ.get('GITHUB_RUN_ID'), 'SHA': os.environ.get('GITHUB_SHA')}
     try:
+        quota_admission()
         record['catalog'] = catalog_admission(model)
         os.environ['ARBM_G3_FREE_MODEL'] = model
         os.environ['ARBM_G3_TASK_ID'] = 'capability-probe'
