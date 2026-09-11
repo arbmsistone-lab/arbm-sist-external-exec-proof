@@ -4,10 +4,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 UPSTREAM = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5"
 EXPECTED_PIPELINE = "arbm-osworld-v31-isolated"
 EXPECTED_BUILD = "arbm-osworld-v31e-isolated-20260911"
+MAX_NO_PROGRESS = int(os.environ.get("ARBM_MAX_NO_PROGRESS", "12"))
+MAX_WAIT_RESPONSES = int(os.environ.get("ARBM_MAX_WAIT_RESPONSES", "20"))
 STATE = {
     "step": 0, "previous": "", "executed": 0, "phase": "plan",
     "plan": "", "memory": [], "verification": "", "history": [],
-    "last_obs_sig": "", "no_progress": 0,
+    "last_obs_sig": "", "no_progress": 0, "wait_responses": 0,
 }
 LOG = os.environ.get("ARBM_OSWORLD_SHIM_LOG", "osworld-v31-shim.log")
 
@@ -103,6 +105,9 @@ def update_state(action, obs_sig):
 
 def call_mesh(messages):
     STATE["step"] += 1
+    if STATE["no_progress"] >= MAX_NO_PROGRESS or STATE["wait_responses"] >= MAX_WAIT_RESPONSES:
+        log_event({"step": STATE["step"], "http": 200, "status": "NO_PROGRESS_ABORT", "provider": "guardrail", "model": "none", "pipeline": EXPECTED_PIPELINE, "agent_build": EXPECTED_BUILD})
+        return "DONE"
     obs, screenshot = latest_observation(messages)
     obs_sig = hashlib.sha256(obs.encode("utf-8", "ignore")).hexdigest()[:20]
     body = {
@@ -137,9 +142,11 @@ def call_mesh(messages):
     if http != 200 or data.get("ok") is not True:
         STATE["no_progress"] += 1
         STATE["phase"] = "plan" if STATE["no_progress"] >= 2 else STATE["phase"]
+        STATE["wait_responses"] += 1
         return "WAIT"
     if data.get("pipeline") != EXPECTED_PIPELINE or data.get("agent_build") != EXPECTED_BUILD:
         STATE["no_progress"] += 1
+        STATE["wait_responses"] += 1
         return "WAIT"
     action = data.get("action") or {}
     previous_obs_sig = STATE["last_obs_sig"]
@@ -157,14 +164,20 @@ def call_mesh(messages):
             return "WAIT"
         STATE["previous"] = command
         STATE["executed"] += 1
+        STATE["wait_responses"] = 0
         STATE["history"].append({"step": STATE["step"], "command": command[:1200], "obs": obs_sig})
         STATE["history"] = STATE["history"][-24:]
         return "```python\n" + command + "\n```"
     if kind == "finish":
         confidence = float(action.get("confidence") or 0)
         verification = str(action.get("verification") or "").strip()
-        return "DONE" if confidence >= 0.72 and verification else "WAIT"
+        if confidence >= 0.72 and verification:
+            STATE["wait_responses"] = 0
+            return "DONE"
+        STATE["wait_responses"] += 1
+        return "WAIT"
     STATE["no_progress"] += 1
+    STATE["wait_responses"] += 1
     if STATE["no_progress"] >= 2:
         STATE["phase"] = "plan"
     return "WAIT"

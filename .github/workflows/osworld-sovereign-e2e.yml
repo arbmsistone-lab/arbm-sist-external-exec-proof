@@ -40,6 +40,9 @@ jobs:
       AWS_SUBNET_ID: unused-docker-provider
       AWS_SECURITY_GROUP_ID: unused-docker-provider
       OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
+      ARBM_MAX_NO_PROGRESS: 12
+      ARBM_MAX_WAIT_RESPONSES: 20
+      ARBM_TASK_TIMEOUT: 35m
     steps:
       - uses: actions/checkout@v7
       - name: Prove free KVM runner
@@ -114,14 +117,14 @@ jobs:
             done
             test "$ready" = 1
             set +e
-            (cd osworld && uv run python scripts/python/run_multienv.py \
+            timeout --signal=TERM --kill-after=30s "$ARBM_TASK_TIMEOUT" bash -lc 'set -o pipefail; cd osworld && uv run python scripts/python/run_multienv.py \
               --headless --provider_name docker --path_to_vm "$QCOW_PATH" --eval_version v2 \
               --test_all_meta_path evaluation_examples/test_arbm_sovereign.json --domain tasks \
               --observation_type screenshot_a11y_tree --action_space pyautogui --model gpt-arbm-osworld-v31-isolated \
               --temperature 0 --max_steps 500 --max_trajectory_length 8 --max_tokens 4096 --num_envs 1 \
               --result_dir "../top3-evidence/osworld-sovereign-${TASK_ID}/results" \
-              2>&1 | tee "../top3-evidence/osworld-sovereign-${TASK_ID}/osworld.log")
-            rc=${PIPESTATUS[0]}
+              2>&1 | tee "../top3-evidence/osworld-sovereign-${TASK_ID}/osworld.log"'
+            rc=$?
             set -e
             kill "$SHIM_PID" 2>/dev/null || true
             wait "$SHIM_PID" 2>/dev/null || true
@@ -133,6 +136,7 @@ jobs:
             printf '%s\n' "$TASK_ID" > "$DIR/task-id.txt"
             test "$(sha256sum "$QCOW_PATH" | cut -d' ' -f1)" = "$(cat qcow-base.sha256)" || rc=99
             find "$DIR" -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > "$DIR/SHA256SUMS.txt"
+            printf '%s\n' "$rc" > "$DIR/task-rc.txt"
             if [ "$rc" -ne 0 ]; then overall=1; fi
           done
           exit "$overall"
