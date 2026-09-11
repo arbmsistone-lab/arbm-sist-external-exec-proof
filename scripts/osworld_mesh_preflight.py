@@ -1,9 +1,9 @@
 import base64, json, os, urllib.request, urllib.error
 
-API = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v6"
-EXPECTED_PIPELINE = "arbm-osworld-v31"
-EXPECTED_BUILD = "arbm-osworld-v31-20260911-d"
-EXPECTED_EZBR_SHA256 = "a1dae64388ce7129fb41007526d1ed7a6dceabbf4e1523b194108af35d99377b"
+API = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5"
+EXPECTED_PIPELINE = "arbm-osworld-v31-isolated"
+EXPECTED_BUILD = "arbm-osworld-v31e-isolated-20260911"
+EXPECTED_EZBR_SHA256 = "85ac465da11e07b0f54139c568f05f5b44db20bde592f6118f397f39067a7289"
 PNG_1X1 = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAABe0lEQVR42u3asa6CMBQGYFB3nPsIOhhk0XSE93D0eRxITIghLD6DBlZhIOnIC7C44WJqWM4dSDopJhfQmvz/RAtDv3AawklNIjJ+OSPjxwMAAAAA8N1MXt0wTVO3tT79ZKGEtC2h9hf3ybQXM0oIAAAAAAAAAAAAAAAAvgYIw9BxnPV67ThOFEXN5HQ6bS7KsrRt+3q9Dvuj+TRvHyCi0+nEOa+qioiqquKcx3FMRJZlEZGUknOeZRl1S/tKOgFc103TVA0vl4vneQqw2WyCIKDOGRDAGJNSqqGUkjHWAHa73Xa7pT7SvpJRv9XY/L/Wde37/rCl38smns1mQgg1FELM53PDMMbjcZ7n9/t9v99/olv07xI6n8+c89vtpjZxkiRqD5RlyRgrikLfPUBEh8PBtu3VarVcLsMwbCYbABEdj8fFYvF4PIYDmK/aPqobo09fCK1FAAAAAAAAAAAAAAAAAAAArfL+qIGGx1ZQQjrFxMFXAAAAAIAu+QMm7VscSt4QYQAAAABJRU5ErkJggg=="
 
 
