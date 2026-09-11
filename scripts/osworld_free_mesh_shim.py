@@ -1,111 +1,207 @@
 import json, os, re, time, urllib.request, urllib.error, hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-UPSTREAM = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v7"
-STATE = {"step": 0, "previous": "", "executed": 0, "history": [], "memory": [], "last_obs_sig": "", "last_target": ""}
-LOG = os.environ.get("ARBM_OSWORLD_SHIM_LOG", "osworld-free-mesh-shim.log")
+UPSTREAM = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v6"
+EXPECTED_PIPELINE = "arbm-osworld-v31"
+EXPECTED_BUILD = "arbm-osworld-v31-20260911-a"
+STATE = {
+    "step": 0, "previous": "", "executed": 0, "phase": "plan",
+    "plan": "", "memory": [], "verification": "", "history": [],
+    "last_obs_sig": "", "no_progress": 0,
+}
+LOG = os.environ.get("ARBM_OSWORLD_SHIM_LOG", "osworld-v31-shim.log")
 
-def text_of(content):
+
+def content_parts(content):
+    texts, images = [], []
     if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        return "\n".join(str(x.get("text", "")) for x in content if isinstance(x, dict) and x.get("type") == "text")
-    return str(content or "")
+        texts.append(content)
+    elif isinstance(content, list):
+        for item in content:
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") == "text":
+                texts.append(str(item.get("text") or ""))
+            elif item.get("type") == "image_url":
+                image = item.get("image_url") or {}
+                url = image.get("url") if isinstance(image, dict) else ""
+                if isinstance(url, str) and url.startswith("data:image/"):
+                    images.append(url)
+    return "\n".join(texts), images
 
 def oidc_token():
     url = os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"]
     token = os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]
     sep = "&" if "?" in url else "?"
-    req = urllib.request.Request(url + sep + "audience=arbm-sist-benchmark", headers={"Authorization": "Bearer " + token})
+    req = urllib.request.Request(url + sep + "audience=arbm-sist-benchmark",
+                                 headers={"Authorization": "Bearer " + token})
     with urllib.request.urlopen(req, timeout=20) as res:
         return json.loads(res.read())["value"]
 
+
 def task_from(messages):
-    system = "\n".join(text_of(m.get("content")) for m in messages if m.get("role") == "system")
+    system = "\n".join(content_parts(m.get("content"))[0]
+                       for m in messages if m.get("role") == "system")
     match = re.search(r"You are asked to complete the following task:\s*(.*)$", system, re.S)
-    return match.group(1).strip() if match else system[-10000:]
+    return (match.group(1).strip() if match else system[-18000:])
+
 
 def latest_observation(messages):
-    users = [text_of(m.get("content")) for m in messages if m.get("role") == "user"]
+    users = [m for m in messages if m.get("role") == "user"]
     if not users:
-        return ""
-    text = users[-1]
-    if len(text) <= 26000:
-        return text
-    return text[:13000] + "\n...[middle accessibility tree omitted]...\n" + text[-13000:]
+        return "", ""
+    text, images = content_parts(users[-1].get("content"))
+    if len(text) > 42000:
+        third = 14000
+        text = text[:third] + "\n...[middle compressed]...\n" + text[-third * 2:]
+    image = images[-1] if images else ""
+    if len(image) > 26_000_000:
+        image = ""
+    return text, image
+
+
+def memory_text():
+    blocks = []
+    if STATE["plan"]:
+        blocks.append("PLAN:\n" + STATE["plan"][-3500:])
+    blocks.extend(STATE["memory"][-18:])
+    if STATE["verification"]:
+        blocks.append("LAST_VERIFICATION:\n" + STATE["verification"][-2500:])
+    return "\n\n".join(blocks)[-18000:]
+
 
 def log_event(data):
-    safe = {k: data.get(k) for k in ("step", "http", "status", "provider", "model")}
-    safe["attempts"] = [{k: a.get(k) for k in ("route", "model", "status", "parsed", "reason")}
+    safe = {k: data.get(k) for k in
+            ("step", "http", "status", "provider", "model", "pipeline", "agent_build")}
+    safe["phase"] = STATE["phase"]
+    safe["no_progress"] = STATE["no_progress"]
+    safe["attempts"] = [{k: a.get(k) for k in
+                         ("route", "model", "status", "parsed", "free_plan_proven", "reason")}
                         for a in (data.get("provider_attempts") or [])]
     with open(LOG, "a", encoding="utf-8") as f:
         f.write(json.dumps(safe, separators=(",", ":")) + "\n")
 
+
+def update_state(action, obs_sig):
+    patch = str(action.get("memory_patch") or "").strip()
+    if patch:
+        STATE["memory"].append(f"step {STATE['step']}: {patch[:3500]}")
+        STATE["memory"] = STATE["memory"][-18:]
+    plan = str(action.get("plan") or "").strip()
+    if plan:
+        STATE["plan"] = plan[:3500]
+    verification = str(action.get("verification") or "").strip()
+    if verification:
+        STATE["verification"] = verification[:2500]
+    phase = str(action.get("phase") or "execute")
+    if phase in ("plan", "execute", "verify", "done"):
+        STATE["phase"] = phase
+    if obs_sig != STATE["last_obs_sig"]:
+        STATE["no_progress"] = 0
+    STATE["last_obs_sig"] = obs_sig
+
+
 def call_mesh(messages):
     STATE["step"] += 1
-    preferred = {"001":"groq", "002":"lightning", "003":"google"}.get(os.environ.get("TASK_ID", ""), "")
-    obs = latest_observation(messages)
-    body = {"instruction": task_from(messages), "observation": obs,
-            "previous_command": STATE["previous"], "executed_count": STATE["executed"],
-            "memory": "\n".join(STATE["memory"][-6:]), "provider_hint": preferred, "step": STATE["step"]}
+    obs, screenshot = latest_observation(messages)
+    obs_sig = hashlib.sha256(obs.encode("utf-8", "ignore")).hexdigest()[:20]
+    body = {
+        "instruction": task_from(messages), "observation": obs,
+        "screenshot_data_url": screenshot,
+        "visual_context": "latest OSWorld screenshot attached" if screenshot else "screenshot unavailable",
+        "previous_command": STATE["previous"], "executed_count": STATE["executed"],
+        "memory": memory_text(), "phase": STATE["phase"],
+        "no_progress_count": STATE["no_progress"], "step": STATE["step"],
+    }
     http, data = None, {"status": "NO_ATTEMPT"}
     for attempt in range(4):
-        req = urllib.request.Request(UPSTREAM, data=json.dumps(body).encode(), method="POST",
+        req = urllib.request.Request(
+            UPSTREAM, data=json.dumps(body).encode(), method="POST",
             headers={"Authorization": "Bearer " + oidc_token(), "Content-Type": "application/json"})
         try:
-            with urllib.request.urlopen(req, timeout=70) as res:
+            with urllib.request.urlopen(req, timeout=75) as res:
                 http, data = res.status, json.loads(res.read())
         except urllib.error.HTTPError as err:
             http = err.code
-            try: data = json.loads(err.read())
-            except Exception: data = {"status": "INVALID_UPSTREAM_RESPONSE"}
-        if http == 200: break
-        if http not in (429, 503): break
+            try:
+                data = json.loads(err.read())
+            except Exception:
+                data = {"status": "INVALID_UPSTREAM_RESPONSE"}
+        if http == 200:
+            break
+        if http not in (429, 503):
+            break
         time.sleep(1.0 + attempt * 0.5)
     data["step"], data["http"] = STATE["step"], http
     log_event(data)
+    if http != 200 or data.get("ok") is not True:
+        STATE["no_progress"] += 1
+        STATE["phase"] = "plan" if STATE["no_progress"] >= 2 else STATE["phase"]
+        return "WAIT"
+    if data.get("pipeline") != EXPECTED_PIPELINE or data.get("agent_build") != EXPECTED_BUILD:
+        STATE["no_progress"] += 1
+        return "WAIT"
     action = data.get("action") or {}
-    if http == 200 and data.get("ok") is True and action.get("action") == "exec":
+    previous_obs_sig = STATE["last_obs_sig"]
+    update_state(action, obs_sig)
+    kind = action.get("action")
+    if kind == "exec":
         command = str(action.get("command") or "").strip()
-        obs_sig = hashlib.sha256(obs.encode("utf-8", "ignore")).hexdigest()[:16]
-        m = re.search(r"pyautogui\.(?:click|doubleClick|rightClick|moveTo|dragTo)\s*\(\s*(\d+)\s*,\s*(\d+)", command)
-        target = f"{m.group(1)},{m.group(2)}" if m else command
-        if command in STATE["history"] or (target == STATE["last_target"] and obs_sig == STATE["last_obs_sig"]):
+        if not command:
+            STATE["no_progress"] += 1
+            return "WAIT"
+        same_state = obs_sig == previous_obs_sig
+        if command == STATE["previous"] and same_state:
+            STATE["no_progress"] += 1
+            STATE["phase"] = "plan"
             return "WAIT"
         STATE["previous"] = command
         STATE["executed"] += 1
-        summary = str(action.get("summary") or "").strip()
-        if summary:
-            STATE["memory"].append(f"step {STATE["step"]}: {summary[:900]}")
-            STATE["memory"] = STATE["memory"][-6:]
-        STATE["last_obs_sig"], STATE["last_target"] = obs_sig, target
-        STATE["history"].append(command)
-        STATE["history"] = STATE["history"][-8:]
+        STATE["history"].append({"step": STATE["step"], "command": command[:1200], "obs": obs_sig})
+        STATE["history"] = STATE["history"][-24:]
         return "```python\n" + command + "\n```"
-    if http == 200 and data.get("ok") is True and action.get("action") == "finish":
-        return "DONE" if STATE["executed"] > 0 else "WAIT"
+    if kind == "finish":
+        confidence = float(action.get("confidence") or 0)
+        verification = str(action.get("verification") or "").strip()
+        return "DONE" if confidence >= 0.72 and verification else "WAIT"
+    STATE["no_progress"] += 1
+    if STATE["no_progress"] >= 2:
+        STATE["phase"] = "plan"
     return "WAIT"
+
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_):
         return
     def send_json(self, code, value):
         raw = json.dumps(value).encode()
-        self.send_response(code); self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(raw))); self.end_headers(); self.wfile.write(raw)
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
     def do_GET(self):
-        self.send_json(200, {"status": "ok"}) if self.path == "/health" else self.send_json(404, {})
+        if self.path == "/health":
+            self.send_json(200, {"status": "ok", "pipeline": EXPECTED_PIPELINE, "build": EXPECTED_BUILD})
+        else:
+            self.send_json(404, {})
     def do_POST(self):
-        if self.path != "/v1/chat/completions": return self.send_json(404, {})
+        if self.path != "/v1/chat/completions":
+            return self.send_json(404, {})
         try:
-            n = int(self.headers.get("Content-Length", "0")); body = json.loads(self.rfile.read(n) or b"{}")
+            n = int(self.headers.get("Content-Length", "0"))
+            body = json.loads(self.rfile.read(n) or b"{}")
             content = call_mesh(body.get("messages") or [])
-            self.send_json(200, {"id": "arbm-osworld-free-mesh", "object": "chat.completion",
-                "created": int(time.time()), "model": "gpt-arbm-sovereign",
-                "choices": [{"index": 0, "message": {"role": "assistant", "content": content}, "finish_reason": "stop"}],
-                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}})
+            self.send_json(200, {
+                "id": "arbm-osworld-v31", "object": "chat.completion", "created": int(time.time()),
+                "model": "gpt-arbm-osworld-v31",
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": content},
+                             "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            })
         except Exception as exc:
             log_event({"step": STATE["step"], "http": None, "status": type(exc).__name__})
             self.send_json(200, {"choices": [{"message": {"role": "assistant", "content": "WAIT"}}]})
+
 
 ThreadingHTTPServer(("127.0.0.1", 8088), Handler).serve_forever()
