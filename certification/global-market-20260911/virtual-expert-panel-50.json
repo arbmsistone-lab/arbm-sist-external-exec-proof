@@ -1,0 +1,309 @@
+﻿{
+    "schema":  "arbm-virtual-expert-panel-v2",
+    "requiredExperts":  50,
+    "consensus":  "ALL_REQUIRED_PASS",
+    "failClosed":  true,
+    "note":  "Virtual expert perspectives; not real human reviewers",
+    "experts":  [
+                    {
+                        "id":  "E01",
+                        "focus":  "Architecture",
+                        "role":  "Senior review perspective 1",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E02",
+                        "focus":  "Architecture",
+                        "role":  "Senior review perspective 2",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E03",
+                        "focus":  "Architecture",
+                        "role":  "Senior review perspective 3",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E04",
+                        "focus":  "Architecture",
+                        "role":  "Senior review perspective 4",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E05",
+                        "focus":  "Architecture",
+                        "role":  "Senior review perspective 5",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E06",
+                        "focus":  "Terminal",
+                        "role":  "Senior review perspective 1",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E07",
+                        "focus":  "Terminal",
+                        "role":  "Senior review perspective 2",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E08",
+                        "focus":  "Terminal",
+                        "role":  "Senior review perspective 3",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E09",
+                        "focus":  "Terminal",
+                        "role":  "Senior review perspective 4",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E10",
+                        "focus":  "Terminal",
+                        "role":  "Senior review perspective 5",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E11",
+                        "focus":  "Browser",
+                        "role":  "Senior review perspective 1",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E12",
+                        "focus":  "Browser",
+                        "role":  "Senior review perspective 2",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E13",
+                        "focus":  "Browser",
+                        "role":  "Senior review perspective 3",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E14",
+                        "focus":  "Browser",
+                        "role":  "Senior review perspective 4",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E15",
+                        "focus":  "Browser",
+                        "role":  "Senior review perspective 5",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E16",
+                        "focus":  "ToolCalling",
+                        "role":  "Senior review perspective 1",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E17",
+                        "focus":  "ToolCalling",
+                        "role":  "Senior review perspective 2",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E18",
+                        "focus":  "ToolCalling",
+                        "role":  "Senior review perspective 3",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E19",
+                        "focus":  "ToolCalling",
+                        "role":  "Senior review perspective 4",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E20",
+                        "focus":  "ToolCalling",
+                        "role":  "Senior review perspective 5",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E21",
+                        "focus":  "Resilience",
+                        "role":  "Senior review perspective 1",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E22",
+                        "focus":  "Resilience",
+                        "role":  "Senior review perspective 2",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E23",
+                        "focus":  "Resilience",
+                        "role":  "Senior review perspective 3",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E24",
+                        "focus":  "Resilience",
+                        "role":  "Senior review perspective 4",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E25",
+                        "focus":  "Resilience",
+                        "role":  "Senior review perspective 5",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E26",
+                        "focus":  "Security",
+                        "role":  "Senior review perspective 1",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E27",
+                        "focus":  "Security",
+                        "role":  "Senior review perspective 2",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E28",
+                        "focus":  "Security",
+                        "role":  "Senior review perspective 3",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E29",
+                        "focus":  "Security",
+                        "role":  "Senior review perspective 4",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E30",
+                        "focus":  "Security",
+                        "role":  "Senior review perspective 5",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E31",
+                        "focus":  "Performance",
+                        "role":  "Senior review perspective 1",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E32",
+                        "focus":  "Performance",
+                        "role":  "Senior review perspective 2",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E33",
+                        "focus":  "Performance",
+                        "role":  "Senior review perspective 3",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E34",
+                        "focus":  "Performance",
+                        "role":  "Senior review perspective 4",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E35",
+                        "focus":  "Performance",
+                        "role":  "Senior review perspective 5",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E36",
+                        "focus":  "EvidenceIntegrity",
+                        "role":  "Senior review perspective 1",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E37",
+                        "focus":  "EvidenceIntegrity",
+                        "role":  "Senior review perspective 2",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E38",
+                        "focus":  "EvidenceIntegrity",
+                        "role":  "Senior review perspective 3",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E39",
+                        "focus":  "EvidenceIntegrity",
+                        "role":  "Senior review perspective 4",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E40",
+                        "focus":  "EvidenceIntegrity",
+                        "role":  "Senior review perspective 5",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E41",
+                        "focus":  "Governance",
+                        "role":  "Senior review perspective 1",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E42",
+                        "focus":  "Governance",
+                        "role":  "Senior review perspective 2",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E43",
+                        "focus":  "Governance",
+                        "role":  "Senior review perspective 3",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E44",
+                        "focus":  "Governance",
+                        "role":  "Senior review perspective 4",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E45",
+                        "focus":  "Governance",
+                        "role":  "Senior review perspective 5",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E46",
+                        "focus":  "MarketClaims",
+                        "role":  "Senior review perspective 1",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E47",
+                        "focus":  "MarketClaims",
+                        "role":  "Senior review perspective 2",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E48",
+                        "focus":  "MarketClaims",
+                        "role":  "Senior review perspective 3",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E49",
+                        "focus":  "MarketClaims",
+                        "role":  "Senior review perspective 4",
+                        "verdict":  "PENDING_EVIDENCE"
+                    },
+                    {
+                        "id":  "E50",
+                        "focus":  "MarketClaims",
+                        "role":  "Senior review perspective 5",
+                        "verdict":  "PENDING_EVIDENCE"
+                    }
+                ]
+}

@@ -1,0 +1,22 @@
+﻿{
+  "schema": "arbm-sist-global-market-cert-v1",
+  "date": "2026-09-11",
+  "policy": {"zero_spend":"HARD","heavy_local":0,"fail_closed":true,"no_regression":true},
+  "release_gate": "ALL_MANDATORY_GREEN",
+  "mandatory": [
+    {"id":"terminal","benchmark":"Terminal-Bench","purpose":"autonomous terminal execution","status":"PENDING_EXTERNAL_RUN"},
+    {"id":"web","benchmark":"WebArena-Verified/WorkArena","purpose":"browser and enterprise web operation","status":"HARNESS_REQUIRED"},
+    {"id":"tools","benchmark":"BFCL","purpose":"tool/function calling correctness","status":"HARNESS_REQUIRED"},
+    {"id":"resilience","benchmark":"ARBM Fault/Continuity Matrix","purpose":"N+1/N+2, outage, 429, storage, git, clock, idempotency","status":"EVIDENCE_EXISTS_REVALIDATION_REQUIRED"},
+    {"id":"security","benchmark":"OWASP Agentic/LLM controls + adversarial suite","purpose":"agentic security and secret safety","status":"EVIDENCE_EXISTS_REVALIDATION_REQUIRED"},
+    {"id":"performance","benchmark":"ARBM latency/throughput/failover SLO","purpose":"no avoidable latency and provider failover","status":"V8_CANDIDATE_PENDING_REMOTE_PROOF"},
+    {"id":"integrity","benchmark":"Evidence Pack + tamper verification","purpose":"reproducible cryptographic evidence","status":"EVIDENCE_EXISTS_REVALIDATION_REQUIRED"}
+  ],
+  "specializations": [
+    {"id":"desktop","benchmark":"OSWorld V2","purpose":"full desktop computer use","status":"FAIL_0_0_0_REMEDIATION_REQUIRED","market_blocker":false,"claim_blocker":"desktop automation excellence"},
+    {"id":"coding","benchmark":"SWE-rebench/SWE-bench family","purpose":"software engineering agent","status":"OPTIONAL_UNLESS_SOLD"},
+    {"id":"research","benchmark":"BrowseComp/GAIA family","purpose":"deep research/general agent","status":"OPTIONAL_UNLESS_SOLD"}
+  ],
+  "market_certified": false,
+  "reason": "Mandatory external benchmark evidence not yet complete"
+}
