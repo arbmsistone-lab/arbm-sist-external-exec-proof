@@ -226,6 +226,33 @@ class FreeAgentTests(unittest.TestCase):
         self.assertEqual(len(self.agent._messages_for(self.obs['screenshot'], None)), 2)
         self.assertEqual(self.agent._history.maxlen, 6)
 
+    def test_action_intent_mismatch_rejected(self):
+        action = payload('type', text='Inbox')
+        action['expected_change'] = 'Click on the Inbox tab.'
+        with self.assertRaisesRegex(agent_module.StructuralError, 'ACTION_INTENT_MISMATCH'):
+            agent_module.validate_action(action)
+
+    def test_quota_metadata_sanitized(self):
+        error = RuntimeError('secret must never be logged')
+        error.status_code = 429
+        error.body = {'message': 'Rate limit exceeded: free-models-per-day'}
+        error.response = SimpleNamespace(headers={'x-ratelimit-reset': '1790000000000',
+                                                  'authorization': 'private-token'})
+        details = agent_module.provider_error_details(error)
+        self.assertEqual(details['quota_scope'], 'FREE_REQUESTS_PER_DAY')
+        self.assertNotIn('private-token', json.dumps(details))
+        self.assertEqual(details['quota_headers']['x-ratelimit-reset'], '1790000000000')
+
+    def test_ocr_is_host_only_bounded_and_grounded(self):
+        tsv = 'level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n'
+        tsv += '5\t1\t1\t1\t1\t1\t180\t100\t40\t20\t95\tCancel\n'
+        with patch.dict(os.environ, {'ARBM_G3_SCREENSHOT_OCR': '1'}), patch.object(agent_module.subprocess, 'run') as run:
+            run.return_value = SimpleNamespace(stdout=tsv)
+            out = agent_module.screenshot_ocr(self.obs['screenshot'], 400, 240)
+        self.assertEqual(out['labels'][0], {'text': 'Cancel', 'x': 500, 'y': 458})
+        self.assertEqual(run.call_args.args[0][0], 'tesseract')
+        self.assertNotIn('shell', run.call_args.kwargs)
+
 
 if __name__ == '__main__':
     unittest.main()

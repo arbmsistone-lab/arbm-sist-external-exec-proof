@@ -148,11 +148,14 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           ARBM_G3_TASK_ID: '001'
+          ARBM_G3_SCREENSHOT_OCR: '1'
           ARBM_G3_USAGE_LOG: ${{ github.workspace }}/g3-free-usage.jsonl
         run: |
           set -euo pipefail
           export OSWORLD_FILE_BASE_URL="$PWD/osworld/cache/osworld_v2_assets"
           qcow=$(cat vm-path.txt)
+          command -v tesseract >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr)
+          tesseract --version > free-ocr-runtime.txt 2>&1
           cd osworld
           uv run scripts/python/run_multienv.py --path_to_vm "$qcow" --headless --provider_name docker \
             --action_space pyautogui --observation_type screenshot --model "$FREE_MODEL_PATH" \

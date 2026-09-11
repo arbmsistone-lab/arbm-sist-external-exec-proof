@@ -1,0 +1,19 @@
+{
+  "scope": "One alternate-model FREE capability probe only; no VM",
+  "A": "PASS_LOCAL_28_TESTS_COMPILE_LINT",
+  "B": "PASS_PINS_AND_PAID_LANE_UNCHANGED",
+  "C": "PASS_ZERO_PRICE_CATALOG_AND_ZERO_LIMIT_ACCOUNT_FOR_PROBE_ONLY",
+  "hypothesis": "Determine whether the observed Dots 429 also blocks an explicitly selected alternate FREE model; capture exact quota scope/reset without retrying Dots.",
+  "requested_model": "inclusionai/ling-3.0-flash-vl:free",
+  "account_readonly_run": 34599624845,
+  "prior_smoke_run": 34598530042,
+  "provider_retries": 0,
+  "probe_only": true,
+  "content_sha256": {
+    "certification/g3-openrouter-free-adapter.py": "a5d4861e1536eb017be732ba3c3b38c542185f55c3af075fc7102b1cb0920a56",
+    "certification/g3_free_control.py": "307dd419c1950ea29dfa1d1dc9f0042674397d6ec69f8f963fff54fa0c1ebb7d",
+    ".github/workflows/osworld-g3-free-smoke-v1.yml": "cd2ff4092e24aa3f14368b73aefc540369967e05227b1e5bb0251b50b27e4664",
+    "tests/test_g3_free_agent.py": "8c91d63ba5c5a86fcc0eb1a9fa8f648f6b814d84f77a9352f2c7660af5680915",
+    "tests/test_g3_free_workflow.py": "8c108d2237dc6f3f92eff888d64e6ac7c08d78b7835617cabb0166f80651aca8"
+  }
+}
