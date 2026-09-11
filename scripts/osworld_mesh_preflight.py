@@ -18,7 +18,7 @@ def oidc():
 
 
 body = {
-    "instruction": "Activate the currently focused OK button using the keyboard.",
+    "instruction": "Return action exactly exec and command exactly pyautogui.press('enter') to activate the currently focused OK button. Do not use any other action value.",
     "observation": "[button] name='OK' position (100,100) size (120,40) focused true",
     "screenshot_data_url": "data:image/png;base64," + PNG_1X1,
     "visual_context": "Synthetic valid PNG plus focused accessibility button for multimodal route proof.",
