@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 6
     env:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-      FREE_MODEL: google/gemma-4-26b-a4b-it:free
+      FREE_MODEL: dots-studio/dots-3-note-preview:free
     steps:
       - uses: actions/checkout@v4
       - name: Enforce zero-spend isolation
