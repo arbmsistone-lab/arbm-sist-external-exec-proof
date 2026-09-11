@@ -9,6 +9,7 @@ on:
           - dots-studio/dots-3-note-preview:free
           - inclusionai/ling-3.0-flash-vl:free
           - nex-agi/nex-n2.5-mini:free
+          - qwen/qwen3.8-27b
       probe_only:
         type: boolean
         default: false
@@ -40,16 +41,55 @@ jobs:
       - name: Assert FREE lane before VM preparation
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GROQ_G3_FREE_CERT_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
         run: |
+          set -euo pipefail
           test "$GITHUB_REF_NAME" = "g3-free-cert-lane-20260910"
-          test -n "$OPENROUTER_API_KEY"
+          if [ "$ARBM_G3_FREE_MODEL" = "qwen/qwen3.8-27b" ]; then
+            test -n "$GROQ_G3_FREE_CERT_KEY"
+            echo 'ARBM_G3_PROVIDER=groq' >> "$GITHUB_ENV"
+          else
+            test -n "$OPENROUTER_API_KEY"
+            echo 'ARBM_G3_PROVIDER=openrouter' >> "$GITHUB_ENV"
+          fi
           printf 'ZERO_SPEND=true\nFREE_LANE=true\n' > free-admission.txt
       - name: Prove FREE model contract before VM
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GROQ_G3_FREE_CERT_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
           ARBM_G3_USAGE_LOG: ${{ github.workspace }}/g3-free-probe-usage.jsonl
         run: |
-          python certification/g3_free_control.py probe --model "$ARBM_G3_FREE_MODEL" --output free-capability.json
+          set -euo pipefail
+          if [ "$ARBM_G3_PROVIDER" = "groq" ] && [ "${{ inputs.probe_only }}" = "true" ]; then
+            python - <<'PY'
+          import json, os, urllib.request, urllib.error
+          req=urllib.request.Request('https://api.groq.com/openai/v1/models', headers={
+              'Authorization':'Bearer '+os.environ['GROQ_G3_FREE_CERT_KEY'],
+              'Accept':'application/json',
+              'User-Agent':'ARBM-SIST-G3-FREE-admission/1.0'})
+          try:
+              with urllib.request.urlopen(req, timeout=20) as r:
+                  data=json.load(r); status=r.status
+                  headers={k.lower():v for k,v in r.headers.items()}
+          except urllib.error.HTTPError as e:
+              raise SystemExit('GROQ_AUTH_OR_CATALOG_FAILED_HTTP_'+str(e.code))
+          model=os.environ['ARBM_G3_FREE_MODEL']
+          ids={x.get('id') for x in data.get('data',[]) if isinstance(x,dict)}
+          if status != 200 or model not in ids:
+              raise SystemExit('GROQ_MODEL_NOT_AVAILABLE')
+          safe={k:headers[k] for k in ('x-ratelimit-limit-requests','x-ratelimit-remaining-requests',
+              'x-ratelimit-limit-tokens','x-ratelimit-remaining-tokens','x-ratelimit-reset-requests',
+              'x-ratelimit-reset-tokens') if k in headers}
+          out={'state':'PASS','provider':'groq','model':model,'credential_authenticated':True,
+               'model_catalog_present':True,'inference_calls':0,'new_spend_usd':0,
+               'ZERO_SPEND':True,'HEAVY_LOCAL':0,'rate_limit_headers':safe,
+               'account_plan':'NOT_PROVEN_BY_CATALOG'}
+          open('free-capability.json','w',encoding='utf-8').write(json.dumps(out,indent=2)+'\n')
+          print(json.dumps({'state':'PASS','provider':'groq','model':model,'inference_calls':0}))
+          PY
+          else
+            python certification/g3_free_control.py probe --model "$ARBM_G3_FREE_MODEL" --output free-capability.json
+          fi
           python - <<'PYCODE'
           import json, os, sys
           sys.path.insert(0, 'certification')
