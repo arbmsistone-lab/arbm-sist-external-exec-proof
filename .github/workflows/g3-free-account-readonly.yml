@@ -1,0 +1,45 @@
+name: G3 FREE account read-only evidence
+on:
+  workflow_dispatch:
+  push:
+    branches: [g3-free-cert-lane-20260910]
+    paths: ['.github/workflows/g3-free-account-readonly.yml']
+permissions:
+  contents: read
+jobs:
+  account:
+    if: github.repository == 'arbmsistone-lab/arbm-sist-external-exec-proof' && github.ref == 'refs/heads/g3-free-cert-lane-20260910'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Read current key accounting without inference
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import datetime, json, os, urllib.request
+          record = {'source': 'https://openrouter.ai/api/v1/key', 'method': 'GET',
+                    'inference_calls': 0, 'vms_prepared': 0, 'ZERO_SPEND': True, 'HEAVY_LOCAL': 0,
+                    'run_id': os.environ['GITHUB_RUN_ID'], 'SHA': os.environ['GITHUB_SHA'],
+                    'observed_at_utc': datetime.datetime.now(datetime.timezone.utc).isoformat()}
+          try:
+              request = urllib.request.Request(record['source'], headers={'Authorization': 'Bearer ' + os.environ['OPENROUTER_API_KEY']})
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  data = json.load(response)['data']
+              fields = ('is_free_tier', 'limit', 'limit_remaining', 'limit_reset', 'usage', 'usage_daily', 'usage_weekly', 'usage_monthly')
+              record.update(state='READ_SUCCESS', account={k: data.get(k) for k in fields},
+                            free_requests_remaining=None,
+                            note='Credit accounting is not the free request counter; rate-limit headers from the 429 are required for exact reset proof.')
+          except Exception as error:
+              record.update(state='READ_FAILED', error_type=type(error).__name__)
+          with open('free-account-readonly.json', 'w') as out:
+              json.dump(record, out, indent=2)
+          print(json.dumps(record))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: g3-free-account-readonly
+          path: free-account-readonly.json
+          retention-days: 30
