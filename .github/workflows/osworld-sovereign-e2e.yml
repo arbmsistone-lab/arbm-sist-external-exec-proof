@@ -27,6 +27,7 @@ jobs:
           path: osworld-mesh-preflight.json
           if-no-files-found: error
   task:
+    if: ${{ false }} # temporary preflight-only gate; restore after live FREE mesh proof
     needs: mesh-preflight
     runs-on: ubuntu-24.04
     timeout-minutes: 90
