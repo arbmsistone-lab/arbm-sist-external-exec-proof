@@ -1,0 +1,166 @@
+name: OSWorld G3 FREE certification one-task smoke v1
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - g3-free-cert-lane-20260910
+    paths:
+      - '.github/workflows/osworld-g3-free-smoke-v1.yml'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: arbm-g3-free-one-task
+  cancel-in-progress: false
+jobs:
+  smoke:
+    if: github.repository == 'arbmsistone-lab/arbm-sist-external-exec-proof' && github.ref == 'refs/heads/g3-free-cert-lane-20260910'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    steps:
+      - name: Checkout G3 tooling
+        uses: actions/checkout@v4
+      - name: Assert FREE lane before VM preparation
+        run: |
+          test "$GITHUB_REF_NAME" = "g3-free-cert-lane-20260910"
+          test -n "${{ secrets.OPENROUTER_API_KEY }}"
+          printf 'ZERO_SPEND=true\nFREE_LANE=true\n' > free-admission.txt
+      - name: Prepare remote KVM runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          free_gb=$(df -BG --output=avail / | tail -1 | tr -dc '0-9')
+          if [ "${free_gb:-0}" -lt 55 ]; then
+            sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL || true
+            sudo apt-get clean
+          fi
+          test -c /dev/kvm
+          sudo chmod 666 /dev/kvm
+          printf 'HEAVY_LOCAL=0\nREMOTE_COMPUTE=PASS\n' > smoke-evidence.txt
+      - name: Checkout pinned OSWorld
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v2026.08.08 https://github.com/xlang-ai/OSWorld-V2.git osworld
+          test "$(git -C osworld rev-parse HEAD)" = "d578d2d4e0dc82b43e270fdaa7fa89d9708cd154"
+          cd osworld
+          python -m pip install --disable-pip-version-check -q -U uv huggingface_hub
+          uv sync --frozen
+          uv pip install --python .venv/bin/python 'openai>=1.50,<3'
+          mkdir -p certification/g3-computer-use-snapshot
+          cp ../certification/g3-computer-use-snapshot/*.mjs certification/g3-computer-use-snapshot/
+          cp ../certification/vendor-gemini-agent.py mm_agents/gemini_agent.py
+          cp ../certification/vendor-gemini-action-parser.py mm_agents/gemini_action_parser.py
+          cp ../certification/g3-openrouter-free-adapter.py mm_agents/arbm_g3_agent.py
+          cp ../certification/g3_paid_control.py mm_agents/g3_paid_control.py
+          python - <<'PY'
+          p='scripts/python/run_multienv.py'
+          s=open(p,encoding='utf-8').read()
+          s=s.replace('from mm_agents.agent import PromptAgent','from mm_agents.arbm_g3_agent import ArbmG3Agent')
+          s=s.replace('agent = PromptAgent(', 'agent = ArbmG3Agent(')
+          aws_old = "        from desktop_env.providers.aws.manager import IMAGE_ID_MAP\n        REGION = args.region\n        screen_size = (args.screen_width, args.screen_height)\n        ami_id = IMAGE_ID_MAP[REGION].get(screen_size, IMAGE_ID_MAP[REGION][(1920, 1080)])\n"
+          aws_new = "        REGION = args.region\n        screen_size = (args.screen_width, args.screen_height)\n        snapshot_name = None\n        if args.provider_name == \"aws\":\n            from desktop_env.providers.aws.manager import IMAGE_ID_MAP\n            snapshot_name = IMAGE_ID_MAP[REGION].get(screen_size, IMAGE_ID_MAP[REGION][(1920, 1080)])\n"
+          assert aws_old in s, 'upstream aws bootstrap block changed'
+          s=s.replace(aws_old, aws_new, 1)
+          assert 'snapshot_name=ami_id,' in s, 'upstream snapshot argument changed'
+          s=s.replace('snapshot_name=ami_id,','snapshot_name=snapshot_name,',1)
+          assert 'if args.provider_name == "aws":' in s
+          open(p,'w',encoding='utf-8').write(s)
+          assert 'agent = ArbmG3Agent(' in s
+          PY
+      - name: Materialize official task 001 assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd osworld
+          export HF_TOKEN HF_XET_HIGH_PERFORMANCE=1
+          uv run scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
+          uv run scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 --target-dir cache/osworld_v2_assets --clean --allow-pattern 'task_001/**'
+          test -f evaluation_examples/task_class/task_001.py
+          printf '{"tasks":["001"]}\n' > smoke-one.json
+      - name: Pin runtime and official VM
+        shell: bash
+        run: |
+          set -euo pipefail
+          digest='sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9'
+          docker pull "happysixd/osworld-docker@${digest}"
+          docker tag "happysixd/osworld-docker@${digest}" happysixd/osworld-docker:latest
+          export HF_TOKEN HF_XET_HIGH_PERFORMANCE=1
+          hf download xlangai/v2-image osworld-v2-ubuntu-x86.qcow2.zip --repo-type dataset --revision 8213366932c553e5fe758d0f2c8c8b81ffc3be8c --local-dir hf-vm
+          zip_path='hf-vm/osworld-v2-ubuntu-x86.qcow2.zip'
+          test "$(sha256sum "$zip_path" | awk '{print $1}')" = "eb737ae70b49849e24af407de6a518439a23de05a8497096a948334ce0a909aa"
+          mkdir -p vm
+          if command -v 7z >/dev/null 2>&1; then
+            7z x -y -bd "$zip_path" -ovm >/dev/null
+          else
+            unzip -q "$zip_path" -d vm
+          fi
+          find vm -type f -name '*.qcow2' | head -1 | xargs realpath > vm-path.txt
+      - name: Execute official one-task smoke
+        shell: bash
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ARBM_G3_FREE_MODEL: dots-studio/dots-3-note-preview:free
+          ARBM_G3_USAGE_LOG: ${{ github.workspace }}/g3-free-usage.jsonl
+        run: |
+          set -euo pipefail
+          export OSWORLD_FILE_BASE_URL="$PWD/osworld/cache/osworld_v2_assets"
+          qcow=$(cat vm-path.txt)
+          cd osworld
+          uv run scripts/python/run_multienv.py --path_to_vm "$qcow" --headless --provider_name docker \
+            --action_space pyautogui --observation_type screenshot --model dots-studio/dots-3-note-preview:free \
+            --max_steps 100 --max_trajectory_length 3 \
+            --num_envs 1 --test_config_base_dir evaluation_examples --test_all_meta_path smoke-one.json \
+            --domain tasks --eval_version v2 --result_dir results-smoke
+      - name: Verify official evaluator result
+        shell: bash
+        run: |
+          set -euo pipefail
+          p='osworld/results-smoke/pyautogui/screenshot/dots-studio/dots-3-note-preview:free/tasks/001/result.txt'
+          test -f "$p"
+          python - "$p" <<'PY'
+          import sys
+          sys.path.insert(0, 'certification')
+          from g3_paid_control import official_result
+          score = official_result(sys.argv[1])
+          print(f'OFFICIAL_SMOKE_SCORE={score}')
+          PY
+          printf 'OFFICIAL_ONE_TASK_SMOKE=PASS\nMODEL=dots-studio/dots-3-note-preview:free\nFREE_LANE=true\nZERO_SPEND=true\n' >> smoke-evidence.txt
+      - name: Verify FREE usage journal even on failure
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          p=pathlib.Path('g3-free-usage.jsonl')
+          rows=[json.loads(x) for x in p.read_text().splitlines() if x.strip()] if p.exists() else []
+          started={r['call_index'] for r in rows if r.get('event')=='request_started'}
+          completed={r['call_index'] for r in rows if r.get('event')=='request_completed'}
+          done=[r for r in rows if r.get('event')=='request_completed']
+          ok=bool(started) and started==completed and all(r.get('zero_spend') is True and r.get('zero_spend_contract') is True and r.get('reported_cost_usd')==0.0 and r.get('returned_model')=='dots-studio/dots-3-note-preview:free' for r in done)
+          with open('smoke-evidence.txt','a') as f:
+              f.write(f'FREE_USAGE_ACCOUNTED={str(ok).lower()}\nFREE_MODEL_CALLS={len(done)}\nRECORDED_COST_USD=0.00000000\n')
+          if started and not ok: raise SystemExit('G3_FREE_USAGE_INTEGRITY_FAILED')
+          PY
+      - name: Cleanup remote runtime
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          docker ps -aq | xargs -r docker rm -f
+          echo "RUN_UTC=$(date -u +%FT%TZ)" >> smoke-evidence.txt
+          echo "CONTAINERS_LEFT=$(docker ps -aq | wc -l)" >> smoke-evidence.txt
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: osworld-g3-free-cert-smoke-evidence
+          path: |
+            smoke-evidence.txt
+            free-admission.txt
+            g3-free-usage.jsonl
+            osworld/results-smoke
+          retention-days: 30
+          if-no-files-found: warn
