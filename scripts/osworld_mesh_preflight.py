@@ -1,4 +1,4 @@
-import base64, json, os, urllib.request
+import base64, json, os, urllib.request, urllib.error
 
 API = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v6"
 EXPECTED_PIPELINE = "arbm-osworld-v31"
@@ -28,10 +28,15 @@ body = {
 }
 req = urllib.request.Request(API, data=json.dumps(body).encode(), method="POST",
     headers={"Authorization": "Bearer " + oidc(), "Content-Type": "application/json"})
-with urllib.request.urlopen(req, timeout=75) as response:
-    assert response.status == 200
-    data = json.loads(response.read())
+try:
+    with urllib.request.urlopen(req, timeout=75) as response:
+        status = response.status
+        data = json.loads(response.read())
+except urllib.error.HTTPError as err:
+    status = err.code
+    data = json.loads(err.read())
 print(json.dumps(data, separators=(",", ":")))
+assert status == 200, (status, data)
 assert data.get("ok") is True and data.get("status") == "PASS"
 assert data.get("pipeline") == EXPECTED_PIPELINE
 assert data.get("agent_build") == EXPECTED_BUILD
