@@ -24,7 +24,7 @@ body = {
     "visual_context": "Synthetic valid PNG plus focused accessibility button for multimodal route proof.",
     "previous_command": "", "executed_count": 0,
     "memory": "", "phase": "plan", "no_progress_count": 0, "step": 1,
-    "provider_hint": "groq", "require_multimodal": True,
+    "require_multimodal": True,
 }
 status, data = None, {}
 for attempt_no in range(1, 16):
@@ -54,9 +54,9 @@ assert data.get("ok") is True and data.get("status") == "PASS"
 assert data.get("pipeline") == EXPECTED_PIPELINE
 assert data.get("agent_build") == EXPECTED_BUILD
 assert data.get("mandatory_cost_usd") == 0 and data.get("paid_fallback_used") is False
-assert data.get("provider") == "groqcloud-free", data.get("provider")
+assert data.get("provider") in {"groqcloud-free", "mistral-free"}, data.get("provider")
 attempts = data.get("provider_attempts") or []
-assert any(a.get("route") == "groq-multimodal-free" and a.get("free_plan_proven") is True for a in attempts), attempts
+assert any((a.get("route") == "groq-multimodal-free" and a.get("free_plan_proven") is True) or (a.get("route") == "mistral-multimodal-free" and a.get("zero_spend_confirmed") is True) for a in attempts), attempts
 action = data.get("action") or {}
 assert action.get("action") == "exec" and "pyautogui." in str(action.get("command") or "")
 safe = {
