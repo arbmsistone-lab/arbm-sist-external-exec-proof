@@ -13,7 +13,7 @@ permissions:
 jobs:
   mesh-preflight:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 20
     env:
       ZERO_SPEND_MODE: HARD
     steps:

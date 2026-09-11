@@ -1,4 +1,4 @@
-import base64, json, os, urllib.request, urllib.error
+import base64, json, os, time, urllib.request, urllib.error
 
 API = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5"
 EXPECTED_PIPELINE = "arbm-osworld-v31-isolated"
@@ -26,16 +26,29 @@ body = {
     "memory": "", "phase": "plan", "no_progress_count": 0, "step": 1,
     "provider_hint": "groq", "require_multimodal": True,
 }
-req = urllib.request.Request(API, data=json.dumps(body).encode(), method="POST",
-    headers={"Authorization": "Bearer " + oidc(), "Content-Type": "application/json"})
-try:
-    with urllib.request.urlopen(req, timeout=75) as response:
-        status = response.status
-        data = json.loads(response.read())
-except urllib.error.HTTPError as err:
-    status = err.code
-    data = json.loads(err.read())
-print(json.dumps(data, separators=(",", ":")))
+status, data = None, {}
+for attempt_no in range(1, 16):
+    req = urllib.request.Request(API, data=json.dumps(body).encode(), method="POST",
+        headers={"Authorization": "Bearer " + oidc(), "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=75) as response:
+            status = response.status
+            data = json.loads(response.read())
+    except urllib.error.HTTPError as err:
+        status = err.code
+        data = json.loads(err.read())
+    print(json.dumps({"attempt": attempt_no, "http": status, "data": data}, separators=(",", ":")))
+    if status == 200:
+        break
+    attempts_now = data.get("provider_attempts") or []
+    zero_spend_quota = (
+        status == 503 and data.get("status") == "NO_ZERO_SPEND_MULTIMODAL_CAPACITY"
+        and data.get("mandatory_cost_usd") == 0 and data.get("paid_fallback_used") is False
+        and any(a.get("free_plan_proven") is True and a.get("status") == 429 for a in attempts_now)
+    )
+    if not zero_spend_quota or attempt_no == 15:
+        break
+    time.sleep(60)
 assert status == 200, (status, data)
 assert data.get("ok") is True and data.get("status") == "PASS"
 assert data.get("pipeline") == EXPECTED_PIPELINE
