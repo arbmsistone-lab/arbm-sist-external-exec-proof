@@ -3,7 +3,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 UPSTREAM = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v6"
 EXPECTED_PIPELINE = "arbm-osworld-v31"
-EXPECTED_BUILD = "arbm-osworld-v31-20260911-c"
+EXPECTED_BUILD = "arbm-osworld-v31-20260911-d"
 STATE = {
     "step": 0, "previous": "", "executed": 0, "phase": "plan",
     "plan": "", "memory": [], "verification": "", "history": [],
