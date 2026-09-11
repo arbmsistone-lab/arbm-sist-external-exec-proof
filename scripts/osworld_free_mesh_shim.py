@@ -1,9 +1,9 @@
 import json, os, re, time, urllib.request, urllib.error, hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-UPSTREAM = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v6"
-EXPECTED_PIPELINE = "arbm-osworld-v31"
-EXPECTED_BUILD = "arbm-osworld-v31-20260911-d"
+UPSTREAM = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5"
+EXPECTED_PIPELINE = "arbm-osworld-v31-isolated"
+EXPECTED_BUILD = "arbm-osworld-v31e-isolated-20260911"
 STATE = {
     "step": 0, "previous": "", "executed": 0, "phase": "plan",
     "plan": "", "memory": [], "verification": "", "history": [],
@@ -193,8 +193,8 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(n) or b"{}")
             content = call_mesh(body.get("messages") or [])
             self.send_json(200, {
-                "id": "arbm-osworld-v31", "object": "chat.completion", "created": int(time.time()),
-                "model": "gpt-arbm-osworld-v31",
+                "id": "arbm-osworld-v31-isolated", "object": "chat.completion", "created": int(time.time()),
+                "model": "gpt-arbm-osworld-v31-isolated",
                 "choices": [{"index": 0, "message": {"role": "assistant", "content": content},
                              "finish_reason": "stop"}],
                 "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
