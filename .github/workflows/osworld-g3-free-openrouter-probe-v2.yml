@@ -1,0 +1,58 @@
+name: OSWorld G3 FREE OpenRouter probe v2
+on:
+  workflow_dispatch:
+  push:
+    branches: [g3-free-cert-lane-20260910]
+    paths: ['.github/workflows/osworld-g3-free-openrouter-probe-v2.yml']
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      FREE_MODEL: google/gemma-4-26b-a4b-it:free
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enforce zero-spend isolation
+        run: |
+          test "$GITHUB_REF_NAME" = "g3-free-cert-lane-20260910"
+          test -n "${OPENROUTER_API_KEY:-}"
+          case "$FREE_MODEL" in *:free) ;; *) exit 1 ;; esac
+          printf 'ZERO_SPEND=true\nMODEL=%s\n' "$FREE_MODEL" > g3-free-v2.txt
+      - name: Install OpenAI-compatible client
+        run: python -m pip install -q 'openai>=1.50,<3'      - name: Probe fixed FREE multimodal tool model
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os
+          from openai import OpenAI
+          client=OpenAI(base_url='https://openrouter.ai/api/v1',api_key=os.environ['OPENROUTER_API_KEY'])
+          img='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+          r=client.chat.completions.create(
+            model=os.environ['FREE_MODEL'],
+            messages=[{'role':'user','content':[
+              {'type':'text','text':'Inspect the image and call report_image exactly once.'},
+              {'type':'image_url','image_url':{'url':'data:image/png;base64,'+img}}
+            ]}],
+            tools=[{'type':'function','function':{'name':'report_image','description':'Report image','parameters':{'type':'object','properties':{'description':{'type':'string'}},'required':['description']}}}],
+            tool_choice={'type':'function','function':{'name':'report_image'}},
+            temperature=0)
+          m=r.choices[0].message
+          calls=m.tool_calls or []
+          assert len(calls)==1 and calls[0].function.name=='report_image'
+          args=json.loads(calls[0].function.arguments)
+          assert str(args.get('description','')).strip()
+          out={'requested_model':os.environ['FREE_MODEL'],'returned_model':r.model,'tool_call':'PASS','image':'PASS','zero_spend_contract':os.environ['FREE_MODEL'].endswith(':free')}
+          json.dump(out,open('g3-free-v2.json','w'),indent=2)
+          print(json.dumps(out))
+          PY      - name: Preserve FREE v2 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g3-free-openrouter-probe-v2-evidence
+          path: |
+            g3-free-v2.txt
+            g3-free-v2.json
+          retention-days: 30
