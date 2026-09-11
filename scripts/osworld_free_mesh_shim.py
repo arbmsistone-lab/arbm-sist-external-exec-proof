@@ -2,7 +2,7 @@ import json, os, re, time, urllib.request, urllib.error, hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 UPSTREAM = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v7"
-STATE = {"step": 0, "previous": "", "executed": 0, "history": [], "memory": [], "last_obs_sig": "", "last_target": ""}
+STATE = {"step": 0, "previous": "", "executed": 0, "history": [], "memory": [], "last_obs_sig": "", "last_target": "", "stalled": 0, "replans": 0, "provider_index": 0}
 LOG = os.environ.get("ARBM_OSWORLD_SHIM_LOG", "osworld-free-mesh-shim.log")
 
 def text_of(content):
@@ -44,10 +44,14 @@ def log_event(data):
 def call_mesh(messages):
     STATE["step"] += 1
     preferred = {"001":"groq", "002":"lightning", "003":"google"}.get(os.environ.get("TASK_ID", ""), "")
+    providers = ["groq", "lightning", "google"]
+    if STATE["replans"]:
+        preferred = providers[STATE["provider_index"]]
     obs = latest_observation(messages)
     body = {"instruction": task_from(messages), "observation": obs,
             "previous_command": STATE["previous"], "executed_count": STATE["executed"],
-            "memory": "\n".join(STATE["memory"][-6:]), "provider_hint": preferred, "step": STATE["step"]}
+            "memory": "\n".join(STATE["memory"][-10:]), "provider_hint": preferred, "step": STATE["step"],
+            "supervisor": {"stalled": STATE["stalled"], "replans": STATE["replans"], "require_state_change": True}}
     http, data = None, {"status": "NO_ATTEMPT"}
     for attempt in range(4):
         req = urllib.request.Request(UPSTREAM, data=json.dumps(body).encode(), method="POST",
@@ -70,8 +74,16 @@ def call_mesh(messages):
         obs_sig = hashlib.sha256(obs.encode("utf-8", "ignore")).hexdigest()[:16]
         m = re.search(r"pyautogui\.(?:click|doubleClick|rightClick|moveTo|dragTo)\s*\(\s*(\d+)\s*,\s*(\d+)", command)
         target = f"{m.group(1)},{m.group(2)}" if m else command
-        if command in STATE["history"] or (target == STATE["last_target"] and obs_sig == STATE["last_obs_sig"]):
+        repeated = command in STATE["history"] or (target == STATE["last_target"] and obs_sig == STATE["last_obs_sig"])
+        if repeated:
+            STATE["stalled"] += 1
+            STATE["replans"] += 1
+            STATE["provider_index"] = (STATE["provider_index"] + 1) % 3
+            STATE["memory"].append(f"SUPERVISOR: no progress detected at step {STATE['step']}; do not repeat target {target}. Re-observe, choose a materially different action, and verify state change before continuing.")
+            STATE["memory"] = STATE["memory"][-10:]
+            STATE["previous"] = ""
             return "WAIT"
+        STATE["stalled"] = 0
         STATE["previous"] = command
         STATE["executed"] += 1
         summary = str(action.get("summary") or "").strip()
