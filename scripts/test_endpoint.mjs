@@ -82,6 +82,10 @@ context.fetch=async(url,options)=>{budgetCalls++;return new Response(JSON.string
 response=await context.handler(new Request('https://offline.test',{method:'POST',headers:{authorization:'Bearer offline'},body:JSON.stringify({instruction:'Continue current source step',active_application:'Mail',no_progress_count:2,screenshot_data_url:'data:image/png;base64,AA=='})}));
 let budgeted=await response.json();assert.equal(response.status,200,JSON.stringify(budgeted));assert.equal(budgetCalls,1);assert.equal(budgeted.transition_review,null);
 assert.ok(run(`prompt({instruction:'process archive',active_application:'Archive Manager',observation:'filter.zip'})`).includes('continue processing THAT exact file'));
+// Reviewer contract regression: a wait carrying an executable GUI command is normalized to exec.
+const waitWithCommand=run(`canonicalAction({action:'wait',command:"pyautogui.hotkey('ctrl','win','d')"})`);
+assert.equal(waitWithCommand.action,'exec');assert.ok(waitWithCommand.command.includes("pyautogui.hotkey('ctrl','win','d')") || waitWithCommand.command.includes("pyautogui.hotkey('ctrl', 'win', 'd')"));
+console.log('REVIEW_WAIT_COMMAND_NORMALIZATION_PASS');
 console.log('OPEN_SOURCE_CONTINUITY_PASS');
 console.log('REVIEW_BUDGET_GUARD_PASS');
 console.log('INDEPENDENT_TRANSITION_REVIEW_PASS');

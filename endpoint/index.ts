@@ -5,7 +5,7 @@ const ISS = "https://token.actions.githubusercontent.com";
 const AUD = "arbm-sist-benchmark";
 const REPO = "arbmsistone-lab/arbm-sist-external-exec-proof";
 const JWKS = createRemoteJWKSet(new URL(ISS + "/.well-known/jwks"));
-const BUILD = "arbm-osworld-elite-pro-v31u-20260912";
+const BUILD = "arbm-osworld-elite-pro-v31v-20260912";
 const PIPELINE = "arbm-osworld-v31-isolated";
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions";
@@ -86,6 +86,7 @@ function canonicalAction(value: any) {
   let kind=String(value.action||'').trim().toLowerCase(),command=value.command||'';
   if(typeof command!=='string') throw new Error('COMMAND_STRING_REQUIRED');
   if(['execute','plan','click','type'].includes(kind))kind=command.trim()?'exec':'wait';
+  if(kind==='wait' && command.trim()) kind='exec';
   if(!['exec','wait','finish'].includes(kind))throw new Error('INVALID_ACTION');
   command=kind==='exec'?normalizeCommand(command):'';
   if(kind==='exec'&&validate(command))throw new Error(validate(command));
