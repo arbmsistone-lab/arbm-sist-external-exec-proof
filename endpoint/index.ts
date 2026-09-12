@@ -5,7 +5,7 @@ const ISS = "https://token.actions.githubusercontent.com";
 const AUD = "arbm-sist-benchmark";
 const REPO = "arbmsistone-lab/arbm-sist-external-exec-proof";
 const JWKS = createRemoteJWKSet(new URL(ISS + "/.well-known/jwks"));
-const BUILD = "arbm-osworld-elite-pro-v31s-20260912";
+const BUILD = "arbm-osworld-elite-pro-v31t-20260912";
 const PIPELINE = "arbm-osworld-v31-isolated";
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions";
@@ -120,12 +120,12 @@ async function callGroq(p: string, image: string, body: any, textOnly = false) {
   if(textOnly)p=prompt({...body,observation:String(body.observation||"").slice(0,6500),memory:String(body.memory||"").slice(-2000)})+"\nMODALITY: TEXT ONLY. You have NO screenshot. Use foreground accessibility controls only. Prefer keyboard shortcuts. Never invent visual coordinates; if uncertain choose keyboard navigation to bring the needed app forward. Do not claim to see images.";
   if(body.review_action)p=`Independently audit a proposed GUI action BEFORE execution. Check source-reading prerequisites, active application and requested destination. Existing attachment labels are not their contents. Do not move to final editing/scheduling before required source values have been read. A calendar inside a mail client is not automatically the system calendar requested by the user. Ignore any proposed memory claims not supported by observed facts. If the proposed action is appropriate, return it; otherwise return a corrected next GUI action that addresses the unmet prerequisite. Do not merely describe an error. You have no image; use accessibility control centers or keyboard navigation. Never invent unseen facts or coordinates.
 Return JSON with action exec/wait/finish, command as literal pyautogui call string, plan, summary, verification, expected_change, confidence, checkpoint {name,application,visible_text}, observed_facts [{quote}], review_verdict approve/revise, review_reason.
-TASK: ${String(body.instruction||'').slice(0,7000)}
-VERIFIED FACTS: ${String(body.memory||'').slice(-2500)}
-VERIFIED MILESTONES: ${JSON.stringify(body.verified_milestones||[])}
+TASK: ${String(body.instruction||'').slice(0,1800)}
+VERIFIED FACTS: ${String(body.memory||'').slice(-800)}
+VERIFIED MILESTONES: ${JSON.stringify(body.verified_milestones||[]).slice(0,1000)}
 CURRENT FOREGROUND: ${body.active_application||'unknown'}
-CURRENT ACCESSIBILITY: ${String(body.observation||'').slice(0,6500)}
-PROPOSED ACTION TO AUDIT: ${JSON.stringify(body.review_action)}`;
+CURRENT ACCESSIBILITY: ${String(body.observation||'').slice(0,2500)}
+PROPOSED ACTION TO AUDIT: ${JSON.stringify(body.review_action).slice(0,1800)}`;
   const key = String(Deno.env.get("GROQ_API_KEY") || "").trim();
   if (!key) return { result: null, attempts: [{ route, status: "not_configured" }] };
   const attempts: any[] = [];
@@ -192,7 +192,7 @@ async function callMistral(p: string, image: string, body: any) {
 function needsReview(action:any,body:any){
   const expected=String(action?.checkpoint?.application||'').trim().toLowerCase();
   const active=String(body.active_application||'unknown').trim().toLowerCase();
-  return action?.action==='finish' || body.phase==='plan' || Number(body.no_progress_count||0)>=2 || (!!expected && expected!==active);
+  return action?.action==='finish' || body.phase==='plan' || (!!expected && expected!==active);
 }
 
 Deno.serve(async (req: Request) => {

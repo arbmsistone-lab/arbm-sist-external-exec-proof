@@ -74,4 +74,12 @@ run('COOLDOWN.clear()');
 context.fetch=async(url,options)=>{const b=JSON.parse(options.body);return new Response(JSON.stringify(b.model.startsWith('openai/gpt-oss')?{error:{message:'no review capacity'}}:{choices:[{message:{content:JSON.stringify(badPlan)}}]}),{status:b.model.startsWith('openai/gpt-oss')?429:200,headers:freeHeaders});};
 response=await context.handler(new Request('https://offline.test',{method:'POST',headers:{authorization:'Bearer offline'},body:JSON.stringify({instruction:'x',active_application:'Mail',screenshot_data_url:'data:image/png;base64,AA=='})}));
 assert.equal(response.status,503);assert.equal((await response.json()).status,'REVIEW_CAPACITY_UNAVAILABLE');
+// Budget regression: no_progress alone must not spend a second LLM call.
+run('COOLDOWN.clear()');
+const sameApp={action:'exec',command:"pyautogui.press('enter')",checkpoint:{application:'Mail'}};
+let budgetCalls=0;
+context.fetch=async(url,options)=>{budgetCalls++;return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify(sameApp)}}]}),{status:200,headers:freeHeaders});};
+response=await context.handler(new Request('https://offline.test',{method:'POST',headers:{authorization:'Bearer offline'},body:JSON.stringify({instruction:'Continue current source step',active_application:'Mail',no_progress_count:2,screenshot_data_url:'data:image/png;base64,AA=='})}));
+let budgeted=await response.json();assert.equal(response.status,200,JSON.stringify(budgeted));assert.equal(budgetCalls,1);assert.equal(budgeted.transition_review,null);
+console.log('REVIEW_BUDGET_GUARD_PASS');
 console.log('INDEPENDENT_TRANSITION_REVIEW_PASS');
