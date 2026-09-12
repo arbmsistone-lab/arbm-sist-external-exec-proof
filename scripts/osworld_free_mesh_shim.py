@@ -6,9 +6,9 @@ from osworld_control import canonical_action, ground_action, Verifier, pack_payl
 
 UPSTREAM = 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5'
 EXPECTED_PIPELINE = 'arbm-osworld-v31-isolated'
-EXPECTED_BUILD = 'arbm-osworld-v31o-isolated-20260912'
+EXPECTED_BUILD = 'arbm-osworld-elite-pro-v31p-20260912'
 MAX_NO_PROGRESS = int(os.environ.get('ARBM_MAX_NO_PROGRESS', '12'))
-MAX_WAIT_RESPONSES = int(os.environ.get('ARBM_MAX_WAIT_RESPONSES', '12'))
+MAX_WAIT_RESPONSES = int(os.environ.get('ARBM_MAX_WAIT_RESPONSES', '60'))
 MAX_STEPS = int(os.environ.get('ARBM_MAX_STEPS', '160'))
 LOG = os.environ.get('ARBM_OSWORLD_SHIM_LOG', 'osworld-v31-shim.log')
 OBS_DIR = Path(os.environ.get('ARBM_OSWORLD_OBSERVATIONS', 'shim-observations'))
@@ -169,7 +169,11 @@ def call_mesh(messages):
             time.sleep(2+attempt)
         else:break
     STATE['wait_responses']+=1
-    log_event({'status':'WAIT_RECOVERY','recovery_strategy':RECOVERY[VERIFIER.recovery_level]})
+    # Provider scarcity is not cognitive failure. Back off instead of burning
+    # OSWorld steps rapidly while all FREE multimodal routes are cooling down.
+    time.sleep(min(12, 2 + STATE['wait_responses']))
+    log_event({'status':'WAIT_PROVIDER_CAPACITY','provider_waits':STATE['wait_responses'],
+               'recovery_strategy':RECOVERY[VERIFIER.recovery_level]})
     return 'WAIT'
 
 class Handler(BaseHTTPRequestHandler):

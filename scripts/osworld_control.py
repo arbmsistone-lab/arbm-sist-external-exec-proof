@@ -93,7 +93,7 @@ def ground_action(action, active_application):
         if len(tree.body)==1 and tree.body[0].value.func.attr=='hotkey':
             keys=[ast.literal_eval(x) for x in tree.body[0].value.args]
             if keys==['alt','tab']:
-                a['command']="pyautogui.hotkey('ctrl', 'alt', 'd')"
+                a['command']="pyautogui.hotkey('ctrl', 'win', 'd')"
                 a['compiler_note']='Ubuntu show-desktop shortcut implements the explicit desktop-activation plan.'
     return a
 
@@ -137,7 +137,7 @@ class Verifier:
             visual_changed = sum(abs(x-y) for x,y in zip(a,b)) / (len(a)*7) > 0.025
         novel = sig not in self.seen
         progress = self.pending and ((tree_changed and novel) or (visual_changed and sig == self.last_tree))
-        if self.last_tree is not None:
+        if self.last_tree is not None and self.pending:
             if progress:
                 self.no_progress = 0
                 self.changes += 1
@@ -212,7 +212,7 @@ def compress_screenshot(image):
     original=im.size
     # Preserve the original desktop coordinate system explicitly in the request.
     # Smaller vision input also limits provider image tokens, independently of bytes.
-    im.thumbnail((1280,720))
+    im.thumbnail((1600,900))
     for quality in (65,50,35,22):
         out=io.BytesIO();im.save(out,format='JPEG',quality=quality,optimize=True)
         data='data:image/jpeg;base64,'+base64.b64encode(out.getvalue()).decode()

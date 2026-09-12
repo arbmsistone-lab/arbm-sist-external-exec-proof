@@ -48,6 +48,13 @@ class ContractTests(unittest.TestCase):
             v.issued('pyautogui.click(1,2)')
         self.assertGreater(v.no_progress, 10)
 
+    def test_wait_observations_do_not_consume_no_progress_budget(self):
+        v = control.Verifier()
+        v.observe('same screen', '')
+        for _ in range(20):
+            v.observe('same screen', '')
+        self.assertEqual(v.no_progress, 0)
+
     def test_new_observation_verifies_change(self):
         v = control.Verifier()
         v.observe('dialog closed', '')
@@ -82,7 +89,7 @@ class ContractTests(unittest.TestCase):
 
     def test_real_replay_desktop_plan_compiles_to_correct_shortcut(self):
         a=control.ground_action({'action':'exec','plan':'Bring the Desktop to the foreground to access files','command':"pyautogui.hotkey('alt', 'tab')"},'Google Chrome')
-        self.assertEqual(a['command'],"pyautogui.hotkey('ctrl', 'alt', 'd')")
+        self.assertEqual(a['command'],"pyautogui.hotkey('ctrl', 'win', 'd')")
         a=control.ground_action({'action':'exec','plan':'Bring Thunderbird to the foreground','command':"pyautogui.hotkey('alt', 'tab')"},'Google Chrome')
         self.assertEqual(a['command'],"pyautogui.hotkey('alt', 'tab')")
 

@@ -36,10 +36,18 @@ class MeshTests(unittest.TestCase):
  def test_quota_cooldown_persists(self):
   shim.track_attempts({'provider_attempts':[{'route':'r','model':'m','status':413}]})
   self.assertGreater(shim.STATE['cooldowns']['r:m'],shim.time.time()*1000+3_000_000)
- def test_wait_and_terminal_budget(self):
+ def test_provider_wait_does_not_masquerade_as_cognitive_failure(self):
   shim.request_mesh=lambda b:(503,self.response(ok=False,status='NO_ZERO_SPEND_MULTIMODAL_CAPACITY'))
   results=[shim.call_mesh(self.msgs) for _ in range(15)]
+  self.assertEqual(set(results),{'WAIT'})
+  self.assertEqual(shim.VERIFIER.no_progress,0)
+  self.assertEqual(shim.STATE['terminal'],'')
+ def test_provider_wait_has_independent_terminal_budget(self):
+  shim.request_mesh=lambda b:(503,self.response(ok=False,status='NO_ZERO_SPEND_MULTIMODAL_CAPACITY'))
+  shim.MAX_WAIT_RESPONSES=3
+  results=[shim.call_mesh(self.msgs) for _ in range(5)]
   self.assertIn('WAIT',results);self.assertIn('FAIL',results)
+  self.assertEqual(shim.STATE['terminal'],'RECOVERY_EXHAUSTED')
  def test_native_openai_error_code(self):
   import threading,urllib.request,urllib.error
   server=shim.ThreadingHTTPServer(('127.0.0.1',0),shim.Handler)

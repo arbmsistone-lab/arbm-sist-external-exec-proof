@@ -5,7 +5,7 @@ const ISS = "https://token.actions.githubusercontent.com";
 const AUD = "arbm-sist-benchmark";
 const REPO = "arbmsistone-lab/arbm-sist-external-exec-proof";
 const JWKS = createRemoteJWKSet(new URL(ISS + "/.well-known/jwks"));
-const BUILD = "arbm-osworld-v31o-isolated-20260912";
+const BUILD = "arbm-osworld-elite-pro-v31p-20260912";
 const PIPELINE = "arbm-osworld-v31-isolated";
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions";
@@ -91,13 +91,13 @@ function canonicalAction(value: any) {
 function prompt(body: any) {
   return `You control an Ubuntu desktop by visible GUI only. Return ONE JSON object.
 Planner: choose the next unmet subtask, maintain brief factual memory. Executor: one small GUI action, or at most 4 tightly related calls. Verifier: describe what visibly changed after the previous action and what change to expect next. An executed call is NOT proof of progress.
-CRITICAL GROUNDING: the screenshot shows the foreground. The accessibility tree includes BACKGROUND windows and desktop labels covered by other windows. Never click a tree coordinate unless the target is visible at that spot in the screenshot. First bring the intended window forward via its visible dock icon or Alt+Tab. To access Desktop files hidden behind a maximized window, use Ctrl+Alt+D to show Desktop, then DOUBLE-click the visible file. Use center coordinates (top-left plus half size), never the top-left boundary.
+CRITICAL GROUNDING: the screenshot shows the foreground. The accessibility tree includes BACKGROUND windows and desktop labels covered by other windows. Never click a tree coordinate unless the target is visible at that spot in the screenshot. First bring the intended window forward via its visible dock icon or Alt+Tab. To access Desktop files hidden behind a maximized window, use Ctrl+Super+D to show Desktop, then DOUBLE-click the visible file. Use center coordinates (top-left plus half size), never the top-left boundary.
 If a click did nothing, do not repeat it: inspect foreground, try keyboard navigation, show Desktop, or use file manager and its location field. Opening a file requires doubleClick or selecting it and pressing Enter. Single click usually only selects. Do not assume unseen content.
 Only direct pyautogui calls with literal arguments, one per line. command MUST be a STRING, never an array/object or explanations. No shell, terminal, scripts, filesystem/network APIs, clipboard extraction, hidden state or benchmark internals. Typing a path into a visible GUI file dialog is allowed. Scroll by 3-6 not hundreds. sleep <= 3s.
 Required JSON:
 {"action":"exec|wait|finish","command":"pyautogui...","plan":"current subtask","summary":"why this action","memory_patch":"durable observed facts and completed subtasks","verification":"visible result of previous action","expected_change":"next visible outcome","confidence":0.9}
 All descriptive fields must be short factual strings, never nested objects. Use exec for GUI work. Plan is internal, never an action. Finish only when ALL requested outputs are saved and verified on screen; confidence>=0.8. Never claim completion from intent.
-FOREGROUND APPLICATION: ${body.active_application||"unknown"}. Any different application in the tree is background. A Home desktop label is NOT a dock icon. To reveal Desktop use pyautogui.hotkey('ctrl','alt','d'), never click Home through a window.
+FOREGROUND APPLICATION: ${body.active_application||"unknown"}. Any different application in the tree is background. A Home desktop label is NOT a dock icon. To reveal Desktop use pyautogui.hotkey('ctrl','win','d'), never click Home through a window.
 STEP ${body.step}, NO_PROGRESS ${body.no_progress_count}, RECOVERY ${body.recovery_strategy||'normal'}
 TASK: ${String(body.instruction||'').slice(0,7000)}
 MEMORY: ${String(body.memory||'').slice(-4500)}
@@ -116,7 +116,7 @@ async function callGroq(p: string, image: string, body: any) {
   for (const model of GROQ_MODELS) {
     if (cooling("g:" + model) || Number(body.route_cooldowns?.["groq-multimodal-free:"+model]||0)>Date.now()) { attempts.push({ route: "groq-multimodal-free", model, status: "cooldown" }); continue; }
     try {
-      const content: any[] = [{ type: "text", text: p }, { type: "image_url", image_url: { url: image, detail: "low" } }];
+      const content: any[] = [{ type: "text", text: p }, { type: "image_url", image_url: { url: image } }];
       const providerBody=JSON.stringify({ model, messages: [{ role: "system", content: "Return one valid JSON object only." }, { role: "user", content }], response_format: { type: "json_object" }, temperature: 0, reasoning_effort: "none", max_completion_tokens: 600 });
       const requestBytes=new TextEncoder().encode(providerBody).length;
       if(requestBytes>420000){attempts.push({route:"groq-multimodal-free",model,status:"payload_gate",request_bytes:requestBytes});continue;}

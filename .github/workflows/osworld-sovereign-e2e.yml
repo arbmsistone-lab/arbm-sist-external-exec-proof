@@ -66,14 +66,14 @@ jobs:
       ZERO_SPEND_MODE: HARD
       OPENAI_BASE_URL: http://127.0.0.1:8088/v1
       OPENAI_API_KEY: zero-spend-oidc-shim
-      OSWORLD_AGENT_VERSION: supabase-arbm-terminal-agent-v5-v15-212650f886d2e9b9
+      OSWORLD_AGENT_VERSION: supabase-arbm-terminal-agent-v5-v16-921f30765a689096
       AWS_REGION: us-east-1
       AWS_SUBNET_ID: unused-docker-provider
       AWS_SECURITY_GROUP_ID: unused-docker-provider
       OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
       ARBM_MAX_NO_PROGRESS: 12
-      ARBM_MAX_WAIT_RESPONSES: 12
-      ARBM_MAX_STEPS: 160
+      ARBM_MAX_WAIT_RESPONSES: 60
+      ARBM_MAX_STEPS: 500
       ARBM_TASK_TIMEOUT: 50m
     steps:
       - uses: actions/checkout@v7
@@ -155,7 +155,7 @@ jobs:
               --headless --provider_name docker --path_to_vm "$QCOW_PATH" --eval_version v2 \
               --test_all_meta_path evaluation_examples/test_arbm_sovereign.json --domain tasks \
               --observation_type screenshot_a11y_tree --action_space pyautogui --model gpt-arbm-osworld-v31-isolated \
-              --temperature 0 --max_steps 160 --max_trajectory_length 8 --max_tokens 4096 --num_envs 1 \
+              --temperature 0 --max_steps 500 --max_trajectory_length 20 --max_tokens 4096 --num_envs 1 \
               --result_dir "../top3-evidence/osworld-sovereign-${TASK_ID}/results" \
               2>&1 | tee "../top3-evidence/osworld-sovereign-${TASK_ID}/osworld.log"'
             rc=$?
