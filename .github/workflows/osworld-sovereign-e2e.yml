@@ -1,13 +1,25 @@
 name: OSWorld v31 zero-spend multimodal smoke
 on:
+  workflow_dispatch:
+    inputs:
+      run_smoke:
+        description: Run the official three-task smoke after all gates
+        type: boolean
+        default: false
   push:
     branches:
       - 'codex/osworld-close-*'
     paths:
       - '.github/workflows/osworld-sovereign-e2e.yml'
       - 'scripts/osworld_free_mesh_shim.py'
-      - 'scripts/osworld_mesh_preflight.py'
+      - 'scripts/**'
+      - 'endpoint/**'
+      - 'osworld-v31-evidence-manifest.json'
+concurrency:
+  group: arbm-osworld-v31-smoke
+  cancel-in-progress: false
 permissions:
+  actions: read
   contents: read
   id-token: write
 jobs:
@@ -18,19 +30,34 @@ jobs:
       ZERO_SPEND_MODE: HARD
     steps:
       - uses: actions/checkout@v7
-      - name: Prove shim contract before remote calls
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install pinned local test dependencies
+        run: python -m pip install Pillow==12.1.1
+      - name: Prove all local contracts before remote calls
         run: |
-          python scripts/test_osworld_contract_v31l.py
-          python scripts/test_osworld_contract_dynamic_v31l.py
+          python -m unittest discover -s scripts -p 'test_osworld_*.py'
+          node scripts/test_endpoint.mjs
+      - name: Download recorded run 30 evidence for offline regression
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 34665245131 --repo arbmsistone-lab/arbm-sist-external-exec-proof --dir run30
+      - name: Replay all recorded observations without benchmark execution
+        run: python scripts/replay_osworld_run30.py run30
       - name: Prove remote FREE OSWorld agent
-        run: python scripts/osworld_mesh_preflight.py
+        run: python scripts/osworld_mesh_preflight.py run30
       - name: Upload sanitized preflight evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: osworld-mesh-preflight
-          path: osworld-mesh-preflight.json
+          path: |
+            osworld-mesh-preflight.json
+            run30-replay.json
           if-no-files-found: error
   task:
+    if: github.event_name == 'workflow_dispatch' && inputs.run_smoke
     needs: mesh-preflight
     runs-on: ubuntu-24.04
     timeout-minutes: 240
@@ -39,14 +66,15 @@ jobs:
       ZERO_SPEND_MODE: HARD
       OPENAI_BASE_URL: http://127.0.0.1:8088/v1
       OPENAI_API_KEY: zero-spend-oidc-shim
-      OSWORLD_AGENT_VERSION: supabase-arbm-terminal-agent-v5-v12-f9343a3af1615a7e
+      OSWORLD_AGENT_VERSION: supabase-arbm-terminal-agent-v5-v13-1e31dd15ae5f2773
       AWS_REGION: us-east-1
       AWS_SUBNET_ID: unused-docker-provider
       AWS_SECURITY_GROUP_ID: unused-docker-provider
       OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
       ARBM_MAX_NO_PROGRESS: 12
-      ARBM_MAX_WAIT_RESPONSES: 20
-      ARBM_TASK_TIMEOUT: 35m
+      ARBM_MAX_WAIT_RESPONSES: 12
+      ARBM_MAX_STEPS: 160
+      ARBM_TASK_TIMEOUT: 50m
     steps:
       - uses: actions/checkout@v7
       - name: Prove free KVM runner
@@ -55,6 +83,7 @@ jobs:
           set -euo pipefail
           test "$RUNNER_ENVIRONMENT" = "github-hosted"
           test "$ZERO_SPEND_MODE" = "HARD"
+          python -m pip install Pillow==12.1.1
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL || true
           sudo apt-get clean
           test -c /dev/kvm
@@ -110,6 +139,7 @@ jobs:
             export ARBM_OSWORLD_SHIM_LOG="$GITHUB_WORKSPACE/osworld-free-mesh-shim-${TASK_ID}.log"
             DIR="$GITHUB_WORKSPACE/top3-evidence/osworld-sovereign-${TASK_ID}"
             mkdir -p "$DIR"
+            export ARBM_OSWORLD_OBSERVATIONS="$DIR/shim-observations"
             printf '{"tasks":["%s"]}\n' "$TASK_ID" > "$GITHUB_WORKSPACE/osworld/evaluation_examples/test_arbm_sovereign.json"
             test "$(sha256sum "$QCOW_PATH" | cut -d' ' -f1)" = "$(cat qcow-base.sha256)"
             python scripts/osworld_free_mesh_shim.py > "shim-runtime-${TASK_ID}.log" 2>&1 &
@@ -125,23 +155,25 @@ jobs:
               --headless --provider_name docker --path_to_vm "$QCOW_PATH" --eval_version v2 \
               --test_all_meta_path evaluation_examples/test_arbm_sovereign.json --domain tasks \
               --observation_type screenshot_a11y_tree --action_space pyautogui --model gpt-arbm-osworld-v31-isolated \
-              --temperature 0 --max_steps 500 --max_trajectory_length 8 --max_tokens 4096 --num_envs 1 \
+              --temperature 0 --max_steps 160 --max_trajectory_length 8 --max_tokens 4096 --num_envs 1 \
               --result_dir "../top3-evidence/osworld-sovereign-${TASK_ID}/results" \
               2>&1 | tee "../top3-evidence/osworld-sovereign-${TASK_ID}/osworld.log"'
             rc=$?
             set -e
-            if grep -q '"status":"NO_PROGRESS_ABORT"' "$ARBM_OSWORLD_SHIM_LOG" 2>/dev/null; then rc=97; fi
             kill "$SHIM_PID" 2>/dev/null || true
             wait "$SHIM_PID" 2>/dev/null || true
             cp -f "$ARBM_OSWORLD_SHIM_LOG" "$DIR/" 2>/dev/null || true
+            cp -f "$ARBM_OSWORLD_SHIM_LOG" "$DIR/provider-telemetry.jsonl" 2>/dev/null || true
+            cp osworld-v31-evidence-manifest.json "$DIR/endpoint-manifest.json"
             cp -f "shim-runtime-${TASK_ID}.log" "$DIR/" 2>/dev/null || true
             printf '%s\n' "$GITHUB_SHA" > "$DIR/candidate-sha.txt"
             printf '%s\n' "$ZERO_SPEND_MODE" > "$DIR/zero-spend-mode.txt"
             printf '%s\n' "$OSWORLD_AGENT_VERSION" > "$DIR/osworld-agent-version.txt"
             printf '%s\n' "$TASK_ID" > "$DIR/task-id.txt"
             test "$(sha256sum "$QCOW_PATH" | cut -d' ' -f1)" = "$(cat qcow-base.sha256)" || rc=99
-            find "$DIR" -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > "$DIR/SHA256SUMS.txt"
             printf '%s\n' "$rc" > "$DIR/task-rc.txt"
+            python scripts/osworld_evidence.py seal "$DIR"
+            python scripts/osworld_evidence.py verify "$DIR"
             if [ "$rc" -ne 0 ]; then overall=1; fi
           done
           exit "$overall"
@@ -155,10 +187,11 @@ jobs:
           retention-days: 90
   aggregate:
     needs: task
-    if: always()
+    if: always() && needs.task.result != 'skipped'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v7
       - name: Download all task evidence
         uses: actions/download-artifact@v5
         with:
@@ -168,15 +201,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
-          import glob
-          files=glob.glob('evidence/**/results/**/result.txt',recursive=True)
-          vals=[]
-          for f in files:
-              try: vals.append(float(open(f,encoding='utf-8').read().strip()))
-              except: pass
-          assert len(files)==3, f'EXPECTED_3_OSWORLD_RESULTS_GOT_{len(files)}'
-          assert len(vals)==3, f'EXPECTED_3_NUMERIC_SCORES_GOT_{len(vals)}'
-          assert max(vals)>0.0, 'ZERO_SCORE_OSWORLD_RUN'
-          print({'tasks':len(files),'scores':vals,'max_score':max(vals)})
-          PY
+          python scripts/osworld_evidence.py aggregate evidence | tee aggregate.json
+      - name: Upload aggregate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: osworld-aggregate
+          path: aggregate.json

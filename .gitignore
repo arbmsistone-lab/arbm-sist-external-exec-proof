@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+osworld-v31-shim.log
+shim-observations/
+run30/
+run30-replay.json
+osworld-mesh-preflight.json

@@ -1,0 +1,26 @@
+[
+  {
+    "task": "osworld-sovereign-001",
+    "verified_files": 90,
+    "mismatches": [],
+    "unsealed_files": [
+      "task-rc.txt"
+    ]
+  },
+  {
+    "task": "osworld-sovereign-002",
+    "verified_files": 82,
+    "mismatches": [],
+    "unsealed_files": [
+      "task-rc.txt"
+    ]
+  },
+  {
+    "task": "osworld-sovereign-003",
+    "verified_files": 55,
+    "mismatches": [],
+    "unsealed_files": [
+      "task-rc.txt"
+    ]
+  }
+]
