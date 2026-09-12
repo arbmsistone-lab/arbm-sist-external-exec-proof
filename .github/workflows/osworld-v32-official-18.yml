@@ -40,6 +40,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh run download 34698877150 --repo arbmsistone-lab/arbm-sist-external-exec-proof --name top3-osworld-task-bundle --dir run38
+      - name: Download recorded run 30 evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 34665245131 --repo arbmsistone-lab/arbm-sist-external-exec-proof --dir run30
       - name: Prove v32 FREE route
         run: python scripts/osworld_mesh_preflight.py run30
   official-shard:
