@@ -5,7 +5,7 @@ const ISS = "https://token.actions.githubusercontent.com";
 const AUD = "arbm-sist-benchmark";
 const REPO = "arbmsistone-lab/arbm-sist-external-exec-proof";
 const JWKS = createRemoteJWKSet(new URL(ISS + "/.well-known/jwks"));
-const BUILD = "arbm-osworld-v31m-isolated-20260912";
+const BUILD = "arbm-osworld-v31n-isolated-20260912";
 const PIPELINE = "arbm-osworld-v31-isolated";
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions";
@@ -96,24 +96,26 @@ Only direct pyautogui calls with literal arguments, one per line. command MUST b
 Required JSON:
 {"action":"exec|wait|finish","command":"pyautogui...","plan":"current subtask","summary":"why this action","memory_patch":"durable observed facts and completed subtasks","verification":"visible result of previous action","expected_change":"next visible outcome","confidence":0.9}
 Use exec for GUI work. Plan is internal, never an action. Finish only when ALL requested outputs are saved and verified on screen; confidence>=0.8. Never claim completion from intent.
+FOREGROUND APPLICATION: ${body.active_application||"unknown"}. Any different application in the tree is background. A Home desktop label is NOT a dock icon. To reveal Desktop use pyautogui.hotkey('ctrl','alt','d'), never click Home through a window.
 STEP ${body.step}, NO_PROGRESS ${body.no_progress_count}, RECOVERY ${body.recovery_strategy||'normal'}
 TASK: ${String(body.instruction||'').slice(0,7000)}
 MEMORY: ${String(body.memory||'').slice(-4500)}
 PREVIOUS: ${String(body.previous_command||'').slice(-1500)}
 VERIFIER: ${JSON.stringify(body.verifier||{})}
-SCREENSHOT: original desktop coordinates ${body.image_geometry?.width||1920}x${body.image_geometry?.height||1080}. Screenshot is authoritative for visibility.
+SCREENSHOT: original desktop coordinates ${body.image_geometry?.width||1920}x${body.image_geometry?.height||1080}. The transmitted image is ${body.image_geometry?.transmitted_width||1920}x${body.image_geometry?.transmitted_height||1080}; scale screenshot coordinates to the original desktop or use tree control centers. Screenshot is authoritative for visibility.
 ACCESSIBILITY (may include occluded background controls):
 ${String(body.observation||'').slice(0,9000)}`;
 }
 
 async function callGroq(p: string, image: string, body: any) {
+  p=prompt({...body,observation:String(body.observation||"").slice(0,3500),memory:String(body.memory||"").slice(-1800)});
   const key = String(Deno.env.get("GROQ_API_KEY") || "").trim();
   if (!key) return { result: null, attempts: [{ route: "groq-multimodal-free", status: "not_configured" }] };
   const attempts: any[] = [];
   for (const model of GROQ_MODELS) {
     if (cooling("g:" + model) || Number(body.route_cooldowns?.["groq-multimodal-free:"+model]||0)>Date.now()) { attempts.push({ route: "groq-multimodal-free", model, status: "cooldown" }); continue; }
     try {
-      const content: any[] = [{ type: "text", text: p.length>11000?p.slice(0,7000)+p.slice(-4000):p }, { type: "image_url", image_url: { url: image, detail: "low" } }];
+      const content: any[] = [{ type: "text", text: p }, { type: "image_url", image_url: { url: image, detail: "low" } }];
       const providerBody=JSON.stringify({ model, messages: [{ role: "system", content: "Return one valid JSON object only." }, { role: "user", content }], response_format: { type: "json_object" }, temperature: 0, max_completion_tokens: 900 });
       const requestBytes=new TextEncoder().encode(providerBody).length;
       if(requestBytes>420000){attempts.push({route:"groq-multimodal-free",model,status:"payload_gate",request_bytes:requestBytes});continue;}
@@ -124,7 +126,7 @@ async function callGroq(p: string, image: string, body: any) {
       const rpd = res.headers.get("x-ratelimit-limit-requests"), tpm = res.headers.get("x-ratelimit-limit-tokens"), remaining = res.headers.get("x-ratelimit-remaining-requests"), retryAfter = res.headers.get("retry-after");
       const free = rpd === "1000" && tpm === "8000";
       if (res.status === 429 || remaining === "0" || res.status===413) cool("g:" + model, res.status===413?3600:Math.max(60, Number(retryAfter || 0)));
-      attempts.push({ route: "groq-multimodal-free", model, status: res.status, parsed: !!out, contract_error: contractError, request_bytes: requestBytes, response_text: String(raw?.choices?.[0]?.message?.content||"").slice(0,6000), free_plan_proven: free, rate_limit_rpd: rpd, rate_limit_tpm: tpm, remaining_requests: remaining, retry_after: retryAfter, error_message: scrub(raw?.error?.message), mandatory_cost_usd: 0, paid_fallback_used: false });
+      attempts.push({ route: "groq-multimodal-free", model, status: res.status, parsed: !!out, contract_error: contractError, request_bytes: requestBytes, prompt_tokens: raw?.usage?.prompt_tokens, completion_tokens: raw?.usage?.completion_tokens, response_text: String(raw?.choices?.[0]?.message?.content||"").slice(0,6000), free_plan_proven: free, rate_limit_rpd: rpd, rate_limit_tpm: tpm, remaining_requests: remaining, retry_after: retryAfter, error_message: scrub(raw?.error?.message), mandatory_cost_usd: 0, paid_fallback_used: false });
       if (out && free) return { result: { action: out, provider: "groqcloud-free", model, zeroSpendProven: true }, attempts };
       if ([401, 403].includes(res.status)) break;
       if (res.status === 429 || res.status >= 500 || [400, 404, 422].includes(res.status)) continue;
@@ -154,7 +156,7 @@ async function callMistral(p: string, image: string, body: any) {
       let contractError=""; try {if(out)out=canonicalAction(out);}catch(e:any){contractError=String(e.message);out=null;}
       const retryAfter = res.headers.get("retry-after");
       if (res.status === 429) cool("m:" + model, Math.max(60, Number(retryAfter || 0)));
-      attempts.push({ route: "mistral-multimodal-free", model, status: res.status, parsed: !!out, contract_error: contractError, request_bytes: requestBytes, response_text: String(raw?.choices?.[0]?.message?.content||"").slice(0,6000), zero_spend_confirmed: true, retry_after: retryAfter, error_message: scrub(raw?.message || raw?.error?.message), mandatory_cost_usd: 0, paid_fallback_used: false });
+      attempts.push({ route: "mistral-multimodal-free", model, status: res.status, parsed: !!out, contract_error: contractError, request_bytes: requestBytes, prompt_tokens: raw?.usage?.prompt_tokens, completion_tokens: raw?.usage?.completion_tokens, response_text: String(raw?.choices?.[0]?.message?.content||"").slice(0,6000), zero_spend_confirmed: true, retry_after: retryAfter, error_message: scrub(raw?.message || raw?.error?.message), mandatory_cost_usd: 0, paid_fallback_used: false });
       if (out) return { result: { action: out, provider: "mistral-free", model, zeroSpendProven: true }, attempts };
       if ([401, 403].includes(res.status)) break;
       if (res.status === 429 || res.status >= 500 || [400, 404, 422].includes(res.status)) continue;

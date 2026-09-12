@@ -44,8 +44,8 @@ def main(directory):
     if c.func.attr in ('click','doubleClick','rightClick'):
      args=[ast.literal_eval(x) for x in c.args];kw={k.arg:ast.literal_eval(k.value) for k in c.keywords}
      x=kw.get('x',args[0] if args else -1);y=kw.get('y',args[1] if len(args)>1 else -1)
-     if task=='001':assert not (350<=x<=680 and 140<=y<=320),'REPLAY_STALE_THUNDERBIRD_COORDINATES'
-     else:assert not (1750<=x<=1920 and 550<=y<=1000),'REPLAY_OCCLUDED_DESKTOP_COORDINATES'
+     if task=='001':assert x<70 or c.func.attr not in ('click','doubleClick','rightClick'),'REPLAY_REQUIRES_FOREGROUND_APP_RECOVERY'
+     else:assert not (1750<=x<=1920 and 500<=y<=1080),'REPLAY_OCCLUDED_DESKTOP_COORDINATES'
    entry['grounding_regression']='PASS'
   return report
  finally:

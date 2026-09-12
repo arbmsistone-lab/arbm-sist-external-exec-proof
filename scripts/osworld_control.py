@@ -164,18 +164,45 @@ def compact_tree(text, instruction='', limit=MAX_TREE_CHARS):
     return '[Compacted accessibility tree; background/occluded controls may still be present.]\n'+'\n'.join(x[1] for x in sorted(selected))
 
 
+def foreground_context(text):
+    """Use the observed Ubuntu application menu, not the order of background trees."""
+    lines=text.splitlines();active='unknown'
+    for line in lines:
+        cols=line.split('\t')
+        if len(cols)>=7 and cols[0]=='menu' and re.search(r'\(\d+, 0\)',cols[-2]) and cols[1]!='System':
+            active=cols[1]
+    hidden=[];kept=[]
+    for line in lines:
+        cols=line.split('\t')
+        if active not in ('unknown','Files','Desktop') and len(cols)>=7 and cols[0]=='label':
+            name=cols[1].replace('\u200b','')
+            if name=='Home' or re.search(r'\.(pdf|zip|pptx|docx|xlsx|png|jpg)(#)?$',name,re.I):
+                hidden.append(name);continue
+        kept.append(line)
+    # In the OSWorld linear tree Chromium's own title controls mark its section.
+    # Drop prior background windows only when the panel explicitly names Chrome.
+    if active=='Google Chrome':
+        starts=[i for i,l in enumerate(kept) if l.startswith('push-button\tMinimise\t')]
+        if starts:kept=kept[starts[-1]:]
+    prefix='ACTIVE APPLICATION (Ubuntu panel): '+active+'\n'
+    if hidden:prefix+='BACKGROUND DESKTOP FILES (not clickable until revealed): '+', '.join(hidden)+'\n'
+    return prefix+'\n'.join(kept),active
+
+
 def compress_screenshot(image):
     if not image:
         return '',{}
     from PIL import Image
     im=Image.open(io.BytesIO(base64.b64decode(image.split(',',1)[1]))).convert('RGB')
     original=im.size
-    # Keep coordinate system: only JPEG compression, no rescaling.
+    # Preserve the original desktop coordinate system explicitly in the request.
+    # Smaller vision input also limits provider image tokens, independently of bytes.
+    im.thumbnail((1280,720))
     for quality in (65,50,35,22):
         out=io.BytesIO();im.save(out,format='JPEG',quality=quality,optimize=True)
         data='data:image/jpeg;base64,'+base64.b64encode(out.getvalue()).decode()
         if len(data)<340_000:
-            return data,{'width':original[0],'height':original[1],'jpeg_quality':quality,'image_bytes':len(out.getvalue())}
+            return data,{'width':original[0],'height':original[1],'transmitted_width':im.width,'transmitted_height':im.height,'jpeg_quality':quality,'image_bytes':len(out.getvalue())}
     raise ValueError('SCREENSHOT_PAYLOAD_TOO_LARGE')
 
 
@@ -183,7 +210,9 @@ def pack_payload(body):
     def size(x): return len(json.dumps(x,ensure_ascii=False).encode())
     before=size(body);b=dict(body)
     b['instruction']=str(b.get('instruction',''))[:7000]
-    b['observation']=compact_tree(str(b.get('observation','')),b['instruction'])
+    focused,active=foreground_context(str(b.get('observation','')))
+    b['active_application']=active
+    b['observation']=compact_tree(focused,b['instruction'],limit=6500)
     b['memory']=str(b.get('memory',''))[-4500:]
     b['screenshot_data_url'],im=compress_screenshot(b.get('screenshot_data_url',''))
     b['image_geometry']=im

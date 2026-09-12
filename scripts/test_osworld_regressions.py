@@ -71,6 +71,15 @@ class ContractTests(unittest.TestCase):
         self.assertLessEqual(len(packed['observation']),control.MAX_TREE_CHARS)
         self.assertGreater(metrics['before_bytes'],metrics['after_bytes'])
 
+    def test_foreground_removes_recorded_occluded_controls(self):
+        tree='label\tHome\tHome\t\t\t(1833, 1037)\t(40, 17)\nlabel\tfile.pdf\tfile.pdf\t\t\t(1793, 920)\t(120, 34)\npush-button\tCalendar (Ctrl+3)\t\t\t\t(77, 124)\t(30, 30)\npush-button\tMinimise\tMinimise\t\t\t(1802, 27)\t(30, 35)\nmenu\tGoogle Chrome\t\t\t\t(99, 0)\t(162, 27)'
+        focused,active=control.foreground_context(tree)
+        self.assertEqual(active,'Google Chrome')
+        self.assertNotIn('(1833, 1037)',focused)
+        self.assertNotIn('(77, 124)',focused)
+        self.assertIn('file.pdf',focused)
+        self.assertIn('BACKGROUND',focused)
+
     def test_endpoint_and_cost_fail_closed(self):
         for data in [{'ok':True}, {'ok':True,'pipeline':'wrong','agent_build':'b','mandatory_cost_usd':0,'paid_fallback_used':False}]:
             with self.assertRaises(ValueError): control.validate_response(data,'p','b')

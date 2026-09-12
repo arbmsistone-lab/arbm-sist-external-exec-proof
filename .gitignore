@@ -5,3 +5,4 @@ shim-observations/
 run30/
 run30-replay.json
 osworld-mesh-preflight.json
+!reports/run30-replay.json

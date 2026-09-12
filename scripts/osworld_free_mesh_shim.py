@@ -6,7 +6,7 @@ from osworld_control import canonical_action, Verifier, pack_payload, validate_r
 
 UPSTREAM = 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5'
 EXPECTED_PIPELINE = 'arbm-osworld-v31-isolated'
-EXPECTED_BUILD = 'arbm-osworld-v31m-isolated-20260912'
+EXPECTED_BUILD = 'arbm-osworld-v31n-isolated-20260912'
 MAX_NO_PROGRESS = int(os.environ.get('ARBM_MAX_NO_PROGRESS', '12'))
 MAX_WAIT_RESPONSES = int(os.environ.get('ARBM_MAX_WAIT_RESPONSES', '12'))
 MAX_STEPS = int(os.environ.get('ARBM_MAX_STEPS', '160'))
@@ -70,7 +70,9 @@ def track_attempts(data):
         key=str(a.get('route'))+':'+str(a.get('model'))
         status=a.get('status')
         seconds=0
-        if status==413:seconds=3600
+        if status==200 and a.get('route')=='groq-multimodal-free':
+            seconds=max(25,min(65,float(a.get('prompt_tokens') or 4500)/7000*60+3))
+        elif status==413:seconds=3600
         elif status in (401,403,404):seconds=3600
         elif status==429:
             try:seconds=max(65,min(3600,float(a.get('retry_after') or 65)))
