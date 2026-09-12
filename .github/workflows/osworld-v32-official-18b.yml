@@ -33,7 +33,8 @@ jobs:
         shard:
           - {id: A, tasks: '001 019 037 055 073 091'}
           - {id: B, tasks: '007 025 043 061 079 097'}
-          - {id: C, tasks: '013 031 049 067 085 103'}    runs-on: ubuntu-24.04
+          - {id: C, tasks: '013 031 049 067 085 103'}
+    runs-on: ubuntu-24.04
     timeout-minutes: 360
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -63,7 +64,7 @@ jobs:
           cd osworld
           uv sync --frozen
           uv run python scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
-          test "$(find evaluation_examples/task_class -maxdepth 1 -name 'task_*.py' -type f | wc -l)" -eq 108          for id in ${{ matrix.shard.tasks }}; do
+          test "$(find evaluation_examples/task_class -maxdepth 1 -name 'task_*.py' -type f | wc -l)" -eq 108
             test -f "evaluation_examples/task_class/task_${id}.py"
             set +e
             out=$(uv run python scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 --allow-pattern "task_${id}/**" --target-dir cache/osworld_v2_assets 2>&1)
@@ -90,7 +91,7 @@ jobs:
           PY
           cd ..
           docker pull happysixd/osworld-docker@sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9
-          docker tag happysixd/osworld-docker@sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9 happysixd/osworld-docker:latest      - name: Download pinned official VM
+          docker tag happysixd/osworld-docker@sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9 happysixd/osworld-docker:latest
         shell: bash
         run: |
           set -euo pipefail
@@ -119,7 +120,7 @@ jobs:
             SHIM_PID=$!
             for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8088/health >/dev/null && break; sleep 1; done
             set +e
-            (cd osworld && uv run python scripts/python/run_multienv.py --headless --provider_name docker --path_to_vm "$QCOW_PATH" --eval_version v2 --test_all_meta_path evaluation_examples/test_arbm_v32.json --domain tasks --observation_type screenshot_a11y_tree --action_space pyautogui --model gpt-arbm-osworld-v32-isolated --temperature 0 --max_steps 500 --max_trajectory_length 8 --max_tokens 4096 --num_envs 1 --result_dir "../osworld-v32-evidence/task-${TASK_ID}/results" 2>&1 | tee "../osworld-v32-evidence/task-${TASK_ID}/osworld.log")            rc=${PIPESTATUS[0]}
+            (cd osworld && uv run python scripts/python/run_multienv.py --headless --provider_name docker --path_to_vm "$QCOW_PATH" --eval_version v2 --test_all_meta_path evaluation_examples/test_arbm_v32.json --domain tasks --observation_type screenshot_a11y_tree --action_space pyautogui --model gpt-arbm-osworld-v32-isolated --temperature 0 --max_steps 500 --max_trajectory_length 8 --max_tokens 4096 --num_envs 1 --result_dir "../osworld-v32-evidence/task-${TASK_ID}/results" 2>&1 | tee "../osworld-v32-evidence/task-${TASK_ID}/osworld.log")
             set -e
             kill "$SHIM_PID" 2>/dev/null || true
             wait "$SHIM_PID" 2>/dev/null || true
@@ -149,7 +150,7 @@ jobs:
           pattern: osworld-v32-official18b-*
           path: evidence
       - name: Enforce 18 numeric results
-        shell: bash        run: |
+        shell: bash
           set -euo pipefail
           python - <<'PY'
           import glob,json,statistics
