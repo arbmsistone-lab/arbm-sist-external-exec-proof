@@ -7,7 +7,7 @@ EXPECTED_BUILD = "arbm-osworld-v31k-isolated-20260911"
 MAX_NO_PROGRESS = int(os.environ.get("ARBM_MAX_NO_PROGRESS", "12"))
 MAX_WAIT_RESPONSES = int(os.environ.get("ARBM_MAX_WAIT_RESPONSES", "20"))
 STATE = {
-    "step": 0, "previous": "", "executed": 0, "phase": "plan",
+    "step": 0, "previous": "", "executed": 0, "phase": "execute",
     "plan": "", "memory": [], "verification": "", "history": [],
     "last_obs_sig": "", "no_progress": 0, "wait_responses": 0,
 }
@@ -53,9 +53,9 @@ def latest_observation(messages):
     if not users:
         return "", ""
     text, images = content_parts(users[-1].get("content"))
-    if len(text) > 42000:
-        third = 14000
-        text = text[:third] + "\n...[middle compressed]...\n" + text[-third * 2:]
+    if len(text) > 24000:
+        first = 8000
+        text = text[:first] + "\n...[middle compressed]...\n" + text[-16000:]
     image = images[-1] if images else ""
     if len(image) > 26_000_000:
         image = ""
@@ -106,16 +106,16 @@ def update_state(action, obs_sig):
 def call_mesh(messages):
     STATE["step"] += 1
     if STATE["no_progress"] >= MAX_NO_PROGRESS or STATE["wait_responses"] >= MAX_WAIT_RESPONSES:
-        log_event({"step": STATE["step"], "http": 503, "status": "NO_PROGRESS_ABORT", "provider": "guardrail", "model": "none", "pipeline": EXPECTED_PIPELINE, "agent_build": EXPECTED_BUILD})
-        raise RuntimeError("ARBM_NO_PROGRESS_ABORT")
+        log_event({"step": STATE["step"], "http": 200, "status": "NO_PROGRESS_ABORT", "provider": "guardrail", "model": "none", "pipeline": EXPECTED_PIPELINE, "agent_build": EXPECTED_BUILD})
+        return "FAIL"
     obs, screenshot = latest_observation(messages)
     obs_sig = hashlib.sha256(obs.encode("utf-8", "ignore")).hexdigest()[:20]
     body = {
-        "instruction": task_from(messages), "observation": obs,
+        "instruction": "ACTION CONTRACT: field action MUST be exactly one of exec, finish, wait. Planning belongs only in field plan/phase; never return action=plan/execute/click/type. If GUI work remains, use action=exec with a direct pyautogui command.\n\n" + task_from(messages), "observation": obs,
         "screenshot_data_url": screenshot,
         "visual_context": "latest OSWorld screenshot attached" if screenshot else "screenshot unavailable",
         "previous_command": STATE["previous"], "executed_count": STATE["executed"],
-        "memory": memory_text(), "phase": STATE["phase"],
+        "memory": memory_text(), "phase": "execute",
         "no_progress_count": STATE["no_progress"], "step": STATE["step"],
     }
     http, data = None, {"status": "NO_ATTEMPT"}
@@ -134,6 +134,11 @@ def call_mesh(messages):
                 data = {"status": "INVALID_UPSTREAM_RESPONSE"}
         if http == 200:
             break
+        if http == 422 and data.get("status") in ("INVALID_ACTION", "ACTION_REJECTED"):
+            body["phase"] = "execute"
+            body["memory"] = (str(body.get("memory") or "") + "\nRECOVERY: return action=exec with direct pyautogui.* command only, or action=finish only if visibly complete.")[-18000:]
+            time.sleep(0.4)
+            continue
         if http not in (429, 503):
             break
         time.sleep(1.0 + attempt * 0.5)
@@ -141,7 +146,7 @@ def call_mesh(messages):
     log_event(data)
     if http != 200 or data.get("ok") is not True:
         STATE["no_progress"] += 1
-        STATE["phase"] = "plan" if STATE["no_progress"] >= 2 else STATE["phase"]
+        STATE["phase"] = "execute"
         STATE["wait_responses"] += 1
         return "WAIT"
     if data.get("pipeline") != EXPECTED_PIPELINE or data.get("agent_build") != EXPECTED_BUILD:
@@ -160,7 +165,7 @@ def call_mesh(messages):
         same_state = obs_sig == previous_obs_sig
         if command == STATE["previous"] and same_state:
             STATE["no_progress"] += 1
-            STATE["phase"] = "plan"
+            STATE["phase"] = "execute"
             return "WAIT"
         STATE["previous"] = command
         STATE["executed"] += 1
@@ -179,7 +184,7 @@ def call_mesh(messages):
     STATE["no_progress"] += 1
     STATE["wait_responses"] += 1
     if STATE["no_progress"] >= 2:
-        STATE["phase"] = "plan"
+        STATE["phase"] = "execute"
     return "WAIT"
 
 
@@ -214,10 +219,10 @@ class Handler(BaseHTTPRequestHandler):
             })
         except RuntimeError as exc:
             log_event({"step": STATE["step"], "http": 503, "status": str(exc)})
-            self.send_json(503, {"error": {"message": str(exc), "type": "zero_spend_capacity_exhausted"}})
+            self.send_json(503, {"error": {"message": str(exc), "type": "server_error", "param": None, "code": "arbm_no_progress_abort"}})
         except Exception as exc:
             log_event({"step": STATE["step"], "http": None, "status": type(exc).__name__})
-            self.send_json(500, {"error": {"message": type(exc).__name__, "type": "shim_internal_error"}})
+            self.send_json(500, {"error": {"message": type(exc).__name__, "type": "server_error", "param": None, "code": "shim_internal_error"}})
 
 
 ThreadingHTTPServer(("127.0.0.1", 8088), Handler).serve_forever()

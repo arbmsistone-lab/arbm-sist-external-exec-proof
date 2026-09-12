@@ -126,6 +126,7 @@ jobs:
               2>&1 | tee "../top3-evidence/osworld-sovereign-${TASK_ID}/osworld.log"'
             rc=$?
             set -e
+            if grep -q '"status":"NO_PROGRESS_ABORT"' "$ARBM_OSWORLD_SHIM_LOG" 2>/dev/null; then rc=97; fi
             kill "$SHIM_PID" 2>/dev/null || true
             wait "$SHIM_PID" 2>/dev/null || true
             cp -f "$ARBM_OSWORLD_SHIM_LOG" "$DIR/" 2>/dev/null || true
