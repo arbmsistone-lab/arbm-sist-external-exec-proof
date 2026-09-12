@@ -4,6 +4,7 @@ import json
 import re
 
 from osworld_v32_policy import apply_live_policy, extract_state
+from replay_osworld_run30 import load_cases
 
 
 def load_request(path: Path) -> dict:
@@ -26,10 +27,16 @@ def assert_background_never_foreground(req: dict):
 
 def main(run30: str, run38: str):
     report = {"run30_steps": 0, "run38_steps": 0, "checks": []}
-    for path in recorded_steps(Path(run30)):
-        req = load_request(path)
-        assert_background_never_foreground(req)
-        report["run30_steps"] += 1
+    run30_tasks = {}
+    for task, _d, traj, trees, _instruction in load_cases(Path(run30)):
+        assert len(traj) == len(trees), (task, len(traj), len(trees))
+        run30_tasks[task] = len(traj)
+        for obs in trees:
+            assert_background_never_foreground({"active_application":"unknown","observation":obs})
+            report["run30_steps"] += 1
+    assert run30_tasks == {"001":78,"002":70,"003":43}, run30_tasks
+    assert report["run30_steps"] == 191, report["run30_steps"]
+    report["checks"].append("run30_full_191_steps_replayed")
 
     r38 = Path(run38)
     for path in recorded_steps(r38):
