@@ -5,7 +5,7 @@ const ISS = "https://token.actions.githubusercontent.com";
 const AUD = "arbm-sist-benchmark";
 const REPO = "arbmsistone-lab/arbm-sist-external-exec-proof";
 const JWKS = createRemoteJWKSet(new URL(ISS + "/.well-known/jwks"));
-const BUILD = "arbm-osworld-v31n-isolated-20260912";
+const BUILD = "arbm-osworld-v31o-isolated-20260912";
 const PIPELINE = "arbm-osworld-v31-isolated";
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions";
@@ -22,6 +22,7 @@ const parseJson = (text: string) => {
   if (a >= 0 && b > a) { try { return JSON.parse(c.slice(a, b + 1)); } catch {} }
   return null;
 };
+const textField=(value:unknown)=>typeof value==="string"?value:(value==null?"":JSON.stringify(value));
 const cooling = (k: string) => (COOLDOWN.get(k) || 0) > Date.now();
 const cool = (k: string, seconds = 60) => COOLDOWN.set(k, Date.now() + seconds * 1000);
 
@@ -95,7 +96,7 @@ If a click did nothing, do not repeat it: inspect foreground, try keyboard navig
 Only direct pyautogui calls with literal arguments, one per line. command MUST be a STRING, never an array/object or explanations. No shell, terminal, scripts, filesystem/network APIs, clipboard extraction, hidden state or benchmark internals. Typing a path into a visible GUI file dialog is allowed. Scroll by 3-6 not hundreds. sleep <= 3s.
 Required JSON:
 {"action":"exec|wait|finish","command":"pyautogui...","plan":"current subtask","summary":"why this action","memory_patch":"durable observed facts and completed subtasks","verification":"visible result of previous action","expected_change":"next visible outcome","confidence":0.9}
-Use exec for GUI work. Plan is internal, never an action. Finish only when ALL requested outputs are saved and verified on screen; confidence>=0.8. Never claim completion from intent.
+All descriptive fields must be short factual strings, never nested objects. Use exec for GUI work. Plan is internal, never an action. Finish only when ALL requested outputs are saved and verified on screen; confidence>=0.8. Never claim completion from intent.
 FOREGROUND APPLICATION: ${body.active_application||"unknown"}. Any different application in the tree is background. A Home desktop label is NOT a dock icon. To reveal Desktop use pyautogui.hotkey('ctrl','alt','d'), never click Home through a window.
 STEP ${body.step}, NO_PROGRESS ${body.no_progress_count}, RECOVERY ${body.recovery_strategy||'normal'}
 TASK: ${String(body.instruction||'').slice(0,7000)}
@@ -116,7 +117,7 @@ async function callGroq(p: string, image: string, body: any) {
     if (cooling("g:" + model) || Number(body.route_cooldowns?.["groq-multimodal-free:"+model]||0)>Date.now()) { attempts.push({ route: "groq-multimodal-free", model, status: "cooldown" }); continue; }
     try {
       const content: any[] = [{ type: "text", text: p }, { type: "image_url", image_url: { url: image, detail: "low" } }];
-      const providerBody=JSON.stringify({ model, messages: [{ role: "system", content: "Return one valid JSON object only." }, { role: "user", content }], response_format: { type: "json_object" }, temperature: 0, max_completion_tokens: 900 });
+      const providerBody=JSON.stringify({ model, messages: [{ role: "system", content: "Return one valid JSON object only." }, { role: "user", content }], response_format: { type: "json_object" }, temperature: 0, reasoning_effort: "none", max_completion_tokens: 600 });
       const requestBytes=new TextEncoder().encode(providerBody).length;
       if(requestBytes>420000){attempts.push({route:"groq-multimodal-free",model,status:"payload_gate",request_bytes:requestBytes});continue;}
       const res = await fetch(GROQ_URL, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${key}` }, body: providerBody, signal: AbortSignal.timeout(35000) });
@@ -126,7 +127,7 @@ async function callGroq(p: string, image: string, body: any) {
       const rpd = res.headers.get("x-ratelimit-limit-requests"), tpm = res.headers.get("x-ratelimit-limit-tokens"), remaining = res.headers.get("x-ratelimit-remaining-requests"), retryAfter = res.headers.get("retry-after");
       const free = rpd === "1000" && tpm === "8000";
       if (res.status === 429 || remaining === "0" || res.status===413) cool("g:" + model, res.status===413?3600:Math.max(60, Number(retryAfter || 0)));
-      attempts.push({ route: "groq-multimodal-free", model, status: res.status, parsed: !!out, contract_error: contractError, request_bytes: requestBytes, prompt_tokens: raw?.usage?.prompt_tokens, completion_tokens: raw?.usage?.completion_tokens, response_text: String(raw?.choices?.[0]?.message?.content||"").slice(0,6000), free_plan_proven: free, rate_limit_rpd: rpd, rate_limit_tpm: tpm, remaining_requests: remaining, retry_after: retryAfter, error_message: scrub(raw?.error?.message), mandatory_cost_usd: 0, paid_fallback_used: false });
+      attempts.push({ route: "groq-multimodal-free", model, status: res.status, parsed: !!out, contract_error: contractError, request_bytes: requestBytes, prompt_tokens: raw?.usage?.prompt_tokens, completion_tokens: raw?.usage?.completion_tokens, response_text: String(raw?.choices?.[0]?.message?.content||raw?.error?.failed_generation||"").slice(0,6000), free_plan_proven: free, rate_limit_rpd: rpd, rate_limit_tpm: tpm, remaining_requests: remaining, retry_after: retryAfter, error_message: scrub(raw?.error?.message), mandatory_cost_usd: 0, paid_fallback_used: false });
       if (out && free) return { result: { action: out, provider: "groqcloud-free", model, zeroSpendProven: true }, attempts };
       if ([401, 403].includes(res.status)) break;
       if (res.status === 429 || res.status >= 500 || [400, 404, 422].includes(res.status)) continue;
@@ -156,7 +157,7 @@ async function callMistral(p: string, image: string, body: any) {
       let contractError=""; try {if(out)out=canonicalAction(out);}catch(e:any){contractError=String(e.message);out=null;}
       const retryAfter = res.headers.get("retry-after");
       if (res.status === 429) cool("m:" + model, Math.max(60, Number(retryAfter || 0)));
-      attempts.push({ route: "mistral-multimodal-free", model, status: res.status, parsed: !!out, contract_error: contractError, request_bytes: requestBytes, prompt_tokens: raw?.usage?.prompt_tokens, completion_tokens: raw?.usage?.completion_tokens, response_text: String(raw?.choices?.[0]?.message?.content||"").slice(0,6000), zero_spend_confirmed: true, retry_after: retryAfter, error_message: scrub(raw?.message || raw?.error?.message), mandatory_cost_usd: 0, paid_fallback_used: false });
+      attempts.push({ route: "mistral-multimodal-free", model, status: res.status, parsed: !!out, contract_error: contractError, request_bytes: requestBytes, prompt_tokens: raw?.usage?.prompt_tokens, completion_tokens: raw?.usage?.completion_tokens, response_text: String(raw?.choices?.[0]?.message?.content||raw?.error?.failed_generation||"").slice(0,6000), zero_spend_confirmed: true, retry_after: retryAfter, error_message: scrub(raw?.message || raw?.error?.message), mandatory_cost_usd: 0, paid_fallback_used: false });
       if (out) return { result: { action: out, provider: "mistral-free", model, zeroSpendProven: true }, attempts };
       if ([401, 403].includes(res.status)) break;
       if (res.status === 429 || res.status >= 500 || [400, 404, 422].includes(res.status)) continue;
@@ -189,8 +190,8 @@ Deno.serve(async (req: Request) => {
     const normalized = a.action === "exec" ? normalizeCommand(String(a.command || "")) : "";
     const reason = a.action === "exec" ? validate(normalized) : "";
     if (reason) return respond({ ok: false, status: "ACTION_REJECTED", reason, rejected_command: scrub(String(a.command || "")), pipeline: PIPELINE, agent_build: BUILD, provider_attempts: attempts, mandatory_cost_usd: 0, paid_fallback_used: false }, 422);
-    if (a.action === "finish" && (Number(a.confidence || 0) < 0.72 || !String(a.verification || "").trim())) return respond({ ok: false, status: "FINISH_NOT_VERIFIED", pipeline: PIPELINE, agent_build: BUILD, provider_attempts: attempts, mandatory_cost_usd: 0, paid_fallback_used: false }, 422);
-    return respond({ ok: true, status: "PASS", pipeline: PIPELINE, agent_build: BUILD, action: { action: String(a.action), command: normalized.slice(0, 5000), summary: String(a.summary || "").slice(0, 1400), phase: String(a.phase || "execute"), plan: String(a.plan || "").slice(0, 3500), memory_patch: String(a.memory_patch || "").slice(0, 3500), verification: String(a.verification || "").slice(0, 2500), expected_change: String(a.expected_change||"").slice(0,1000), confidence: Math.max(0, Math.min(1, Number(a.confidence || 0))) }, provider: result.provider, model: result.model, provider_attempts: attempts, mandatory_cost_usd: 0, paid_fallback_used: false, scoreable: false, github_run_id: oidc.runId, github_sha: oidc.sha });
+    if (a.action === "finish" && (Number(a.confidence || 0) < 0.72 || !textField(a.verification).trim())) return respond({ ok: false, status: "FINISH_NOT_VERIFIED", pipeline: PIPELINE, agent_build: BUILD, provider_attempts: attempts, mandatory_cost_usd: 0, paid_fallback_used: false }, 422);
+    return respond({ ok: true, status: "PASS", pipeline: PIPELINE, agent_build: BUILD, action: { action: String(a.action), command: normalized.slice(0, 5000), summary: textField(a.summary).slice(0, 1400), phase: String(a.phase || "execute"), plan: textField(a.plan).slice(0, 3500), memory_patch: textField(a.memory_patch).slice(0, 3500), verification: textField(a.verification).slice(0, 2500), expected_change: textField(a.expected_change).slice(0,1000), confidence: Math.max(0, Math.min(1, Number(a.confidence || 0))) }, provider: result.provider, model: result.model, provider_attempts: attempts, mandatory_cost_usd: 0, paid_fallback_used: false, scoreable: false, github_run_id: oidc.runId, github_sha: oidc.sha });
   } catch (e: any) {
     const m = String(e?.message || e), unauthorized = m.startsWith("OIDC_") || m.includes("JWT") || m.includes("signature");
     return respond({ error: unauthorized ? "OIDC_UNAUTHORIZED" : "INTERNAL_ERROR", detail: unauthorized ? m : scrub(m), pipeline: PIPELINE, agent_build: BUILD, mandatory_cost_usd: 0, paid_fallback_used: false }, unauthorized ? 401 : 500);

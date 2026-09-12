@@ -51,3 +51,7 @@ context.fetch=async()=>new Response(JSON.stringify({error:{message:'quota'}}),{s
 response=await context.handler(new Request('https://offline.test',{method:'POST',headers:{authorization:'Bearer offline'},body:JSON.stringify({instruction:'x',screenshot_data_url:'x'})}));
 assert.equal(response.status,503);assert.equal((await response.json()).status,'NO_ZERO_SPEND_MULTIMODAL_CAPACITY');
 console.log('ENDPOINT_FAILOVER_PAYLOAD_AUTH_PASS');
+
+assert.equal(run('textField({fact:"visible"})'),'{"fact":"visible"}');
+for(const a of attempts.filter(x=>x.url.includes('groq'))){assert.equal(a.body.reasoning_effort,'none');assert.equal(a.body.max_completion_tokens,600);}
+console.log('GROQ_OUTPUT_BUDGET_AND_MEMORY_PASS');

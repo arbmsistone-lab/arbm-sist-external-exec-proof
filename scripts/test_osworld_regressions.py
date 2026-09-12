@@ -80,6 +80,12 @@ class ContractTests(unittest.TestCase):
         self.assertIn('file.pdf',focused)
         self.assertIn('BACKGROUND',focused)
 
+    def test_real_replay_desktop_plan_compiles_to_correct_shortcut(self):
+        a=control.ground_action({'action':'exec','plan':'Bring the Desktop to the foreground to access files','command':"pyautogui.hotkey('alt', 'tab')"},'Google Chrome')
+        self.assertEqual(a['command'],"pyautogui.hotkey('ctrl', 'alt', 'd')")
+        a=control.ground_action({'action':'exec','plan':'Bring Thunderbird to the foreground','command':"pyautogui.hotkey('alt', 'tab')"},'Google Chrome')
+        self.assertEqual(a['command'],"pyautogui.hotkey('alt', 'tab')")
+
     def test_endpoint_and_cost_fail_closed(self):
         for data in [{'ok':True}, {'ok':True,'pipeline':'wrong','agent_build':'b','mandatory_cost_usd':0,'paid_fallback_used':False}]:
             with self.assertRaises(ValueError): control.validate_response(data,'p','b')

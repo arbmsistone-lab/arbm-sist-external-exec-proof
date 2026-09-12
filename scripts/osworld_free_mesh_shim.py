@@ -2,11 +2,11 @@
 import json, os, time, urllib.request, urllib.error, hashlib, threading
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from osworld_control import canonical_action, Verifier, pack_payload, validate_response
+from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response
 
 UPSTREAM = 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5'
 EXPECTED_PIPELINE = 'arbm-osworld-v31-isolated'
-EXPECTED_BUILD = 'arbm-osworld-v31n-isolated-20260912'
+EXPECTED_BUILD = 'arbm-osworld-v31o-isolated-20260912'
 MAX_NO_PROGRESS = int(os.environ.get('ARBM_MAX_NO_PROGRESS', '12'))
 MAX_WAIT_RESPONSES = int(os.environ.get('ARBM_MAX_WAIT_RESPONSES', '12'))
 MAX_STEPS = int(os.environ.get('ARBM_MAX_STEPS', '160'))
@@ -128,7 +128,7 @@ def call_mesh(messages):
             except ValueError as exc:return terminal(str(exc))
         if http in (401,403,409):return terminal('ENDPOINT_AUTH_OR_VERSION')
         if http==200 and data.get('ok') is True:
-            try:action=canonical_action(data.get('action'))
+            try:action=ground_action(data.get('action'),body.get('active_application','unknown'))
             except ValueError as exc:
                 body['memory']=(body['memory']+'\nCONTRACT REJECTED: '+str(exc)+'. Return literal pyautogui call strings only.')[-4500:]
                 body['provider_hint']='groq' if data.get('provider')=='mistral-free' else 'mistral'

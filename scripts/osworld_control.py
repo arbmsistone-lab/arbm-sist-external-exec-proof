@@ -83,6 +83,21 @@ def tree_signature(text):
     return hashlib.sha256('\n'.join(sorted(lines)).encode()).hexdigest()
 
 
+def ground_action(action, active_application):
+    """Compile an explicit desktop-activation plan to Ubuntu's actual GUI shortcut."""
+    a=canonical_action(action)
+    plan=str(a.get('plan') or '').lower()
+    reveal=bool(re.search(r'(?:bring|show|reveal|switch to) (?:the )?desktop\b',plan))
+    if a['action']=='exec' and active_application not in ('Desktop','unknown') and reveal:
+        tree=ast.parse(a['command'])
+        if len(tree.body)==1 and tree.body[0].value.func.attr=='hotkey':
+            keys=[ast.literal_eval(x) for x in tree.body[0].value.args]
+            if keys==['alt','tab']:
+                a['command']="pyautogui.hotkey('ctrl', 'alt', 'd')"
+                a['compiler_note']='Ubuntu show-desktop shortcut implements the explicit desktop-activation plan.'
+    return a
+
+
 def visual_signature(image):
     if not image:
         return ''
