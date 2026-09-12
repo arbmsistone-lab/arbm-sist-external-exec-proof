@@ -1,5 +1,13 @@
 name: OSWorld v32 official 18 zero-spend
 on:
+  push:
+    branches:
+      - codex/osworld-v32-20260912
+    paths:
+      - .github/workflows/osworld-v32-official-18.yml
+      - scripts/osworld_free_mesh_shim.py
+      - scripts/osworld_mesh_preflight.py
+      - scripts/osworld_v32_policy.py
   workflow_dispatch:
 permissions:
   contents: read
