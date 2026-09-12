@@ -1,0 +1,29 @@
+name: OSWorld v32 deterministic policy gate
+on:
+  push:
+    branches:
+      - 'codex/osworld-v32-*'
+    paths:
+      - 'scripts/osworld_v32_policy.py'
+      - 'scripts/osworld_v32_regression_gate.py'
+      - 'scripts/test_osworld_v32_policy.py'
+      - '.github/workflows/osworld-v32-policy-gate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  policy-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      ZERO_SPEND_MODE: HARD
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pinned test dependencies
+        run: python -m pip install -r scripts/requirements-osworld.txt
+      - name: Run complete OSWorld regression suite
+        run: python -m unittest discover -s scripts -p 'test_osworld_*.py'
+      - name: Run v32 deterministic regression gate
+        run: python scripts/osworld_v32_regression_gate.py
+      - name: Prove zero-spend policy gate
+        run: test "$ZERO_SPEND_MODE" = "HARD"
