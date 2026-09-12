@@ -20,7 +20,7 @@ jobs:
       LLAMA_TAG: b10516
       LLAMA_SHA256: f263a91280471b4c33c4999d7c76259c0f3a0a53a0b3e692b2c0b84380137a35
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Runner identity
         run: |
           uname -a
@@ -32,7 +32,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install datasets
       - name: Restore sovereign model cache once
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: ${{ env.MODEL_DIR }}/${{ env.MODEL_FILE }}
           key: qwen25-coder-14b-q4km-${{ env.MODEL_SHA256 }}
@@ -170,7 +170,7 @@ jobs:
           cat p8-matrix-artifacts/FINAL-SHA256SUMS.txt || true
       - name: Upload immutable matrix evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: p8-swe-rebench-v2-five-offset-matrix
           path: p8-matrix-artifacts

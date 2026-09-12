@@ -36,7 +36,7 @@ jobs:
           evidence={'schema':'arbm-coding-agent-index-v1.4-preflight','tasks':326,'trialsRequired':978,'trialPolicy':'3_per_task','antiCherryPick':True,'refs':refs,'state':'READY_FOR_AGENT_INFERENCE'}
           pathlib.Path('coding-agent-index-preflight.json').write_text(json.dumps(evidence,indent=2)+'\n')
           print(json.dumps(evidence))
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: coding-agent-index-v1-4-preflight
           path: coding-agent-index-preflight.json

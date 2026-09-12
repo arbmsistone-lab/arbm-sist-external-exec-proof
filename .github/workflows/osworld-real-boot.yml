@@ -97,7 +97,7 @@ jobs:
           echo "FINAL_FREE_BYTES=$(df -B1 --output=avail / | tail -1 | tr -d ' ')" | tee -a osworld-boot.txt
       - name: Upload boot evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: osworld-real-vm-zero-spend-boot
           path: osworld-boot.txt

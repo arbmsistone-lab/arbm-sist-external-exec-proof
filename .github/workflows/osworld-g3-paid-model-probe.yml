@@ -20,7 +20,7 @@ jobs:
     env:
       GEMINI_G3_PAID_CERT_KEY: ${{ secrets.GEMINI_G3_PAID_CERT_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Audit 3X and reconcile total budget before paid probe
         env:
           GH_TOKEN: ${{ github.token }}
@@ -38,7 +38,7 @@ jobs:
           python -c "import json; x=json.load(open('model-probe.json')); cs=x.get('candidates') or []; assert cs, x.get('error'); c=cs[0]; parts=c.get('content',{}).get('parts') or []; txt=''.join(str(i.get('text','')) for i in parts if isinstance(i,dict)).strip(); u=x.get('usageMetadata',{}); print('PAID_MODEL_GATE=PASS' if txt else 'PAID_MODEL_GATE=NO_TEXT'); print('HTTP=200'); print('MODEL=gemini-3.5-flash'); print('FINISH_REASON='+str(c.get('finishReason'))); print('PART_TYPES='+','.join(sorted({','.join(i.keys()) for i in parts if isinstance(i,dict)}))); print('PROMPT_TOKENS='+str(u.get('promptTokenCount'))); print('OUTPUT_TOKENS='+str(u.get('candidatesTokenCount'))); print('TOTAL_TOKENS='+str(u.get('totalTokenCount'))); assert txt"
       - name: Preserve admission and usage even on failure
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: g3-paid-probe-evidence
           retention-days: 30

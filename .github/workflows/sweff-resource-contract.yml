@@ -99,7 +99,7 @@ jobs:
           print(json.dumps(out,indent=2))
           PY
       - name: Upload immutable evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: sweff-resource-contract-${{ inputs.request_id }}
           path: evidence/

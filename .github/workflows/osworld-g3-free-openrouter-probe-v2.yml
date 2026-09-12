@@ -14,7 +14,7 @@ jobs:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       FREE_MODEL: dots-studio/dots-3-note-preview:free
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Enforce zero-spend isolation
         run: |
           test "$GITHUB_REF_NAME" = "g3-free-cert-lane-20260910"
@@ -51,7 +51,7 @@ jobs:
           PY
       - name: Preserve FREE v2 evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: g3-free-openrouter-probe-v2-evidence
           path: |

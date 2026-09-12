@@ -15,6 +15,6 @@ jobs:
   validate:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Validate fail-closed provider candidate registry
         run: node certification/provider-candidate-evidence-check.mjs

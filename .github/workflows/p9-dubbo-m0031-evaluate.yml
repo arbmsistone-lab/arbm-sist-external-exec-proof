@@ -23,9 +23,9 @@ jobs:
       IMAGE_REF: hyd2apse/swe-milestone__apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__m003.1@sha256:236a1ca0c7560850cca946886d77c64f24adb0c82913bd6299262add5475f5f2
       LOCAL_IMAGE: swe-milestone/apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__m003.1:v1.0.2
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Download frozen solve artifact
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
         with:
           name: ${{ env.SOLVE_ARTIFACT }}
           path: solve-artifact
@@ -185,7 +185,7 @@ jobs:
           sha256sum solve-artifact/solution.json solve-artifact/solve-evidence.json source_snapshot.tar public-data-SHA256SUMS.txt diagnostic-summary.json > evaluation-SHA256SUMS.txt
       - name: Upload diagnostic evaluation evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: p9-dubbo-m0031-official-diagnostic-${{ inputs.request_id }}
           path: |

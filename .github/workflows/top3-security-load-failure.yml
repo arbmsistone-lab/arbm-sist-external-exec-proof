@@ -43,7 +43,7 @@ jobs:
       LOAD_DSN_2: postgresql://postgres:postgres@localhost:5434/loadtest
       LOAD_DSN_3: postgresql://postgres:postgres@localhost:5435/loadtest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Prove remote zero-spend runner
         run: |
           set -euo pipefail
@@ -102,7 +102,7 @@ jobs:
           print(json.dumps(out,sort_keys=True))
           PY
       - name: Upload immutable evidence
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: top3-security-load-failure-proof
           path: top3-evidence/security-load-failure

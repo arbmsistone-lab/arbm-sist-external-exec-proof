@@ -101,7 +101,7 @@ jobs:
             'zero_spend_mode=HARD' > gated-preflight.txt
           sha256sum gated-preflight.txt > gated-preflight.sha256
       - name: Upload non-secret evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: osworld-gated-preflight-evidence
           path: |

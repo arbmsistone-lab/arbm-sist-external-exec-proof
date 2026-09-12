@@ -38,7 +38,7 @@ jobs:
           PY
       - name: Freeze hashes
         run: sha256sum swemilestone-family-inventory.json > SHA256SUMS.txt
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: swemilestone-family-inventory
           path: |

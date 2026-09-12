@@ -31,7 +31,7 @@ jobs:
       HEAVY_LOCAL: '0'
     steps:
       - name: Checkout G3 tooling
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Lightweight contract tests
         shell: bash
         run: |
@@ -243,7 +243,7 @@ jobs:
           fi
       - name: Upload smoke evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: osworld-g3-free-cert-smoke-evidence
           path: free-artifacts

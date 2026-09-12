@@ -21,7 +21,7 @@ jobs:
       IMAGE_REF: hyd2apse/swe-milestone__apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__m003.1@sha256:236a1ca0c7560850cca946886d77c64f24adb0c82913bd6299262add5475f5f2
       ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-agent-p9-v1
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Validate P9 ref
         shell: bash
         run: |
@@ -197,7 +197,7 @@ jobs:
           sha256sum SRS.md tool-context.txt known-paths.txt solution.json validated-ops.json solution.patch.txt solve-evidence.json > SHA256SUMS.txt
           cat solve-evidence.json
       - name: Upload P9 solve evidence
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: p9-dubbo-m0031-solve-${{ inputs.request_id }}
           path: |

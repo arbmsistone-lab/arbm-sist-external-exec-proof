@@ -62,7 +62,7 @@ jobs:
           docker image inspect happysixd/osworld-docker --format '{{.Id}} {{.Size}}' | tee -a osworld-preflight.txt
       - name: Upload preflight evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: osworld-official-provider-preflight
           path: |

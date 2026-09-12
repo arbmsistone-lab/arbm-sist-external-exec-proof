@@ -14,8 +14,8 @@ jobs:
       LLAMA_TAG: b10516
       LLAMA_SHA256: f263a91280471b4c33c4999d7c76259c0f3a0a53a0b3e692b2c0b84380137a35
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff
       - name: Freeze DeepSWE and install Pier
         run: |
           set -euo pipefail
@@ -23,7 +23,7 @@ jobs:
           git -C deep-swe checkout 0b9fabbb63b9104d678fe965e1632f2dd9eaa2ea
           uv tool install datacurve-pier
       - name: Restore sovereign model cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: ${{ env.MODEL_DIR }}/${{ env.MODEL_FILE }}
           key: qwen25-coder-14b-q4km-${{ env.MODEL_SHA256 }}
@@ -65,7 +65,7 @@ jobs:
           printf '%s\n' 'NON_SCORING_SINGLE_TASK_SMOKE=true' > deepswe-smoke-evidence/metadata.txt
           printf '%s\n' 'FULL_SCORE_REQUIRES_978_TRIALS=true' >> deepswe-smoke-evidence/metadata.txt
           find deepswe-smoke-evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > deepswe-smoke-evidence/SHA256SUMS.txt || true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: deepswe-sovereign-single-task-smoke

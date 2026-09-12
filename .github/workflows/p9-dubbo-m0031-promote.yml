@@ -28,7 +28,7 @@ jobs:
       BASE_OFFLINE_REF: hyd2apse/swe-milestone__apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__base-offline@sha256:f5c6fa1963515e4e04c9911c3df1979a920911ce9e7c19def9603a607a271dfe
       LOCAL_BASE_OFFLINE: swe-milestone/apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__base-offline:v1.0.2
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Verify free remote capacity
         env:
           REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
@@ -40,7 +40,7 @@ jobs:
       - name: Verify independent result-gate rejection tests
         run: python -m unittest discover -s tests -p 'test_p9_*.py'
       - name: Download frozen solve artifact
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
         with:
           name: ${{ env.SOLVE_ARTIFACT }}
           path: solve-artifact
@@ -301,7 +301,7 @@ jobs:
           PY
       - name: Upload promotion evaluation evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: p9-dubbo-m0031-official-promotion-${{ inputs.request_id }}
           path: |

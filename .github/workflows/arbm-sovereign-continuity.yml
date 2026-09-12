@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 65
     steps:
       - name: Checkout control plane
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           persist-credentials: false
       - name: Validate universal runner
@@ -35,7 +35,7 @@ jobs:
         run: node scripts/sovereign-continuity-worker.mjs
       - name: Upload continuity evidence
         if: always() && steps.worker.outputs.claimed == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: continuity-${{ steps.worker.outputs.mission_id }}-${{ github.run_id }}
           path: ${{ github.workspace }}/.arbm-run/evidence

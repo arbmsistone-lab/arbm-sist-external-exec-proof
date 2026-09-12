@@ -22,7 +22,7 @@ jobs:
       IMAGE_REF: hyd2apse/swe-milestone__apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__m003.1@sha256:236a1ca0c7560850cca946886d77c64f24adb0c82913bd6299262add5475f5f2
       ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-agent-v17
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Validate bridge ref and request
         shell: bash
         run: |
@@ -87,7 +87,7 @@ jobs:
           sha256sum SRS.md repo-index.txt plan.json evidence.json > SHA256SUMS.txt
           cat evidence.json
       - name: Upload immutable smoke evidence
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: p9-dubbo-m0031-plan-${{ inputs.request_id }}
           path: |

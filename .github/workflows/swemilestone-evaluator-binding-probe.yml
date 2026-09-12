@@ -79,7 +79,7 @@ jobs:
         run: |
           sha256sum evaluator-binding-summary.json evaluator-output.txt > SHA256SUMS.txt
           if [ -f evaluator-result.json ]; then sha256sum evaluator-result.json >> SHA256SUMS.txt; fi
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
           name: swemilestone-evaluator-binding-probe

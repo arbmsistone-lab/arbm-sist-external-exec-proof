@@ -41,7 +41,7 @@ jobs:
             https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows/arbm-sovereign-capacity-rotation.yml/dispatches \
             -d "{\"ref\":\"codex/free-capacity-live-proof-20260909\",\"inputs\":{\"generation\":\"$NEXT\"}}"
       - name: Upload rotation evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: sovereign-capacity-rotation-${{ inputs.generation }}
           path: rotation-evidence.json
