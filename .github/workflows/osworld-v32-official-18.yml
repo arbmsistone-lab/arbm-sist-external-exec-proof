@@ -106,6 +106,23 @@ jobs:
           cd ..
           docker pull happysixd/osworld-docker@sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9
           docker tag happysixd/osworld-docker@sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9 happysixd/osworld-docker:latest
+      - name: Patch upstream Docker isolation bug
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('osworld/scripts/python/run_multienv.py')
+          s=p.read_text()
+          old='''        from desktop_env.providers.aws.manager import IMAGE_ID_MAP\n        REGION = args.region\n        screen_size = (args.screen_width, args.screen_height)\n        ami_id = IMAGE_ID_MAP[REGION].get(screen_size, IMAGE_ID_MAP[REGION][(1920, 1080)])\n'''
+          new='''        REGION = args.region\n        screen_size = (args.screen_width, args.screen_height)\n        if args.provider_name == "aws":\n            from desktop_env.providers.aws.manager import IMAGE_ID_MAP\n            ami_id = IMAGE_ID_MAP[REGION].get(screen_size, IMAGE_ID_MAP[REGION][(1920, 1080)])\n        else:\n            ami_id = "init_state"\n'''
+          assert old in s, 'UPSTREAM_DOCKER_AWS_IMPORT_BLOCK_CHANGED'
+          p.write_text(s.replace(old,new,1))
+          print('OSWORLD_DOCKER_AWS_IMPORT_PATCH_APPLIED')
+          PY
+          git -C osworld diff -- scripts/python/run_multienv.py > osworld-docker-provider.patch
+          test -s osworld-docker-provider.patch
+          sha256sum osworld-docker-provider.patch
       - name: Download pinned official VM
         shell: bash
         run: |
