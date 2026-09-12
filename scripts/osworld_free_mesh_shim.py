@@ -106,8 +106,8 @@ def update_state(action, obs_sig):
 def call_mesh(messages):
     STATE["step"] += 1
     if STATE["no_progress"] >= MAX_NO_PROGRESS or STATE["wait_responses"] >= MAX_WAIT_RESPONSES:
-        log_event({"step": STATE["step"], "http": 200, "status": "NO_PROGRESS_ABORT", "provider": "guardrail", "model": "none", "pipeline": EXPECTED_PIPELINE, "agent_build": EXPECTED_BUILD})
-        return "DONE"
+        log_event({"step": STATE["step"], "http": 503, "status": "NO_PROGRESS_ABORT", "provider": "guardrail", "model": "none", "pipeline": EXPECTED_PIPELINE, "agent_build": EXPECTED_BUILD})
+        raise RuntimeError("ARBM_NO_PROGRESS_ABORT")
     obs, screenshot = latest_observation(messages)
     obs_sig = hashlib.sha256(obs.encode("utf-8", "ignore")).hexdigest()[:20]
     body = {
@@ -212,9 +212,12 @@ class Handler(BaseHTTPRequestHandler):
                              "finish_reason": "stop"}],
                 "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
             })
+        except RuntimeError as exc:
+            log_event({"step": STATE["step"], "http": 503, "status": str(exc)})
+            self.send_json(503, {"error": {"message": str(exc), "type": "zero_spend_capacity_exhausted"}})
         except Exception as exc:
             log_event({"step": STATE["step"], "http": None, "status": type(exc).__name__})
-            self.send_json(200, {"choices": [{"message": {"role": "assistant", "content": "WAIT"}}]})
+            self.send_json(500, {"error": {"message": type(exc).__name__, "type": "shim_internal_error"}})
 
 
 ThreadingHTTPServer(("127.0.0.1", 8088), Handler).serve_forever()
