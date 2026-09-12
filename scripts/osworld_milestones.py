@@ -12,7 +12,7 @@ class Milestones:
         focused,app=foreground_context(observation)
         self.pending={'predicate':candidate,'before':tree_signature(focused),'before_text':normalized(focused),'before_app':app}
     def observe(self,observation):
-        if self.pending is None:return self.last
+        if self.pending is None:return {'status':'IDLE','stalled_actions':self.stalled}
         pending=self.pending;self.pending=None;self.stalled+=1
         focused,app=foreground_context(observation);candidate=pending['predicate']
         self.last={'status':'UNVERIFIED','reason':'missing_or_unmatched_predicate','stalled_actions':self.stalled}
@@ -31,3 +31,17 @@ class Milestones:
             self.last={'status':'VERIFIED','milestone':proof,'stalled_actions':0}
         return self.last
     def context(self):return {'last_check':self.last,'verified':self.verified[-10:],'stalled_actions':self.stalled}
+
+def verified_facts(action,observation):
+    focused,app=foreground_context(observation)
+    if app=='unknown':return []
+    # Never use our metadata prefix (which names hidden files) as source evidence.
+    actual='\n'.join(x for x in focused.splitlines() if not x.startswith(('ACTIVE APPLICATION','BACKGROUND DESKTOP','[Compacted')))
+    facts=action.get('observed_facts');out=[]
+    if not isinstance(facts,list):return out
+    for item in facts[:8]:
+        if not isinstance(item,dict):continue
+        quote=str(item.get('quote') or '').strip()
+        if 8<=len(quote)<=600 and normalized(quote) in normalized(actual):
+            out.append({'application':app,'quote':quote,'observation_sha256':tree_signature(focused)})
+    return out

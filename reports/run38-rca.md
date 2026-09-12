@@ -15,3 +15,9 @@ Three approaches: (1) existing multimodal Qwen/Mistral agent, limited by observe
 Primary sources: https://console.groq.com/docs/model/openai/gpt-oss-120b ; https://console.groq.com/docs/rate-limits ; https://osworld-v2.xlang.ai/ . Full108 and Top3 remain NOT BENCHMARKED until positive smoke and representative subsets pass.
 
 Candidate: arbm-osworld-elite-pro-v31q-20260912, endpoint version17, bundle ef0183f209567722b83f984124ffbf9ffc64ed4b29d31cef77d4b2da5241d8e5. Remote source retrieved and compared equal after line-ending normalization. Manifest canonical hash is cross-platform. Only ARBM SIST isolated clone and dedicated endpoint changed; no paid fallback or evaluator modifications.
+
+## Gate34707731309 follow-up
+
+Local contracts/replay passed remotely. GPT-OSS120B and20B returned HTTP200 with matching FREE plan limits. The fourth diagnostic consumed both text models in one token window; the next source-reading case fell back to Ministral8B and tried Calendar before reading the spreadsheet attachment. The PREMATURE_CALENDAR regression blocked the smoke. No long VM run started.
+
+Candidate v31r/version18 removes the two unqualified small fallback models, waits for an eligible text token window during diagnostic replay, and accepts durable source facts only when the exact quote appears in the current foreground observation. Model future-tense completion claims never enter memory.43 Python tests plus endpoint failure-injection tests pass. Current bundle336f37567f34d47be14a52741d0a9ef10afa92b48c6c15ed0c2a62226958b8dd; remote source comparison passed. Benchmark remains NOT APPROVED pending remote gates and official positive smoke.

@@ -74,6 +74,10 @@ class MeshTests(unittest.TestCase):
     self.assertEqual(res.status,200);self.assertEqual(json.loads(res.read())['choices'][0]['message']['content'],'WAIT')
    self.assertEqual(len(calls),1);self.assertEqual(len(calls[0]),2)
   finally:server.shutdown();server.server_close();thread.join()
+ def test_future_claims_do_not_poison_durable_memory(self):
+  shim.request_mesh=lambda b:(200,self.response({'action':'exec','command':"pyautogui.press('enter')",'memory_patch':'All appointments created and saved'}))
+  shim.call_mesh(self.msgs)
+  self.assertEqual(shim.STATE['memory'],[])
  def test_deadline_preserves_time_for_evaluator(self):
   with patch.object(shim,'STARTED',shim.time.monotonic()-shim.MAX_TASK_SECONDS):
    self.assertEqual(shim.call_mesh(self.msgs),'FAIL')

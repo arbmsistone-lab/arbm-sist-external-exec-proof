@@ -56,6 +56,10 @@ def main(directory):
    original=json.loads(recorded.read_text(encoding='utf-8'))['request']
    body={k:original[k] for k in ('instruction','observation','screenshot_data_url','image_geometry','active_application')}
    body['fixture_provenance']={'run_id':34698877150,'task':task,'step':step}
+   # Give the qualified text planner its documented token window; do not
+   # turn burst exhaustion into a lower-quality fallback decision.
+   waits=[(v/1000-time.time()) for k,v in shim.STATE['cooldowns'].items() if k.startswith('groq-accessibility-free:')]
+   if len(waits)>=2 and min(waits)>0:time.sleep(min(65,min(waits)+1))
    body.update({'step':3,'memory':'Read the task source before editing outputs. Verify the current foreground before acting.','provider_hint':'text'})
    action,proof=call(body,already_packed=True)
    entry={'case':'run38-'+task,'action':action,'proof':proof,'provenance':body['fixture_provenance']};report.append(entry)

@@ -3,12 +3,12 @@ import json, os, time, urllib.request, urllib.error, hashlib, threading
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from osworld_ingress import project_messages
-from osworld_milestones import Milestones
+from osworld_milestones import Milestones, verified_facts
 from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response
 
 UPSTREAM = 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5'
 EXPECTED_PIPELINE = 'arbm-osworld-v31-isolated'
-EXPECTED_BUILD = 'arbm-osworld-elite-pro-v31q-20260912'
+EXPECTED_BUILD = 'arbm-osworld-elite-pro-v31r-20260912'
 MAX_NO_PROGRESS = int(os.environ.get('ARBM_MAX_NO_PROGRESS', '12'))
 MAX_WAIT_RESPONSES = int(os.environ.get('ARBM_MAX_WAIT_RESPONSES', '60'))
 MAX_STEPS = int(os.environ.get('ARBM_MAX_STEPS', '160'))
@@ -119,7 +119,10 @@ def call_mesh(messages):
     obs,screenshot=latest_observation(messages)
     verification=VERIFIER.observe(obs,screenshot)
     semantic=MILESTONES.observe(obs)
-    if semantic.get("status")=="VERIFIED":log_event({"status":"MILESTONE_VERIFIED","milestone":semantic["milestone"]})
+    if semantic.get("status")=="VERIFIED":
+        STATE["memory"].append("OBSERVED MILESTONE: "+json.dumps(semantic["milestone"],ensure_ascii=False))
+        STATE["memory"]=STATE["memory"][-8:]
+        log_event({"status":"MILESTONE_VERIFIED","milestone":semantic["milestone"]})
     if MILESTONES.stalled>=16:return terminal("SEMANTIC_RECOVERY_EXHAUSTED")
     if VERIFIER.no_progress>=MAX_NO_PROGRESS or STATE['wait_responses']>=MAX_WAIT_RESPONSES or STATE['step']>MAX_STEPS:
         return terminal('RECOVERY_EXHAUSTED' if STATE['step']<=MAX_STEPS else 'STEP_BUDGET')
@@ -161,11 +164,15 @@ def call_mesh(messages):
                 body['memory']=(body['memory']+'\nCONTRACT REJECTED: '+str(exc)+'. Return literal pyautogui call strings only.')[-4500:]
                 body['provider_hint']='groq' if data.get('provider')=='mistral-free' else 'mistral'
                 continue
+            for fact in verified_facts(action,obs):
+                entry='OBSERVED SOURCE: '+json.dumps(fact,ensure_ascii=False)
+                if entry not in STATE['memory']:STATE['memory'].append(entry)
+            STATE['memory']=STATE['memory'][-12:]
             kind=action['action']
             STATE['provider'],STATE['model']=data.get('provider',''),data.get('model','')
             STATE['plan']=str(action.get('plan') or STATE['plan'])[:1400]
-            if action.get('memory_patch'):STATE['memory'].append(str(action['memory_patch'])[:1600])
-            STATE['memory']=STATE['memory'][-8:]
+            # Model memory_patch often describes its intended next action as done.
+            # Only the independently observed milestone above enters durable memory.
             if kind=='finish':
                 if MILESTONES.verified and VERIFIER.can_finish(action,obs):
                     STATE['phase']='done';log_event({'status':'VERIFIED_FINISH','action':action});return 'DONE'

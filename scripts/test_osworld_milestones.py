@@ -1,5 +1,5 @@
 import unittest
-from osworld_milestones import Milestones
+from osworld_milestones import Milestones,verified_facts
 
 def screen(app,text):return 'menu\t'+app+'\t\t\t\t(99, 0)\t(150, 27)\ntext\t'+text
 
@@ -26,4 +26,11 @@ class MilestoneTests(unittest.TestCase):
   m=Milestones();a={'checkpoint':{'name':'Archive source open','application':'Archive Manager','visible_text':'city.zip'}}
   for _ in range(3):m.expect(a,screen('Files','folder'));m.observe(screen('Archive Manager','city.zip'))
   self.assertEqual(len(m.verified),1);self.assertEqual(m.stalled,2)
+ def test_only_exact_current_source_quotes_are_retained(self):
+  obs=screen('LibreOffice Calc','FYP12345 Leslie Adams 14:30 Room 201')
+  facts=verified_facts({'observed_facts':[{'quote':'FYP12345 Leslie Adams 14:30 Room 201'},{'quote':'All appointments already saved'}]},obs)
+  self.assertEqual(len(facts),1);self.assertIn('14:30',facts[0]['quote'])
+ def test_hidden_file_metadata_is_not_verified_source(self):
+  obs=screen('Archive Manager','Archive contents')+'\nlabel\tsecret.pdf\tsecret.pdf\t\t\t(1800, 800)\t(100, 20)'
+  self.assertEqual(verified_facts({'observed_facts':[{'quote':'secret.pdf'}]},obs),[])
 if __name__=='__main__':unittest.main()
