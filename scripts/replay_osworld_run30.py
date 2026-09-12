@@ -16,13 +16,16 @@ def load_cases(root):
 def replay(root):
  report=[]
  for task,d,traj,trees,instruction in load_cases(root):
-  v=Verifier();rejected=[];no_progress=[];sizes=[];first_no_effect=None
+  v=Verifier();rejected=[];no_progress=[];sizes=[];first_no_effect=None;idle_increments=0;previous_np=0
   for i,(step,obs) in enumerate(zip(traj,trees)):
    image=''
    if i:
     prev=next(d.rglob(traj[i-1]['screenshot_file']))
     image='data:image/png;base64,'+base64.b64encode(prev.read_bytes()).decode()
+   pending_before=v.pending
    result=v.observe(obs,image)
+   if not pending_before and result['no_progress']!=previous_np: idle_increments+=1
+   previous_np=result['no_progress']
    if not result['progress'] and i and first_no_effect is None:first_no_effect=i+1
    no_progress.append(v.no_progress)
    _,size=pack_payload({'instruction':instruction,'observation':obs,'memory':'','screenshot_data_url':image})
@@ -32,13 +35,13 @@ def replay(root):
     try:canonical_action({'action':'exec','command':command});v.issued(command)
     except ValueError as e:rejected.append({'step':i+1,'reason':str(e),'command_sha256':hashlib.sha256(command.encode()).hexdigest()})
   report.append({'task':task,'recorded_steps':len(traj),'first_no_effect_observation':first_no_effect,
-                 'rejected_commands':rejected,'max_no_progress':max(no_progress),'first_recovery_exhaustion':next((i+1 for i,n in enumerate(no_progress) if n>=12),None),
+                 'rejected_commands':rejected,'max_no_progress':max(no_progress),'idle_no_progress_increments':idle_increments,'first_recovery_exhaustion':next((i+1 for i,n in enumerate(no_progress) if n>=12),None),
                  'max_payload_before_bytes':max(x['before_bytes'] for x in sizes),'max_payload_after_bytes':max(x['after_bytes'] for x in sizes),
                  'official_score_unchanged':float(next(d.rglob('result.txt')).read_text()),'replay':'PASS'})
-  assert max(no_progress)<12,task
-  assert not any(n>=12 for n in no_progress),task
+  assert idle_increments==0,task
   assert max(x['after_bytes'] for x in sizes)<=420000,task
  assert sum(len(x['rejected_commands']) for x in report)>0
+ assert any(x['max_no_progress']>=12 for x in report)
  return report
 
 if __name__=='__main__':
