@@ -1,6 +1,10 @@
 name: OSWorld v32 official 18b cloud gate
 on:
   workflow_dispatch:
+  push:
+    branches: ['codex/osworld-v32-20260912']
+    paths:
+      - '.github/workflows/osworld-v32-official-18b.yml'
 permissions:
   actions: read
   contents: read
