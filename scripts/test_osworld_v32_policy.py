@@ -57,3 +57,24 @@ class TestLegacyBridge(unittest.TestCase):
         state = extract_state("Desktop", "label\tx.pdf")
         result = decision_from_agent({"action":"exec","command":"pyautogui.press('enter')"}, state, provider_available=False)
         self.assertEqual(result["kind"], DecisionKind.HOLD_CAPACITY.value)
+
+
+class TestLivePolicyBridge(unittest.TestCase):
+    def test_live_bridge_blocks_background_wait(self):
+        from osworld_v32_policy import apply_live_policy
+        with self.assertRaisesRegex(ValueError, "NOOP_REQUIRES_FOREGROUND_PROOF"):
+            apply_live_policy({"action":"wait","checkpoint":{"visible_text":"degree_audit_report.pdf"}},
+                              "Google Chrome", "label\tdegree_audit_report.pdf")
+
+    def test_live_bridge_blocks_archive_escape(self):
+        from osworld_v32_policy import apply_live_policy
+        with self.assertRaisesRegex(ValueError, "SOURCE_CONTEXT_LOCKED"):
+            apply_live_policy({"action":"exec","command":"pyautogui.hotkey('ctrl', 'win', 'd')",
+                               "checkpoint":{"application":"Desktop"}},
+                              "Archive Manager", "title filter.zip")
+
+    def test_shim_imports_v32_policy(self):
+        from pathlib import Path
+        text = (Path(__file__).parent / "osworld_free_mesh_shim.py").read_text(encoding="utf-8")
+        self.assertIn("from osworld_v32_policy import DecisionKind, apply_live_policy", text)
+        self.assertIn("decision=apply_live_policy", text)

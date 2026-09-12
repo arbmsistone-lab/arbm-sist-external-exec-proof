@@ -93,3 +93,10 @@ def decision_from_agent(action: dict, state: WorldState, provider_available=True
     else:
         raise ValueError("INVALID_LEGACY_ACTION")
     return enforce_policy(state, proposal)
+
+
+def apply_live_policy(action: dict, active_app: str, observation: str, milestones=None,
+                      provider_available: bool = True) -> dict:
+    """Apply v32 deterministic state extraction and policy to a live agent action."""
+    state = extract_state(active_app, observation, milestones)
+    return decision_from_agent(action, state, provider_available=provider_available)

@@ -5,6 +5,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from osworld_ingress import project_messages
 from osworld_milestones import Milestones, verified_facts
 from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response
+from osworld_v32_policy import DecisionKind, apply_live_policy
 
 UPSTREAM = 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5'
 EXPECTED_PIPELINE = 'arbm-osworld-v31-isolated'
@@ -159,11 +160,21 @@ def call_mesh(messages):
             except ValueError as exc:return terminal(str(exc))
         if http in (401,403,409):return terminal('ENDPOINT_AUTH_OR_VERSION')
         if http==200 and data.get('ok') is True:
-            try:action=ground_action(data.get('action'),body.get('active_application','unknown'),obs,body.get('verified_milestones',[]))
+            try:
+                action=ground_action(data.get('action'),body.get('active_application','unknown'),obs,body.get('verified_milestones',[]))
+                decision=apply_live_policy(action,body.get('active_application','unknown'),body.get('observation',''),body.get('verified_milestones',[]))
             except ValueError as exc:
-                body['memory']=(body['memory']+'\nCONTRACT REJECTED: '+str(exc)+'. Return literal pyautogui call strings only.')[-4500:]
+                body['memory']=(body['memory']+'\nPOLICY REJECTED: '+str(exc)+'. Replan within deterministic v32 state constraints.')[-4500:]
                 body['provider_hint']='groq' if data.get('provider')=='mistral-free' else 'mistral'
                 continue
+            decision_kind=decision['kind']
+            if decision_kind==DecisionKind.NOOP_VERIFIED.value:
+                log_event({'status':'NOOP_VERIFIED','checkpoint':action.get('checkpoint')})
+                STATE['wait_responses']+=1
+                return 'WAIT'
+            if decision_kind==DecisionKind.HOLD_CAPACITY.value:
+                log_event({'status':'HOLD_CAPACITY'})
+                return 'WAIT'
             for fact in verified_facts(action,obs):
                 entry='OBSERVED SOURCE: '+json.dumps(fact,ensure_ascii=False)
                 if entry not in STATE['memory']:STATE['memory'].append(entry)
