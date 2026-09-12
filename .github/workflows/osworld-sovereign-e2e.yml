@@ -18,6 +18,10 @@ jobs:
       ZERO_SPEND_MODE: HARD
     steps:
       - uses: actions/checkout@v7
+      - name: Prove shim contract before remote calls
+        run: |
+          python scripts/test_osworld_contract_v31l.py
+          python scripts/test_osworld_contract_dynamic_v31l.py
       - name: Prove remote FREE OSWorld agent
         run: python scripts/osworld_mesh_preflight.py
       - name: Upload sanitized preflight evidence
