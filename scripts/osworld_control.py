@@ -191,7 +191,9 @@ def foreground_context(text):
         cols=line.split('\t')
         if active not in ('unknown','Files','Desktop') and len(cols)>=7 and cols[0]=='label':
             name=cols[1].replace('\u200b','')
-            if name=='Home' or re.search(r'\.(pdf|zip|pptx|docx|xlsx|png|jpg)(#)?$',name,re.I):
+            xy=re.findall(r'\d+',cols[-2])
+            on_desktop=len(xy)==2 and int(xy[0])>=1700 and int(xy[1])>=500
+            if on_desktop and (name=='Home' or re.search(r'\.(pdf|zip|pptx|docx|xlsx|png|jpg)(#)?$',name,re.I)):
                 hidden.append(name);continue
         kept.append(line)
     # In the OSWorld linear tree Chromium's own title controls mark its section.
@@ -199,6 +201,14 @@ def foreground_context(text):
     if active=='Google Chrome':
         starts=[i for i,l in enumerate(kept) if l.startswith('push-button\tMinimise\t')]
         if starts:kept=kept[starts[-1]:]
+    if active=='Thunderbird Mail':
+        starts=[i for i,l in enumerate(kept) if l.startswith('push-button\tMail (Ctrl+1)\t')]
+        if starts:kept=kept[starts[0]:]
+    elif active=='Archive Manager':
+        # The observed panel/dock ends this foreground archive section; office
+        # menu/document trees after it belong to covered background windows.
+        ends=[i for i,l in enumerate(kept) if l.startswith('menu\tSystem\t')]
+        if ends:kept=kept[:ends[0]+1]
     prefix='ACTIVE APPLICATION (Ubuntu panel): '+active+'\n'
     if hidden:prefix+='BACKGROUND DESKTOP FILES (not clickable until revealed): '+', '.join(hidden)+'\n'
     return prefix+'\n'.join(kept),active

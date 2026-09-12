@@ -1,0 +1,60 @@
+{
+  "run_id": 34698877150,
+  "timestamp": "2026-09-12T17:14:16.117275+00:00",
+  "tasks": [
+    {
+      "task": "osworld-sovereign-001",
+      "rc": 124,
+      "events": {
+        "PASS": 59,
+        "ACTION_ISSUED": 31,
+        "NO_ZERO_SPEND_MULTIMODAL_CAPACITY": 96,
+        "WAIT_PROVIDER_CAPACITY": 40,
+        "SHIM_ERROR": 359
+      },
+      "telemetry_sha256": "d5a77d5c3cdeb6c95d5cb37c7980834885f87d94b2262ee05680adc7b2c368a8",
+      "scores": []
+    },
+    {
+      "task": "osworld-sovereign-002",
+      "rc": 124,
+      "events": {
+        "PASS": 11,
+        "WAIT_PROVIDER_CAPACITY": 12,
+        "ACTION_ISSUED": 4,
+        "NO_ZERO_SPEND_MULTIMODAL_CAPACITY": 28,
+        "SHIM_ERROR": 481
+      },
+      "telemetry_sha256": "28f955ae64949e777a5d317b59c44449a742bd7495e59d8600995653f402d12a",
+      "scores": []
+    },
+    {
+      "task": "osworld-sovereign-003",
+      "rc": 0,
+      "events": {
+        "PASS": 39,
+        "ACTION_ISSUED": 5,
+        "NO_ZERO_SPEND_MULTIMODAL_CAPACITY": 170,
+        "WAIT_PROVIDER_CAPACITY": 68,
+        "TERMINAL_FAIL": 1
+      },
+      "telemetry_sha256": "6f9e8df1083124037064874e31852ac245ce53005550b966f8b3fc1c07d452ed",
+      "scores": [
+        "0.0"
+      ]
+    }
+  ],
+  "categories": {
+    "PERCEPTION_FAILURE": 0,
+    "GROUNDING_FAILURE": 0,
+    "PLANNING_FAILURE": 0,
+    "EXECUTION_FAILURE": 0,
+    "MEMORY_FAILURE": 0,
+    "VERIFICATION_FAILURE": 0,
+    "PROVIDER_CAPACITY_FAILURE": 294,
+    "ENVIRONMENT_FAILURE": 0,
+    "EVALUATOR_FAILURE": 0,
+    "ARCHITECTURE_FAILURE": 840
+  },
+  "category_method": "Automatic event counts only: SHIM_ERROR -> architecture; NO_ZERO_SPEND_MULTIMODAL_CAPACITY -> provider. Zero in other categories means not automatically classified, not absence of failure."
+}

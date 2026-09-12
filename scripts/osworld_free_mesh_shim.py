@@ -2,11 +2,13 @@
 import json, os, time, urllib.request, urllib.error, hashlib, threading
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from osworld_ingress import project_messages
+from osworld_milestones import Milestones
 from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response
 
 UPSTREAM = 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5'
 EXPECTED_PIPELINE = 'arbm-osworld-v31-isolated'
-EXPECTED_BUILD = 'arbm-osworld-elite-pro-v31p-20260912'
+EXPECTED_BUILD = 'arbm-osworld-elite-pro-v31q-20260912'
 MAX_NO_PROGRESS = int(os.environ.get('ARBM_MAX_NO_PROGRESS', '12'))
 MAX_WAIT_RESPONSES = int(os.environ.get('ARBM_MAX_WAIT_RESPONSES', '60'))
 MAX_STEPS = int(os.environ.get('ARBM_MAX_STEPS', '160'))
@@ -16,6 +18,11 @@ LOCK = threading.Lock()
 STATE = {'step':0,'previous':'','executed':0,'phase':'plan','plan':'','memory':[],
          'history':[],'wait_responses':0,'cooldowns':{},'terminal':'','provider':'','model':''}
 VERIFIER = Verifier()
+MILESTONES = Milestones()
+STARTED = time.monotonic()
+MAX_TASK_SECONDS = int(os.environ.get('ARBM_TASK_SECONDS', '2400'))
+HEALTH = {'last_event':'initializing','last_error':'','retry':0,'pending_since':None}
+STOP = threading.Event()
 
 RECOVERY = [
     'Observe foreground and choose one visible control for the next subtask.',
@@ -55,10 +62,22 @@ def latest_observation(messages):
     return text,images[-1] if images else ''
 
 def log_event(data):
-    event={**data,'step':STATE['step'],'phase':STATE['phase'],'task_id':os.environ.get('TASK_ID'),
-           'commit':os.environ.get('GITHUB_SHA'),'verifier':VERIFIER.last_result}
+    HEALTH['last_event']=data.get('status','unknown')
+    if data.get('reason'):HEALTH['last_error']=data['reason']
+    HEALTH['retry']=data.get('attempt',0)
+    event={'timestamp':time.time(),'elapsed_seconds':round(time.monotonic()-STARTED,2),**data,'step':STATE['step'],'phase':STATE['phase'],'task_id':os.environ.get('TASK_ID'),
+           'commit':os.environ.get('GITHUB_SHA'),'verifier':VERIFIER.last_result,'semantic':MILESTONES.context()}
     # No request headers/tokens or environment values are ever logged.
     with open(LOG,'a',encoding='utf-8') as f:f.write(json.dumps(event,ensure_ascii=False,separators=(',',':'))+'\n')
+
+def heartbeat():
+    while not STOP.wait(30):
+        event={'status':'HEARTBEAT','task_id':os.environ.get('TASK_ID'),'step':STATE['step'],
+               'phase':STATE['phase'],'provider':STATE['provider'],'model':STATE['model'],
+               'last_milestone':MILESTONES.verified[-1] if MILESTONES.verified else None,
+               'elapsed_seconds':round(time.monotonic()-STARTED),'terminal':STATE['terminal'],**HEALTH}
+        print(json.dumps(event),flush=True)
+
 
 def terminal(reason):
     STATE['terminal']=reason
@@ -70,7 +89,7 @@ def track_attempts(data):
         key=str(a.get('route'))+':'+str(a.get('model'))
         status=a.get('status')
         seconds=0
-        if status==200 and a.get('route')=='groq-multimodal-free':
+        if status==200 and a.get('route') in ('groq-multimodal-free','groq-accessibility-free'):
             seconds=max(25,min(65,float(a.get('prompt_tokens') or 4500)/7000*60+3))
         elif status==413:seconds=3600
         elif status in (401,403,404):seconds=3600
@@ -95,9 +114,13 @@ def request_mesh(body):
 
 def call_mesh(messages):
     if STATE['terminal']:return 'FAIL'
+    if time.monotonic()-STARTED>=MAX_TASK_SECONDS:return terminal('TASK_DEADLINE')
     STATE['step']+=1
     obs,screenshot=latest_observation(messages)
     verification=VERIFIER.observe(obs,screenshot)
+    semantic=MILESTONES.observe(obs)
+    if semantic.get("status")=="VERIFIED":log_event({"status":"MILESTONE_VERIFIED","milestone":semantic["milestone"]})
+    if MILESTONES.stalled>=16:return terminal("SEMANTIC_RECOVERY_EXHAUSTED")
     if VERIFIER.no_progress>=MAX_NO_PROGRESS or STATE['wait_responses']>=MAX_WAIT_RESPONSES or STATE['step']>MAX_STEPS:
         return terminal('RECOVERY_EXHAUSTED' if STATE['step']<=MAX_STEPS else 'STEP_BUDGET')
     STATE['phase']='plan' if VERIFIER.no_progress>=2 or not STATE['plan'] else 'execute'
@@ -105,17 +128,22 @@ def call_mesh(messages):
           'previous_command':STATE['previous'],'executed_count':STATE['executed'],
           'memory':'\n'.join([STATE['plan']]+STATE['memory'][-5:]+[str(x) for x in STATE['history'][-4:]]),
           'phase':STATE['phase'],'no_progress_count':VERIFIER.no_progress,'step':STATE['step'],
-          'verifier':verification,'recovery_strategy':RECOVERY[VERIFIER.recovery_level],
+          'verifier':verification,'verified_milestones':MILESTONES.context(),'recovery_strategy':RECOVERY[VERIFIER.recovery_level],
           'route_cooldowns':STATE['cooldowns'],'expected_build':EXPECTED_BUILD}
-    if VERIFIER.recovery_level>=4:body['provider_hint']='groq' if STATE['provider']=='mistral-free' else 'mistral'
+    if MILESTONES.stalled>=6:body['recovery_strategy']='No verified subtask milestone. Replan from last verified fact; read required source before switching to output app. Specify a testable checkpoint.'
+    if MILESTONES.stalled>=8:body['provider_hint']='text'
+    elif VERIFIER.recovery_level>=4:body['provider_hint']='groq' if STATE['provider']=='mistral-free' else 'mistral'
     try:body,metrics=pack_payload(body)
     except ValueError as exc:return terminal(str(exc))
     OBS_DIR.mkdir(parents=True,exist_ok=True)
     evidence_path=OBS_DIR/('step_%04d.json'%STATE['step'])
     evidence_path.write_text(json.dumps({'request':body,'payload':metrics},ensure_ascii=False),encoding='utf-8')
     for attempt in range(3):
+        if time.monotonic()-STARTED>=MAX_TASK_SECONDS-170:return terminal('TASK_DEADLINE')
+        HEALTH['pending_since']=time.time()
         metrics['after_bytes']=len(json.dumps(body,ensure_ascii=False).encode())
         http,data=request_mesh(body)
+        HEALTH['pending_since']=None
         if not isinstance(data,dict):data={'status':'INVALID_UPSTREAM_RESPONSE'}
         track_attempts(data)
         log_event({'http':http,'attempt':attempt+1,'status':data.get('status'),'provider':data.get('provider'),
@@ -139,7 +167,7 @@ def call_mesh(messages):
             if action.get('memory_patch'):STATE['memory'].append(str(action['memory_patch'])[:1600])
             STATE['memory']=STATE['memory'][-8:]
             if kind=='finish':
-                if VERIFIER.can_finish(action,obs):
+                if MILESTONES.verified and VERIFIER.can_finish(action,obs):
                     STATE['phase']='done';log_event({'status':'VERIFIED_FINISH','action':action});return 'DONE'
                 body['memory']=(body['memory']+'\nFINISH REJECTED: no sufficient observed completion. Verify all outputs on screen.')[-4500:]
                 continue
@@ -156,6 +184,7 @@ def call_mesh(messages):
                 STATE['history'].append({'command':command,'expected':action.get('expected_change','')})
                 STATE['history']=STATE['history'][-12:]
                 VERIFIER.issued(command)
+                MILESTONES.expect(action,obs)
                 log_event({'status':'ACTION_ISSUED','command':command})
                 return '```python\n'+command+'\n```'
             break
@@ -184,15 +213,24 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200,{'status':'ok','pipeline':EXPECTED_PIPELINE,'build':EXPECTED_BUILD}) if self.path=='/health' else self.send_json(404,{})
     def do_POST(self):
         if self.path!='/v1/chat/completions':return self.send_json(404,{'error':{'code':'not_found','message':'Not found'}})
-        try:
-            n=int(self.headers.get('Content-Length','0'))
-            if n>32_000_000:raise ValueError('INPUT_PAYLOAD_GATE')
-            body=json.loads(self.rfile.read(n) or b'{}')
-            with LOCK:content=call_mesh(body.get('messages') or [])
-            self.send_json(200,{'id':'arbm-osworld-v31-isolated','object':'chat.completion','created':int(time.time()),'model':'gpt-arbm-osworld-v31-isolated','choices':[{'index':0,'message':{'role':'assistant','content':content},'finish_reason':'stop'}],'usage':{'prompt_tokens':0,'completion_tokens':0,'total_tokens':0}})
-        except Exception as exc:
-            log_event({'status':'SHIM_ERROR','error_type':type(exc).__name__})
-            self.send_json(500,{'error':{'message':str(exc)[:200],'type':'server_error','param':None,'code':'shim_internal_error'}})
+        # Close connections after every request: rejected/truncated bodies must not
+        # be interpreted as another request on a keep-alive connection.
+        self.close_connection=True
+        self.connection.settimeout(60)
+        with LOCK:
+            try:
+                messages,ingress=project_messages(self.rfile,int(self.headers.get('Content-Length','0')))
+                log_event({'status':'INGRESS_PROJECTED','ingress':ingress})
+                content=call_mesh(messages)
+            except (ValueError,TimeoutError) as exc:
+                content=terminal('INPUT_REJECTED:'+str(exc)[:120])
+            except Exception as exc:
+                # A persistent local failure terminates the agent and lets the
+                # unmodified evaluator run. It can never produce DONE or PASS.
+                log_event({'status':'SHIM_ERROR','error_type':type(exc).__name__,'reason':str(exc)[:200]})
+                content=terminal('SHIM_INTERNAL_ERROR:'+type(exc).__name__)
+        self.send_json(200,{'id':'arbm-osworld-v31-isolated','object':'chat.completion','created':int(time.time()),'model':'gpt-arbm-osworld-v31-isolated','choices':[{'index':0,'message':{'role':'assistant','content':content},'finish_reason':'stop'}],'usage':{'prompt_tokens':0,'completion_tokens':0,'total_tokens':0}})
 
 if __name__=='__main__':
+    threading.Thread(target=heartbeat,daemon=True).start()
     ThreadingHTTPServer(('127.0.0.1',8088),Handler).serve_forever()

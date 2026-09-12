@@ -30,15 +30,15 @@ for(const failure of [413,422,429,500,503]){
  run('COOLDOWN.clear()');let count=0;
  context.fetch=async(url,options)=>{
   attempts.push({url,body:JSON.parse(options.body)});count++;
-  return new Response(JSON.stringify(count<=2?{error:{message:'offline quota fixture'}}:good),{status:count<=2?failure:200,headers:freeHeaders});
+  return new Response(JSON.stringify(count<=4?{error:{message:'offline quota fixture'}}:good),{status:count<=4?failure:200,headers:freeHeaders});
  };
  const req=new Request('https://offline.test',{method:'POST',headers:{authorization:'Bearer offline'},body:JSON.stringify({instruction:'press enter',observation:'OK button',screenshot_data_url:'data:image/png;base64,AA=='})});
  const response=await context.handler(req);const data=await response.json();
  assert.equal(response.status,200,JSON.stringify(data));
  assert.equal(data.provider,'mistral-free');assert.equal(data.paid_fallback_used,false);assert.equal(data.mandatory_cost_usd,0);
- assert.equal(data.provider_attempts.length,3);
+ assert.equal(data.provider_attempts.length,5);
  assert.equal(data.action.action,'exec');
- assert.equal(data.provider_attempts[2].zero_spend_confirmed,true);
+ assert.equal(data.provider_attempts[4].zero_spend_confirmed,true);
 }
 run('COOLDOWN.clear()');
 let calls=0;context.fetch=async()=>{calls++;return new Response(JSON.stringify(good),{status:200,headers:freeHeaders});};
@@ -53,5 +53,5 @@ assert.equal(response.status,503);assert.equal((await response.json()).status,'N
 console.log('ENDPOINT_FAILOVER_PAYLOAD_AUTH_PASS');
 
 assert.equal(run('textField({fact:"visible"})'),'{"fact":"visible"}');
-for(const a of attempts.filter(x=>x.url.includes('groq'))){assert.equal(a.body.reasoning_effort,'none');assert.equal(a.body.max_completion_tokens,600);}
+for(const a of attempts.filter(x=>x.url.includes('groq'))){const text=a.body.model.startsWith('openai/gpt-oss');assert.equal(a.body.reasoning_effort,text?'low':'none');assert.equal(a.body.max_completion_tokens,text?1600:850);if(text)assert.equal(typeof a.body.messages[1].content,'string');}
 console.log('GROQ_OUTPUT_BUDGET_AND_MEMORY_PASS');

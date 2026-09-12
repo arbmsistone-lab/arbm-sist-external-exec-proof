@@ -34,7 +34,7 @@ jobs:
         with:
           node-version: '24'
       - name: Install pinned local test dependencies
-        run: python -m pip install Pillow==12.1.1
+        run: python -m pip install -r scripts/requirements-osworld.txt
       - name: Prove all local contracts before remote calls
         run: |
           python -m unittest discover -s scripts -p 'test_osworld_*.py'
@@ -45,6 +45,10 @@ jobs:
         run: gh run download 34665245131 --repo arbmsistone-lab/arbm-sist-external-exec-proof --dir run30
       - name: Replay all recorded observations without benchmark execution
         run: python scripts/replay_osworld_run30.py run30
+      - name: Download recorded run 38 for semantic regression
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 34698877150 --repo arbmsistone-lab/arbm-sist-external-exec-proof --name top3-osworld-task-bundle --dir run38
       - name: Prove remote FREE OSWorld agent
         run: python scripts/osworld_mesh_preflight.py run30
       - name: Upload sanitized preflight evidence
@@ -66,14 +70,15 @@ jobs:
       ZERO_SPEND_MODE: HARD
       OPENAI_BASE_URL: http://127.0.0.1:8088/v1
       OPENAI_API_KEY: zero-spend-oidc-shim
-      OSWORLD_AGENT_VERSION: supabase-arbm-terminal-agent-v5-v16-921f30765a689096
+      OSWORLD_AGENT_VERSION: supabase-arbm-terminal-agent-v5-v17-ef0183f209567722
       AWS_REGION: us-east-1
       AWS_SUBNET_ID: unused-docker-provider
       AWS_SECURITY_GROUP_ID: unused-docker-provider
       OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
       ARBM_MAX_NO_PROGRESS: 12
       ARBM_MAX_WAIT_RESPONSES: 60
-      ARBM_MAX_STEPS: 500
+      ARBM_MAX_STEPS: 160
+      ARBM_TASK_SECONDS: 2400
       ARBM_TASK_TIMEOUT: 50m
     steps:
       - uses: actions/checkout@v7
@@ -83,7 +88,7 @@ jobs:
           set -euo pipefail
           test "$RUNNER_ENVIRONMENT" = "github-hosted"
           test "$ZERO_SPEND_MODE" = "HARD"
-          python -m pip install Pillow==12.1.1
+          python -m pip install -r scripts/requirements-osworld.txt
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL || true
           sudo apt-get clean
           test -c /dev/kvm
@@ -142,7 +147,7 @@ jobs:
             export ARBM_OSWORLD_OBSERVATIONS="$DIR/shim-observations"
             printf '{"tasks":["%s"]}\n' "$TASK_ID" > "$GITHUB_WORKSPACE/osworld/evaluation_examples/test_arbm_sovereign.json"
             test "$(sha256sum "$QCOW_PATH" | cut -d' ' -f1)" = "$(cat qcow-base.sha256)"
-            python scripts/osworld_free_mesh_shim.py > "shim-runtime-${TASK_ID}.log" 2>&1 &
+            python scripts/osworld_free_mesh_shim.py > >(tee "shim-runtime-${TASK_ID}.log") 2>&1 &
             SHIM_PID=$!
             ready=0
             for i in $(seq 1 30); do
@@ -155,7 +160,7 @@ jobs:
               --headless --provider_name docker --path_to_vm "$QCOW_PATH" --eval_version v2 \
               --test_all_meta_path evaluation_examples/test_arbm_sovereign.json --domain tasks \
               --observation_type screenshot_a11y_tree --action_space pyautogui --model gpt-arbm-osworld-v31-isolated \
-              --temperature 0 --max_steps 500 --max_trajectory_length 20 --max_tokens 4096 --num_envs 1 \
+              --temperature 0 --max_steps 160 --max_trajectory_length 8 --max_tokens 4096 --num_envs 1 \
               --result_dir "../top3-evidence/osworld-sovereign-${TASK_ID}/results" \
               2>&1 | tee "../top3-evidence/osworld-sovereign-${TASK_ID}/osworld.log"'
             rc=$?

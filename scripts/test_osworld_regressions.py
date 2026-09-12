@@ -93,6 +93,12 @@ class ContractTests(unittest.TestCase):
         a=control.ground_action({'action':'exec','plan':'Bring Thunderbird to the foreground','command':"pyautogui.hotkey('alt', 'tab')"},'Google Chrome')
         self.assertEqual(a['command'],"pyautogui.hotkey('alt', 'tab')")
 
+    def test_archive_title_is_not_filtered_as_desktop_file(self):
+        raw='label\tfilter.zip\tfilter.zip\t\t\t(349, 216)\t(87, 17)\nlabel\tcity.zip\tcity.zip\t\t\t(1800, 800)\t(100, 20)\nmenu\tArchive Manager\t\t\t\t(99, 0)\t(150, 27)\nmenu\tSystem\t\t\t\t(1800, 0)\t(100, 27)\ndocument-presentation\tbackground slides'
+        focused,app=control.foreground_context(raw)
+        self.assertIn('(349, 216)',focused);self.assertNotIn('(1800, 800)',focused)
+        self.assertNotIn('background slides',focused)
+
     def test_endpoint_and_cost_fail_closed(self):
         for data in [{'ok':True}, {'ok':True,'pipeline':'wrong','agent_build':'b','mandatory_cost_usd':0,'paid_fallback_used':False}]:
             with self.assertRaises(ValueError): control.validate_response(data,'p','b')
