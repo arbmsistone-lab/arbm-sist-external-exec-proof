@@ -158,7 +158,12 @@ def call_mesh(messages):
         if data.get('pipeline') or http==200:
             try:validate_response(data,EXPECTED_PIPELINE,EXPECTED_BUILD)
             except ValueError as exc:return terminal(str(exc))
-        if http in (401,403,409):return terminal('ENDPOINT_AUTH_OR_VERSION')
+        if http in (401,403):return terminal('ENDPOINT_AUTH_OR_VERSION')
+        if http==409:
+            if data.get('status')!='REPLAN_REQUIRED':return terminal('ENDPOINT_CONFLICT')
+            reason=str(data.get('review_reason') or 'independent reviewer requested replanning')
+            body['memory']=(body['memory']+'\nREVIEW REPLAN REQUIRED: '+reason+'. Do not repeat the rejected action; produce a new grounded action from the current observation.')[-4500:]
+            continue
         if http==200 and data.get('ok') is True:
             try:
                 action=ground_action(data.get('action'),body.get('active_application','unknown'),obs,body.get('verified_milestones',[]))

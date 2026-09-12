@@ -17,6 +17,11 @@ def call(body,already_packed=False):
  for attempt in range(4):
   http,data=shim.request_mesh(packed);shim.track_attempts(data)
   evidence.append({'http':http,'data':data,'payload':metrics})
+  if http==409 and data.get('status')=='REPLAN_REQUIRED':
+   validate_response(data,shim.EXPECTED_PIPELINE,shim.EXPECTED_BUILD)
+   reason=str(data.get('review_reason') or 'independent reviewer requested replanning')
+   packed['memory']=(str(packed.get('memory',''))+'\nREVIEW REPLAN REQUIRED: '+reason+'. Do not repeat the rejected action; produce a new grounded action from the current observation.')[-4500:]
+   continue
   if http==200:
    validate_response(data,shim.EXPECTED_PIPELINE,shim.EXPECTED_BUILD)
    try:
