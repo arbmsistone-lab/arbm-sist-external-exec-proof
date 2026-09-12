@@ -1,7 +1,16 @@
 name: OSWorld v32 official 18 cloud gate
 on:
+  push:
+    branches:
+      - codex/osworld-v32-20260912
+    paths:
+      - .github/workflows/osworld-v32-official-18.yml
+      - scripts/osworld_free_mesh_shim.py
+      - scripts/osworld_mesh_preflight.py
+      - scripts/osworld_v32_policy.py
   workflow_dispatch:
 permissions:
+  actions: read
   contents: read
   id-token: write
 concurrency:
@@ -17,21 +26,39 @@ env:
   VM_ZIP_SHA256: eb737ae70b49849e24af407de6a518439a23de05a8497096a948334ce0a909aa
   OSWORLD_AGENT_VERSION: arbm-osworld-v32a-20260912
   ARBM_MAX_STEPS: '500'
+  ARBM_MAX_NO_PROGRESS: '35'
+  WEBSITE_HOST_SUFFIX: site.hku.icu
   OPENAI_BASE_URL: http://127.0.0.1:8088/v1
   OPENAI_API_KEY: zero-spend-oidc-shim
 
 jobs:
   preflight:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install pinned preflight dependencies
+        run: python -m pip install --disable-pip-version-check -r scripts/requirements-osworld.txt
+      - name: Prove local v32 contracts
+        run: |
+          python -m unittest discover -s scripts -p 'test_osworld_*.py'
+          node scripts/test_endpoint.mjs
+      - name: Download recorded run 30 evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 34665245131 --repo arbmsistone-lab/arbm-sist-external-exec-proof --dir run30
+      - name: Replay recorded run 30
+        run: python scripts/replay_osworld_run30.py run30
+      - name: Download recorded run 38 semantic evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 34698877150 --repo arbmsistone-lab/arbm-sist-external-exec-proof --name top3-osworld-task-bundle --dir run38
       - name: Prove v32 cloud preflight
         run: |
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = "HARD"
           test "$ARBM_MAX_STEPS" = "500"
-          python scripts/osworld_mesh_preflight.py
+          python scripts/osworld_mesh_preflight.py run30
 
   official-shard:
     needs: preflight
@@ -50,6 +77,8 @@ jobs:
       OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install pinned shim dependencies
+        run: python -m pip install --disable-pip-version-check -r scripts/requirements-osworld.txt
       - name: Prove cloud KVM and zero-spend
         shell: bash
         run: |
