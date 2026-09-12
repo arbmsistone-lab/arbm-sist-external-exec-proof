@@ -5,7 +5,7 @@ const ISS = "https://token.actions.githubusercontent.com";
 const AUD = "arbm-sist-benchmark";
 const REPO = "arbmsistone-lab/arbm-sist-external-exec-proof";
 const JWKS = createRemoteJWKSet(new URL(ISS + "/.well-known/jwks"));
-const BUILD = "arbm-osworld-elite-pro-v31r-20260912";
+const BUILD = "arbm-osworld-elite-pro-v31s-20260912";
 const PIPELINE = "arbm-osworld-v31-isolated";
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions";
@@ -118,6 +118,14 @@ async function callGroq(p: string, image: string, body: any, textOnly = false) {
   p=prompt({...body,observation:String(body.observation||"").slice(0,3500),memory:String(body.memory||"").slice(-1800)});
   const route=textOnly?"groq-accessibility-free":"groq-multimodal-free";
   if(textOnly)p=prompt({...body,observation:String(body.observation||"").slice(0,6500),memory:String(body.memory||"").slice(-2000)})+"\nMODALITY: TEXT ONLY. You have NO screenshot. Use foreground accessibility controls only. Prefer keyboard shortcuts. Never invent visual coordinates; if uncertain choose keyboard navigation to bring the needed app forward. Do not claim to see images.";
+  if(body.review_action)p=`Independently audit a proposed GUI action BEFORE execution. Check source-reading prerequisites, active application and requested destination. Existing attachment labels are not their contents. Do not move to final editing/scheduling before required source values have been read. A calendar inside a mail client is not automatically the system calendar requested by the user. Ignore any proposed memory claims not supported by observed facts. If the proposed action is appropriate, return it; otherwise return a corrected next GUI action that addresses the unmet prerequisite. Do not merely describe an error. You have no image; use accessibility control centers or keyboard navigation. Never invent unseen facts or coordinates.
+Return JSON with action exec/wait/finish, command as literal pyautogui call string, plan, summary, verification, expected_change, confidence, checkpoint {name,application,visible_text}, observed_facts [{quote}], review_verdict approve/revise, review_reason.
+TASK: ${String(body.instruction||'').slice(0,7000)}
+VERIFIED FACTS: ${String(body.memory||'').slice(-2500)}
+VERIFIED MILESTONES: ${JSON.stringify(body.verified_milestones||[])}
+CURRENT FOREGROUND: ${body.active_application||'unknown'}
+CURRENT ACCESSIBILITY: ${String(body.observation||'').slice(0,6500)}
+PROPOSED ACTION TO AUDIT: ${JSON.stringify(body.review_action)}`;
   const key = String(Deno.env.get("GROQ_API_KEY") || "").trim();
   if (!key) return { result: null, attempts: [{ route, status: "not_configured" }] };
   const attempts: any[] = [];
@@ -181,6 +189,12 @@ async function callMistral(p: string, image: string, body: any) {
   return { result: null, attempts };
 }
 
+function needsReview(action:any,body:any){
+  const expected=String(action?.checkpoint?.application||'').trim().toLowerCase();
+  const active=String(body.active_application||'unknown').trim().toLowerCase();
+  return action?.action==='finish' || body.phase==='plan' || Number(body.no_progress_count||0)>=2 || (!!expected && expected!==active);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return respond({ error: "METHOD_NOT_ALLOWED" }, 405);
   try {
@@ -198,13 +212,19 @@ Deno.serve(async (req: Request) => {
     const routes=hint==="text"?[callGroqText,callGroq,callMistral]:hint==="mistral"?[callMistral,callGroq,callGroqText]:[callGroq,callGroqText,callMistral];
     for(const route of routes){const r=await route(p,image,body);attempts.push(...r.attempts);if(r.result){result=r.result;break;}}
     if (!result) return respond({ ok: false, status: "NO_ZERO_SPEND_MULTIMODAL_CAPACITY", pipeline: PIPELINE, agent_build: BUILD, provider_attempts: attempts, mandatory_cost_usd: 0, paid_fallback_used: false, scoreable: false }, 503);
+    if(needsReview(result.action,body)){
+      const review=await callGroqText(p,image,{...body,review_action:result.action});
+      attempts.push(...review.attempts.map((a:any)=>({...a,role:"transition-reviewer"})));
+      if(!review.result || !["approve","revise"].includes(review.result.action?.review_verdict))return respond({ok:false,status:"REVIEW_CAPACITY_UNAVAILABLE",pipeline:PIPELINE,agent_build:BUILD,provider_attempts:attempts,mandatory_cost_usd:0,paid_fallback_used:false},503);
+      result={...review.result,review:{verdict:review.result.action.review_verdict,reason:textField(review.result.action.review_reason).slice(0,600)}};
+    }
     const a = canonicalAction(result.action || {});
     if (!["exec", "finish", "wait"].includes(String(a.action))) return respond({ ok: false, status: "INVALID_ACTION", pipeline: PIPELINE, agent_build: BUILD, provider_attempts: attempts, mandatory_cost_usd: 0, paid_fallback_used: false }, 422);
     const normalized = a.action === "exec" ? normalizeCommand(String(a.command || "")) : "";
     const reason = a.action === "exec" ? validate(normalized) : "";
     if (reason) return respond({ ok: false, status: "ACTION_REJECTED", reason, rejected_command: scrub(String(a.command || "")), pipeline: PIPELINE, agent_build: BUILD, provider_attempts: attempts, mandatory_cost_usd: 0, paid_fallback_used: false }, 422);
     if (a.action === "finish" && (Number(a.confidence || 0) < 0.72 || !textField(a.verification).trim())) return respond({ ok: false, status: "FINISH_NOT_VERIFIED", pipeline: PIPELINE, agent_build: BUILD, provider_attempts: attempts, mandatory_cost_usd: 0, paid_fallback_used: false }, 422);
-    return respond({ ok: true, status: "PASS", pipeline: PIPELINE, agent_build: BUILD, action: { action: String(a.action), command: normalized.slice(0, 5000), summary: textField(a.summary).slice(0, 1400), observed_facts: Array.isArray(a.observed_facts)?a.observed_facts.slice(0,8).map((f:any)=>({quote:textField(f?.quote).slice(0,600)})):[], checkpoint: a.checkpoint && typeof a.checkpoint==="object" ? {name:textField(a.checkpoint.name).slice(0,200),application:textField(a.checkpoint.application).slice(0,100),visible_text:textField(a.checkpoint.visible_text).slice(0,300)} : null, modality: result.model.startsWith("openai/gpt-oss")?"accessibility-text":"screenshot-and-accessibility", phase: String(a.phase || "execute"), plan: textField(a.plan).slice(0, 3500), memory_patch: textField(a.memory_patch).slice(0, 3500), verification: textField(a.verification).slice(0, 2500), expected_change: textField(a.expected_change).slice(0,1000), confidence: Math.max(0, Math.min(1, Number(a.confidence || 0))) }, provider: result.provider, model: result.model, provider_attempts: attempts, mandatory_cost_usd: 0, paid_fallback_used: false, scoreable: false, github_run_id: oidc.runId, github_sha: oidc.sha });
+    return respond({ ok: true, status: "PASS", pipeline: PIPELINE, agent_build: BUILD, action: { action: String(a.action), command: normalized.slice(0, 5000), summary: textField(a.summary).slice(0, 1400), observed_facts: Array.isArray(a.observed_facts)?a.observed_facts.slice(0,8).map((f:any)=>({quote:textField(f?.quote).slice(0,600)})):[], checkpoint: a.checkpoint && typeof a.checkpoint==="object" ? {name:textField(a.checkpoint.name).slice(0,200),application:textField(a.checkpoint.application).slice(0,100),visible_text:textField(a.checkpoint.visible_text).slice(0,300)} : null, modality: result.model.startsWith("openai/gpt-oss")?"accessibility-text":"screenshot-and-accessibility", phase: String(a.phase || "execute"), plan: textField(a.plan).slice(0, 3500), memory_patch: textField(a.memory_patch).slice(0, 3500), verification: textField(a.verification).slice(0, 2500), expected_change: textField(a.expected_change).slice(0,1000), confidence: Math.max(0, Math.min(1, Number(a.confidence || 0))) }, provider: result.provider, model: result.model, provider_attempts: attempts, mandatory_cost_usd: 0, paid_fallback_used: false, scoreable: false, transition_review:result.review||null, github_run_id: oidc.runId, github_sha: oidc.sha });
   } catch (e: any) {
     const m = String(e?.message || e), unauthorized = m.startsWith("OIDC_") || m.includes("JWT") || m.includes("signature");
     return respond({ error: unauthorized ? "OIDC_UNAUTHORIZED" : "INTERNAL_ERROR", detail: unauthorized ? m : scrub(m), pipeline: PIPELINE, agent_build: BUILD, mandatory_cost_usd: 0, paid_fallback_used: false }, unauthorized ? 401 : 500);

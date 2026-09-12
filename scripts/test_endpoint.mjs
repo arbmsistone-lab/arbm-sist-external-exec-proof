@@ -55,3 +55,23 @@ console.log('ENDPOINT_FAILOVER_PAYLOAD_AUTH_PASS');
 assert.equal(run('textField({fact:"visible"})'),'{"fact":"visible"}');
 for(const a of attempts.filter(x=>x.url.includes('groq'))){const text=a.body.model.startsWith('openai/gpt-oss');assert.equal(a.body.reasoning_effort,text?'low':'none');assert.equal(a.body.max_completion_tokens,text?1600:850);if(text)assert.equal(typeof a.body.messages[1].content,'string');}
 console.log('GROQ_OUTPUT_BUDGET_AND_MEMORY_PASS');
+
+// Reproduce gate40: executor tries Calendar with source unread; independent
+// reviewer revises to the source. The rejected proposal must never be returned.
+run('COOLDOWN.clear()');
+const badPlan={action:'exec',command:"pyautogui.hotkey('ctrl','3')",checkpoint:{application:'Calendar'}};
+const revised={action:'exec',command:"pyautogui.doubleClick(1015,1040)",review_verdict:'revise',review_reason:'Required source attachment has not been read'};
+let reviewCalls=[];
+context.fetch=async(url,options)=>{
+ const b=JSON.parse(options.body);reviewCalls.push(b);
+ return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify(b.model.startsWith('openai/gpt-oss')?revised:badPlan)}}]}),{status:200,headers:freeHeaders});
+};
+response=await context.handler(new Request('https://offline.test',{method:'POST',headers:{authorization:'Bearer offline'},body:JSON.stringify({instruction:'Read source and create outputs',active_application:'Thunderbird Mail',observation:'attachment control',screenshot_data_url:'data:image/png;base64,AA=='})}));
+let reviewed=await response.json();assert.equal(response.status,200,JSON.stringify(reviewed));
+assert.equal(reviewed.transition_review.verdict,'revise');assert.equal(reviewed.action.command,revised.command);
+assert.equal(reviewCalls.length,2);assert.ok(reviewCalls[1].messages[1].content.includes('Independently audit'));
+run('COOLDOWN.clear()');
+context.fetch=async(url,options)=>{const b=JSON.parse(options.body);return new Response(JSON.stringify(b.model.startsWith('openai/gpt-oss')?{error:{message:'no review capacity'}}:{choices:[{message:{content:JSON.stringify(badPlan)}}]}),{status:b.model.startsWith('openai/gpt-oss')?429:200,headers:freeHeaders});};
+response=await context.handler(new Request('https://offline.test',{method:'POST',headers:{authorization:'Bearer offline'},body:JSON.stringify({instruction:'x',active_application:'Mail',screenshot_data_url:'data:image/png;base64,AA=='})}));
+assert.equal(response.status,503);assert.equal((await response.json()).status,'REVIEW_CAPACITY_UNAVAILABLE');
+console.log('INDEPENDENT_TRANSITION_REVIEW_PASS');

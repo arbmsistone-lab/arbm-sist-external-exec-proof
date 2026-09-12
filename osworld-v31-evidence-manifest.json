@@ -10,9 +10,9 @@
   "docker_runtime_image": "happysixd/osworld-docker",
   "docker_runtime_digest": "sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9",
   "edge_function_slug": "arbm-terminal-agent-v5",
-  "edge_function_version": 18,
-  "edge_function_ezbr_sha256": "336f37567f34d47be14a52741d0a9ef10afa92b48c6c15ed0c2a62226958b8dd",
-  "agent_build": "arbm-osworld-elite-pro-v31r-20260912",
+  "edge_function_version": 19,
+  "edge_function_ezbr_sha256": "773ea28652bd69ce1b43e7e56774a4c877460231b8a958976991670aebf0ce63",
+  "agent_build": "arbm-osworld-elite-pro-v31s-20260912",
   "observation_type": "screenshot_a11y_tree",
   "action_space": "pyautogui",
   "max_steps": 160,
@@ -23,7 +23,7 @@
   "max_payload_bytes": 420000,
   "edge_function_status": "ACTIVE",
   "supabase_project_ref": "pvkpkqwdnnpkgvllwqbc",
-  "endpoint_source_sha256": "1e8e127fe58bb043d524908f8da31cae1e253bdaeae4c21751334796f310a67b",
+  "endpoint_source_sha256": "d74434565d1dc4a5bc238dc59c7609a23c27485461585e9fad21fefea9e8e462",
   "evidence_schema": "sealed-relative-paths-v2",
   "max_wire_bytes": 256000000,
   "max_semantic_stalled_actions": 16,
@@ -34,5 +34,6 @@
     "groq-accessibility-free",
     "mistral-multimodal-free"
   ],
-  "endpoint_source_hash_encoding": "UTF-8, LF normalized, outer whitespace stripped"
+  "endpoint_source_hash_encoding": "UTF-8, LF normalized, outer whitespace stripped",
+  "transition_reviewer": "independent accessibility inference before app changes, replanning and finish"
 }

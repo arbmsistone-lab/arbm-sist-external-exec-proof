@@ -8,7 +8,7 @@ from osworld_control import canonical_action, ground_action, Verifier, pack_payl
 
 UPSTREAM = 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5'
 EXPECTED_PIPELINE = 'arbm-osworld-v31-isolated'
-EXPECTED_BUILD = 'arbm-osworld-elite-pro-v31r-20260912'
+EXPECTED_BUILD = 'arbm-osworld-elite-pro-v31s-20260912'
 MAX_NO_PROGRESS = int(os.environ.get('ARBM_MAX_NO_PROGRESS', '12'))
 MAX_WAIT_RESPONSES = int(os.environ.get('ARBM_MAX_WAIT_RESPONSES', '60'))
 MAX_STEPS = int(os.environ.get('ARBM_MAX_STEPS', '160'))
@@ -153,7 +153,7 @@ def call_mesh(messages):
                    'model':data.get('model'),'agent_build':data.get('agent_build'),'pipeline':data.get('pipeline'),
                    'provider_attempts':data.get('provider_attempts',[]),'action':data.get('action'),
                    'mandatory_cost_usd':data.get('mandatory_cost_usd'),'paid_fallback_used':data.get('paid_fallback_used'),
-                   'payload':metrics,'observation_file':str(evidence_path)})
+                   'transition_review':data.get('transition_review'),'payload':metrics,'observation_file':str(evidence_path)})
         if data.get('pipeline') or http==200:
             try:validate_response(data,EXPECTED_PIPELINE,EXPECTED_BUILD)
             except ValueError as exc:return terminal(str(exc))
