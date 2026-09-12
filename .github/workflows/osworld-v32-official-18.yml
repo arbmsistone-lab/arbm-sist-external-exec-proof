@@ -99,8 +99,21 @@ jobs:
           uv sync --frozen
           uv run python scripts/tools/download_osworld_v2_tasks.py --benchmark-release "$OSWORLD_RELEASE"
           test "$(find evaluation_examples/task_class -maxdepth 1 -name 'task_*.py' -type f | wc -l)" -eq 108
+          uv run python - <<'PY' > /tmp/osworld_asset_task_ids.txt
+import os
+from huggingface_hub import HfApi
+files = HfApi(token=os.environ['HF_TOKEN']).list_repo_files(
+    repo_id='xlangai/osworld_v2_assets_gated', repo_type='dataset', revision='v2026.08.08')
+assert files, 'OFFICIAL_ASSET_REPO_EMPTY'
+ids = sorted({x.split('/')[0][5:] for x in files if x.startswith('task_') and '/' in x})
+print('\n'.join(ids))
+PY
           for id in ${{ matrix.shard.tasks }}; do
-            uv run python scripts/tools/download_osworld_v2_assets.py --benchmark-release "$OSWORLD_RELEASE" --allow-pattern "task_${id}/**" --target-dir cache/osworld_v2_assets
+            if grep -qx "$id" /tmp/osworld_asset_task_ids.txt; then
+              uv run python scripts/tools/download_osworld_v2_assets.py --benchmark-release "$OSWORLD_RELEASE" --allow-pattern "task_${id}/**" --target-dir cache/osworld_v2_assets
+            else
+              echo "NO_EXTERNAL_ASSETS task_${id} verified_against_official_dataset"
+            fi
           done
 
       - name: Verify official hashes and runtime image
