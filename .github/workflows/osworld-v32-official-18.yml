@@ -25,6 +25,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install pinned preflight dependencies
         run: python -m pip install -r scripts/requirements-osworld.txt
+      - name: Install pinned preflight dependencies
+        run: python -m pip install --disable-pip-version-check -r scripts/requirements-osworld.txt
       - name: Prove v32 FREE route
         run: python scripts/osworld_mesh_preflight.py
   official-shard:
@@ -149,7 +151,7 @@ jobs:
           retention-days: 90
   aggregate:
     needs: official-shard
-    if: always()
+    if: ${{ always() && needs.official-shard.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
