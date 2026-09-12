@@ -2,8 +2,8 @@ import base64, json, os, time, urllib.request, urllib.error
 
 API = "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5"
 EXPECTED_PIPELINE = "arbm-osworld-v31-isolated"
-EXPECTED_BUILD = "arbm-osworld-v31e-isolated-20260911"
-EXPECTED_EZBR_SHA256 = "85ac465da11e07b0f54139c568f05f5b44db20bde592f6118f397f39067a7289"
+EXPECTED_BUILD = "arbm-osworld-v31k-isolated-20260911"
+EXPECTED_EZBR_SHA256 = "f9343a3af1615a7e2804a2a820832a6b69de9500cf93e4cb48333ce10244c5cb"
 PNG_1X1 = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAABe0lEQVR42u3asa6CMBQGYFB3nPsIOhhk0XSE93D0eRxITIghLD6DBlZhIOnIC7C44WJqWM4dSDopJhfQmvz/RAtDv3AawklNIjJ+OSPjxwMAAAAA8N1MXt0wTVO3tT79ZKGEtC2h9hf3ybQXM0oIAAAAAAAAAAAAAAAAvgYIw9BxnPV67ThOFEXN5HQ6bS7KsrRt+3q9Dvuj+TRvHyCi0+nEOa+qioiqquKcx3FMRJZlEZGUknOeZRl1S/tKOgFc103TVA0vl4vneQqw2WyCIKDOGRDAGJNSqqGUkjHWAHa73Xa7pT7SvpJRv9XY/L/Wde37/rCl38smns1mQgg1FELM53PDMMbjcZ7n9/t9v99/olv07xI6n8+c89vtpjZxkiRqD5RlyRgrikLfPUBEh8PBtu3VarVcLsMwbCYbABEdj8fFYvF4PIYDmK/aPqobo09fCK1FAAAAAAAAAAAAAAAAAAAArfL+qIGGx1ZQQjrFxMFXAAAAAIAu+QMm7VscSt4QYQAAAABJRU5ErkJggg=="
 
 
@@ -27,7 +27,7 @@ body = {
     "require_multimodal": True,
 }
 status, data = None, {}
-for attempt_no in range(1, 16):
+for attempt_no in range(1, 5):
     req = urllib.request.Request(API, data=json.dumps(body).encode(), method="POST",
         headers={"Authorization": "Bearer " + oidc(), "Content-Type": "application/json"})
     try:
@@ -44,11 +44,11 @@ for attempt_no in range(1, 16):
     zero_spend_quota = (
         status == 503 and data.get("status") == "NO_ZERO_SPEND_MULTIMODAL_CAPACITY"
         and data.get("mandatory_cost_usd") == 0 and data.get("paid_fallback_used") is False
-        and any(a.get("free_plan_proven") is True and a.get("status") == 429 for a in attempts_now)
+        and any(((a.get("free_plan_proven") is True) or (a.get("zero_spend_confirmed") is True)) and a.get("status") == 429 for a in attempts_now)
     )
-    if not zero_spend_quota or attempt_no == 15:
+    if not zero_spend_quota or attempt_no == 4:
         break
-    time.sleep(60)
+    time.sleep(20)
 assert status == 200, (status, data)
 assert data.get("ok") is True and data.get("status") == "PASS"
 assert data.get("pipeline") == EXPECTED_PIPELINE
