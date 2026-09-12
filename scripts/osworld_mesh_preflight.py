@@ -19,8 +19,16 @@ def call(body,already_packed=False):
   evidence.append({'http':http,'data':data,'payload':metrics})
   if http==200:
    validate_response(data,shim.EXPECTED_PIPELINE,shim.EXPECTED_BUILD)
-   action=ground_action(data.get('action'),packed.get('active_application','unknown'),packed.get('observation',''),packed.get('verified_milestones',[]))
-   assert action['action']=='exec',data
+   try:
+    action=ground_action(data.get('action'),packed.get('active_application','unknown'),packed.get('observation',''),packed.get('verified_milestones',[]))
+    from osworld_v32_policy import apply_live_policy, DecisionKind
+    decision=apply_live_policy(action,packed.get('active_application','unknown'),packed.get('observation',''),packed.get('verified_milestones',[]))
+    if decision['kind'] != DecisionKind.EXEC.value:
+     raise ValueError('PREFLIGHT_EXEC_REQUIRED:'+decision['kind'])
+   except ValueError as exc:
+    packed['memory']=(str(packed.get('memory',''))+'\nPOLICY REJECTED: '+str(exc)+'. Replan within deterministic v32 constraints.')[-4500:]
+    packed['provider_hint']='groq' if data.get('provider')=='mistral-free' else 'mistral'
+    continue
    return action,evidence
   if http not in (429,503):break
   time.sleep(20)

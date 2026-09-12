@@ -8,12 +8,12 @@ from osworld_control import canonical_action, ground_action, Verifier, pack_payl
 from osworld_v32_policy import DecisionKind, apply_live_policy
 
 UPSTREAM = 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5'
-EXPECTED_PIPELINE = 'arbm-osworld-v31-isolated'
-EXPECTED_BUILD = 'arbm-osworld-elite-pro-v31v-20260912'
+EXPECTED_PIPELINE = 'arbm-osworld-v32-isolated'
+EXPECTED_BUILD = 'arbm-osworld-v32a-20260912'
 MAX_NO_PROGRESS = int(os.environ.get('ARBM_MAX_NO_PROGRESS', '12'))
 MAX_WAIT_RESPONSES = int(os.environ.get('ARBM_MAX_WAIT_RESPONSES', '60'))
 MAX_STEPS = int(os.environ.get('ARBM_MAX_STEPS', '160'))
-LOG = os.environ.get('ARBM_OSWORLD_SHIM_LOG', 'osworld-v31-shim.log')
+LOG = os.environ.get('ARBM_OSWORLD_SHIM_LOG', 'osworld-v32-shim.log')
 OBS_DIR = Path(os.environ.get('ARBM_OSWORLD_OBSERVATIONS', 'shim-observations'))
 LOCK = threading.Lock()
 STATE = {'step':0,'previous':'','executed':0,'phase':'plan','plan':'','memory':[],

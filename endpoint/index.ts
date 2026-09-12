@@ -5,8 +5,8 @@ const ISS = "https://token.actions.githubusercontent.com";
 const AUD = "arbm-sist-benchmark";
 const REPO = "arbmsistone-lab/arbm-sist-external-exec-proof";
 const JWKS = createRemoteJWKSet(new URL(ISS + "/.well-known/jwks"));
-const BUILD = "arbm-osworld-elite-pro-v31v-20260912";
-const PIPELINE = "arbm-osworld-v31-isolated";
+const BUILD = "arbm-osworld-v32a-20260912";
+const PIPELINE = "arbm-osworld-v32-isolated";
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions";
 const GROQ_MODELS = ["qwen/qwen3.8-27b", "qwen/qwen3.6-27b"];
@@ -35,7 +35,7 @@ async function auth(req: Request) {
   const { payload } = await jwtVerify(m[1], JWKS, { issuer: ISS, audience: AUD, algorithms: ["RS256"] });
   if (payload.repository !== REPO) throw new Error("OIDC_REPOSITORY");
   const ref = String(payload.ref || "");
-  if (!(ref.startsWith("refs/heads/codex/osworld-close-") || ref.startsWith("refs/heads/codex/free-capacity-osworld-v31-providers-"))) throw new Error("OIDC_REF");
+  if (!(ref.startsWith("refs/heads/codex/osworld-close-") || ref.startsWith("refs/heads/codex/free-capacity-osworld-v31-providers-") || ref.startsWith("refs/heads/codex/osworld-v32-"))) throw new Error("OIDC_REF");
   if (!["push", "workflow_dispatch"].includes(String(payload.event_name || ""))) throw new Error("OIDC_EVENT");
   return { runId: String(payload.run_id || ""), sha: String(payload.sha || ""), ref };
 }
@@ -215,9 +215,13 @@ Deno.serve(async (req: Request) => {
     if (!result) return respond({ ok: false, status: "NO_ZERO_SPEND_MULTIMODAL_CAPACITY", pipeline: PIPELINE, agent_build: BUILD, provider_attempts: attempts, mandatory_cost_usd: 0, paid_fallback_used: false, scoreable: false }, 503);
     if(needsReview(result.action,body)){
       const review=await callGroqText(p,image,{...body,review_action:result.action});
-      attempts.push(...review.attempts.map((a:any)=>({...a,role:"transition-reviewer"})));
-      if(!review.result || !["approve","revise"].includes(review.result.action?.review_verdict))return respond({ok:false,status:"REVIEW_CAPACITY_UNAVAILABLE",pipeline:PIPELINE,agent_build:BUILD,provider_attempts:attempts,mandatory_cost_usd:0,paid_fallback_used:false},503);
-      result={...review.result,review:{verdict:review.result.action.review_verdict,reason:textField(review.result.action.review_reason).slice(0,600)}};
+      attempts.push(...review.attempts.map((a:any)=>({...a,role:"transition-reviewer-advisory"})));
+      if(review.result && ["approve","revise"].includes(review.result.action?.review_verdict)){
+        const verdict=String(review.result.action.review_verdict);
+        const reason=textField(review.result.action.review_reason).slice(0,600);
+        result={...result,review:{verdict,reason,advisory_only:true}};
+        if(verdict==="revise") return respond({ok:false,status:"REPLAN_REQUIRED",pipeline:PIPELINE,agent_build:BUILD,review_reason:reason,provider_attempts:attempts,mandatory_cost_usd:0,paid_fallback_used:false,scoreable:false},409);
+      }
     }
     const a = canonicalAction(result.action || {});
     if (!["exec", "finish", "wait"].includes(String(a.action))) return respond({ ok: false, status: "INVALID_ACTION", pipeline: PIPELINE, agent_build: BUILD, provider_attempts: attempts, mandatory_cost_usd: 0, paid_fallback_used: false }, 422);

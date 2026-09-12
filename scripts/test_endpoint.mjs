@@ -67,13 +67,14 @@ context.fetch=async(url,options)=>{
  return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify(b.model.startsWith('openai/gpt-oss')?revised:badPlan)}}]}),{status:200,headers:freeHeaders});
 };
 response=await context.handler(new Request('https://offline.test',{method:'POST',headers:{authorization:'Bearer offline'},body:JSON.stringify({instruction:'Read source and create outputs',active_application:'Thunderbird Mail',observation:'attachment control',screenshot_data_url:'data:image/png;base64,AA=='})}));
-let reviewed=await response.json();assert.equal(response.status,200,JSON.stringify(reviewed));
-assert.equal(reviewed.transition_review.verdict,'revise');assert.equal(reviewed.action.command,revised.command);
+let reviewed=await response.json();assert.equal(response.status,409,JSON.stringify(reviewed));
+assert.equal(reviewed.status,'REPLAN_REQUIRED');assert.equal(reviewed.review_reason,'Required source attachment has not been read');
+assert.equal(reviewed.action,undefined);
 assert.equal(reviewCalls.length,2);assert.ok(reviewCalls[1].messages[1].content.includes('Independently audit'));
 run('COOLDOWN.clear()');
 context.fetch=async(url,options)=>{const b=JSON.parse(options.body);return new Response(JSON.stringify(b.model.startsWith('openai/gpt-oss')?{error:{message:'no review capacity'}}:{choices:[{message:{content:JSON.stringify(badPlan)}}]}),{status:b.model.startsWith('openai/gpt-oss')?429:200,headers:freeHeaders});};
 response=await context.handler(new Request('https://offline.test',{method:'POST',headers:{authorization:'Bearer offline'},body:JSON.stringify({instruction:'x',active_application:'Mail',screenshot_data_url:'data:image/png;base64,AA=='})}));
-assert.equal(response.status,503);assert.equal((await response.json()).status,'REVIEW_CAPACITY_UNAVAILABLE');
+let advisoryDegraded=await response.json();assert.equal(response.status,200,JSON.stringify(advisoryDegraded));assert.equal(advisoryDegraded.transition_review,null);assert.equal(advisoryDegraded.action.command,badPlan.command);
 // Budget regression: no_progress alone must not spend a second LLM call.
 run('COOLDOWN.clear()');
 const sameApp={action:'exec',command:"pyautogui.press('enter')",checkpoint:{application:'Mail'}};

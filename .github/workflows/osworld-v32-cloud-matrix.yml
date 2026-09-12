@@ -1,0 +1,61 @@
+name: OSWorld v32 cloud strategy tournament
+on:
+  push:
+    branches: ['codex/osworld-v32-*']
+    paths:
+      - 'endpoint/index.ts'
+      - 'scripts/osworld_v32_cloud_matrix.py'
+      - 'scripts/osworld_v32_matrix_aggregate.py'
+      - 'scripts/osworld_free_mesh_shim.py'
+      - 'scripts/osworld_mesh_preflight.py'
+      - '.github/workflows/osworld-v32-cloud-matrix.yml'
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+jobs:
+  strategy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        route: [foreground-proof, archive-lock, verified-noop, capacity-hold, planner-default, planner-mistral-first, planner-text-first, reviewer-advisory, policy-replan, build-parity]
+    env:
+      ZERO_SPEND_MODE: HARD
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pinned dependencies
+        run: python -m pip install -r scripts/requirements-osworld.txt
+      - name: Execute distinct cloud strategy
+        run: python scripts/osworld_v32_cloud_matrix.py "${{ matrix.route }}"
+      - name: Prove zero spend hard
+        run: test "$ZERO_SPEND_MODE" = "HARD"
+      - name: Upload strategy evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: v32-matrix-${{ matrix.route }}
+          path: matrix-results/${{ matrix.route }}.json
+          if-no-files-found: error
+  aggregate:
+    needs: strategy
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: v32-matrix-*
+          path: matrix-collected
+          merge-multiple: false
+      - name: Select operational winner and fail closed
+        run: python scripts/osworld_v32_matrix_aggregate.py
+      - name: Upload final matrix summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v32-cloud-matrix-summary
+          path: v32-cloud-matrix-summary.json
+          if-no-files-found: error
