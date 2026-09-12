@@ -1,6 +1,11 @@
 name: OSWorld v32 official 18 cloud gate
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - chatgpt/osworld-v32-rescue-20260912
+    paths:
+      - .github/workflows/osworld-v32-official-18.yml
 permissions:
   actions: read
   contents: read
@@ -61,9 +66,22 @@ jobs:
           uv sync --frozen
           uv run python scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
           test "$(find evaluation_examples/task_class -maxdepth 1 -name 'task_*.py' -type f | wc -l)" -eq 108
+          uv run python - <<'PY' > /tmp/osworld_asset_task_ids.txt
+          import os
+          from huggingface_hub import HfApi
+          files = HfApi(token=os.environ['HF_TOKEN']).list_repo_files(
+              repo_id='xlangai/osworld_v2_assets_gated', repo_type='dataset', revision='v2026.08.08')
+          assert files, 'OFFICIAL_ASSET_REPO_EMPTY_OR_UNREADABLE'
+          ids = sorted({x.split('/')[0][5:] for x in files if x.startswith('task_') and '/' in x})
+          print('\n'.join(ids))
+          PY
           for id in ${{ matrix.shard.tasks }}; do
             test -f "evaluation_examples/task_class/task_${id}.py"
-            uv run python scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 --allow-pattern "task_${id}/**" --target-dir cache/osworld_v2_assets
+            if grep -Fxq "$id" /tmp/osworld_asset_task_ids.txt; then
+              uv run python scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 --allow-pattern "task_${id}/**" --target-dir cache/osworld_v2_assets
+            else
+              echo "NO_EXTERNAL_ASSETS task_${id} verified_against_official_dataset"
+            fi
           done
       - name: Verify official pins
         shell: bash
