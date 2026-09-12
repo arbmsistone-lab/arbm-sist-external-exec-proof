@@ -159,7 +159,7 @@ def call_mesh(messages):
             except ValueError as exc:return terminal(str(exc))
         if http in (401,403,409):return terminal('ENDPOINT_AUTH_OR_VERSION')
         if http==200 and data.get('ok') is True:
-            try:action=ground_action(data.get('action'),body.get('active_application','unknown'))
+            try:action=ground_action(data.get('action'),body.get('active_application','unknown'),obs,body.get('verified_milestones',[]))
             except ValueError as exc:
                 body['memory']=(body['memory']+'\nCONTRACT REJECTED: '+str(exc)+'. Return literal pyautogui call strings only.')[-4500:]
                 body['provider_hint']='groq' if data.get('provider')=='mistral-free' else 'mistral'

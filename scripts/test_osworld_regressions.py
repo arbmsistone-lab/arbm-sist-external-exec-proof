@@ -99,6 +99,13 @@ class ContractTests(unittest.TestCase):
         self.assertIn('(349, 216)',focused);self.assertNotIn('(1800, 800)',focused)
         self.assertNotIn('background slides',focused)
 
+    def test_open_archive_cannot_abandon_context_without_verified_source_milestone(self):
+        action={'action':'exec','plan':'show desktop files','command':"pyautogui.hotkey('ctrl', 'win', 'd')"}
+        with self.assertRaisesRegex(ValueError,'OPEN_ARCHIVE_CONTEXT_SWITCH_FORBIDDEN'):
+            control.ground_action(action,'Archive Manager','label\tfilter.zip',[])
+        allowed=control.ground_action(action,'Archive Manager','label\tfilter.zip',[{'name':'archive source read complete','application':'Archive Manager','visible_text':'filter.zip'}])
+        self.assertEqual(allowed['command'],"pyautogui.hotkey('ctrl', 'win', 'd')")
+
     def test_endpoint_and_cost_fail_closed(self):
         for data in [{'ok':True}, {'ok':True,'pipeline':'wrong','agent_build':'b','mandatory_cost_usd':0,'paid_fallback_used':False}]:
             with self.assertRaises(ValueError): control.validate_response(data,'p','b')

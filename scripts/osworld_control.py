@@ -83,18 +83,40 @@ def tree_signature(text):
     return hashlib.sha256('\n'.join(sorted(lines)).encode()).hexdigest()
 
 
-def ground_action(action, active_application):
-    """Compile an explicit desktop-activation plan to Ubuntu's actual GUI shortcut."""
+def ground_action(action, active_application, observation='', verified_milestones=None):
+    """Compile desktop activation and block unsafe source-context abandonment."""
     a=canonical_action(action)
     plan=str(a.get('plan') or '').lower()
+    active=str(active_application or 'unknown')
     reveal=bool(re.search(r'(?:bring|show|reveal|switch to) (?:the )?desktop\b',plan))
-    if a['action']=='exec' and active_application not in ('Desktop','unknown') and reveal:
+    if a['action']=='exec' and active not in ('Desktop','unknown') and reveal:
         tree=ast.parse(a['command'])
         if len(tree.body)==1 and tree.body[0].value.func.attr=='hotkey':
             keys=[ast.literal_eval(x) for x in tree.body[0].value.args]
             if keys==['alt','tab']:
                 a['command']="pyautogui.hotkey('ctrl', 'win', 'd')"
                 a['compiler_note']='Ubuntu show-desktop shortcut implements the explicit desktop-activation plan.'
+    if a['action']=='exec' and 'archive' in active.lower():
+        tree=ast.parse(a['command'])
+        switching=False
+        for node in tree.body:
+            call=node.value
+            if call.func.attr!='hotkey':
+                continue
+            keys={str(ast.literal_eval(x)).lower() for x in call.args}
+            if keys in ({'ctrl','win','d'},{'ctrl','super','d'},{'alt','tab'}):
+                switching=True
+                break
+        if switching:
+            milestones=verified_milestones or []
+            complete=False
+            for item in milestones:
+                text=' '.join(str(item.get(k,'')).lower() for k in ('name','application','visible_text','verification')) if isinstance(item,dict) else str(item).lower()
+                if 'archive' in text and any(w in text for w in ('read','processed','complete','completed','finished','extracted','verified')):
+                    complete=True
+                    break
+            if not complete:
+                raise ValueError('OPEN_ARCHIVE_CONTEXT_SWITCH_FORBIDDEN')
     return a
 
 

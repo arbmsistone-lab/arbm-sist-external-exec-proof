@@ -19,7 +19,7 @@ def call(body,already_packed=False):
   evidence.append({'http':http,'data':data,'payload':metrics})
   if http==200:
    validate_response(data,shim.EXPECTED_PIPELINE,shim.EXPECTED_BUILD)
-   action=ground_action(data.get('action'),packed.get('active_application','unknown'))
+   action=ground_action(data.get('action'),packed.get('active_application','unknown'),packed.get('observation',''),packed.get('verified_milestones',[]))
    assert action['action']=='exec',data
    return action,evidence
   if http not in (429,503):break
