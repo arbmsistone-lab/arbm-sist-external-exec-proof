@@ -10,6 +10,7 @@ on:
       - scripts/osworld_v32_policy.py
   workflow_dispatch:
 permissions:
+  actions: read
   contents: read
   id-token: write
 concurrency:
@@ -24,9 +25,21 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install pinned preflight dependencies
-        run: python -m pip install -r scripts/requirements-osworld.txt
-      - name: Install pinned preflight dependencies
         run: python -m pip install --disable-pip-version-check -r scripts/requirements-osworld.txt
+      - name: Prove local v32 contracts
+        run: |
+          python -m unittest discover -s scripts -p 'test_osworld_*.py'
+          node scripts/test_endpoint.mjs
+      - name: Download recorded run 30 evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 34665245131 --repo arbmsistone-lab/arbm-sist-external-exec-proof --dir run30
+      - name: Replay recorded run 30
+        run: python scripts/replay_osworld_run30.py run30
+      - name: Download recorded run 38 semantic evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 34698877150 --repo arbmsistone-lab/arbm-sist-external-exec-proof --name top3-osworld-task-bundle --dir run38
       - name: Prove v32 FREE route
         run: python scripts/osworld_mesh_preflight.py run30
   official-shard:
