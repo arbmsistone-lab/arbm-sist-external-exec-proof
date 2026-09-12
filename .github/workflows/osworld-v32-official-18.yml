@@ -28,7 +28,7 @@ jobs:
       - name: Install pinned preflight dependencies
         run: python -m pip install --disable-pip-version-check -r scripts/requirements-osworld.txt
       - name: Prove v32 FREE route
-        run: python scripts/osworld_mesh_preflight.py
+        run: python scripts/osworld_mesh_preflight.py run30
   official-shard:
     needs: preflight
     strategy:
