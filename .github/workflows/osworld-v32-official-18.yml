@@ -44,6 +44,7 @@ jobs:
       OPENAI_API_KEY: zero-spend-oidc-shim
       OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
       ARBM_MAX_STEPS: '500'
+      AWS_REGION: us-east-1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Prove cloud KVM
@@ -137,7 +138,11 @@ jobs:
             printf '%s\n' osworld-v2-2026.08.08 > "$DIR/release.txt"
             printf '%s\n' 500 > "$DIR/max-steps.txt"
             find "$DIR" -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > "$DIR/SHA256SUMS.txt"
-            if [ "$rc" -ne 0 ]; then overall=1; fi
+            SCORE_FILE=$(find "$DIR/results" -type f -name result.txt | head -1)
+            if [ "$rc" -ne 0 ] || [ -z "$SCORE_FILE" ]; then
+              echo "TASK_${TASK_ID}_NO_OFFICIAL_RESULT"
+              overall=1
+            fi
           done
           exit "$overall"
       - name: Upload shard evidence
