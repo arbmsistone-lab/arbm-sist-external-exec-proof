@@ -47,6 +47,12 @@ jobs:
       AWS_REGION: us-east-1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Prepare pinned shim runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
+          python -c "import ijson; from PIL import Image; print('SHIM_RUNTIME_DEPS_OK')"
       - name: Prove cloud KVM
         shell: bash
         run: |
@@ -127,7 +133,20 @@ jobs:
             test "$(sha256sum "$QCOW_PATH" | cut -d' ' -f1)" = "$(cat qcow-base.sha256)"
             python scripts/osworld_free_mesh_shim.py > "$DIR/shim-runtime.log" 2>&1 &
             SHIM_PID=$!
-            for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8088/health >/dev/null && break; sleep 1; done
+            ready=0
+            for i in $(seq 1 30); do
+              if curl -fsS http://127.0.0.1:8088/health >/dev/null; then ready=1; break; fi
+              if ! kill -0 "$SHIM_PID" 2>/dev/null; then break; fi
+              sleep 1
+            done
+            if [ "$ready" -ne 1 ]; then
+              echo "SHIM_HEALTHCHECK_FAILED task-${TASK_ID}" >&2
+              cat "$DIR/shim-runtime.log" >&2 || true
+              kill "$SHIM_PID" 2>/dev/null || true
+              wait "$SHIM_PID" 2>/dev/null || true
+              overall=1
+              break
+            fi
             set +e
             (cd osworld && uv run python scripts/python/run_multienv.py --headless --provider_name docker --path_to_vm "$QCOW_PATH" --eval_version v2 --test_all_meta_path evaluation_examples/test_arbm_v32.json --domain tasks --observation_type screenshot_a11y_tree --action_space pyautogui --model gpt-arbm-osworld-v32-isolated --temperature 0 --max_steps 500 --max_trajectory_length 8 --max_tokens 4096 --num_envs 1 --result_dir "../osworld-v32-evidence/task-${TASK_ID}/results" 2>&1 | tee "../osworld-v32-evidence/task-${TASK_ID}/osworld.log")
             rc=${PIPESTATUS[0]}
