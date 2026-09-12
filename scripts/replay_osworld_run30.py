@@ -35,7 +35,8 @@ def replay(root):
                  'rejected_commands':rejected,'max_no_progress':max(no_progress),'first_recovery_exhaustion':next((i+1 for i,n in enumerate(no_progress) if n>=12),None),
                  'max_payload_before_bytes':max(x['before_bytes'] for x in sizes),'max_payload_after_bytes':max(x['after_bytes'] for x in sizes),
                  'official_score_unchanged':float(next(d.rglob('result.txt')).read_text()),'replay':'PASS'})
-  assert max(no_progress)>=12,task
+  assert max(no_progress)<12,task
+  assert not any(n>=12 for n in no_progress),task
   assert max(x['after_bytes'] for x in sizes)<=420000,task
  assert sum(len(x['rejected_commands']) for x in report)>0
  return report
