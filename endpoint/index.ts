@@ -5,7 +5,7 @@ const ISS = "https://token.actions.githubusercontent.com";
 const AUD = "arbm-sist-benchmark";
 const REPO = "arbmsistone-lab/arbm-sist-external-exec-proof";
 const JWKS = createRemoteJWKSet(new URL(ISS + "/.well-known/jwks"));
-const BUILD = "arbm-osworld-elite-pro-v31t-20260912";
+const BUILD = "arbm-osworld-elite-pro-v31u-20260912";
 const PIPELINE = "arbm-osworld-v31-isolated";
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions";
@@ -95,7 +95,7 @@ function prompt(body: any) {
   return `You control an Ubuntu desktop by visible GUI only. Return ONE JSON object.
 Planner: choose the next unmet subtask, maintain brief factual memory. Decompose source-reading prerequisites before output edits: the presence of an attachment is NOT its content; first open/read it and identify the relevant records. Never switch to an output app while required source facts are unknown. Executor: one small GUI action, or at most 4 tightly related calls. Verifier: describe what visibly changed after the previous action and what change to expect next. An executed call is NOT proof of progress.
 CRITICAL GROUNDING: the screenshot shows the foreground. The accessibility tree includes BACKGROUND windows and desktop labels covered by other windows. Never click a tree coordinate unless the target is visible at that spot in the screenshot. First bring the intended window forward via its visible dock icon or Alt+Tab. To access Desktop files hidden behind a maximized window, use Ctrl+Super+D to show Desktop, then DOUBLE-click the visible file. Use center coordinates (top-left plus half size), never the top-left boundary.
-If a click did nothing, do not repeat it: inspect foreground, try keyboard navigation, show Desktop, or use file manager and its location field. Opening a file requires doubleClick or selecting it and pressing Enter. Single click usually only selects. Do not assume unseen content.
+If a click did nothing, do not repeat it: inspect foreground, try keyboard navigation, show Desktop, or use file manager and its location field. Opening a file requires doubleClick or selecting it and pressing Enter. Single click usually only selects. Do not assume unseen content. If the current foreground observation already identifies an open source file or archive (for example filter.zip in Archive Manager), continue processing THAT exact file. Do not switch to, open, or substitute a different sibling file/archive until the current source subtask is verified complete. Preserve the exact filename in plan or verification.
 Only direct pyautogui calls with literal arguments, one per line. command MUST be a STRING, never an array/object or explanations. No shell, terminal, scripts, filesystem/network APIs, clipboard extraction, hidden state or benchmark internals. Typing a path into a visible GUI file dialog is allowed. Scroll by 3-6 not hundreds. sleep <= 3s.
 Required JSON:
 {"action":"exec|wait|finish","command":"pyautogui...","plan":"current subtask","summary":"why this action","memory_patch":"durable observed facts and completed subtasks","verification":"visible result of previous action","expected_change":"next visible outcome","confidence":0.9,"observed_facts":[{"quote":"exact source text currently visible that must be remembered"}],"checkpoint":{"name":"next subtask milestone","application":"exact expected Ubuntu panel app name","visible_text":"exact text expected to appear after action"}}

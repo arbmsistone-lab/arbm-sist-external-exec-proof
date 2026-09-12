@@ -70,7 +70,7 @@ jobs:
       ZERO_SPEND_MODE: HARD
       OPENAI_BASE_URL: http://127.0.0.1:8088/v1
       OPENAI_API_KEY: zero-spend-oidc-shim
-      OSWORLD_AGENT_VERSION: supabase-arbm-terminal-agent-v5-v20-c84bd72ae5be4cde
+      OSWORLD_AGENT_VERSION: supabase-arbm-terminal-agent-v5-v21-b2d8c965c85bcece
       AWS_REGION: us-east-1
       AWS_SUBNET_ID: unused-docker-provider
       AWS_SECURITY_GROUP_ID: unused-docker-provider
