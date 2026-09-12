@@ -45,10 +45,13 @@ jobs:
       OPENAI_BASE_URL: http://127.0.0.1:8088/v1
       OPENAI_API_KEY: zero-spend-oidc-shim
       OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
+      WEBSITE_HOST_SUFFIX: site.hku.icu
       ARBM_MAX_STEPS: '500'
       ARBM_MAX_NO_PROGRESS: '35'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install pinned shim dependencies
+        run: python -m pip install -r scripts/requirements-osworld.txt
       - name: Prove cloud KVM and zero spend
         shell: bash
         run: |
