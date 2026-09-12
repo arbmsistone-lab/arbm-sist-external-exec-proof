@@ -129,8 +129,9 @@ def probe(model, output):
             if model != 'qwen/qwen3.8-27b':
                 raise RuntimeError('G3_FREE_GROQ_MODEL_REQUIRED')
             record['catalog'] = {'id': model, 'provider': 'groq',
-                                 'account_plan': 'Free',
-                                 'account_plan_evidence': 'OWNER_UI_2026-09-11'}
+                                 'account_plan': 'NOT_PROVEN',
+                                 'catalog_checked': False}
+            raise RuntimeError('G3_FREE_GROQ_ACCOUNT_PROOF_REQUIRED')
         else:
             raise RuntimeError('G3_FREE_PROVIDER_REQUIRED')
         os.environ['ARBM_G3_FREE_MODEL'] = model

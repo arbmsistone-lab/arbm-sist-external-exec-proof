@@ -60,12 +60,7 @@ jobs:
           ARBM_G3_USAGE_LOG: ${{ github.workspace }}/g3-free-probe-usage.jsonl
         run: |
           set -euo pipefail
-          if [ "$ARBM_G3_PROVIDER" = "groq" ] && [ "${{ inputs.probe_only }}" = "true" ]; then
-            export ARBM_G3_GROQ_FREE_PLAN_PROVEN=1
-            python certification/g3_free_control.py probe --model "$ARBM_G3_FREE_MODEL" --output free-capability.json
-          else
-            python certification/g3_free_control.py probe --model "$ARBM_G3_FREE_MODEL" --output free-capability.json
-          fi
+          python certification/g3_free_control.py probe --model "$ARBM_G3_FREE_MODEL" --output free-capability.json
           python - <<'PYCODE'
           import json, os, sys
           sys.path.insert(0, 'certification')

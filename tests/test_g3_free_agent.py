@@ -291,6 +291,31 @@ class FreeAgentTests(unittest.TestCase):
         rows = [json.loads(line) for line in self.log.read_text().splitlines()]
         self.assertEqual(rows[-1]['provider_gateway'], 'groq')
 
+    def test_groq_flag_cannot_admit_live_client(self):
+        with patch.dict(os.environ, {'ARBM_G3_PROVIDER': 'groq',
+                                     'ARBM_G3_FREE_MODEL': 'qwen/qwen3.8-27b',
+                                     'ARBM_G3_GROQ_FREE_PLAN_PROVEN': '1'}):
+            with self.assertRaisesRegex(RuntimeError, 'ACCOUNT_PROOF_REQUIRED'):
+                agent_module.ArbmG3Agent()
+
+    def test_groq_missing_cost_cannot_be_recorded_as_reported_zero(self):
+        with patch.dict(os.environ, {'ARBM_G3_PROVIDER': 'groq',
+                                     'ARBM_G3_FREE_MODEL': 'qwen/qwen3.8-27b',
+                                     'ARBM_G3_GROQ_FREE_PLAN_PROVEN': '1'}):
+            agent = agent_module.ArbmG3Agent(client=self.agent.client)
+            self.responses = [response(model='qwen/qwen3.8-27b', cost=None)]
+            with self.assertRaisesRegex(RuntimeError, 'COST_NOT_PROVEN'):
+                agent.predict('Synthetic GUI test.', self.obs)
+        terminal = json.loads(self.log.read_text().splitlines()[-1])
+        self.assertIsNot(terminal['zero_spend'], True)
+        self.assertIsNone(terminal.get('reported_cost_usd'))
+
+    def test_wrong_provider_model_pair_rejected_before_network(self):
+        for provider, model in [('openrouter', 'qwen/qwen3.8-27b'), ('groq', agent_module.MODEL)]:
+            with patch.dict(os.environ, {'ARBM_G3_PROVIDER': provider, 'ARBM_G3_FREE_MODEL': model}):
+                with self.assertRaisesRegex(RuntimeError, 'MODEL_PROVIDER_MISMATCH'):
+                    agent_module.ArbmG3Agent(client=self.agent.client)
+
 
 if __name__ == '__main__':
     unittest.main()

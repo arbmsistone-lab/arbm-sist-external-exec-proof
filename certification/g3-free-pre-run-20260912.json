@@ -1,0 +1,21 @@
+{
+  "observed_at_utc": "2026-09-12T00:09:47.170173+00:00",
+  "A": "PASS: 38 local tests, compile, lint; provider/model pairing and no fabricated cost",
+  "B": "PASS: official pins/action space/task count/max_steps unchanged; PAID and production untouched",
+  "C": "PASS_FOR_ONE_OPENROUTER_SMOKE: provider reset elapsed; catalog prompt/completion 0; max_price=0; no model fallback; probe before VM; no terminal retries",
+  "requested_model": "dots-studio/dots-3-note-preview:free",
+  "provider": "openrouter",
+  "hypothesis": "Current screenshot OCR and intent checks reduce the observed ungrounded typing/clicks; official task001 tests real progress on the same Dots model.",
+  "ZERO_SPEND": true,
+  "HEAVY_LOCAL": 0,
+  "provider_reset_proves_credit_or_functionality": false,
+  "groq_live_admission": "BLOCKED_ACCOUNT_PROOF_REQUIRED",
+  "prior_groq_429_run": 34608010234,
+  "current_official_score": null,
+  "content_sha256_lf": {
+    "certification/g3-openrouter-free-adapter.py": "b79d589e1147bc285ff1060a5917dadad343221901382da7ced2f56ea8821b4e",
+    "certification/g3_free_control.py": "f8d6a93dd49164dacb322f8eacb4d42a3522ede8e4bf487d459a26305ab66a5e",
+    "tests/test_g3_free_agent.py": "e9a39a8c1990ced77e36dc26e4b2893e67efa0b40a0e991c7d4949dfd3e12ce6",
+    ".github/workflows/osworld-g3-free-smoke-v1.yml": "874e61a2b75f1a93ce272bd20abaf53ce8cafa9586b6f8dbe67773f2fd56ce5a"
+  }
+}

@@ -161,7 +161,10 @@ def provider_error_details(error):
     response = getattr(error, 'response', None)
     headers = getattr(response, 'headers', {}) or {}
     safe = {}
-    for name in ('retry-after', 'x-ratelimit-limit', 'x-ratelimit-remaining', 'x-ratelimit-reset'):
+    for name in ('retry-after', 'x-ratelimit-limit', 'x-ratelimit-remaining', 'x-ratelimit-reset',
+                 'x-ratelimit-limit-requests', 'x-ratelimit-remaining-requests',
+                 'x-ratelimit-reset-requests', 'x-ratelimit-limit-tokens',
+                 'x-ratelimit-remaining-tokens', 'x-ratelimit-reset-tokens'):
         value = headers.get(name)
         if value is not None and re.fullmatch(r'[A-Za-z0-9 ,:+.\-/]{1,100}', str(value)):
             safe[name] = str(value)
@@ -221,7 +224,13 @@ class ArbmG3Agent:
         self.provider_gateway = os.environ.get('ARBM_G3_PROVIDER', 'openrouter').strip().lower()
         if self.provider_gateway not in ('openrouter', 'groq'):
             raise RuntimeError('G3_FREE_PROVIDER_REQUIRED')
+        if ((self.provider_gateway == 'groq') != (self.model_id == 'qwen/qwen3.8-27b')):
+            raise RuntimeError('G3_FREE_MODEL_PROVIDER_MISMATCH')
         if client is None:
+            # The available account screenshots do not prove the Groq Free plan.
+            # A workflow boolean cannot replace fresh authenticated account proof.
+            if self.provider_gateway == 'groq':
+                raise RuntimeError('G3_FREE_GROQ_ACCOUNT_PROOF_REQUIRED')
             from openai import OpenAI
             if self.provider_gateway == 'groq':
                 key = os.environ.get('GROQ_G3_FREE_CERT_KEY', '').strip()
@@ -343,22 +352,15 @@ class ArbmG3Agent:
         usage = data.get('usage') or {}
         self._context['usage'] = {k: usage.get(k) for k in (
             'prompt_tokens', 'completion_tokens', 'total_tokens', 'cost')}
-        if self.provider_gateway == 'groq' and usage.get('cost') is None:
-            if os.environ.get('ARBM_G3_GROQ_FREE_PLAN_PROVEN') != '1':
-                raise RuntimeError('G3_FREE_COST_NOT_PROVEN')
-            self._context['zero_spend'] = True
-            self._context['reported_cost_usd'] = '0'
-            self._context['cost_proof_basis'] = 'GROQ_FREE_PLAN_CURRENT_OWNER_UI'
-        else:
-            try:
-                cost = Decimal(str(usage.get('cost')))
-            except InvalidOperation:
-                raise RuntimeError('G3_FREE_COST_NOT_PROVEN') from None
-            if not cost.is_finite() or cost != 0:
-                self._context['zero_spend'] = False
-                raise RuntimeError('G3_FREE_NONZERO_COST')
-            self._context['zero_spend'] = True
-            self._context['reported_cost_usd'] = str(cost)
+        try:
+            cost = Decimal(str(usage.get('cost')))
+        except InvalidOperation:
+            raise RuntimeError('G3_FREE_COST_NOT_PROVEN') from None
+        if not cost.is_finite() or cost != 0:
+            self._context['zero_spend'] = False
+            raise RuntimeError('G3_FREE_NONZERO_COST')
+        self._context['zero_spend'] = True
+        self._context['reported_cost_usd'] = str(cost)
         choices = data.get('choices') or []
         self._context['response_sha256'] = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
         if len(choices) != 1:
