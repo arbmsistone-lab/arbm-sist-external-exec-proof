@@ -1,0 +1,310 @@
+{
+  "status": "NOT PROVEN",
+  "cause": "The guest root filesystem is full after official Darktable setup, before transport.",
+  "diagnostic_run": "https://github.com/arbmsistone-lab/arbm-sist-external-exec-proof/actions/runs/34755405028",
+  "diagnostic_candidate_sha": "e20b7ecbfb70cbdcd52dd53d1726dae56eaeab42",
+  "measurement": {
+    "destination": "/home/user/Pictures/task_photos.zip",
+    "required_bytes": 13389225,
+    "available_bytes": 0,
+    "reclaimable_destination_bytes": 0,
+    "reserve_bytes": 67108864,
+    "filesystem_bytes": 30993747968,
+    "free_inodes": 1562187,
+    "multipart_attempted": false
+  },
+  "inference": "Multipart temporary consumption is not required to reproduce ENOSPC. Avoiding multipart alone is insufficient.",
+  "root_cause_log_sha256": "7b2686d00e644de913a4f839fa1d679a714ffe7d0a5ec1cc3d261250a8336154",
+  "fix": "Use the pinned upstream Docker volume API to expand the disposable guest volume to 64 GB; verify actual capacity after every boot/reset. Keep the pinned image base read-only.",
+  "validation": "Pending official cloud focal run after expansion. No 18/18 claim.",
+  "prior_baseline_audit": {
+    "run_id": 34733419571,
+    "status": "NOT PROVEN",
+    "binary_successes": 0,
+    "official_results": 17,
+    "tasks": [
+      {
+        "task_id": "001",
+        "candidate_sha": "699d4700c42eee565db186601b1af6e2c136ca22",
+        "scores": [
+          0.0
+        ],
+        "hash_errors": [],
+        "checksum_coverage": true,
+        "terminal_reasons": [
+          "ENDPOINT_AUTH_OR_VERSION"
+        ],
+        "http_statuses": [
+          401
+        ],
+        "actions_issued": 0
+      },
+      {
+        "task_id": "019",
+        "candidate_sha": "699d4700c42eee565db186601b1af6e2c136ca22",
+        "scores": [
+          0.0
+        ],
+        "hash_errors": [],
+        "checksum_coverage": true,
+        "terminal_reasons": [
+          "ENDPOINT_AUTH_OR_VERSION"
+        ],
+        "http_statuses": [
+          401
+        ],
+        "actions_issued": 0
+      },
+      {
+        "task_id": "037",
+        "candidate_sha": "699d4700c42eee565db186601b1af6e2c136ca22",
+        "scores": [
+          0.0
+        ],
+        "hash_errors": [],
+        "checksum_coverage": true,
+        "terminal_reasons": [
+          "ENDPOINT_AUTH_OR_VERSION"
+        ],
+        "http_statuses": [
+          401
+        ],
+        "actions_issued": 0
+      },
+      {
+        "task_id": "055",
+        "candidate_sha": "699d4700c42eee565db186601b1af6e2c136ca22",
+        "scores": [
+          0.0
+        ],
+        "hash_errors": [],
+        "checksum_coverage": true,
+        "terminal_reasons": [
+          "ENDPOINT_AUTH_OR_VERSION"
+        ],
+        "http_statuses": [
+          401
+        ],
+        "actions_issued": 0
+      },
+      {
+        "task_id": "073",
+        "candidate_sha": "699d4700c42eee565db186601b1af6e2c136ca22",
+        "scores": [
+          0.0
+        ],
+        "hash_errors": [],
+        "checksum_coverage": true,
+        "terminal_reasons": [
+          "ENDPOINT_AUTH_OR_VERSION"
+        ],
+        "http_statuses": [
+          401
+        ],
+        "actions_issued": 0
+      },
+      {
+        "task_id": "091",
+        "candidate_sha": "699d4700c42eee565db186601b1af6e2c136ca22",
+        "scores": [
+          0.0
+        ],
+        "hash_errors": [],
+        "checksum_coverage": true,
+        "terminal_reasons": [
+          "ENDPOINT_AUTH_OR_VERSION"
+        ],
+        "http_statuses": [
+          401
+        ],
+        "actions_issued": 0
+      },
+      {
+        "task_id": "007",
+        "candidate_sha": "699d4700c42eee565db186601b1af6e2c136ca22",
+        "scores": [
+          0.0
+        ],
+        "hash_errors": [],
+        "checksum_coverage": true,
+        "terminal_reasons": [
+          "ENDPOINT_AUTH_OR_VERSION"
+        ],
+        "http_statuses": [
+          401
+        ],
+        "actions_issued": 0
+      },
+      {
+        "task_id": "025",
+        "candidate_sha": "699d4700c42eee565db186601b1af6e2c136ca22",
+        "scores": [
+          0.0
+        ],
+        "hash_errors": [],
+        "checksum_coverage": true,
+        "terminal_reasons": [
+          "ENDPOINT_AUTH_OR_VERSION"
+        ],
+        "http_statuses": [
+          401
+        ],
+        "actions_issued": 0
+      },
+      {
+        "task_id": "043",
+        "candidate_sha": "699d4700c42eee565db186601b1af6e2c136ca22",
+        "scores": [
+          0.0
+        ],
+        "hash_errors": [],
+        "checksum_coverage": true,
+        "terminal_reasons": [
+          "ENDPOINT_AUTH_OR_VERSION"
+        ],
+        "http_statuses": [
+          401
+        ],
+        "actions_issued": 0
+      },
+      {
+        "task_id": "061",
+        "candidate_sha": "699d4700c42eee565db186601b1af6e2c136ca22",
+        "scores": [],
+        "hash_errors": [],
+        "checksum_coverage": true,
+        "terminal_reasons": [],
+        "http_statuses": [],
+        "actions_issued": 0
+      },
+      {
+        "task_id": "079",
+        "candidate_sha": "699d4700c42eee565db186601b1af6e2c136ca22",
+        "scores": [
+          0.0
+        ],
+        "hash_errors": [],
+        "checksum_coverage": true,
+        "terminal_reasons": [
+          "ENDPOINT_AUTH_OR_VERSION"
+        ],
+        "http_statuses": [
+          401
+        ],
+        "actions_issued": 0
+      },
+      {
+        "task_id": "097",
+        "candidate_sha": "699d4700c42eee565db186601b1af6e2c136ca22",
+        "scores": [
+          0.0
+        ],
+        "hash_errors": [],
+        "checksum_coverage": true,
+        "terminal_reasons": [
+          "ENDPOINT_AUTH_OR_VERSION"
+        ],
+        "http_statuses": [
+          401
+        ],
+        "actions_issued": 0
+      },
+      {
+        "task_id": "013",
+        "candidate_sha": "699d4700c42eee565db186601b1af6e2c136ca22",
+        "scores": [
+          0.0
+        ],
+        "hash_errors": [],
+        "checksum_coverage": true,
+        "terminal_reasons": [
+          "ENDPOINT_AUTH_OR_VERSION"
+        ],
+        "http_statuses": [
+          401
+        ],
+        "actions_issued": 0
+      },
+      {
+        "task_id": "031",
+        "candidate_sha": "699d4700c42eee565db186601b1af6e2c136ca22",
+        "scores": [
+          0.0
+        ],
+        "hash_errors": [],
+        "checksum_coverage": true,
+        "terminal_reasons": [
+          "ENDPOINT_AUTH_OR_VERSION"
+        ],
+        "http_statuses": [
+          401
+        ],
+        "actions_issued": 0
+      },
+      {
+        "task_id": "049",
+        "candidate_sha": "699d4700c42eee565db186601b1af6e2c136ca22",
+        "scores": [
+          0.0
+        ],
+        "hash_errors": [],
+        "checksum_coverage": true,
+        "terminal_reasons": [
+          "ENDPOINT_AUTH_OR_VERSION"
+        ],
+        "http_statuses": [
+          401
+        ],
+        "actions_issued": 0
+      },
+      {
+        "task_id": "067",
+        "candidate_sha": "699d4700c42eee565db186601b1af6e2c136ca22",
+        "scores": [
+          0.0
+        ],
+        "hash_errors": [],
+        "checksum_coverage": true,
+        "terminal_reasons": [
+          "ENDPOINT_AUTH_OR_VERSION"
+        ],
+        "http_statuses": [
+          401
+        ],
+        "actions_issued": 0
+      },
+      {
+        "task_id": "085",
+        "candidate_sha": "699d4700c42eee565db186601b1af6e2c136ca22",
+        "scores": [
+          0.0
+        ],
+        "hash_errors": [],
+        "checksum_coverage": true,
+        "terminal_reasons": [
+          "ENDPOINT_AUTH_OR_VERSION"
+        ],
+        "http_statuses": [
+          401
+        ],
+        "actions_issued": 0
+      },
+      {
+        "task_id": "103",
+        "candidate_sha": "699d4700c42eee565db186601b1af6e2c136ca22",
+        "scores": [
+          0.0
+        ],
+        "hash_errors": [],
+        "checksum_coverage": true,
+        "terminal_reasons": [
+          "ENDPOINT_AUTH_OR_VERSION"
+        ],
+        "http_statuses": [
+          401
+        ],
+        "actions_issued": 0
+      }
+    ]
+  }
+}

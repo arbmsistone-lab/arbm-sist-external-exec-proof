@@ -68,7 +68,7 @@ def aggregate(root, sha, focal=False):
     rows = []
     for path in sorted(dirs): rows.append(audit_task(path.parent, path.read_text().strip(), sha))
     passed = sum(row['pass'] for row in rows)
-    out = {'status': ('FOCAL_061_PASS' if focal else '18/18 GREEN_PROVEN') if passed == len(expected) else 'NOT PROVEN',
+    out = {'status': ('FOCAL_061_PASS' if focal else 'OFFICIAL18_SCORES_PASS') if passed == len(expected) else 'NOT PROVEN',
            'candidate_sha': sha, 'official_tasks': len(expected), 'binary_successes': passed, 'tasks': rows, 'pins': PINS,
            'zero_spend_mode': 'HARD', 'heavy_local': 0}
     Path('osworld-v32-official18-summary.json').write_text(json.dumps(out, indent=2) + '\n')

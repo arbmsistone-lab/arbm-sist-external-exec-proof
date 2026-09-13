@@ -39,7 +39,7 @@ class OfficialGateTests(unittest.TestCase):
     def test_exact18_success(self):
         out = aggregate(self.root, 'test-sha')
         self.assertEqual(out['binary_successes'], 18)
-        self.assertEqual(out['status'], '18/18 GREEN_PROVEN')
+        self.assertEqual(out['status'], 'OFFICIAL18_SCORES_PASS')
 
     def test_zero_score_never_green(self):
         self.change('results/tasks/061/result.txt','0')

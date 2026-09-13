@@ -69,6 +69,7 @@ jobs:
       OPENAI_API_KEY: zero-spend-oidc-shim
       OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
       ARBM_MAX_STEPS: '500'
+      ARBM_VM_VOLUME_GB: '64'
       AWS_REGION: us-east-1
       WEBSITE_HOST_SUFFIX: site.hku.icu
     steps:
@@ -155,6 +156,15 @@ jobs:
           git -C osworld diff -- scripts/python/run_multienv.py > osworld-docker-provider.patch
           test -s osworld-docker-provider.patch
           sha256sum osworld-docker-provider.patch
+      - name: Configure upstream guest volume API with fail-closed capacity verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$ARBM_VM_VOLUME_GB" = 64
+          python scripts/osworld_docker_volume.py osworld
+          git -C osworld diff -- scripts/python/run_multienv.py desktop_env/providers/docker/provider.py > osworld-volume.patch
+          test -s osworld-volume.patch
+          sha256sum osworld-volume.patch osworld/desktop_env/providers/docker/arbm_volume.py
       - name: Install verified single-copy upload transport
         shell: bash
         run: |
@@ -196,7 +206,7 @@ jobs:
             printf '%s\n' osworld-v2-2026.08.08 > "$DIR/release.txt"
             printf '%s\n' 500 > "$DIR/max-steps.txt"
             cp official-pins.json "$DIR/pins.json"
-            cp osworld-docker-provider.patch osworld-upload-transport.patch "$DIR/"
+            cp osworld-docker-provider.patch osworld-volume.patch osworld-upload-transport.patch "$DIR/"
             python scripts/osworld_v32_integrity.py snapshot osworld "$DIR/evaluator-before.json"
             printf '{"tasks":["%s"]}\n' "$TASK_ID" > "$GITHUB_WORKSPACE/osworld/evaluation_examples/test_arbm_v32.json"
             test "$(sha256sum "$QCOW_PATH" | cut -d' ' -f1)" = "$(cat qcow-base.sha256)"
