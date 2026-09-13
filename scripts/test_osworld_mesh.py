@@ -73,6 +73,14 @@ class MeshTests(unittest.TestCase):
   self.assertEqual(http,200)
   self.assertEqual(data['provider'],'local-cloud-vlm')
 
+ def test_local_only_invalid_action_returns_without_remote_retry(self):
+  body={'instruction':'edit','observation':'GIMP','screenshot_data_url':'data:image/png;base64,AA==','provider_hint':'local-only'}
+  with patch.object(shim.GROQ_FREE_ROUTE,'call',side_effect=AssertionError('remote must not run')),        patch.object(shim,'request_gateway',side_effect=AssertionError('gateway must not run')),        patch.object(shim.FREE_ROUTE,'call',side_effect=AssertionError('router must not run')),        patch.object(shim.LOCAL_VLM_ROUTE,'call',return_value=(None,[{'route':'local-cloud-vlm','status':'local_model_error'}])) as local:
+   http,data=shim.request_mesh(body)
+  self.assertEqual(http,503)
+  self.assertEqual(data['status'],'LOCAL_ACTION_UNAVAILABLE')
+  self.assertEqual(local.call_count,1)
+
  def test_provider_wait_does_not_masquerade_as_cognitive_failure(self):
   shim.request_mesh=lambda b:(503,self.response(ok=False,status='NO_ZERO_SPEND_MULTIMODAL_CAPACITY'))
   results=[shim.call_mesh(self.msgs) for _ in range(15)]

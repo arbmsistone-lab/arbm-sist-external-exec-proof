@@ -35,6 +35,7 @@ class LocalVLMTests(unittest.TestCase):
             'I will dismiss the dialog.\n'+valid+'\nThis is the visible action.',
             "```python\nimport pyautogui\npyautogui.press('enter')\n```",
             "pyautogui.press('enter')",
+            '{"command":"pyautogui.press(\'enter\')"}',
         ):
             with self.subTest(output=output):
                 result,attempts=LocalVLMRoute(lambda *args:output).call(BODY)
@@ -49,6 +50,14 @@ class LocalVLMTests(unittest.TestCase):
                 self.assertIsNone(result)
                 self.assertEqual(attempts[-1]['status'],'local_model_error')
                 self.assertEqual(attempts[-1]['contract_error'],error)
+
+    def test_local_action_budget_and_compact_prompt(self):
+        seen=[]
+        route=LocalVLMRoute(lambda text,image,tokens: seen.append((text,tokens)) or "pyautogui.press('enter')")
+        result,_=route.call({**BODY,'observation':'x'*9000,'active_application':'GIMP'})
+        self.assertEqual(result['action']['command'],"pyautogui.press('enter')")
+        self.assertEqual(seen[0][1],96)
+        self.assertLess(len(seen[0][0]),6000)
 
 
 if __name__=='__main__':unittest.main()

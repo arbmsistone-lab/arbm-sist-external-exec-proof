@@ -31,6 +31,11 @@ def parse_action_object(output):
         except json.JSONDecodeError:
             continue
         if isinstance(value,dict):
+            # Small local VLMs often omit the redundant action discriminator.
+            # Adding it here does not widen the command boundary: the command
+            # still passes through canonical_action's AST and literal checks.
+            if 'command' in value and 'action' not in value:
+                value={**value,'action':'exec'}
             return canonical_action(value)
     # A direct GUI program is safe only after the same AST/literal validation
     # applied to JSON actions.  Prefer the last fenced Python block; models
@@ -57,6 +62,22 @@ def _parts(messages):
                 url=image.get('url','') if isinstance(image,dict) else ''
                 if url.startswith('data:image/') and ',' in url: images.append(url.split(',',1)[1])
     return '\n'.join(texts),images
+
+
+def action_prompt(body):
+    """Short, deterministic contract for the local CPU-only VLM.
+
+    The general cloud prompt carries planning and audit context that is useful
+    for large models but adds latency and causes small models to narrate rather
+    than act.  Keep only the current visual decision and the secure format.
+    """
+    return ('Return exactly one JSON object and nothing else. '
+            'Schema: {"action":"exec","command":"pyautogui.<allowed literal call>"}. '
+            'Choose one visible GUI action; no shell, terminal, filesystem, network, prose, markdown, or wait.\n'
+            'TASK:\n' + str(body.get('instruction') or '')[:1800] + '\n'
+            'FOREGROUND:\n' + str(body.get('active_application') or 'unknown') + '\n'
+            'OBSERVATION:\n' + str(body.get('observation') or '')[-3500:] + '\n'
+            'PREVIOUS ACTION:\n' + str(body.get('previous_command') or ''))
 
 
 def default_infer(text, image_b64, max_tokens):
@@ -96,12 +117,14 @@ class LocalVLMRoute:
             text,images=_parts(raw_messages)
         else:
             url=body.get('screenshot_data_url','')
-            text=prompt(body); images=[url.split(',',1)[1]] if url.startswith('data:image/') and ',' in url else []
+            text=action_prompt(body); images=[url.split(',',1)[1]] if url.startswith('data:image/') and ',' in url else []
         if not images:
             return None,[{**base,'status':'image_required'}]
         started=self.clock()
         try:
-            output=self.infer(text,images[-1],raw_tokens if raw_messages is not None else 160)
+            # 96 tokens is ample for a bounded pyautogui action and keeps the
+            # CPU fallback from consuming the task deadline after a quota hit.
+            output=self.infer(text,images[-1],raw_tokens if raw_messages is not None else 96)
             if self.clock()-started>budget:
                 return None,[{**base,'status':'budget_exceeded'}]
             if raw_messages is not None:

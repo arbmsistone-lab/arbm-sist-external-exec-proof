@@ -159,7 +159,10 @@ def request_mesh(body):
         response=local_router()
         if response:
             return response
-        return 503,{'status':'LOCAL_ONLY_UNAVAILABLE','provider_attempts':router_attempts,
+        # Greedy local inference is deterministic for the same frame.  Do not
+        # spend three full generations repeating an invalid answer; let the
+        # next OSWorld observation provide new visual context instead.
+        return 503,{'status':'LOCAL_ACTION_UNAVAILABLE','provider_attempts':router_attempts,
                     'mandatory_cost_usd':0,'paid_fallback_used':False}
     response=groq_router()
     if response: return response
@@ -238,6 +241,10 @@ def call_mesh(messages):
             # was unavailable too, keep subsequent retries local-only.
             body['provider_hint']='local-only'
             continue
+        if data.get('status') == 'LOCAL_ACTION_UNAVAILABLE':
+            log_event({'status':'LOCAL_ACTION_UNAVAILABLE','reason':'local_contract_failure'})
+            STATE['wait_responses']+=1
+            return 'WAIT'
         if http==409:
             if data.get('status')!='REPLAN_REQUIRED':return terminal('ENDPOINT_CONFLICT')
             reason=str(data.get('review_reason') or 'independent reviewer requested replanning')
