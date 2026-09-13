@@ -74,19 +74,24 @@ jobs:
           uv sync --frozen
           uv run python scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
           test "$(find evaluation_examples/task_class -maxdepth 1 -name 'task_*.py' -type f | wc -l)" -eq 108
-          uv run python - <<'PY' > /tmp/osworld_asset_task_ids.txt
+          uv run python - <<'PY' > /tmp/osworld_asset_dirs.txt
           import os
           from huggingface_hub import HfApi
           files = HfApi(token=os.environ['HF_TOKEN']).list_repo_files(
               repo_id='xlangai/osworld_v2_assets_gated', repo_type='dataset', revision='v2026.08.08')
           assert files, 'OFFICIAL_ASSET_REPO_EMPTY_OR_UNREADABLE'
-          ids = sorted({x.split('/')[0][5:] for x in files if x.startswith('task_') and '/' in x})
-          print('\n'.join(ids))
+          dirs = sorted({x.split('/')[0] for x in files if x.startswith('task_') and '/' in x})
+          print('\n'.join(dirs))
           PY
           for id in ${{ matrix.shard.tasks }}; do
             test -f "evaluation_examples/task_class/task_${id}.py"
-            if grep -Fxq "$id" /tmp/osworld_asset_task_ids.txt; then
-              uv run python scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 --allow-pattern "task_${id}/**" --target-dir cache/osworld_v2_assets
+            matches=$(grep -E "^task_${id}($|_)" /tmp/osworld_asset_dirs.txt || true)
+            if [ -n "$matches" ]; then
+              while IFS= read -r asset_dir; do
+                test -n "$asset_dir"
+                echo "OFFICIAL_ASSET_DIR task_${id} -> ${asset_dir}"
+                uv run python scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 --allow-pattern "${asset_dir}/**" --target-dir cache/osworld_v2_assets
+              done <<< "$matches"
             else
               echo "NO_EXTERNAL_ASSETS task_${id} verified_against_official_dataset"
             fi
@@ -124,6 +129,35 @@ jobs:
           git -C osworld diff -- scripts/python/run_multienv.py > osworld-docker-provider.patch
           test -s osworld-docker-provider.patch
           sha256sum osworld-docker-provider.patch
+      - name: Patch upstream upload parent robustness
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('osworld/desktop_env/controllers/setup.py')
+          s=p.read_text()
+          old='''            form = MultipartEncoder({
+                "file_path": path,
+                "file_data": (os.path.basename(path), open(cache_path, "rb"))
+            })
+'''
+          new='''            parent = os.path.dirname(path)
+            if parent:
+                self._execute_setup(["mkdir", "-p", parent], quiet=True, timeout=30)
+
+            form = MultipartEncoder({
+                "file_path": path,
+                "file_data": (os.path.basename(path), open(cache_path, "rb"))
+            })
+'''
+          assert old in s, 'UPSTREAM_UPLOAD_BLOCK_CHANGED'
+          p.write_text(s.replace(old,new,1))
+          print('OSWORLD_UPLOAD_PARENT_PATCH_APPLIED')
+          PY
+          git -C osworld diff -- desktop_env/controllers/setup.py > osworld-upload-parent.patch
+          test -s osworld-upload-parent.patch
+          sha256sum osworld-upload-parent.patch
       - name: Download pinned official VM
         shell: bash
         run: |
