@@ -149,6 +149,26 @@ jobs:
           git -C osworld diff -- desktop_env/controllers/setup.py > osworld-upload-parent.patch
           test -s osworld-upload-parent.patch
           sha256sum osworld-upload-parent.patch
+      - name: Patch upstream upload 500 fallback
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('osworld/desktop_env/controllers/setup.py')
+          s=p.read_text()
+          needle='''                response = requests.post(self.http_server + "/setup" + "/upload", headers=headers, data=form, timeout=600)  # 10 minute timeout for upload\n                if response.status_code == 200:\n'''
+          assert needle in s, 'UPSTREAM_UPLOAD_POST_BLOCK_CHANGED'
+          repl='''                response = requests.post(self.http_server + "/setup" + "/upload", headers=headers, data=form, timeout=600)  # 10 minute timeout for upload\n                if response.status_code == 500:\n                    import base64, hashlib\n                    logger.warning("Multipart upload returned 500; using verified chunk fallback for %s", path)\n'''
+          repl += '''                    def _vm_exec(command):\n                        r=requests.post(self.http_server + "/setup/execute", json={"command": command, "shell": False, "timeout": 120}, timeout=180)\n                        r.raise_for_status()\n                        data=r.json()\n                        if data.get("status") != "success" or data.get("returncode") != 0:\n                            raise requests.RequestException(f"VM chunk command failed: {data}")\n                        return data.get("output", "")\n                    _vm_exec(["python3", "-c", "open(__import__('sys').argv[1],'wb').close()", path])\n                    host_sha=hashlib.sha256()\n                    with open(cache_path, "rb") as src:\n                        while True:\n                            chunk=src.read(64 * 1024)\n                            if not chunk:\n                                break\n                            host_sha.update(chunk)\n                            encoded=base64.b64encode(chunk).decode("ascii")\n                            _vm_exec(["python3", "-c", "import base64,sys;open(sys.argv[1],'ab').write(base64.b64decode(sys.argv[2]))", path, encoded])\n'''
+          repl += '''                    vm_sha=_vm_exec(["sha256sum", path]).strip().split()[0]\n                    expected_sha=host_sha.hexdigest()\n                    if vm_sha != expected_sha:\n                        raise requests.RequestException(f"VM chunk upload SHA256 mismatch: expected={expected_sha} actual={vm_sha}")\n                    logger.info("Verified chunk fallback upload: %s sha256=%s", path, vm_sha)\n                    response.status_code = 200\n                if response.status_code == 200:\n'''
+          p.write_text(s.replace(needle,repl,1))
+          print('OSWORLD_UPLOAD_500_FALLBACK_PATCH_APPLIED')
+          PY
+          git -C osworld diff -- desktop_env/controllers/setup.py > osworld-upload-fallback.patch
+          test -s osworld-upload-fallback.patch
+          sha256sum osworld-upload-fallback.patch
+
       - name: Download pinned official VM
         shell: bash
         run: |
