@@ -24,21 +24,28 @@ def signature(messages):
     return out
 
 
-def audit_judgements(root,task,sha):
+def audit_judgements(root,task,sha,paid=False):
     receipts=[]
     for path in sorted((root/'judge').glob('call-*-telemetry.json')):
         event=json.loads(path.read_text())
         if event.get('task_id')!=task or event.get('candidate_sha')!=sha:raise ValueError('JUDGE_PROVENANCE_MISMATCH')
-        if event.get('mandatory_cost_usd')!=0 or event.get('paid_fallback_used') is not False:raise ValueError('JUDGE_COST_UNPROVEN')
-        for attempt in event.get('provider_attempts',[]):
-            if attempt.get('status')==200 and not attempt.get('free_plan_proven'):raise ValueError('JUDGE_ATTEMPT_COST_UNPROVEN')
+        cost=float(event.get('mandatory_cost_usd') or 0)
+        if paid:
+            if event.get('status')=='REAL_PAID_MODEL_RESPONSE' and (not 0 < cost <= float(__import__('os').environ.get('ARBM_PAID_REQUEST_MAX_USD','0.05')) or event.get('paid_fallback_used') is not True): raise ValueError('JUDGE_PAID_COST_UNPROVEN')
+            for attempt in event.get('provider_attempts',[]):
+                if attempt.get('status')==200 and not attempt.get('paid_route_proven'): raise ValueError('JUDGE_PAID_ATTEMPT_UNPROVEN')
+        else:
+            if cost!=0 or event.get('paid_fallback_used') is not False: raise ValueError('JUDGE_COST_UNPROVEN')
+            for attempt in event.get('provider_attempts',[]):
+                if attempt.get('status')==200 and not attempt.get('free_plan_proven'): raise ValueError('JUDGE_ATTEMPT_COST_UNPROVEN')
         prefix=path.name.removesuffix('-telemetry.json')
         raw=(path.parent/(prefix+'-request.json')).read_bytes()
         if hashlib.sha256(raw).hexdigest()!=event.get('request_sha256'):raise ValueError('JUDGE_REQUEST_CHANGED')
-        if event.get('status')!='REAL_FREE_MODEL_RESPONSE':continue
+        if event.get('status') not in (('REAL_PAID_MODEL_RESPONSE',) if paid else ('REAL_FREE_MODEL_RESPONSE',)):continue
         response=json.loads((path.parent/(prefix+'-response.json')).read_text())
         text=response['choices'][0]['message']['content']
-        if text!=event.get('response_text') or not zero(response.get('usage',{}).get('cost')):raise ValueError('JUDGE_RAW_RESPONSE_CHANGED_OR_COST')
+        raw_cost=float(response.get('usage',{}).get('cost') or 0)
+        if text!=event.get('response_text') or ((paid and raw_cost<=0) or (not paid and not zero(raw_cost))):raise ValueError('JUDGE_RAW_RESPONSE_CHANGED_OR_COST')
         request=json.loads(raw)
         receipts.append((signature(request['messages']),text.strip()))
     native=list((root/'official-evaluator-raw').glob('call_*.json'))
@@ -62,4 +69,4 @@ def audit_judgements(root,task,sha):
         pair=(signature(messages),record['response'].strip())
         if pair not in receipts:raise ValueError('NATIVE_JUDGE_INPUT_OR_RESPONSE_NOT_PROVEN')
     if receipts and not native:raise ValueError('NATIVE_JUDGE_RECEIPT_MISSING')
-    return {'native_calls':len(native),'free_backend_responses':len(receipts),'input_and_response_integrity':'PASS'}
+    return {'native_calls':len(native),'backend_responses':len(receipts),'spend_mode':'PAID_BOUNDED' if paid else 'HARD','input_and_response_integrity':'PASS'}

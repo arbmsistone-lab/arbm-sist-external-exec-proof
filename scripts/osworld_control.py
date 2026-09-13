@@ -8,6 +8,7 @@ import hashlib
 import io
 import json
 import math
+import os
 import re
 from collections import deque
 
@@ -299,10 +300,19 @@ def pack_payload(body):
 def validate_response(data,pipeline,build):
     if not isinstance(data,dict) or data.get('pipeline')!=pipeline or data.get('agent_build')!=build:
         raise ValueError('ENDPOINT_INCOMPATIBLE')
+    mode=os.environ.get('ARBM_VALIDATION_SPEND_MODE','zero')
+    attempts=data.get('provider_attempts') or []
+    if mode=='paid-bounded':
+        try: cost=float(data.get('mandatory_cost_usd'))
+        except (TypeError,ValueError): raise ValueError('PAID_COST_PROOF_MISSING')
+        cap=float(os.environ.get('ARBM_PAID_REQUEST_MAX_USD','0.25'))
+        if not (0 < cost <= cap) or data.get('paid_fallback_used') is not True:
+            raise ValueError('PAID_BUDGET_PROOF_INVALID')
+        if data.get('ok') and not any(a.get('model')==data.get('model') and a.get('status')==200 and a.get('paid_route_proven') is True for a in attempts):
+            raise ValueError('PROVIDER_PAID_PROOF_MISSING')
+        return
     if data.get('mandatory_cost_usd') != 0 or data.get('paid_fallback_used') is not False:
         raise ValueError('ZERO_SPEND_UNPROVEN')
-    if data.get('ok'):
-        attempts=data.get('provider_attempts') or []
-        if not any(a.get('model')==data.get('model') and a.get('status')==200 and
+    if data.get('ok') and not any(a.get('model')==data.get('model') and a.get('status')==200 and
                    (a.get('free_plan_proven') is True or a.get('zero_spend_confirmed') is True) for a in attempts):
-            raise ValueError('PROVIDER_FREE_PROOF_MISSING')
+        raise ValueError('PROVIDER_FREE_PROOF_MISSING')

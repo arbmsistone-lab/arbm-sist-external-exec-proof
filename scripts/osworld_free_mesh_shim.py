@@ -7,6 +7,7 @@ from osworld_milestones import Milestones, verified_facts
 from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response, visual_reference_recovery
 from osworld_v32_policy import DecisionKind, apply_live_policy
 from osworld_openrouter_free import FREE_ROUTE
+from osworld_openrouter_paid import PAID_ROUTE
 from osworld_groq_free import GROQ_FREE_ROUTE
 from osworld_local_vlm import LOCAL_VLM_ROUTE
 from osworld_recovery import recovery_policy, rejects_visual_navigation_loop, semantic_terminal
@@ -144,6 +145,14 @@ def request_mesh(body):
                 'agent_build':EXPECTED_BUILD,**result,'provider_attempts':router_attempts,
                 'mandatory_cost_usd':0,'paid_fallback_used':False,'scoreable':False,
                 'github_sha':os.environ.get('GITHUB_SHA'),'github_run_id':os.environ.get('GITHUB_RUN_ID')}
+    def paid_router():
+        result, attempts=PAID_ROUTE.call(body,budget=max(2,min(55,105-(time.monotonic()-started))))
+        router_attempts.extend(attempts)
+        if result:
+            return 200,{'ok':True,'status':'PASS','pipeline':EXPECTED_PIPELINE,
+                'agent_build':EXPECTED_BUILD,**result,'provider_attempts':router_attempts,
+                'scoreable':False,'github_sha':os.environ.get('GITHUB_SHA'),
+                'github_run_id':os.environ.get('GITHUB_RUN_ID')}
     def local_router():
         result, attempts=LOCAL_VLM_ROUTE.call(body,budget=max(2,min(80,105-(time.monotonic()-started))))
         router_attempts.extend(attempts)
@@ -152,6 +161,11 @@ def request_mesh(body):
                 'agent_build':EXPECTED_BUILD,**result,'provider_attempts':router_attempts,
                 'mandatory_cost_usd':0,'paid_fallback_used':False,'scoreable':False,
                 'github_sha':os.environ.get('GITHUB_SHA'),'github_run_id':os.environ.get('GITHUB_RUN_ID')}
+    if os.environ.get('ARBM_VALIDATION_SPEND_MODE') == 'paid-bounded':
+        response=paid_router()
+        if response: return response
+        return 503,{'status':'PAID_ROUTE_UNAVAILABLE','provider_attempts':router_attempts,
+                    'mandatory_cost_usd':0,'paid_fallback_used':False}
     # Once capacity exhaustion has been observed for this task, retry the
     # quota-independent route directly.  Do not spend the remaining action
     # deadline probing remote providers known to be unavailable.
