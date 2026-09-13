@@ -13,7 +13,7 @@ const GROQ_MODELS = ["qwen/qwen3.8-27b", "qwen/qwen3.6-27b"];
 const GROQ_TEXT_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"];
 // Run38 and gate39 show small fallback models repeatedly abandon unmet source subtasks.
 // Exhausted quality-qualified routes return capacity failure, never a weaker unqualified action.
-const MISTRAL_MODELS = ["mistral-small-latest"];
+const MISTRAL_MODELS = ["mistral-small-latest", "mistral-medium-latest", "ministral-14b-latest"];
 const COOLDOWN = new Map<string, number>();
 
 const respond = (x: unknown, status = 200) => new Response(JSON.stringify(x), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });

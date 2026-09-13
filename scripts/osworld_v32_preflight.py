@@ -34,13 +34,18 @@ def main(root):
         validate_response(mistral_data,shim.EXPECTED_PIPELINE,shim.EXPECTED_BUILD)
         if mistral_data.get('provider')!='mistral-free': raise RuntimeError('INDEPENDENT_MISTRAL_ROUTE_MISMATCH')
         mistral_proof['status']='LIVE_FREE_PROBE_PASS'
+    failover_http,failover_data=shim.request_mesh(mistral_body)
+    failover_proof={'http':failover_http,'data':failover_data,
+        'purpose':'real independent FREE route failover admission; not benchmark evidence'}
+    if failover_http==200: validate_response(failover_data,shim.EXPECTED_PIPELINE,shim.EXPECTED_BUILD)
     attempts=[]
     for attempt in range(3):
         http, data = shim.request_mesh(body)
         attempts.append({'http':http,'data':data,'payload':metrics})
         Path('osworld-v32-live-preflight.json').write_text(json.dumps({'screenshot_source_run':34733419571,
             'purpose':'provider admission only; not a benchmark result','candidate_sha':os.environ['GITHUB_SHA'],
-            'oidc':'PASS','third_provider':third_proof,'mistral_provider':mistral_proof,'attempts':attempts},indent=2))
+            'oidc':'PASS','third_provider':third_proof,'mistral_provider':mistral_proof,
+            'free_failover':failover_proof,'attempts':attempts},indent=2))
         if http == 200:
             validate_response(data,shim.EXPECTED_PIPELINE,shim.EXPECTED_BUILD)
             if data.get('github_sha') != os.environ['GITHUB_SHA']: raise RuntimeError('OIDC_SHA_MISMATCH')
