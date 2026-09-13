@@ -61,7 +61,10 @@ def aggregate(root, sha, focal=False):
     expected = ['061'] if focal else [task for group in SHARDS.values() for task in group]
     dirs = list(root.rglob('task-id.txt'))
     actual = [path.read_text().strip() for path in dirs]
-    if sorted(actual) != sorted(expected): raise ValueError('OFFICIAL_TASK_SET:' + json.dumps(actual))
+    if sorted(actual) != sorted(expected):
+        Path('osworld-v32-official18-summary.json').write_text(json.dumps({'status':'NOT PROVEN',
+            'candidate_sha':sha,'expected_tasks':expected,'found_tasks':actual,'failure':'OFFICIAL_TASK_SET'},indent=2))
+        raise ValueError('OFFICIAL_TASK_SET:' + json.dumps(actual))
     rows = []
     for path in sorted(dirs): rows.append(audit_task(path.parent, path.read_text().strip(), sha))
     passed = sum(row['pass'] for row in rows)

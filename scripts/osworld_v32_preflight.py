@@ -15,7 +15,7 @@ def main(root):
         raise RuntimeError('LIVE_OIDC_REJECTED:' + json.dumps({'http':http,'data':data}))
     pngs = sorted(root.glob('**/task-001/results/**/tasks/001/*.png'))
     if not pngs: raise RuntimeError('REAL_RECORDED_SCREENSHOT_REQUIRED')
-    body, metrics = pack_payload({'instruction':'Identify the visible foreground and choose one safe GUI action to inspect it.',
+    body, metrics = pack_payload({'instruction':"Dismiss any open notification or menu with pyautogui.press('esc'). Do not open files. This is provider admission only.",
         'observation':'', 'screenshot_data_url':'data:image/png;base64,' + base64.b64encode(pngs[0].read_bytes()).decode(),
         'expected_build':shim.EXPECTED_BUILD, 'phase':'execute','step':1,'memory':'', 'verified_milestones':[]})
     attempts=[]
@@ -29,6 +29,10 @@ def main(root):
             validate_response(data,shim.EXPECTED_PIPELINE,shim.EXPECTED_BUILD)
             if data.get('github_sha') != os.environ['GITHUB_SHA']: raise RuntimeError('OIDC_SHA_MISMATCH')
             print('LIVE_OIDC_AND_FREE_PROVIDER_PASS'); return
+        if http == 409 and data.get('status') == 'REPLAN_REQUIRED':
+            validate_response(data,shim.EXPECTED_PIPELINE,shim.EXPECTED_BUILD)
+            body['memory']='Independent review requires replanning: ' + str(data.get('review_reason'))
+            continue
         if http not in (429,503): break
         time.sleep(25)
     raise RuntimeError('LIVE_FREE_CAPACITY_NOT_PROVEN:' + json.dumps(attempts))
