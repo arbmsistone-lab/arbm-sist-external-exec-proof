@@ -6,6 +6,7 @@ from pathlib import Path
 import time
 from osworld_control import pack_payload, validate_response
 import osworld_free_mesh_shim as shim
+from osworld_openrouter_free import FreeRoute
 
 
 def main(root):
@@ -46,7 +47,8 @@ def main(root):
     judge_messages=[{'role':'system','content':'You are a strict binary classifier. Output MUST be exactly one token: YES or NO. No punctuation, no extra words, no explanations.'},
         {'role':'user','content':[{'type':'text','text':'Does this image show a full-screen photograph of a football field with football players? Answer only YES or NO.'},
             {'type':'image_url','image_url':{'url':body['screenshot_data_url'],'detail':'high'}}]}]
-    judge_result,judge_attempts=shim.FREE_ROUTE.call({},budget=100,raw_messages=judge_messages,raw_tokens=10)
+    judge_route=FreeRoute()
+    judge_result,judge_attempts=judge_route.call({},budget=100,raw_messages=judge_messages,raw_tokens=10)
     judge_proof={'purpose':'negative binary model-client admission using real recorded desktop; not a benchmark score',
         'result':judge_result,'attempts':judge_attempts,'status':'UNAVAILABLE'}
     if judge_result and judge_result['text'].strip()=='NO':judge_proof['status']='LIVE_FREE_NEGATIVE_BINARY_PASS'
