@@ -10,6 +10,11 @@ from osworld_openrouter_free import FreeRoute
 from osworld_local_vlm import LOCAL_VLM_ROUTE
 
 
+def binary_token(text):
+    value=str(text or '').strip().strip(' .!?').upper()
+    return value if value in ('YES','NO') else ''
+
+
 def main(root):
     if os.environ.get('ZERO_SPEND_MODE') != 'HARD': raise RuntimeError('HARD_MODE_REQUIRED')
     http, data = shim.request_mesh({})
@@ -60,7 +65,7 @@ def main(root):
         judge_attempts.extend(local_attempts)
     judge_proof={'purpose':'negative binary model-client admission using real recorded desktop; not a benchmark score',
         'result':judge_result,'attempts':judge_attempts,'status':'UNAVAILABLE'}
-    if judge_result and judge_result['text'].strip()=='NO':judge_proof['status']='LIVE_FREE_NEGATIVE_BINARY_PASS'
+    if judge_result and binary_token(judge_result.get('text'))=='NO':judge_proof['status']='LIVE_FREE_NEGATIVE_BINARY_PASS'
     Path('osworld-v32-judge-admission.json').write_text(json.dumps(judge_proof,indent=2))
     if judge_proof['status']!='LIVE_FREE_NEGATIVE_BINARY_PASS':raise RuntimeError('FREE_JUDGE_BINARY_ADMISSION_FAILED')
     attempts=[]
