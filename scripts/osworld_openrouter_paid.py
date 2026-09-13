@@ -11,7 +11,7 @@ from osworld_openrouter_free import prompt
 
 BASE = 'https://openrouter.ai/api/v1'
 ROUTE = 'openrouter-multimodal-paid'
-DEFAULT_MODEL = 'google/gemini-3.8-flash'
+DEFAULT_MODEL = 'google/gemini-2.5-flash'
 ALLOWED_MODELS = {DEFAULT_MODEL}
 ABSOLUTE_CLOSURE_CAP_USD = 8.50
 

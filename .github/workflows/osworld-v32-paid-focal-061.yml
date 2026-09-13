@@ -28,7 +28,7 @@ jobs:
     env:
       ZERO_SPEND_MODE: PAID_BOUNDED
       ARBM_VALIDATION_SPEND_MODE: paid-bounded
-      ARBM_PAID_MODEL: google/gemini-3.8-flash
+      ARBM_PAID_MODEL: google/gemini-2.5-flash
       ARBM_PAID_TOTAL_BUDGET_USD: '0.05'
       ARBM_PAID_REQUEST_MAX_USD: '0.05'
       ARBM_PAID_ABSOLUTE_CLOSURE_CAP_USD: '8.50'
@@ -82,7 +82,7 @@ jobs:
       GROQ_API_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
       ZERO_SPEND_MODE: PAID_BOUNDED
       ARBM_VALIDATION_SPEND_MODE: paid-bounded
-      ARBM_PAID_MODEL: google/gemini-3.8-flash
+      ARBM_PAID_MODEL: google/gemini-2.5-flash
       ARBM_PAID_TOTAL_BUDGET_USD: '0.35'
       ARBM_PAID_REQUEST_MAX_USD: '0.05'
       ARBM_PAID_ABSOLUTE_CLOSURE_CAP_USD: '8.50'
@@ -91,7 +91,7 @@ jobs:
       OPENAI_BASE_URL: http://127.0.0.1:8088/v1
       OPENAI_API_KEY: zero-spend-oidc-shim
       OSWORLD_EVAL_MODEL_PROVIDER: openai_compatible
-      OSWORLD_EVAL_MODEL_NAME: google/gemini-3.8-flash
+      OSWORLD_EVAL_MODEL_NAME: google/gemini-2.5-flash
       OSWORLD_EVAL_MODEL_BASE_URL: http://127.0.0.1:8089/v1
       OSWORLD_EVAL_MODEL_API_KEY_ENV: OPENAI_API_KEY
       OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
