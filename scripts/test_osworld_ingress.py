@@ -23,4 +23,13 @@ class IngressTests(unittest.TestCase):
         raw=b'{"messages":[{"role":"user","content":"x"}]}'
         with self.assertRaises(ValueError):project_messages(io.BytesIO(raw),len(raw)+10)
 
+    def test_official_osworld_system_text_parts_are_normalized(self):
+        payload={'messages':[{'role':'system','content':[{'type':'text','text':'policy\nYou are asked to complete the following task: demo'}]},{'role':'user','content':[{'type':'text','text':'obs'}]}]}
+        raw=json.dumps(payload).encode();messages,_=project_messages(io.BytesIO(raw),len(raw))
+        self.assertIsInstance(messages[0]['content'],str);self.assertIn('following task: demo',messages[0]['content'])
+    def test_system_multimodal_content_is_rejected(self):
+        payload={'messages':[{'role':'system','content':[{'type':'image_url','image_url':{'url':'data:image/png;base64,AA'}}]},{'role':'user','content':'obs'}]}
+        raw=json.dumps(payload).encode()
+        with self.assertRaisesRegex(ValueError,'INVALID_SYSTEM_MESSAGE'):project_messages(io.BytesIO(raw),len(raw))
+
 if __name__=='__main__':unittest.main()
