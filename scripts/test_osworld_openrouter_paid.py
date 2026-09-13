@@ -57,3 +57,12 @@ class PaidRouteTests(unittest.TestCase):
 
 if __name__=='__main__':
     unittest.main()
+
+    def test_absolute_closure_cap_cannot_be_raised(self):
+        import os
+        from unittest.mock import patch
+        route=PaidRoute(transport=lambda *a,**k:(503,{},{}))
+        with patch.dict(os.environ, {'ARBM_VALIDATION_SPEND_MODE':'paid-bounded','OPENROUTER_API_KEY':'x','ARBM_PAID_TOTAL_BUDGET_USD':'999','ARBM_PAID_REQUEST_MAX_USD':'9'}, clear=False):
+            result,attempts=route.call({'screenshot_data_url':'data:image/png;base64,AA=='})
+        self.assertIsNone(result)
+        self.assertEqual(attempts[-1]['total_cap_usd'],8.5)

@@ -31,6 +31,7 @@ jobs:
       ARBM_PAID_MODEL: google/gemini-3.8-flash
       ARBM_PAID_TOTAL_BUDGET_USD: '0.05'
       ARBM_PAID_REQUEST_MAX_USD: '0.05'
+      ARBM_PAID_ABSOLUTE_CLOSURE_CAP_USD: '8.50'
       ARBM_PAID_LEDGER: ${{ github.workspace }}/paid-budget-preflight.txt
       ARBM_ENABLE_LOCAL_VLM: '1'
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -84,6 +85,7 @@ jobs:
       ARBM_PAID_MODEL: google/gemini-3.8-flash
       ARBM_PAID_TOTAL_BUDGET_USD: '0.35'
       ARBM_PAID_REQUEST_MAX_USD: '0.05'
+      ARBM_PAID_ABSOLUTE_CLOSURE_CAP_USD: '8.50'
       ARBM_PAID_LEDGER: ${{ github.workspace }}/paid-budget-shard.txt
       ARBM_ENABLE_LOCAL_VLM: '1'
       OPENAI_BASE_URL: http://127.0.0.1:8088/v1

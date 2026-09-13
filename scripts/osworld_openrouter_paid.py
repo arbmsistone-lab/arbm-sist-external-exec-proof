@@ -13,6 +13,7 @@ BASE = 'https://openrouter.ai/api/v1'
 ROUTE = 'openrouter-multimodal-paid'
 DEFAULT_MODEL = 'google/gemini-3.8-flash'
 ALLOWED_MODELS = {DEFAULT_MODEL}
+ABSOLUTE_CLOSURE_CAP_USD = 8.50
 
 
 def _money(value):
@@ -73,7 +74,7 @@ class PaidRoute:
         mode = os.environ.get('ARBM_VALIDATION_SPEND_MODE', 'zero')
         key = key if key is not None else os.environ.get('OPENROUTER_API_KEY', '')
         model = os.environ.get('ARBM_PAID_MODEL', DEFAULT_MODEL)
-        total_cap = _money(os.environ.get('ARBM_PAID_TOTAL_BUDGET_USD', '10'))
+        total_cap = min(_money(os.environ.get('ARBM_PAID_TOTAL_BUDGET_USD', '10')), ABSOLUTE_CLOSURE_CAP_USD)
         ledger = os.environ.get('ARBM_PAID_LEDGER', '')
         shared_spent = _ledger_spent(ledger)
         request_cap = _money(os.environ.get('ARBM_PAID_REQUEST_MAX_USD', '0.25'))
