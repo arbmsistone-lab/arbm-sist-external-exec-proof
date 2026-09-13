@@ -2,10 +2,12 @@ import sys,unittest,tempfile,pathlib,importlib.util,copy,json
 from unittest.mock import patch
 sys.path.insert(0,str(pathlib.Path(__file__).parent))
 import osworld_free_mesh_shim as shim
+REAL_REQUEST_MESH=shim.request_mesh
 from osworld_control import Verifier
 
 class MeshTests(unittest.TestCase):
  def setUp(self):
+  shim.request_mesh=REAL_REQUEST_MESH
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
   shim.LOG=str(pathlib.Path(self.tmp.name)/'log.jsonl');shim.OBS_DIR=pathlib.Path(self.tmp.name)/'obs'
   shim.STATE={'step':0,'previous':'','executed':0,'phase':'plan','plan':'','memory':[],'history':[],'wait_responses':0,'cooldowns':{},'terminal':'','provider':'','model':''}
@@ -38,6 +40,18 @@ class MeshTests(unittest.TestCase):
  def test_quota_cooldown_persists(self):
   shim.track_attempts({'provider_attempts':[{'route':'r','model':'m','status':413}]})
   self.assertGreater(shim.STATE['cooldowns']['r:m'],shim.time.time()*1000+3_000_000)
+ def test_transient_remote_capacity_falls_back_to_local_action_vlm(self):
+  body={'instruction':'edit the image','observation':'GIMP canvas','screenshot_data_url':'data:image/png;base64,AA=='}
+  remote={'status':'NO_ZERO_SPEND_MULTIMODAL_CAPACITY','provider_attempts':[]}
+  local_result={'provider':'local-cloud-vlm','model':'local-test','action':{'action':'exec','command':"pyautogui.press('enter')"}}
+  with patch.object(shim.GROQ_FREE_ROUTE,'call',return_value=(None,[{'route':'groq','model':'m','status':429}])),        patch.object(shim,'request_gateway',return_value=(503,remote)),        patch.object(shim.FREE_ROUTE,'call',return_value=(None,[{'route':'openrouter','model':'m','status':429}])),        patch.object(shim.LOCAL_VLM_ROUTE,'call',return_value=(local_result,[{'route':'local-cloud-vlm','model':'local-test','status':200,'zero_spend_confirmed':True}])):
+   http,data=shim.request_mesh(body)
+  self.assertEqual(http,200)
+  self.assertEqual(data['provider'],'local-cloud-vlm')
+  self.assertEqual(data['mandatory_cost_usd'],0)
+  self.assertFalse(data['paid_fallback_used'])
+  self.assertEqual(data['action']['command'],"pyautogui.press('enter')")
+
  def test_provider_wait_does_not_masquerade_as_cognitive_failure(self):
   shim.request_mesh=lambda b:(503,self.response(ok=False,status='NO_ZERO_SPEND_MULTIMODAL_CAPACITY'))
   results=[shim.call_mesh(self.msgs) for _ in range(15)]
