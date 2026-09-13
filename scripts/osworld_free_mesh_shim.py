@@ -106,7 +106,7 @@ def request_gateway(body):
     raw=json.dumps(body,ensure_ascii=False).encode()
     req=urllib.request.Request(UPSTREAM,data=raw,method='POST',headers={'Authorization':'Bearer '+oidc_token(),'Content-Type':'application/json'})
     try:
-        with urllib.request.urlopen(req,timeout=165) as res:return res.status,json.loads(res.read())
+        with urllib.request.urlopen(req,timeout=75) as res:return res.status,json.loads(res.read())
     except urllib.error.HTTPError as err:
         try:data=json.loads(err.read())
         except Exception:data={'status':'INVALID_UPSTREAM_RESPONSE'}
@@ -118,9 +118,11 @@ def request_gateway(body):
 def request_mesh(body):
     # Admission/authentication checks without an observation always reach OIDC.
     if not body.get('screenshot_data_url'): return request_gateway(body)
+    started=time.monotonic()
+    body={**body,'request_budget_ms':60000}
     router_attempts=[]
     def router():
-        result, attempts=FREE_ROUTE.call(body)
+        result, attempts=FREE_ROUTE.call(body,budget=max(2,min(55,105-(time.monotonic()-started))))
         router_attempts.extend(attempts)
         if result:
             return 200,{'ok':True,'status':'PASS','pipeline':EXPECTED_PIPELINE,

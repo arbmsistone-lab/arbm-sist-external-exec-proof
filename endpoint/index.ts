@@ -208,7 +208,7 @@ Deno.serve(async (req: Request) => {
     if(new TextEncoder().encode(JSON.stringify(body)).length>420000)return respond({ok:false,status:"PAYLOAD_GATE",pipeline:PIPELINE,agent_build:BUILD,mandatory_cost_usd:0,paid_fallback_used:false},413);
     const image = String(body?.screenshot_data_url || "");
     if (!image) return respond({ ok: false, status: "MULTIMODAL_IMAGE_REQUIRED", pipeline: PIPELINE, agent_build: BUILD, mandatory_cost_usd: 0, paid_fallback_used: false }, 400);
-    body.request_deadline=Date.now()+125000;
+    body.request_deadline=Date.now()+Math.min(95000,Math.max(1000,Number(body.request_budget_ms)||95000));
     const p = prompt(body), hint = String(body?.provider_hint || "");
     const attempts: any[] = [];
     let result: any = null;

@@ -22,13 +22,25 @@ def main(root):
     third_proof={'status':'LIVE_FREE_PROBE_PASS' if third_result else 'UNAVAILABLE',
                  'purpose':'provider admission only; no benchmark action executed',
                  'result':third_result,'attempts':third_attempts}
+    mistral_body={**body,'provider_hint':'mistral','request_budget_ms':60000,
+        'route_cooldowns':{route+':'+model:int((time.time()+120)*1000)
+            for route,models in [('groq-multimodal-free',['qwen/qwen3.8-27b','qwen/qwen3.6-27b']),
+                                 ('groq-accessibility-free',['openai/gpt-oss-120b','openai/gpt-oss-20b'])]
+            for model in models}}
+    mistral_http,mistral_data=shim.request_gateway(mistral_body)
+    mistral_proof={'http':mistral_http,'data':mistral_data,
+        'status':'UNAVAILABLE','purpose':'independent Mistral admission; not benchmark evidence'}
+    if mistral_http==200:
+        validate_response(mistral_data,shim.EXPECTED_PIPELINE,shim.EXPECTED_BUILD)
+        if mistral_data.get('provider')!='mistral-free': raise RuntimeError('INDEPENDENT_MISTRAL_ROUTE_MISMATCH')
+        mistral_proof['status']='LIVE_FREE_PROBE_PASS'
     attempts=[]
     for attempt in range(3):
         http, data = shim.request_mesh(body)
         attempts.append({'http':http,'data':data,'payload':metrics})
         Path('osworld-v32-live-preflight.json').write_text(json.dumps({'screenshot_source_run':34733419571,
             'purpose':'provider admission only; not a benchmark result','candidate_sha':os.environ['GITHUB_SHA'],
-            'oidc':'PASS','third_provider':third_proof,'attempts':attempts},indent=2))
+            'oidc':'PASS','third_provider':third_proof,'mistral_provider':mistral_proof,'attempts':attempts},indent=2))
         if http == 200:
             validate_response(data,shim.EXPECTED_PIPELINE,shim.EXPECTED_BUILD)
             if data.get('github_sha') != os.environ['GITHUB_SHA']: raise RuntimeError('OIDC_SHA_MISMATCH')
