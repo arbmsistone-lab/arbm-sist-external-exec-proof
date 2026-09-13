@@ -14,21 +14,33 @@ MODEL = os.environ.get('ARBM_LOCAL_VLM_MODEL', 'HuggingFaceTB/SmolVLM-256M-Instr
 
 
 def parse_action_object(output):
-    """Accept one JSON action object, optionally in a JSON-only code fence."""
+    """Compile a model action without expanding the GUI command allowlist.
+
+    Vision models frequently wrap an otherwise valid action in prose or return
+    the direct ``pyautogui`` call in a Python fence.  The representation is
+    deliberately permissive here; ``canonical_action`` remains the sole
+    security boundary for the executable command.
+    """
     raw=str(output).strip()
-    fenced=re.fullmatch(r'```(?:json)?[ \t]*\r?\n(?P<object>\{.*\})[ \t]*\r?\n?```',raw,
-                        flags=re.DOTALL|re.IGNORECASE)
-    if fenced:
-        raw=fenced.group('object').strip()
-    elif raw.startswith('```'):
-        raise ValueError('LOCAL_ACTION_JSON_FENCE_REQUIRED')
-    try:
-        value=json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise ValueError('LOCAL_ACTION_JSON_REQUIRED') from exc
-    if not isinstance(value,dict):
-        raise ValueError('LOCAL_ACTION_OBJECT_REQUIRED')
-    return canonical_action(value)
+    decoder=json.JSONDecoder()
+    # Use raw_decode so a valid action embedded in an explanatory response is
+    # accepted, while canonical_action still rejects malformed/unsafe fields.
+    for match in re.finditer(r'\{',raw):
+        try:
+            value,_=decoder.raw_decode(raw[match.start():])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value,dict):
+            return canonical_action(value)
+    # A direct GUI program is safe only after the same AST/literal validation
+    # applied to JSON actions.  Prefer the last fenced Python block; models
+    # commonly place their explanation before it.
+    blocks=re.findall(r'```(?:python|py)?[ \t]*\r?\n(.*?)(?:\r?\n)?```',raw,
+                      flags=re.DOTALL|re.IGNORECASE)
+    command=(blocks[-1] if blocks else raw).strip()
+    if re.match(r'(?:import\s+pyautogui\s*\n)?\s*pyautogui\.',command):
+        return canonical_action({'action':'exec','command':command})
+    raise ValueError('LOCAL_ACTION_REQUIRED')
 
 
 def _parts(messages):

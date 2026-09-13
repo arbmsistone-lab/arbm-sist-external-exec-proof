@@ -27,17 +27,22 @@ class LocalVLMTests(unittest.TestCase):
             result,attempts=LocalVLMRoute(lambda *x: (_ for _ in ()).throw(Exception())).call(BODY)
         self.assertIsNone(result);self.assertEqual(attempts[-1]['status'],'disabled')
 
-    def test_action_output_has_a_strict_json_boundary(self):
+    def test_action_output_accepts_safe_model_wrappers(self):
         valid='{"action":"exec","command":"pyautogui.press(\'enter\')"}'
-        for output in (valid,'```json\n'+valid+'\n```'):
+        for output in (
+            valid,
+            '```json\n'+valid+'\n```',
+            'I will dismiss the dialog.\n'+valid+'\nThis is the visible action.',
+            "```python\nimport pyautogui\npyautogui.press('enter')\n```",
+            "pyautogui.press('enter')",
+        ):
             with self.subTest(output=output):
                 result,attempts=LocalVLMRoute(lambda *args:output).call(BODY)
                 self.assertEqual(result['action']['command'],"pyautogui.press('enter')")
                 self.assertEqual(attempts[-1]['status'],200)
         for output,error in (
-            ("```python\npyautogui.press('enter')\n```",'LOCAL_ACTION_JSON_FENCE_REQUIRED'),
-            ('The action is '+valid,'LOCAL_ACTION_JSON_REQUIRED'),
-            ('{"action":"exec","command":','LOCAL_ACTION_JSON_REQUIRED'),
+            ("```python\n__import__('os').system('id')\n```",'LOCAL_ACTION_REQUIRED'),
+            ('{"action":"exec","command":','LOCAL_ACTION_REQUIRED'),
         ):
             with self.subTest(output=output):
                 result,attempts=LocalVLMRoute(lambda *args:output).call(BODY)

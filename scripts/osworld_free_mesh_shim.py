@@ -152,6 +152,15 @@ def request_mesh(body):
                 'agent_build':EXPECTED_BUILD,**result,'provider_attempts':router_attempts,
                 'mandatory_cost_usd':0,'paid_fallback_used':False,'scoreable':False,
                 'github_sha':os.environ.get('GITHUB_SHA'),'github_run_id':os.environ.get('GITHUB_RUN_ID')}
+    # Once capacity exhaustion has been observed for this task, retry the
+    # quota-independent route directly.  Do not spend the remaining action
+    # deadline probing remote providers known to be unavailable.
+    if body.get('provider_hint') == 'local-only':
+        response=local_router()
+        if response:
+            return response
+        return 503,{'status':'LOCAL_ONLY_UNAVAILABLE','provider_attempts':router_attempts,
+                    'mandatory_cost_usd':0,'paid_fallback_used':False}
     response=groq_router()
     if response: return response
     if body.get('provider_hint')=='openrouter':
@@ -223,6 +232,12 @@ def call_mesh(messages):
             try:validate_response(data,EXPECTED_PIPELINE,EXPECTED_BUILD)
             except ValueError as exc:return terminal(str(exc))
         if http in (401,403):return terminal('ENDPOINT_AUTH_OR_VERSION')
+        if (data.get('status') in LOCAL_FALLBACK_CAPACITY_STATUSES and
+                os.environ.get('ARBM_ENABLE_LOCAL_VLM') == '1'):
+            # The current request already tried the safe local route.  If it
+            # was unavailable too, keep subsequent retries local-only.
+            body['provider_hint']='local-only'
+            continue
         if http==409:
             if data.get('status')!='REPLAN_REQUIRED':return terminal('ENDPOINT_CONFLICT')
             reason=str(data.get('review_reason') or 'independent reviewer requested replanning')
