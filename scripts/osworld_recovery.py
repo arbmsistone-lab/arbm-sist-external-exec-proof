@@ -38,7 +38,7 @@ def recovery_policy(instruction, active_application, stalled, verifier_no_progre
         if visual:
             result['strategy'] = (
                 'Visual task has no verified semantic milestone. Keep screenshot reasoning. '
-                'Re-observe the foreground, verify the exact reference/target image or visible '
+                'Re-observe the foreground, use only task-visible paths (never /home/oai/share unless the task says so), use Ctrl+L in a GTK file chooser before typing a path, and verify the exact reference/target image or visible '
                 'control before acting, and do not claim a tab/file switch unless the next '
                 'foreground observation proves it. Advance toward the requested edit and export.'
             )
@@ -55,7 +55,8 @@ def recovery_policy(instruction, active_application, stalled, verifier_no_progre
             'Use only a visible, reversible control; re-request screenshot reasoning when it becomes available.'
         )
     elif int(stalled) >= 8:
-        result['provider_hint'] = 'openrouter' if visual else 'text'
+        # Keep visual recovery provider-neutral so every healthy FREE multimodal route stays eligible.
+        result['provider_hint'] = None if visual else 'text'
     elif int(recovery_level) >= 4:
-        result['provider_hint'] = 'groq' if current_provider == 'mistral-free' else 'mistral'
+        result['provider_hint'] = None if visual else ('groq' if current_provider == 'mistral-free' else 'mistral')
     return result

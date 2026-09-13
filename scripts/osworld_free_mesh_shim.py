@@ -232,7 +232,7 @@ def call_mesh(messages):
                 command=action['command']
                 if rejects_visual_navigation_loop(action, body['instruction'], body.get('active_application','unknown'), MILESTONES.stalled):
                     body['memory']=(body['memory']+'\nVISUAL_NAVIGATION_LOOP_REJECTED: Ctrl+O was already used without a verified visual milestone. Use the visible dialog deliberately or make a target-image edit instead. Do not repeat it.')[-4500:]
-                    body['provider_hint']='openrouter'
+                    body.pop('provider_hint',None)
                     log_event({'status':'VISUAL_NAVIGATION_LOOP_REJECTED','command':command})
                     continue
                 recent=[x['command'] for x in STATE['history'][-6:]]

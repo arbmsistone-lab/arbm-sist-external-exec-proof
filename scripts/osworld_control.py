@@ -31,10 +31,11 @@ def visual_reference_recovery(instruction, active_application, stalled_actions):
     reference_task = (any(term in request for term in ('same style', 'same edits', 'mimic', 'color grading'))
                       and any(term in request for term in ('image', '.jpg', '.png', 'photo')))
     image_editor = any(term in app for term in ('gimp', 'darktable', 'image manipulation'))
-    if reference_task and image_editor and int(stalled_actions or 0) >= 4:
+    editor_context = image_editor or any(term in request for term in ('gimp', 'darktable'))
+    if reference_task and editor_context and int(stalled_actions or 0) >= 4:
         return (
             'VISUAL-REFERENCE RECOVERY: file dialogs, tab changes, and opening a reference are preparatory, '
-            'not completion. Stop repeating file-navigation actions. Use the current visible dialog to open or '
+            'not completion. Stop repeating file-navigation actions. Use only paths stated by the task; never substitute host paths such as /home/oai/share. In a GTK file chooser use Ctrl+L before typing a task path such as ~/Pictures/name.jpg. Use the current visible dialog to open or '
             'close it deliberately, bring the target image canvas forward, compare it with the reference, then '
             'perform one visible editor adjustment (for example a Colors control). Set a checkpoint that proves '
             'the target canvas or adjustment dialog is visible before exporting. Do not claim success until the '
