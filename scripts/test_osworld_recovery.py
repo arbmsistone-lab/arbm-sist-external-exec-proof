@@ -6,7 +6,7 @@ class RecoveryPolicyTests(unittest.TestCase):
     def test_visual_task_never_forces_text_route_on_semantic_stall(self):
         p = recovery_policy('Edit IMG_7318_original.jpg in GIMP', 'GNU Image Manipulation Program', 8, 0, 0, '')
         self.assertTrue(p['visual_task'])
-        self.assertEqual(p['provider_hint'], 'openrouter')
+        self.assertIsNone(p['provider_hint'])
         self.assertIn('Keep screenshot reasoning', p['strategy'])
 
     def test_visual_capacity_outage_uses_accessibility_fallback(self):

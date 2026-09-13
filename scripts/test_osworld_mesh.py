@@ -113,6 +113,7 @@ class MeshTests(unittest.TestCase):
   shim.request_mesh=mesh
   self.assertIn('pyautogui.click(344, 64)',shim.call_mesh(self.msgs))
   self.assertEqual(len(bodies),2)
-  self.assertIn('Visual task has no verified semantic milestone',bodies[0]['recovery_strategy'])
-  self.assertEqual(bodies[1]['provider_hint'],'openrouter')
+  self.assertIn('VISUAL-REFERENCE RECOVERY',bodies[0]['recovery_strategy'])
+  self.assertIn('Ctrl+L',bodies[0]['recovery_strategy'])
+  self.assertIsNone(bodies[1].get('provider_hint'))
 if __name__=='__main__':unittest.main()
