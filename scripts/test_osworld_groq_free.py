@@ -43,5 +43,13 @@ class GroqFreeTests(unittest.TestCase):
         self.assertIsNone(result)
         self.assertFalse(any(x['zero_spend_confirmed'] for x in attempts))
 
+    def test_model_scoped_403_fails_over_to_next_free_model(self):
+        self.replies=[(403,{},{}), self.answer()]
+        result,attempts=self.route.call(BODY,'key')
+        self.assertIsNotNone(result)
+        self.assertEqual(result['model'],MODELS[1])
+        self.assertEqual(attempts[0]['status'],403)
+        self.assertEqual(self.route.until,0)
+
 
 if __name__=='__main__':unittest.main()

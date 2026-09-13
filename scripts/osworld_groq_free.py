@@ -83,9 +83,12 @@ class GroqFreeRoute:
                 result = {'provider':'groq-free','model':model,'raw_response':data}
                 result.update({'text':text} if raw_messages is not None else {'action':action})
                 return result, attempts
-            if status in (401, 403):
+            if status == 401:
                 self.until = self.clock() + 300
                 break
+            if status == 403:
+                # Model/policy scoped denial: try the next FREE model.
+                continue
             if status == 429:
                 self.until = self.clock() + max(30, float(headers.get('retry-after', 60) or 60))
         return None, attempts
