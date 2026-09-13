@@ -82,4 +82,26 @@ class MeshTests(unittest.TestCase):
   with patch.object(shim,'STARTED',shim.time.monotonic()-shim.MAX_TASK_SECONDS):
    self.assertEqual(shim.call_mesh(self.msgs),'FAIL')
   self.assertEqual(shim.STATE['terminal'],'TASK_DEADLINE')
+ def test_task061_artifact_replay_rejects_repeated_open_before_vm_action(self):
+  # Minimal foreground evidence taken from focal run 34758386722, step 16:
+  # GIMP was active, the target was selected, and Ctrl+O had already been used.
+  task=('Apply the same style and color grading from reference.jpg to target.jpg in GIMP. '
+        'Save target_edited.jpg in Pictures.')
+  observation=('menu\tGNU Image Manipulation Program\t""\t\t\t(99, 0)\t(287, 27)\n'
+               'menu\tColors\tColors\t\t\t(344, 64)\t(56, 25)\n'
+               'table-cell\ttarget.jpg\ttarget.jpg\t\t\t(1846, 555)\t(136, 38)')
+  self.msgs=[{'role':'system','content':'You are asked to complete the following task: '+task},
+             {'role':'user','content':observation}]
+  shim.MILESTONES.stalled=8
+  bodies=[]
+  first=self.response({'action':'exec','command':"pyautogui.hotkey('ctrl', 'o')",'plan':'open the target again'})
+  second=self.response({'action':'exec','command':'pyautogui.click(344, 64)','plan':'open Colors for a visible target adjustment'})
+  responses=[(200,first),(200,second)]
+  def mesh(body):
+   bodies.append(dict(body));return responses.pop(0)
+  shim.request_mesh=mesh
+  self.assertIn('pyautogui.click(344, 64)',shim.call_mesh(self.msgs))
+  self.assertEqual(len(bodies),2)
+  self.assertIn('Visual task has no verified semantic milestone',bodies[0]['recovery_strategy'])
+  self.assertEqual(bodies[1]['provider_hint'],'openrouter')
 if __name__=='__main__':unittest.main()

@@ -7,7 +7,7 @@ from osworld_milestones import Milestones, verified_facts
 from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response, visual_reference_recovery
 from osworld_v32_policy import DecisionKind, apply_live_policy
 from osworld_openrouter_free import FREE_ROUTE
-from osworld_recovery import recovery_policy, semantic_terminal
+from osworld_recovery import recovery_policy, rejects_visual_navigation_loop, semantic_terminal
 
 UPSTREAM = 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5'
 EXPECTED_PIPELINE = 'arbm-osworld-v32-isolated'
@@ -230,6 +230,11 @@ def call_mesh(messages):
                 continue
             if kind=='exec':
                 command=action['command']
+                if rejects_visual_navigation_loop(action, body['instruction'], body.get('active_application','unknown'), MILESTONES.stalled):
+                    body['memory']=(body['memory']+'\nVISUAL_NAVIGATION_LOOP_REJECTED: Ctrl+O was already used without a verified visual milestone. Use the visible dialog deliberately or make a target-image edit instead. Do not repeat it.')[-4500:]
+                    body['provider_hint']='openrouter'
+                    log_event({'status':'VISUAL_NAVIGATION_LOOP_REJECTED','command':command})
+                    continue
                 recent=[x['command'] for x in STATE['history'][-6:]]
                 if VERIFIER.no_progress and command in recent:
                     body['memory']=(body['memory']+'\nNO EFFECT: rejected repeated action '+command+'. Change GUI strategy or target.')[-4500:]

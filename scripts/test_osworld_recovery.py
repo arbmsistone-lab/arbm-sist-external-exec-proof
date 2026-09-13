@@ -1,5 +1,5 @@
 import unittest
-from osworld_recovery import is_visual_task, recovery_policy, semantic_terminal
+from osworld_recovery import is_visual_task, recovery_policy, rejects_visual_navigation_loop, semantic_terminal
 
 
 class RecoveryPolicyTests(unittest.TestCase):
@@ -21,6 +21,15 @@ class RecoveryPolicyTests(unittest.TestCase):
 
     def test_visual_detection_uses_foreground_app(self):
         self.assertTrue(is_visual_task('Match the reference style', 'darktable'))
+
+    def test_rejects_only_repeated_visual_file_open_shortcut(self):
+        instruction = 'Apply the same color grading from reference.jpg to target.jpg in GIMP.'
+        self.assertTrue(rejects_visual_navigation_loop(
+            {'command': "pyautogui.hotkey('ctrl', 'o')"}, instruction, 'GIMP', 4))
+        self.assertFalse(rejects_visual_navigation_loop(
+            {'command': 'pyautogui.click(344, 64)'}, instruction, 'GIMP', 8))
+        self.assertFalse(rejects_visual_navigation_loop(
+            {'command': "pyautogui.hotkey('ctrl', 'o')"}, 'Open document.pdf', 'Files', 8))
 
 
 if __name__ == '__main__':

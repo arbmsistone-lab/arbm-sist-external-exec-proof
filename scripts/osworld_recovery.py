@@ -1,4 +1,5 @@
 """Pure recovery policy for OSWorld v32; no network or guest access."""
+import re
 
 VISUAL_MARKERS = (
     '.jpg', '.jpeg', '.png', '.webp', '.gif', 'image', 'photo', 'picture',
@@ -14,6 +15,19 @@ def is_visual_task(instruction, active_application=''):
 def semantic_terminal(stalled, verifier_no_progress):
     """Semantic predicates cannot terminate while independent GUI progress continues."""
     return int(stalled) >= 24 and int(verifier_no_progress) >= 6
+
+
+def rejects_visual_navigation_loop(action, instruction, active_application, stalled):
+    """Reject a repeated file-open shortcut after visual progress has stalled.
+
+    It intentionally recognizes only the unambiguous Ctrl+O loop captured in
+    the 061 artifact. Other file-dialog actions remain available, because an
+    agent may still need to deliberately open a visible target or reference.
+    """
+    if not is_visual_task(instruction, active_application) or int(stalled) < 4:
+        return False
+    command = str((action or {}).get('command') or '')
+    return bool(re.search(r"pyautogui\.hotkey\(\s*['\"]ctrl['\"]\s*,\s*['\"]o['\"]\s*\)", command, re.I))
 
 
 def recovery_policy(instruction, active_application, stalled, verifier_no_progress,
