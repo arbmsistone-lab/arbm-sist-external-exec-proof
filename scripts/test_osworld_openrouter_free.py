@@ -91,6 +91,14 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(attempts[-2]['status'],402)
         self.assertEqual(self.route.provider_until,0)
 
+    def test_model_scoped_403_does_not_disable_authenticated_provider(self):
+        self.replies=[(403,{},{}),self.answer()]
+        result,attempts=self.route.call(BODY,'test')
+        self.assertEqual(result['model'],PREFERRED[1])
+        self.assertEqual(attempts[-2]['status'],403)
+        self.assertEqual(self.route.provider_until,0)
+        self.assertEqual(self.route.state(PREFERRED[0])['state'],'TEMPORARILY_DISABLED')
+
     def test_official_free_router_is_a_zero_price_last_resort(self):
         self.replies=[self.answer()]
         self.route.models=[]

@@ -103,11 +103,12 @@ class FreeRoute:
         return self.states.setdefault(model, {'state':'DEGRADED', 'until':0,
             'failures':0, 'successes':0, 'latency_seconds':35, 'remaining':None})
 
-    def failure(self, model, status, headers):
+    def failure(self, model, status, headers, provider_failure=False):
         state = self.state(model)
         state['failures'] += 1
-        reason = {401:'AUTH_FAILED', 403:'AUTH_FAILED', 402:'QUOTA_EXHAUSTED',
+        reason = {401:'AUTH_FAILED', 403:'TEMPORARILY_DISABLED', 402:'QUOTA_EXHAUSTED',
                   429:'RATE_LIMITED', 404:'TEMPORARILY_DISABLED', 413:'TEMPORARILY_DISABLED'}.get(status, 'DEGRADED')
+        if provider_failure and status in (401,403): reason = 'AUTH_FAILED'
         try: delay = min(3600, max(30, float(headers.get('Retry-After', headers.get('retry-after', 60)))))
         except (ValueError, TypeError): delay = 60
         if status in (401,403,404,413): delay = 300
@@ -116,7 +117,7 @@ class FreeRoute:
         # paid retry, but it also is not proof that every other catalogued
         # FREE model is unavailable.  Only authentication failures disable
         # the provider globally.
-        if status in (401,403): self.provider_until = self.clock()+delay
+        if provider_failure and status in (401,403): self.provider_until = self.clock()+delay
 
     def call(self, body, key=None, budget=55, raw_messages=None, raw_tokens=512, temperature=0):
         key = key if key is not None else os.environ.get('OPENROUTER_API_KEY', '')
@@ -137,7 +138,7 @@ class FreeRoute:
             status, data, headers = self.transport('/key', key, timeout=max(.5,min(15,deadline-self.clock())))
             if status != 200 or not isinstance(data.get('data'), dict):
                 event(status='auth_probe_failed', http=status)
-                self.failure('*', status, headers); return None, attempts
+                self.failure('*', status, headers, provider_failure=True); return None, attempts
             self.auth_until = self.clock()+300
             # No label, key, headers, or balances are copied into evidence.
             event(status='auth_probe_pass', account_free_tier=data['data'].get('is_free_tier'))
@@ -210,8 +211,13 @@ class FreeRoute:
                     return {'text':data['choices'][0]['message']['content'],
                         'provider':'openrouter-free','model':name,'raw_response':data},attempts
                 return {'action':action, 'provider':'openrouter-free', 'model':name}, attempts
-            self.failure(name, status if status != 200 else 422, headers)
-            if status in (401,403): break
+            self.failure(name, status if status != 200 else 422, headers,
+                         provider_failure=(status == 401))
+            # A 403 after a successful /key probe is model- or policy-scoped,
+            # not proof that every free route is unauthorized.  Continue to
+            # independent zero-price candidates; only a 401 can invalidate
+            # the already authenticated key mid-request.
+            if status == 401: break
         return None, attempts
 
 
