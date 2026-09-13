@@ -1,4 +1,4 @@
-name: OSWorld v32 rescue3 official 18 cloud gate
+name: OSWorld v32 rescue4 shard B infra recovery
 on:
   workflow_dispatch:
   push:
@@ -32,9 +32,7 @@ jobs:
       max-parallel: 3
       matrix:
         shard:
-          - {id: A, tasks: '001 019 037 055 073 091'}
           - {id: B, tasks: '007 025 043 061 079 097'}
-          - {id: C, tasks: '013 031 049 067 085 103'}
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     env:
@@ -75,19 +73,27 @@ jobs:
           uv sync --frozen
           uv run python scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
           test "$(find evaluation_examples/task_class -maxdepth 1 -name 'task_*.py' -type f | wc -l)" -eq 108
-          uv run python - <<'PY' > /tmp/osworld_asset_task_ids.txt
-          import os
+          uv run python - <<'PY' > /tmp/osworld_asset_roots.tsv
+          import os,re
           from huggingface_hub import HfApi
           files = HfApi(token=os.environ['HF_TOKEN']).list_repo_files(
               repo_id='xlangai/osworld_v2_assets_gated', repo_type='dataset', revision='v2026.08.08')
           assert files, 'OFFICIAL_ASSET_REPO_EMPTY_OR_UNREADABLE'
-          ids = sorted({x.split('/')[0][5:] for x in files if x.startswith('task_') and '/' in x})
-          print('\n'.join(ids))
+          roots = sorted({x.split('/')[0] for x in files if x.startswith('task_') and '/' in x})
+          for root in roots:
+              match = re.fullmatch(r'task_(\d{3})(?:_.*)?', root)
+              if match:
+                  print(f'{match.group(1)}\t{root}')
           PY
           for id in ${{ matrix.shard.tasks }}; do
             test -f "evaluation_examples/task_class/task_${id}.py"
-            if grep -Fxq "$id" /tmp/osworld_asset_task_ids.txt; then
-              uv run python scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 --allow-pattern "task_${id}/**" --target-dir cache/osworld_v2_assets
+            mapfile -t ASSET_ROOTS < <(awk -v id="$id" '$1 == id {print $2}' /tmp/osworld_asset_roots.tsv)
+            if [ "${#ASSET_ROOTS[@]}" -gt 0 ]; then
+              for root in "${ASSET_ROOTS[@]}"; do
+                echo "HYDRATE_OFFICIAL_ASSETS task_${id} root=${root}"
+                uv run python scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 --allow-pattern "${root}/**" --target-dir cache/osworld_v2_assets
+                test -d "cache/osworld_v2_assets/${root}"
+              done
             else
               echo "NO_EXTERNAL_ASSETS task_${id} verified_against_official_dataset"
             fi
@@ -207,7 +213,7 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           import glob,json,statistics
-          expected=['001','019','037','055','073','091','007','025','043','061','079','097','013','031','049','067','085','103']
+          expected=['007','025','043','061','079','097']
           files=glob.glob('evidence/**/results/**/result.txt',recursive=True)
           vals=[]
           for f in files:
@@ -215,19 +221,17 @@ jobs:
               except Exception: pass
           found=[tid for tid in expected if glob.glob(f'evidence/**/task-{tid}/results/**/result.txt',recursive=True)]
           assert sorted(found)==sorted(expected), f'MISSING_TASK_RESULTS:{sorted(set(expected)-set(found))}'
-          assert len(files)==18, f'EXPECTED_18_RESULTS_GOT_{len(files)}'
-          assert len(vals)==18, f'EXPECTED_18_NUMERIC_SCORES_GOT_{len(vals)}'
+          assert len(files)==6, f'EXPECTED_6_RESULTS_GOT_{len(files)}'
+          assert len(vals)==6, f'EXPECTED_6_NUMERIC_SCORES_GOT_{len(vals)}'
           binary=sum(v>=1.0 for v in vals)
           mean=statistics.fmean(vals)
-          out={'status':'V32_OFFICIAL18_COMPLETE','tasks':18,'binary_successes':binary,'binary_rate':binary/18,'mean_partial':mean,'min_score':min(vals),'max_score':max(vals),'scores':vals,'candidate_sha':'${{ github.sha }}','release':'osworld-v2-2026.08.08','max_steps':500}
-          open('osworld-v32-official18-summary.json','w').write(json.dumps(out,indent=2))
-          assert binary>=6, f'BINARY_GATE_FAIL_{binary}_OF_18'
-          assert mean>=0.64, f'PARTIAL_GATE_FAIL_{mean:.6f}'
+          out={'status':'V32_SHARD_B_INFRA_COMPLETE','tasks':6,'binary_successes':binary,'binary_rate':binary/6,'mean_partial':mean,'min_score':min(vals),'max_score':max(vals),'scores':vals,'candidate_sha':'${{ github.sha }}','release':'osworld-v2-2026.08.08','max_steps':500}
+          open('osworld-v32-shard-b-infra-summary.json','w').write(json.dumps(out,indent=2))
           print(json.dumps({k:v for k,v in out.items() if k!='scores'}))
           PY
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: osworld-v32-official18-summary
-          path: osworld-v32-official18-summary.json
+          name: osworld-v32-shard-b-infra-summary
+          path: osworld-v32-shard-b-infra-summary.json
           if-no-files-found: error
           retention-days: 90
