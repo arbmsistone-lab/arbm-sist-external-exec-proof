@@ -6,10 +6,10 @@ export function deploymentMeshPlan({routes=[],criticalDomains=[]}={}){
   const eligible=eligibleDeployRoutes(routes),domains={};
   for(const domain of uniq(criticalDomains.map(String))){
     const matches=eligible.filter(r=>(r.domains||[]).includes(domain));
-    domains[domain]={routes:matches.map(r=>r.id||r.providerId),count:matches.length,pass:matches.length>=2};
+    domains[domain]={routes:matches.map(r=>r.id||r.providerId),count:matches.length,pass:matches.length>=3};
   }
   const blockers=Object.entries(domains).filter(([,v])=>!v.pass).map(([k])=>'route_redundancy:'+k);
-  return {schema:'arbm-deployment-mesh-v1',state:blockers.length?'BLOCKED':'READY',eligible:eligible.map(r=>r.id||r.providerId),domains,blockers,zeroMandatorySpend:true};
+  return {schema:'arbm-deployment-mesh-v1',minimumIndependentRoutes:3,state:blockers.length?'BLOCKED':'READY',eligible:eligible.map(r=>r.id||r.providerId),domains,blockers,zeroMandatorySpend:true};
 }
 export async function deployWithFailover(plan={},domain='',payload={},transport){
   if(plan.state!=='READY')throw new Error('deployment_mesh_not_ready');
