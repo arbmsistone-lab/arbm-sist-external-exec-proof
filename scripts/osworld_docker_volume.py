@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+import struct
 from pathlib import Path
 import urllib.request
 
@@ -18,9 +19,19 @@ def verify_volume(server, requested_gb):
     capacity = json.loads(result['output'])
     LOG.info('VM_VOLUME_ACTUAL %s',json.dumps(capacity,sort_keys=True))
     # ext4 metadata consumes some advertised disk size; require actual growth.
-    if capacity['filesystem_bytes'] < (requested_gb - 8) * 1024**3 or capacity['available_bytes'] < 8 * 1024**3 or capacity['free_inodes'] < 1000:
+    if capacity['filesystem_bytes'] < (requested_gb - 2) * 1024**3 or capacity['available_bytes'] < 8 * 1024**3 or capacity['free_inodes'] < 1000:
         raise RuntimeError('VM_VOLUME_NOT_EXPANDED:' + json.dumps(capacity))
     return capacity
+
+
+def verify_image_capacity(path, requested_gb):
+    # QCOW2's virtual size is the big-endian uint64 at offset 24. Read only
+    # the header; never resize or otherwise mutate the pinned image base.
+    with open(path,'rb') as image: header=image.read(32)
+    if len(header)!=32 or header[:4]!=b'QFI\xfb': raise RuntimeError('INVALID_QCOW_HEADER')
+    actual=struct.unpack('>Q',header[24:32])[0]
+    if actual!=requested_gb*1024**3: raise RuntimeError('PINNED_IMAGE_VIRTUAL_CAPACITY_MISMATCH:'+str(actual))
+    print('PINNED_IMAGE_VIRTUAL_BYTES='+str(actual))
 
 
 def patch_volume(root):
@@ -43,5 +54,8 @@ def patch_volume(root):
 
 if __name__ == '__main__':
     import sys
+    if sys.argv[1]=='--check-image':
+        verify_image_capacity(sys.argv[2],int(os.environ['ARBM_VM_VOLUME_GB']))
+        sys.exit(0)
     patch_volume(sys.argv[1])
     print('OSWORLD_UPSTREAM_VOLUME_API_WIRED')

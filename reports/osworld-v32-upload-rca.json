@@ -15,8 +15,8 @@
   },
   "inference": "Multipart temporary consumption is not required to reproduce ENOSPC. Avoiding multipart alone is insufficient.",
   "root_cause_log_sha256": "7b2686d00e644de913a4f839fa1d679a714ffe7d0a5ec1cc3d261250a8336154",
-  "fix": "Use the pinned upstream Docker volume API to expand the disposable guest volume to 64 GB; verify actual capacity after every boot/reset. Keep the pinned image base read-only.",
-  "validation": "Pending official cloud focal run after expansion. No 18/18 claim.",
+  "fix": "Use pinned upstream guest volume API to grow the root partition into the existing 50 GiB image disk. Verify the read-only QCOW2 virtual size and actual guest filesystem >=48 GiB, available >=8 GiB after every boot/reset.",
+  "validation": "Pending official focal with requested volume aligned to verified pinned-image capacity. No 18/18 claim.",
   "prior_baseline_audit": {
     "run_id": 34733419571,
     "status": "NOT PROVEN",
@@ -306,5 +306,13 @@
         "actions_issued": 0
       }
     ]
+  },
+  "volume_diagnostic": {
+    "run": 34756207156,
+    "candidate_sha": "d2406f7ff87e9f23d799403d46cec28970f04f65",
+    "actual_filesystem_bytes": 52124327936,
+    "available_bytes": 21989109760,
+    "requested_gib": 64,
+    "result": "Fail-closed: Docker uses existing 50 GiB image, ignores larger DISK_SIZE for supplied image."
   }
 }

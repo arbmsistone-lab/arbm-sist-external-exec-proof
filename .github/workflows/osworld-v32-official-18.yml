@@ -71,7 +71,7 @@ jobs:
       OPENAI_API_KEY: zero-spend-oidc-shim
       OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
       ARBM_MAX_STEPS: '500'
-      ARBM_VM_VOLUME_GB: '64'
+      ARBM_VM_VOLUME_GB: '50'
       AWS_REGION: us-east-1
       WEBSITE_HOST_SUFFIX: site.hku.icu
     steps:
@@ -162,7 +162,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$ARBM_VM_VOLUME_GB" = 64
+          test "$ARBM_VM_VOLUME_GB" = 50
           python scripts/osworld_docker_volume.py osworld
           git -C osworld diff -- scripts/python/run_multienv.py desktop_env/providers/docker/provider.py > osworld-volume.patch
           test -s osworld-volume.patch
@@ -186,6 +186,7 @@ jobs:
           rm -f hf-vm/osworld-v2-ubuntu-x86.qcow2.zip
           QCOW=$(find vm -type f -name '*.qcow2' | head -1)
           test -n "$QCOW"
+          python scripts/osworld_docker_volume.py --check-image "$QCOW"
           echo "QCOW_PATH=$PWD/$QCOW" >> "$GITHUB_ENV"
           sha256sum "$QCOW" | cut -d' ' -f1 > qcow-base.sha256
           PYTHONPATH=scripts python -c 'import json; from osworld_v32_gate import PINS; open("official-pins.json","w").write(json.dumps(PINS,sort_keys=True))'

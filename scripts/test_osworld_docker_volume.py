@@ -1,8 +1,10 @@
 import io
 import json
 import unittest
+import struct
+import tempfile
 from unittest.mock import patch
-from osworld_docker_volume import verify_volume, GUEST_CAPACITY
+from osworld_docker_volume import verify_volume, verify_image_capacity, GUEST_CAPACITY
 
 
 class VolumeTests(unittest.TestCase):
@@ -26,6 +28,17 @@ class VolumeTests(unittest.TestCase):
     def test_guest_probe_has_no_mutation(self):
         compile(GUEST_CAPACITY,'<capacity>','exec')
         self.assertNotIn('unlink',GUEST_CAPACITY)
+
+    def test_actual_pinned_image_capacity(self):
+        with tempfile.NamedTemporaryFile(delete=False) as image:
+            path=image.name
+            image.write(b'QFI\xfb'+bytes(20)+struct.pack('>Q',50*1024**3))
+        try:
+            verify_image_capacity(path,50)
+            with self.assertRaisesRegex(RuntimeError,'CAPACITY_MISMATCH'): verify_image_capacity(path,64)
+        finally:
+            import os
+            os.unlink(path)
 
 
 if __name__ == '__main__': unittest.main()
