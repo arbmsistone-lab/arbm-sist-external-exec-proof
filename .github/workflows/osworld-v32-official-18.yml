@@ -196,6 +196,23 @@ jobs:
           echo "QCOW_PATH=$PWD/$QCOW" >> "$GITHUB_ENV"
           sha256sum "$QCOW" | cut -d' ' -f1 > qcow-base.sha256
           PYTHONPATH=scripts python -c 'import json; from osworld_v32_gate import PINS; open("official-pins.json","w").write(json.dumps(PINS,sort_keys=True))'
+      - name: Prove real cloud upload and official Docker reset
+        if: matrix.shard.id == 'B'
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIR="$GITHUB_WORKSPACE/osworld-v32-integration/reset"
+          mkdir -p "$DIR"
+          (cd osworld && PYTHONPATH="$GITHUB_WORKSPACE/scripts:$PWD" uv run python ../scripts/osworld_vm_reset_probe.py "$QCOW_PATH" "$DIR" 2>&1 | tee "$DIR/reset-runtime.log")
+          PYTHONPATH=scripts python -c 'from pathlib import Path; from osworld_evidence import seal; seal(Path("osworld-v32-integration/reset"))'
+      - name: Preserve cloud reset integration evidence
+        if: always() && matrix.shard.id == 'B'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: osworld-v32-cloud-reset-integration
+          path: osworld-v32-integration
+          if-no-files-found: warn
+          retention-days: 90
       - name: Execute fixed subset
         shell: bash
         run: |

@@ -15,6 +15,7 @@ import uuid
 from pathlib import Path
 
 LOG = logging.getLogger(__name__)
+LOG.setLevel(logging.INFO)
 CHUNK_BYTES = 64 * 1024  # encoded argv stays below Linux's per-argument limit
 RESERVE_BYTES = 64 * 1024 * 1024
 
