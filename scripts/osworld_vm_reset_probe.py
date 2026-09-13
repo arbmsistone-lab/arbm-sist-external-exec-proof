@@ -17,15 +17,22 @@ def file_sha(path):
         return hashlib.file_digest(source, 'sha256').hexdigest()
 
 
-def main(image, evidence):
+def cloud_validation_spend_mode():
+    spend_mode = os.environ.get('ZERO_SPEND_MODE')
     if (os.environ.get('RUNNER_ENVIRONMENT') != 'github-hosted' or
             os.environ.get('GITHUB_ACTIONS') != 'true' or
-            os.environ.get('ZERO_SPEND_MODE') != 'HARD'):
-        raise RuntimeError('CLOUD_ONLY_HARD_MODE_REQUIRED')
+            spend_mode not in ('HARD', 'PAID_BOUNDED')):
+        raise RuntimeError('CLOUD_ONLY_VALIDATION_MODE_REQUIRED')
+    return spend_mode
+
+
+def main(image, evidence):
+    spend_mode = cloud_validation_spend_mode()
     from desktop_env.desktop_env import DesktopEnv
     evidence.mkdir(parents=True, exist_ok=True)
     proof = {'purpose': 'cloud upload/reset integration only; not an official task score',
-             'candidate_sha': os.environ['GITHUB_SHA'], 'zero_spend_mode': 'HARD',
+             'candidate_sha': os.environ['GITHUB_SHA'], 'validation_spend_mode': spend_mode,
+             'zero_spend_mode': 'HARD' if spend_mode == 'HARD' else None,
              'heavy_local': 0, 'status': 'NOT PROVEN'}
     base_before = file_sha(image)
     env = None
