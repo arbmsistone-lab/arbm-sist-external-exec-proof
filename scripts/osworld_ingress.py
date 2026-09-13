@@ -33,7 +33,10 @@ def project_messages(stream,length):
             else:raise ValueError('INVALID_MESSAGE_CONTENT')
             if size>MAX_MESSAGE_CHARS:raise ValueError('SINGLE_MESSAGE_TOO_LARGE')
             if msg.get('role')=='system':
-                if not isinstance(content,str) or len(content)>100_000 or len(systems)>=4:raise ValueError('INVALID_SYSTEM_MESSAGE')
+                valid_system = isinstance(content,str) or (
+                    isinstance(content,list) and all(isinstance(item,dict) and item.get('type')=='text' for item in content)
+                )
+                if not valid_system or size>100_000 or len(systems)>=4:raise ValueError('INVALID_SYSTEM_MESSAGE')
                 systems.append(msg)
             elif msg.get('role')=='user':latest=msg;retained=size
     except ijson.JSONError as exc:

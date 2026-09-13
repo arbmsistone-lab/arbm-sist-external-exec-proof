@@ -11,6 +11,18 @@ class IngressTests(unittest.TestCase):
         self.assertEqual(len(messages),2);self.assertEqual(messages[-1]['content'][0]['text'],'19')
         self.assertLess(peak,15_000_000)
         print(json.dumps({'ingress_replay_bytes':len(raw),'retained_messages':len(messages),'peak_parser_bytes':peak,'seconds':round(time.perf_counter()-start,3)}))
+    def test_official_multimodal_system_text_block_is_accepted(self):
+        history=[{'role':'system','content':[{'type':'text','text':'official prompt'}]},{'role':'user','content':[{'type':'text','text':'observe'}]}]
+        raw=json.dumps({'messages':history}).encode()
+        messages,_=project_messages(io.BytesIO(raw),len(raw))
+        self.assertEqual(messages[0]['content'][0]['text'],'official prompt')
+
+    def test_system_non_text_block_is_rejected(self):
+        history=[{'role':'system','content':[{'type':'image_url','image_url':{'url':'data:image/png;base64,AA'}}]},{'role':'user','content':'x'}]
+        raw=json.dumps({'messages':history}).encode()
+        with self.assertRaisesRegex(ValueError,'INVALID_SYSTEM_MESSAGE'):
+            project_messages(io.BytesIO(raw),len(raw))
+
     def test_corrupted_payload_rejected(self):
         for raw in (b'{bad',b'{"messages":[]}',b'{"messages":[null]}'):
             with self.subTest(raw=raw),self.assertRaises(ValueError):project_messages(io.BytesIO(raw),len(raw))

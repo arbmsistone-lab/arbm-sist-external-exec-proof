@@ -45,6 +45,7 @@ jobs:
       OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
       ARBM_MAX_STEPS: '500'
       AWS_REGION: us-east-1
+      WEBSITE_HOST_SUFFIX: site.hku.icu
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Prepare pinned shim runtime
