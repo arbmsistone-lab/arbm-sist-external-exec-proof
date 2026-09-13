@@ -5,7 +5,7 @@ on:
       mode:
         description: Full official gate or explicitly labeled focal diagnostic
         type: choice
-        options: [full, focal-061]
+        options: [full, focal-061, providers-only]
         default: full
   push:
     branches:
@@ -19,7 +19,7 @@ permissions:
   contents: read
   id-token: write
 concurrency:
-  group: osworld-v32-official-18
+  group: ${{ github.event_name == 'push' && format('osworld-v32-preflight-{0}', github.sha) || github.event.inputs.mode == 'providers-only' && 'osworld-v32-providers' || 'osworld-v32-official-18' }}
   cancel-in-progress: false
 jobs:
   preflight:
@@ -27,6 +27,7 @@ jobs:
     timeout-minutes: 10
     env:
       ZERO_SPEND_MODE: HARD
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - run: python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
@@ -54,7 +55,7 @@ jobs:
           retention-days: 90
   shard:
     needs: preflight
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'providers-only'
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -64,6 +65,7 @@ jobs:
     timeout-minutes: 360
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       ZERO_SPEND_MODE: HARD
       OPENAI_BASE_URL: http://127.0.0.1:8088/v1
       OPENAI_API_KEY: zero-spend-oidc-shim
@@ -251,7 +253,7 @@ jobs:
           retention-days: 90
   aggregate:
     needs: shard
-    if: always() && github.event_name == 'workflow_dispatch'
+    if: always() && github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'providers-only'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

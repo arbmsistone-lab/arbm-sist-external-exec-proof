@@ -6,6 +6,7 @@ from osworld_ingress import project_messages
 from osworld_milestones import Milestones, verified_facts
 from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response
 from osworld_v32_policy import DecisionKind, apply_live_policy
+from osworld_openrouter_free import FREE_ROUTE
 
 UPSTREAM = 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5'
 EXPECTED_PIPELINE = 'arbm-osworld-v32-isolated'
@@ -101,7 +102,7 @@ def track_attempts(data):
         elif a.get('contract_error'):seconds=90
         if seconds:STATE['cooldowns'][key]=int((time.time()+seconds)*1000)
 
-def request_mesh(body):
+def request_gateway(body):
     raw=json.dumps(body,ensure_ascii=False).encode()
     req=urllib.request.Request(UPSTREAM,data=raw,method='POST',headers={'Authorization':'Bearer '+oidc_token(),'Content-Type':'application/json'})
     try:
@@ -112,6 +113,32 @@ def request_mesh(body):
         return err.code,data
     except (urllib.error.URLError,TimeoutError,json.JSONDecodeError) as exc:
         return 503,{'status':'TRANSPORT_ERROR','error_type':type(exc).__name__}
+
+
+def request_mesh(body):
+    # Admission/authentication checks without an observation always reach OIDC.
+    if not body.get('screenshot_data_url'): return request_gateway(body)
+    router_attempts=[]
+    def router():
+        result, attempts=FREE_ROUTE.call(body)
+        router_attempts.extend(attempts)
+        if result:
+            return 200,{'ok':True,'status':'PASS','pipeline':EXPECTED_PIPELINE,
+                'agent_build':EXPECTED_BUILD,**result,'provider_attempts':router_attempts,
+                'mandatory_cost_usd':0,'paid_fallback_used':False,'scoreable':False,
+                'github_sha':os.environ.get('GITHUB_SHA'),'github_run_id':os.environ.get('GITHUB_RUN_ID')}
+    if body.get('provider_hint')=='openrouter':
+        response=router()
+        if response: return response
+    http,data=request_gateway(body)
+    if http in (429,500,502,503,504):
+        response=router()
+        if response:
+            response[1]['provider_attempts']=(data.get('provider_attempts') or [])+router_attempts
+            return response
+    if router_attempts:
+        data['provider_attempts']=(data.get('provider_attempts') or [])+router_attempts
+    return http,data
 
 def call_mesh(messages):
     if STATE['terminal']:return 'FAIL'

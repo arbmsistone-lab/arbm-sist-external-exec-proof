@@ -18,13 +18,17 @@ def main(root):
     body, metrics = pack_payload({'instruction':"Dismiss any open notification or menu with pyautogui.press('esc'). Do not open files. This is provider admission only.",
         'observation':'', 'screenshot_data_url':'data:image/png;base64,' + base64.b64encode(pngs[0].read_bytes()).decode(),
         'expected_build':shim.EXPECTED_BUILD, 'phase':'execute','step':1,'memory':'', 'verified_milestones':[]})
+    third_result,third_attempts=shim.FREE_ROUTE.call(body,budget=100)
+    third_proof={'status':'LIVE_FREE_PROBE_PASS' if third_result else 'UNAVAILABLE',
+                 'purpose':'provider admission only; no benchmark action executed',
+                 'result':third_result,'attempts':third_attempts}
     attempts=[]
     for attempt in range(3):
         http, data = shim.request_mesh(body)
         attempts.append({'http':http,'data':data,'payload':metrics})
         Path('osworld-v32-live-preflight.json').write_text(json.dumps({'screenshot_source_run':34733419571,
             'purpose':'provider admission only; not a benchmark result','candidate_sha':os.environ['GITHUB_SHA'],
-            'oidc':'PASS','attempts':attempts},indent=2))
+            'oidc':'PASS','third_provider':third_proof,'attempts':attempts},indent=2))
         if http == 200:
             validate_response(data,shim.EXPECTED_PIPELINE,shim.EXPECTED_BUILD)
             if data.get('github_sha') != os.environ['GITHUB_SHA']: raise RuntimeError('OIDC_SHA_MISMATCH')
