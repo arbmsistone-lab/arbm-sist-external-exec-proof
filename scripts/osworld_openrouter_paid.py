@@ -2,6 +2,7 @@
 import json
 import os
 import time
+from pathlib import Path
 import urllib.error
 import urllib.request
 
@@ -19,6 +20,30 @@ def _money(value):
         return max(0.0, float(value))
     except (TypeError, ValueError):
         return 0.0
+
+
+def _ledger_spent(path):
+    if not path:
+        return None
+    try:
+        return _money(Path(path).read_text(encoding='utf-8').strip())
+    except FileNotFoundError:
+        return 0.0
+
+
+def _ledger_charge(path, cost, cap):
+    if not path:
+        return None
+    import fcntl
+    p=Path(path); p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open('a+', encoding='utf-8') as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        handle.seek(0); spent=_money(handle.read().strip())
+        if spent + cost > cap:
+            return False, spent
+        spent += cost; handle.seek(0); handle.truncate(); handle.write(f'{spent:.8f}')
+        handle.flush(); os.fsync(handle.fileno())
+        return True, spent
 
 
 class PaidRoute:
@@ -49,6 +74,8 @@ class PaidRoute:
         key = key if key is not None else os.environ.get('OPENROUTER_API_KEY', '')
         model = os.environ.get('ARBM_PAID_MODEL', DEFAULT_MODEL)
         total_cap = _money(os.environ.get('ARBM_PAID_TOTAL_BUDGET_USD', '10'))
+        ledger = os.environ.get('ARBM_PAID_LEDGER', '')
+        shared_spent = _ledger_spent(ledger)
         request_cap = _money(os.environ.get('ARBM_PAID_REQUEST_MAX_USD', '0.25'))
         def event(**fields):
             attempts.append({'route': ROUTE, 'paid_route_proven': True, **fields})
@@ -60,8 +87,9 @@ class PaidRoute:
             event(status='model_not_allowlisted', model=model); return None, attempts
         if raw_messages is None and not body.get('screenshot_data_url', '').startswith('data:image/'):
             event(status='image_required'); return None, attempts
-        if total_cap <= 0 or request_cap <= 0 or self.spent >= total_cap:
-            event(status='budget_exhausted', spent_usd=round(self.spent,6)); return None, attempts
+        effective_spent = self.spent if shared_spent is None else shared_spent
+        if total_cap <= 0 or request_cap <= 0 or effective_spent >= total_cap:
+            event(status='budget_exhausted', spent_usd=round(effective_spent,6)); return None, attempts
         messages = raw_messages if raw_messages is not None else [{'role':'user','content':[
             {'type':'text','text':prompt(body)},
             {'type':'image_url','image_url':{'url':body['screenshot_data_url']}}]}]
@@ -83,7 +111,7 @@ class PaidRoute:
         if status == 200:
             if cost <= 0:
                 error = 'PAID_COST_PROOF_MISSING'
-            elif cost > request_cap or self.spent + cost > total_cap:
+            elif cost > request_cap or effective_spent + cost > total_cap:
                 error = 'PAID_BUDGET_EXCEEDED'
             else:
                 try:
@@ -102,7 +130,14 @@ class PaidRoute:
               retry_after=headers.get('Retry-After', headers.get('retry-after')))
         if action is None:
             return None, attempts
-        self.spent += cost
+        charged = _ledger_charge(ledger, cost, total_cap)
+        if charged is not None:
+            ok, shared_total = charged
+            if not ok:
+                return None, attempts
+            self.spent = shared_total
+        else:
+            self.spent += cost
         if raw_messages is not None:
             return {'text':action['text'], 'provider':'openrouter-paid', 'model':model,
                     'raw_response':data, 'mandatory_cost_usd':cost,
