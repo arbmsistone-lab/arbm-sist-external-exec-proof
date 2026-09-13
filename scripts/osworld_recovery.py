@@ -31,7 +31,7 @@ def rejects_visual_navigation_loop(action, instruction, active_application, stal
 
 
 def recovery_policy(instruction, active_application, stalled, verifier_no_progress,
-                    recovery_level, current_provider=''):
+                    recovery_level, current_provider='', visual_capacity_exhausted=False):
     visual = is_visual_task(instruction, active_application)
     result = {'visual_task': visual, 'provider_hint': None, 'strategy': None}
     if int(stalled) >= 6:
@@ -47,7 +47,14 @@ def recovery_policy(instruction, active_application, stalled, verifier_no_progre
                 'No verified subtask milestone. Replan from last verified fact; read required '
                 'source before switching to output app. Specify a testable checkpoint.'
             )
-    if int(stalled) >= 8:
+    if visual and visual_capacity_exhausted:
+        result['provider_hint'] = 'text'
+        result['strategy'] = (
+            'VISUAL CAPACITY FALLBACK: the free screenshot-capable routes were unavailable repeatedly. '
+            'Continue from the exact accessibility tree and verified milestones instead of waiting. '
+            'Use only a visible, reversible control; re-request screenshot reasoning when it becomes available.'
+        )
+    elif int(stalled) >= 8:
         result['provider_hint'] = 'openrouter' if visual else 'text'
     elif int(recovery_level) >= 4:
         result['provider_hint'] = 'groq' if current_provider == 'mistral-free' else 'mistral'

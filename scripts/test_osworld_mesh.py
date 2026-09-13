@@ -50,6 +50,17 @@ class MeshTests(unittest.TestCase):
   results=[shim.call_mesh(self.msgs) for _ in range(5)]
   self.assertIn('WAIT',results);self.assertIn('FAIL',results)
   self.assertEqual(shim.STATE['terminal'],'RECOVERY_EXHAUSTED')
+ def test_visual_provider_outage_degrades_to_accessibility_before_terminal(self):
+  bodies=[]
+  self.msgs=[{'role':'system','content':'You are asked to complete the following task: apply the same color grading in GIMP'},
+             {'role':'user','content':'menu\tGNU Image Manipulation Program\t""\t\t\t(99, 0)\t(287, 27)'}]
+  def unavailable(body):
+   bodies.append(dict(body))
+   return 503,{'status':'NO_ZERO_SPEND_MULTIMODAL_CAPACITY'}
+  shim.request_mesh=unavailable
+  for _ in range(4):self.assertEqual(shim.call_mesh(self.msgs),'WAIT')
+  self.assertTrue(shim.STATE['visual_capacity_exhausted'])
+  self.assertEqual(bodies[-1]['provider_hint'],'text')
  def test_corrupt_http_input_terminates_without_client_retry(self):
   import threading,urllib.request,urllib.error
   server=shim.ThreadingHTTPServer(('127.0.0.1',0),shim.Handler)

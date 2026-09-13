@@ -13,6 +13,10 @@ ROUTE = 'openrouter-multimodal-free'
 PREFERRED = ['nex-agi/nex-n2.5-pro:free', 'thinkingmachines/inkling:free',
              'google/gemma-4-31b-it:free', 'inclusionai/ling-3.0-flash-vl:free',
              'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free']
+# The catalog changes more quickly than this source file.  Keep the models
+# proven during admission first, then admit a bounded set of newly listed
+# FREE vision models only when their catalog metadata passes `eligible`.
+MAX_FREE_CANDIDATES = 16
 
 
 def zero(value):
@@ -124,11 +128,18 @@ class FreeRoute:
             status, data, _ = self.transport('/models', key, timeout=min(15,deadline-self.clock()))
             if status != 200:
                 event(status='catalog_unavailable', http=status); return None, attempts
-            self.models = [m for m in data.get('data', []) if eligible(m) and m['id'] in PREFERRED]
+            eligible_models = [m for m in data.get('data', []) if eligible(m)]
+            by_id = {m['id']: m for m in eligible_models}
+            preferred = [by_id[name] for name in PREFERRED if name in by_id]
+            extras = sorted((m for m in eligible_models if m['id'] not in PREFERRED),
+                            key=lambda m: m['id'])
+            self.models = (preferred + extras)[:MAX_FREE_CANDIDATES]
             self.catalog_hash = hashlib.sha256(json.dumps(self.models, sort_keys=True).encode()).hexdigest()
             self.catalog_until = self.clock()+300
         models = sorted(self.models, key=lambda m: (self.state(m['id'])['failures'] /
-            (1+self.state(m['id'])['successes']), PREFERRED.index(m['id']), self.state(m['id'])['latency_seconds']))
+            (1+self.state(m['id'])['successes']),
+            PREFERRED.index(m['id']) if m['id'] in PREFERRED else len(PREFERRED),
+            self.state(m['id'])['latency_seconds'], m['id']))
         for model in models:
             name = model['id']; state = self.state(name)
             external_until = float((body.get('route_cooldowns') or {}).get(ROUTE+':'+name, 0))/1000

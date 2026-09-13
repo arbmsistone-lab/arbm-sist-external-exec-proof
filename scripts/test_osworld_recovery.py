@@ -9,6 +9,12 @@ class RecoveryPolicyTests(unittest.TestCase):
         self.assertEqual(p['provider_hint'], 'openrouter')
         self.assertIn('Keep screenshot reasoning', p['strategy'])
 
+    def test_visual_capacity_outage_uses_accessibility_fallback(self):
+        p = recovery_policy('Edit IMG_7318_original.jpg in GIMP', 'GNU Image Manipulation Program', 8, 4, 2, '', True)
+        self.assertTrue(p['visual_task'])
+        self.assertEqual(p['provider_hint'], 'text')
+        self.assertIn('VISUAL CAPACITY FALLBACK', p['strategy'])
+
     def test_nonvisual_stall_preserves_text_recovery(self):
         p = recovery_policy('Read a document and enter the rows', 'LibreOffice Writer', 8, 0, 0, '')
         self.assertFalse(p['visual_task'])

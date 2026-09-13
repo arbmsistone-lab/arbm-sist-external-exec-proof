@@ -2,7 +2,7 @@ import json
 import os
 import unittest
 from unittest.mock import patch
-from osworld_openrouter_free import FreeRoute, eligible, PREFERRED
+from osworld_openrouter_free import FreeRoute, eligible, PREFERRED, MAX_FREE_CANDIDATES
 
 MODEL={'id':PREFERRED[0], 'pricing':{'prompt':'0','completion':'0'},
        'architecture':{'input_modalities':['text','image'],'output_modalities':['text']},
@@ -69,6 +69,19 @@ class RouteTests(unittest.TestCase):
         result,_=self.route.call(BODY,'key')
         self.assertEqual(result['model'],PREFERRED[0])
         self.assertEqual(self.route.state(PREFERRED[0])['state'],'HEALTHY')
+
+    def test_catalog_admits_additional_verified_free_vision_models(self):
+        extra = dict(MODEL, id='community/extra-vision:free')
+        def transport(path,key,payload=None,timeout=35):
+            if path=='/key': return 200,{'data':{'is_free_tier':True}},{}
+            if path=='/models': return 200,{'data':[extra]},{}
+            return self.answer()
+        self.route=FreeRoute(transport,lambda:self.now)
+        with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','OPENROUTER_API_KEY':'test'}):
+            result,attempts=self.route.call(BODY,'test')
+        self.assertEqual(result['model'],extra['id'])
+        self.assertLessEqual(len(self.route.models),MAX_FREE_CANDIDATES)
+        self.assertTrue(attempts[-1]['free_plan_proven'])
 
     def test_auth_failure_disables_provider_and_no_billing_retry(self):
         self.replies=[(401,{}, {})]

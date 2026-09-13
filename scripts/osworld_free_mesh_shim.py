@@ -165,7 +165,7 @@ def call_mesh(messages):
           'phase':STATE['phase'],'no_progress_count':VERIFIER.no_progress,'step':STATE['step'],
           'verifier':verification,'verified_milestones':MILESTONES.context(),'recovery_strategy':RECOVERY[VERIFIER.recovery_level],
           'route_cooldowns':STATE['cooldowns'],'expected_build':EXPECTED_BUILD}
-    recovery=recovery_policy(body['instruction'], body.get('active_application','unknown'), MILESTONES.stalled, VERIFIER.no_progress, VERIFIER.recovery_level, STATE['provider'])
+    recovery=recovery_policy(body['instruction'], body.get('active_application','unknown'), MILESTONES.stalled, VERIFIER.no_progress, VERIFIER.recovery_level, STATE['provider'], STATE.get('visual_capacity_exhausted',False))
     if recovery['strategy']:body['recovery_strategy']=recovery['strategy']
     if recovery['provider_hint']:body['provider_hint']=recovery['provider_hint']
     visual_recovery=visual_reference_recovery(body['instruction'],body.get('active_application','unknown'),MILESTONES.stalled)
@@ -262,6 +262,13 @@ def call_mesh(messages):
     STATE['wait_responses']+=1
     # Provider scarcity is not cognitive failure. Back off instead of burning
     # OSWorld steps rapidly while all FREE multimodal routes are cooling down.
+    # For a visual task, however, an extended all-provider outage must not
+    # consume the remaining episode: retain the observed visual context and
+    # ask an available accessibility route to make one grounded recovery move.
+    if recovery['visual_task'] and STATE['wait_responses'] >= 3:
+        if not STATE.get('visual_capacity_exhausted'):
+            log_event({'status':'VISUAL_CAPACITY_FALLBACK','provider_waits':STATE['wait_responses']})
+        STATE['visual_capacity_exhausted']=True
     time.sleep(min(12, 2 + STATE['wait_responses']))
     log_event({'status':'WAIT_PROVIDER_CAPACITY','provider_waits':STATE['wait_responses'],
                'recovery_strategy':RECOVERY[VERIFIER.recovery_level]})
