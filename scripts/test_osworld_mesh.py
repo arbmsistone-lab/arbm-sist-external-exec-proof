@@ -52,6 +52,18 @@ class MeshTests(unittest.TestCase):
   self.assertFalse(data['paid_fallback_used'])
   self.assertEqual(data['action']['command'],"pyautogui.press('enter')")
 
+ def test_semantic_capacity_response_falls_back_to_local_action_vlm(self):
+  body={'instruction':'edit the image','observation':'GIMP canvas','screenshot_data_url':'data:image/png;base64,AA=='}
+  remote={'status':'NO_ZERO_SPEND_MULTIMODAL_CAPACITY','provider_attempts':[]}
+  local_result={'provider':'local-cloud-vlm','model':'local-test','action':{'action':'exec','command':"pyautogui.press('enter')"}}
+  with patch.object(shim.GROQ_FREE_ROUTE,'call',return_value=(None,[{'route':'groq','model':'m','status':429}])),        patch.object(shim,'request_gateway',return_value=(200,remote)),        patch.object(shim.FREE_ROUTE,'call',return_value=(None,[{'route':'openrouter','model':'m','status':429}])),        patch.object(shim.LOCAL_VLM_ROUTE,'call',return_value=(local_result,[{'route':'local-cloud-vlm','model':'local-test','status':200,'zero_spend_confirmed':True}])) as local:
+   http,data=shim.request_mesh(body)
+  self.assertTrue(local.called)
+  self.assertEqual(http,200)
+  self.assertEqual(data['provider'],'local-cloud-vlm')
+  self.assertEqual(data['mandatory_cost_usd'],0)
+  self.assertFalse(data['paid_fallback_used'])
+
  def test_provider_wait_does_not_masquerade_as_cognitive_failure(self):
   shim.request_mesh=lambda b:(503,self.response(ok=False,status='NO_ZERO_SPEND_MULTIMODAL_CAPACITY'))
   results=[shim.call_mesh(self.msgs) for _ in range(15)]

@@ -20,6 +20,10 @@ MAX_STEPS = int(os.environ.get('ARBM_MAX_STEPS', '160'))
 LOG = os.environ.get('ARBM_OSWORLD_SHIM_LOG', 'osworld-v32-shim.log')
 OBS_DIR = Path(os.environ.get('ARBM_OSWORLD_OBSERVATIONS', 'shim-observations'))
 LOCK = threading.Lock()
+LOCAL_FALLBACK_CAPACITY_STATUSES = {
+    'NO_ZERO_SPEND_MULTIMODAL_CAPACITY',
+    'FREE_QUOTA_EXHAUSTED',
+}
 STATE = {'step':0,'previous':'','executed':0,'phase':'plan','plan':'','memory':[],
          'history':[],'wait_responses':0,'cooldowns':{},'terminal':'','provider':'','model':''}
 VERIFIER = Verifier()
@@ -155,7 +159,9 @@ def request_mesh(body):
         if response: return response
     body['request_budget_ms']=max(1000,min(60000,int((105-(time.monotonic()-started))*1000)))
     http,data=request_gateway(body)
-    if http in (429,500,502,503,504):
+    capacity_unavailable=(http in (429,500,502,503,504) or
+                          isinstance(data,dict) and data.get('status') in LOCAL_FALLBACK_CAPACITY_STATUSES)
+    if capacity_unavailable:
         response=router()
         if response:
             response[1]['provider_attempts']=(data.get('provider_attempts') or [])+router_attempts

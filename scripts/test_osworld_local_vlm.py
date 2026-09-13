@@ -27,5 +27,23 @@ class LocalVLMTests(unittest.TestCase):
             result,attempts=LocalVLMRoute(lambda *x: (_ for _ in ()).throw(Exception())).call(BODY)
         self.assertIsNone(result);self.assertEqual(attempts[-1]['status'],'disabled')
 
+    def test_action_output_has_a_strict_json_boundary(self):
+        valid='{"action":"exec","command":"pyautogui.press(\'enter\')"}'
+        for output in (valid,'```json\n'+valid+'\n```'):
+            with self.subTest(output=output):
+                result,attempts=LocalVLMRoute(lambda *args:output).call(BODY)
+                self.assertEqual(result['action']['command'],"pyautogui.press('enter')")
+                self.assertEqual(attempts[-1]['status'],200)
+        for output,error in (
+            ("```python\npyautogui.press('enter')\n```",'LOCAL_ACTION_JSON_FENCE_REQUIRED'),
+            ('The action is '+valid,'LOCAL_ACTION_JSON_REQUIRED'),
+            ('{"action":"exec","command":','LOCAL_ACTION_JSON_REQUIRED'),
+        ):
+            with self.subTest(output=output):
+                result,attempts=LocalVLMRoute(lambda *args:output).call(BODY)
+                self.assertIsNone(result)
+                self.assertEqual(attempts[-1]['status'],'local_model_error')
+                self.assertEqual(attempts[-1]['contract_error'],error)
+
 
 if __name__=='__main__':unittest.main()

@@ -3,6 +3,7 @@ import base64
 import io
 import json
 import os
+import re
 import time
 
 from osworld_control import canonical_action
@@ -10,6 +11,24 @@ from osworld_openrouter_free import prompt
 
 ROUTE = 'local-cloud-vlm'
 MODEL = os.environ.get('ARBM_LOCAL_VLM_MODEL', 'HuggingFaceTB/SmolVLM-256M-Instruct')
+
+
+def parse_action_object(output):
+    """Accept one JSON action object, optionally in a JSON-only code fence."""
+    raw=str(output).strip()
+    fenced=re.fullmatch(r'```(?:json)?[ \t]*\r?\n(?P<object>\{.*\})[ \t]*\r?\n?```',raw,
+                        flags=re.DOTALL|re.IGNORECASE)
+    if fenced:
+        raw=fenced.group('object').strip()
+    elif raw.startswith('```'):
+        raise ValueError('LOCAL_ACTION_JSON_FENCE_REQUIRED')
+    try:
+        value=json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError('LOCAL_ACTION_JSON_REQUIRED') from exc
+    if not isinstance(value,dict):
+        raise ValueError('LOCAL_ACTION_OBJECT_REQUIRED')
+    return canonical_action(value)
 
 
 def _parts(messages):
@@ -76,11 +95,11 @@ class LocalVLMRoute:
             if raw_messages is not None:
                 action={'text':str(output).strip()}
             else:
-                raw=str(output).strip()
-                if raw.startswith('```'): raw=raw.split('\n',1)[1].rsplit('```',1)[0]
-                action={'action':canonical_action(json.loads(raw))}
+                action={'action':parse_action_object(output)}
         except Exception as exc:
-            return None,[{**base,'status':'local_model_error','error_type':type(exc).__name__}]
+            attempt={**base,'status':'local_model_error','error_type':type(exc).__name__}
+            if isinstance(exc,ValueError): attempt['contract_error']=str(exc)
+            return None,[attempt]
         if raw_messages is not None:
             result={'provider':'local-cloud-vlm','model':MODEL,'text':action['text']}
             raw_response={'choices':[{'message':{'role':'assistant','content':action['text']}}]}
