@@ -7,6 +7,7 @@ import time
 from osworld_control import pack_payload, validate_response
 import osworld_free_mesh_shim as shim
 from osworld_openrouter_free import FreeRoute
+from osworld_local_vlm import LOCAL_VLM_ROUTE
 
 
 def main(root):
@@ -54,6 +55,9 @@ def main(root):
         judge_route=FreeRoute()
         judge_result,openrouter_attempts=judge_route.call({},budget=100,raw_messages=judge_messages,raw_tokens=10)
         judge_attempts.extend(openrouter_attempts)
+    if not judge_result:
+        judge_result,local_attempts=LOCAL_VLM_ROUTE.call({},budget=180,raw_messages=judge_messages,raw_tokens=10)
+        judge_attempts.extend(local_attempts)
     judge_proof={'purpose':'negative binary model-client admission using real recorded desktop; not a benchmark score',
         'result':judge_result,'attempts':judge_attempts,'status':'UNAVAILABLE'}
     if judge_result and judge_result['text'].strip()=='NO':judge_proof['status']='LIVE_FREE_NEGATIVE_BINARY_PASS'

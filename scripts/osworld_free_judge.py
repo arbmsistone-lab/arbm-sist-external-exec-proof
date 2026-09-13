@@ -9,6 +9,8 @@ import os
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from osworld_openrouter_free import FREE_ROUTE
+from osworld_groq_free import GROQ_FREE_ROUTE
+from osworld_local_vlm import LOCAL_VLM_ROUTE
 
 
 def complete(request, route=FREE_ROUTE):
@@ -17,8 +19,13 @@ def complete(request, route=FREE_ROUTE):
     if not isinstance(messages,list) or not messages or any(not isinstance(m,dict) or m.get('role') not in ('system','user','assistant') for m in messages): raise ValueError('JUDGE_MESSAGES_REQUIRED')
     tokens=request.get('max_completion_tokens',request.get('max_tokens',512))
     if type(tokens)!=int or not 1<=tokens<=8192: raise ValueError('JUDGE_OUTPUT_BUDGET_INVALID')
-    result,attempts=route.call({},budget=105,raw_messages=messages,
-        raw_tokens=tokens,temperature=request.get('temperature',0))
+    routes=(GROQ_FREE_ROUTE, route, LOCAL_VLM_ROUTE) if route is FREE_ROUTE else (route,)
+    attempts=[]; result=None
+    for candidate in routes:
+        result,current=candidate.call({},budget=105,raw_messages=messages,
+            raw_tokens=tokens,temperature=request.get('temperature',0))
+        attempts.extend(current)
+        if result: break
     return result,attempts
 
 
