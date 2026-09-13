@@ -50,7 +50,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: osworld-v32-live-preflight
-          path: osworld-v32-live-preflight.json
+          path: |
+            osworld-v32-live-preflight.json
+            osworld-v32-judge-admission.json
           if-no-files-found: error
           retention-days: 90
   shard:
@@ -69,6 +71,10 @@ jobs:
       ZERO_SPEND_MODE: HARD
       OPENAI_BASE_URL: http://127.0.0.1:8088/v1
       OPENAI_API_KEY: zero-spend-oidc-shim
+      OSWORLD_EVAL_MODEL_PROVIDER: openai_compatible
+      OSWORLD_EVAL_MODEL_NAME: nex-agi/nex-n2.5-pro:free
+      OSWORLD_EVAL_MODEL_BASE_URL: http://127.0.0.1:8089/v1
+      OSWORLD_EVAL_MODEL_API_KEY_ENV: OPENAI_API_KEY
       OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
       ARBM_MAX_STEPS: '500'
       ARBM_VM_VOLUME_GB: '50'
@@ -201,6 +207,8 @@ jobs:
             export TASK_ID
             export ARBM_OSWORLD_SHIM_LOG="$DIR/shim.jsonl"
             export ARBM_OSWORLD_OBSERVATIONS="$DIR/shim-observations"
+            export ARBM_JUDGE_EVIDENCE="$DIR/judge"
+            export OSWORLD_EVAL_SAVE_RAW_DIR="$DIR/official-evaluator-raw"
             touch "$DIR/shim.jsonl"
             printf '%s\n' "$TASK_ID" > "$DIR/task-id.txt"
             printf '%s\n' "$ZERO_SPEND_MODE" > "$DIR/zero-spend-mode.txt"
@@ -215,10 +223,12 @@ jobs:
             test "$(sha256sum "$QCOW_PATH" | cut -d' ' -f1)" = "$(cat qcow-base.sha256)"
             python scripts/osworld_free_mesh_shim.py > "$DIR/shim-runtime.log" 2>&1 &
             SHIM_PID=$!
+            python scripts/osworld_free_judge.py > "$DIR/judge-runtime.log" 2>&1 &
+            JUDGE_PID=$!
             ready=0
             for i in $(seq 1 30); do
-              if curl -fsS http://127.0.0.1:8088/health >/dev/null; then ready=1; break; fi
-              if ! kill -0 "$SHIM_PID" 2>/dev/null; then break; fi
+              if curl -fsS http://127.0.0.1:8088/health >/dev/null && curl -fsS http://127.0.0.1:8089/health >/dev/null; then ready=1; break; fi
+              if ! kill -0 "$SHIM_PID" 2>/dev/null || ! kill -0 "$JUDGE_PID" 2>/dev/null; then break; fi
               sleep 1
             done
             if [ "$ready" -ne 1 ]; then
@@ -226,6 +236,8 @@ jobs:
               cat "$DIR/shim-runtime.log" >&2 || true
               kill "$SHIM_PID" 2>/dev/null || true
               wait "$SHIM_PID" 2>/dev/null || true
+              kill "$JUDGE_PID" 2>/dev/null || true
+              wait "$JUDGE_PID" 2>/dev/null || true
               overall=1
               break
             fi
@@ -235,7 +247,12 @@ jobs:
             set -e
             kill "$SHIM_PID" 2>/dev/null || true
             wait "$SHIM_PID" 2>/dev/null || true
+            kill "$JUDGE_PID" 2>/dev/null || true
+            wait "$JUDGE_PID" 2>/dev/null || true
             printf '%s\n' "$rc" > "$DIR/task-rc.txt"
+            QCOW_AFTER=$(sha256sum "$QCOW_PATH" | cut -d' ' -f1)
+            test "$QCOW_AFTER" = "$(cat qcow-base.sha256)"
+            printf '%s\n' "$QCOW_AFTER" > "$DIR/qcow-base-sha256.txt"
             python scripts/osworld_v32_integrity.py verify osworld "$DIR/evaluator-before.json" "$DIR/evaluator-integrity.json"
             python scripts/osworld_v32_gate.py seal "$DIR"
             if ! python scripts/osworld_v32_gate.py task "$DIR" --task "$TASK_ID"; then

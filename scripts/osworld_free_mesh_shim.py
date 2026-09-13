@@ -132,6 +132,7 @@ def request_mesh(body):
     if body.get('provider_hint')=='openrouter':
         response=router()
         if response: return response
+    body['request_budget_ms']=max(1000,min(60000,int((105-(time.monotonic()-started))*1000)))
     http,data=request_gateway(body)
     if http in (429,500,502,503,504):
         response=router()

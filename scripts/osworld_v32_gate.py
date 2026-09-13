@@ -6,6 +6,7 @@ import math
 import os
 from pathlib import Path
 from osworld_evidence import seal, verify
+from osworld_judge_audit import audit_judgements
 
 SHARDS = {'A': ['001','019','037','055','073','091'], 'B': ['007','025','043','061','079','097'],
           'C': ['013','031','049','067','085','103']}
@@ -53,7 +54,9 @@ def audit_task(root, task, sha):
                     raise ValueError('FREE_PROVIDER_UNPROVEN')
         issued |= event.get('status') == 'ACTION_ISSUED'
     if not issued: raise ValueError('NO_REAL_AGENT_ACTION')
+    judges=audit_judgements(root,task,sha)
     return {'task_id': task, 'score': score, 'pass': score == 1.0,
+            'judge_audit':judges,
             'evidence_manifest_sha256': hashlib.sha256((root / 'SHA256SUMS.txt').read_bytes()).hexdigest()}
 
 

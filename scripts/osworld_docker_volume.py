@@ -7,6 +7,7 @@ from pathlib import Path
 import urllib.request
 
 LOG = logging.getLogger(__name__)
+LOG.setLevel(logging.INFO)
 GUEST_CAPACITY = "import json,os;f=os.statvfs('/');print(json.dumps(dict(filesystem_bytes=f.f_blocks*f.f_frsize,available_bytes=f.f_bavail*f.f_frsize,free_inodes=f.f_favail)))"
 
 

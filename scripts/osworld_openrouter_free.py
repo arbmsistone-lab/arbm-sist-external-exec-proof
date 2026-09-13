@@ -95,7 +95,7 @@ class FreeRoute:
         state.update(state=reason, until=self.clock()+delay)
         if status in (401,403,402): self.provider_until = self.clock()+delay
 
-    def call(self, body, key=None, budget=55):
+    def call(self, body, key=None, budget=55, raw_messages=None, raw_tokens=512, temperature=0):
         key = key if key is not None else os.environ.get('OPENROUTER_API_KEY', '')
         attempts = []
         def event(**fields):
@@ -107,11 +107,11 @@ class FreeRoute:
             event(status='not_configured'); return None, attempts
         if self.clock() < self.provider_until:
             event(status='provider_cooldown'); return None, attempts
-        if not body.get('screenshot_data_url', '').startswith('data:image/'):
+        if raw_messages is None and not body.get('screenshot_data_url', '').startswith('data:image/'):
             event(status='image_required'); return None, attempts
         deadline = self.clock()+budget
         if self.clock() >= self.auth_until:
-            status, data, headers = self.transport('/key', key, timeout=15)
+            status, data, headers = self.transport('/key', key, timeout=max(.5,min(15,deadline-self.clock())))
             if status != 200 or not isinstance(data.get('data'), dict):
                 event(status='auth_probe_failed', http=status)
                 self.failure('*', status, headers); return None, attempts
@@ -119,7 +119,9 @@ class FreeRoute:
             # No label, key, headers, or balances are copied into evidence.
             event(status='auth_probe_pass', account_free_tier=data['data'].get('is_free_tier'))
         if self.clock() >= self.catalog_until:
-            status, data, _ = self.transport('/models', key, timeout=15)
+            if deadline-self.clock()<.5:
+                event(status='request_budget_elapsed');return None,attempts
+            status, data, _ = self.transport('/models', key, timeout=min(15,deadline-self.clock()))
             if status != 200:
                 event(status='catalog_unavailable', http=status); return None, attempts
             self.models = [m for m in data.get('data', []) if eligible(m) and m['id'] in PREFERRED]
@@ -135,11 +137,15 @@ class FreeRoute:
             remaining = deadline-self.clock()
             if remaining < 2: break
             state['state'] = 'HALF_OPEN' if state['failures'] else 'DEGRADED'
-            payload = {'model':name, 'messages':[{'role':'user','content':[
+            payload = {'model':name, 'messages':raw_messages if raw_messages is not None else [{'role':'user','content':[
                 {'type':'text','text':prompt(body)}, {'type':'image_url','image_url':{'url':body['screenshot_data_url']}}]}],
                 'temperature':0, 'max_tokens':1600,
                 'provider':{'allow_fallbacks':True, 'max_price':{'prompt':0,'completion':0,'request':0,'image':0}}}
-            if 'response_format' in model.get('supported_parameters', []): payload['response_format'] = {'type':'json_object'}
+            if raw_messages is not None:
+                # The evaluator's messages, images, system prompt and output
+                # budget pass through unchanged. Never retry a valid NO verdict.
+                payload.update(messages=raw_messages,max_tokens=raw_tokens,temperature=temperature)
+            elif 'response_format' in model.get('supported_parameters', []): payload['response_format'] = {'type':'json_object'}
             if 'reasoning' in model.get('supported_parameters', []): payload['reasoning'] = {'enabled':False}
             before = self.clock()
             status, data, headers = self.transport('/chat/completions', key, payload, timeout=min(35, remaining))
@@ -148,9 +154,11 @@ class FreeRoute:
             action = None; error = ''
             if cost_proven:
                 try:
-                    text = data['choices'][0]['message']['content'].strip()
+                    text = data['choices'][0]['message']['content']
+                    if not isinstance(text,str):raise ValueError('RESPONSE_TEXT_REQUIRED')
+                    text=text.strip()
                     if text.startswith('```'): text = text.split('\n',1)[1].rsplit('```',1)[0]
-                    action = canonical_action(json.loads(text))
+                    action = {'text':text} if raw_messages is not None and text else canonical_action(json.loads(text))
                 except (KeyError, IndexError, TypeError, ValueError) as exc: error = str(exc)[:150]
             if status == 200 and not cost_proven:
                 # An unproven response is never promoted to a zero-cost action.
@@ -164,6 +172,9 @@ class FreeRoute:
             if action is not None:
                 state.update(state='HEALTHY', failures=0, successes=state['successes']+1,
                     until=0, latency_seconds=latency)
+                if raw_messages is not None:
+                    return {'text':data['choices'][0]['message']['content'],
+                        'provider':'openrouter-free','model':name,'raw_response':data},attempts
                 return {'action':action, 'provider':'openrouter-free', 'model':name}, attempts
             self.failure(name, status if status != 200 else 422, headers)
             if status in (401,403,402): break
