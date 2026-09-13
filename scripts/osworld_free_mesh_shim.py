@@ -7,6 +7,7 @@ from osworld_milestones import Milestones, verified_facts
 from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response, visual_reference_recovery
 from osworld_v32_policy import DecisionKind, apply_live_policy
 from osworld_openrouter_free import FREE_ROUTE
+from osworld_groq_free import GROQ_FREE_ROUTE
 from osworld_recovery import recovery_policy, rejects_visual_navigation_loop, semantic_terminal
 
 UPSTREAM = 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5'
@@ -122,6 +123,14 @@ def request_mesh(body):
     started=time.monotonic()
     body={**body,'request_budget_ms':60000}
     router_attempts=[]
+    def groq_router():
+        result, attempts=GROQ_FREE_ROUTE.call(body,budget=max(2,min(55,105-(time.monotonic()-started))))
+        router_attempts.extend(attempts)
+        if result:
+            return 200,{'ok':True,'status':'PASS','pipeline':EXPECTED_PIPELINE,
+                'agent_build':EXPECTED_BUILD,**result,'provider_attempts':router_attempts,
+                'mandatory_cost_usd':0,'paid_fallback_used':False,'scoreable':False,
+                'github_sha':os.environ.get('GITHUB_SHA'),'github_run_id':os.environ.get('GITHUB_RUN_ID')}
     def router():
         result, attempts=FREE_ROUTE.call(body,budget=max(2,min(55,105-(time.monotonic()-started))))
         router_attempts.extend(attempts)
@@ -130,6 +139,8 @@ def request_mesh(body):
                 'agent_build':EXPECTED_BUILD,**result,'provider_attempts':router_attempts,
                 'mandatory_cost_usd':0,'paid_fallback_used':False,'scoreable':False,
                 'github_sha':os.environ.get('GITHUB_SHA'),'github_run_id':os.environ.get('GITHUB_RUN_ID')}
+    response=groq_router()
+    if response: return response
     if body.get('provider_hint')=='openrouter':
         response=router()
         if response: return response

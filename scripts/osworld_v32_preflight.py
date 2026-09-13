@@ -19,7 +19,7 @@ def main(root):
     body, metrics = pack_payload({'instruction':"Dismiss any open notification or menu with pyautogui.press('esc'). Do not open files. This is provider admission only.",
         'observation':'', 'screenshot_data_url':'data:image/png;base64,' + base64.b64encode(pngs[0].read_bytes()).decode(),
         'expected_build':shim.EXPECTED_BUILD, 'phase':'execute','step':1,'memory':'', 'verified_milestones':[]})
-    third_result,third_attempts=shim.FREE_ROUTE.call(body,budget=100)
+    third_result,third_attempts=shim.GROQ_FREE_ROUTE.call(body,budget=100)
     third_proof={'status':'LIVE_FREE_PROBE_PASS' if third_result else 'UNAVAILABLE',
                  'purpose':'provider admission only; no benchmark action executed',
                  'result':third_result,'attempts':third_attempts}
@@ -47,8 +47,13 @@ def main(root):
     judge_messages=[{'role':'system','content':'You are a strict binary classifier. Output MUST be exactly one token: YES or NO. No punctuation, no extra words, no explanations.'},
         {'role':'user','content':[{'type':'text','text':'Does this image show a full-screen photograph of a football field with football players? Answer only YES or NO.'},
             {'type':'image_url','image_url':{'url':body['screenshot_data_url'],'detail':'high'}}]}]
-    judge_route=FreeRoute()
-    judge_result,judge_attempts=judge_route.call({},budget=100,raw_messages=judge_messages,raw_tokens=10)
+    judge_result,judge_attempts=shim.GROQ_FREE_ROUTE.call({},budget=100,raw_messages=judge_messages,raw_tokens=10)
+    if not judge_result:
+        # Keep the existing free route as a secondary evaluator only when the
+        # independently rate-limited Groq plan has no capacity.
+        judge_route=FreeRoute()
+        judge_result,openrouter_attempts=judge_route.call({},budget=100,raw_messages=judge_messages,raw_tokens=10)
+        judge_attempts.extend(openrouter_attempts)
     judge_proof={'purpose':'negative binary model-client admission using real recorded desktop; not a benchmark score',
         'result':judge_result,'attempts':judge_attempts,'status':'UNAVAILABLE'}
     if judge_result and judge_result['text'].strip()=='NO':judge_proof['status']='LIVE_FREE_NEGATIVE_BINARY_PASS'
