@@ -25,6 +25,23 @@ jobs:
       - run: python -m unittest discover -s scripts -p 'test_osworld_*.py'
       - run: node scripts/test_endpoint.mjs
       - run: git diff --check
+      - name: Prove benchmark OIDC endpoint auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN_URL="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark"
+          TOKEN=$(curl -fsS -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "$TOKEN_URL" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')
+          CODE=$(curl -sS -o oidc-probe.json -w '%{http_code}' -X POST \
+            https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5 \
+            -H "Authorization: Bearer ${TOKEN}" -H 'Content-Type: application/json' -d '{}')
+          cat oidc-probe.json
+          test "$CODE" = 400
+          python - <<'PY'
+          import json
+          d=json.load(open('oidc-probe.json'))
+          assert d.get('error')=='INSTRUCTION_REQUIRED', d
+          print('OIDC_ENDPOINT_AUTH_OK')
+          PY
   shard:
     needs: preflight
     strategy:
@@ -131,6 +148,26 @@ jobs:
           git -C osworld diff -- scripts/python/run_multienv.py > osworld-docker-provider.patch
           test -s osworld-docker-provider.patch
           sha256sum osworld-docker-provider.patch
+      - name: Patch upstream upload parent-directory bug
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('osworld/desktop_env/controllers/setup.py')
+          s=p.read_text()
+          old='            url: str = f["url"]\n            path: str = f["path"]\n'
+          new=old+'            parent = os.path.dirname(path)\n            if parent:\n                self._execute_setup(["mkdir", "-p", parent], quiet=True, timeout=30)\n'
+          old2='            local_path: str = f["local_path"]\n            path: str = f["path"]\n'
+          new2=old2+'            parent = os.path.dirname(path)\n            if parent:\n                self._execute_setup(["mkdir", "-p", parent], quiet=True, timeout=30)\n'
+          assert s.count(old) == 1, 'UPSTREAM_DOWNLOAD_PATH_BLOCK_CHANGED'
+          assert s.count(old2) == 1, 'UPSTREAM_UPLOAD_PATH_BLOCK_CHANGED'
+          p.write_text(s.replace(old,new,1).replace(old2,new2,1))
+          print('OSWORLD_REMOTE_PARENT_PATCH_APPLIED')
+          PY
+          git -C osworld diff -- desktop_env/controllers/setup.py > osworld-upload-parent.patch
+          test -s osworld-upload-parent.patch
+          sha256sum osworld-upload-parent.patch
       - name: Download pinned official VM
         shell: bash
         run: |
@@ -151,6 +188,7 @@ jobs:
           set -euo pipefail
           overall=0
           for TASK_ID in ${{ matrix.shard.tasks }}; do
+            export TASK_ID
             DIR="$GITHUB_WORKSPACE/osworld-v32-evidence/task-${TASK_ID}"
             mkdir -p "$DIR"
             export ARBM_OSWORLD_SHIM_LOG="$DIR/shim.jsonl"
