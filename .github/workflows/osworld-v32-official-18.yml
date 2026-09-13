@@ -141,7 +141,7 @@ jobs:
                 "file_path": path,
                 "file_data": (os.path.basename(path), open(cache_path, "rb"))
             })
-'''
+          '''
           new='''            parent = os.path.dirname(path)
             if parent:
                 self._execute_setup(["mkdir", "-p", parent], quiet=True, timeout=30)
@@ -150,7 +150,7 @@ jobs:
                 "file_path": path,
                 "file_data": (os.path.basename(path), open(cache_path, "rb"))
             })
-'''
+          '''
           assert old in s, 'UPSTREAM_UPLOAD_BLOCK_CHANGED'
           p.write_text(s.replace(old,new,1))
           print('OSWORLD_UPLOAD_PARENT_PATCH_APPLIED')
