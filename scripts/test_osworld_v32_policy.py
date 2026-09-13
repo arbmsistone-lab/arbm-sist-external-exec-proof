@@ -78,3 +78,20 @@ class TestLivePolicyBridge(unittest.TestCase):
         text = (Path(__file__).parent / "osworld_free_mesh_shim.py").read_text(encoding="utf-8")
         self.assertIn("from osworld_v32_policy import DecisionKind, apply_live_policy", text)
         self.assertIn("decision=apply_live_policy", text)
+
+
+class TestVisualReferenceRecovery(unittest.TestCase):
+    def test_requires_editor_and_repeated_unverified_actions(self):
+        from osworld_control import visual_reference_recovery
+        instruction = "Apply the same style and color grading from a reference image to target.jpg."
+        self.assertEqual(visual_reference_recovery(instruction, "GIMP", 3), "")
+        self.assertEqual(visual_reference_recovery(instruction, "Files", 8), "")
+        guidance = visual_reference_recovery(instruction, "GNU Image Manipulation Program", 4)
+        self.assertIn("Stop repeating file-navigation actions", guidance)
+        self.assertIn("visible editor adjustment", guidance)
+
+    def test_shim_uses_visual_reference_recovery(self):
+        from pathlib import Path
+        text = (Path(__file__).parent / "osworld_free_mesh_shim.py").read_text(encoding="utf-8")
+        self.assertIn("visual_reference_recovery", text)
+        self.assertIn("visual_recovery", text)

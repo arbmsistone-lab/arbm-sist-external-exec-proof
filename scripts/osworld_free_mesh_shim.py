@@ -4,7 +4,7 @@ from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from osworld_ingress import project_messages
 from osworld_milestones import Milestones, verified_facts
-from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response
+from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response, visual_reference_recovery
 from osworld_v32_policy import DecisionKind, apply_live_policy
 from osworld_openrouter_free import FREE_ROUTE
 
@@ -165,6 +165,8 @@ def call_mesh(messages):
           'verifier':verification,'verified_milestones':MILESTONES.context(),'recovery_strategy':RECOVERY[VERIFIER.recovery_level],
           'route_cooldowns':STATE['cooldowns'],'expected_build':EXPECTED_BUILD}
     if MILESTONES.stalled>=6:body['recovery_strategy']='No verified subtask milestone. Replan from last verified fact; read required source before switching to output app. Specify a testable checkpoint.'
+    visual_recovery=visual_reference_recovery(body['instruction'],body.get('active_application','unknown'),MILESTONES.stalled)
+    if visual_recovery:body['recovery_strategy']=visual_recovery
     if MILESTONES.stalled>=8:body['provider_hint']='text'
     elif VERIFIER.recovery_level>=4:body['provider_hint']='groq' if STATE['provider']=='mistral-free' else 'mistral'
     try:body,metrics=pack_payload(body)

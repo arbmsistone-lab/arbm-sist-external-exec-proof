@@ -17,6 +17,32 @@ METHODS = {'click','doubleClick','rightClick','moveTo','press','hotkey','write',
            'scroll','sleep','mouseDown','mouseUp','dragTo','keyDown','keyUp'}
 
 
+def visual_reference_recovery(instruction, active_application, stalled_actions):
+    """Return bounded guidance when a visual-style task is looping in an editor.
+
+    The guidance is deliberately task-agnostic: it is enabled only when the
+    request asks to reproduce edits/style from a visible reference and the
+    foreground is an image editor.  It does not prescribe a transformation or
+    inspect any hidden file; it simply prevents navigation from being mistaken
+    for progress once repeated GUI actions have produced no visible milestone.
+    """
+    request = str(instruction or '').casefold()
+    app = str(active_application or '').casefold()
+    reference_task = (any(term in request for term in ('same style', 'same edits', 'mimic', 'color grading'))
+                      and any(term in request for term in ('image', '.jpg', '.png', 'photo')))
+    image_editor = any(term in app for term in ('gimp', 'darktable', 'image manipulation'))
+    if reference_task and image_editor and int(stalled_actions or 0) >= 4:
+        return (
+            'VISUAL-REFERENCE RECOVERY: file dialogs, tab changes, and opening a reference are preparatory, '
+            'not completion. Stop repeating file-navigation actions. Use the current visible dialog to open or '
+            'close it deliberately, bring the target image canvas forward, compare it with the reference, then '
+            'perform one visible editor adjustment (for example a Colors control). Set a checkpoint that proves '
+            'the target canvas or adjustment dialog is visible before exporting. Do not claim success until the '
+            'target output is visibly present.'
+        )
+    return ''
+
+
 def canonical_action(value):
     if not isinstance(value, dict):
         raise ValueError('ACTION_OBJECT_REQUIRED')
