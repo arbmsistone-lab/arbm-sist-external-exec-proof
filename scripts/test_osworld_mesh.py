@@ -1,4 +1,5 @@
 import sys,unittest,tempfile,pathlib,importlib.util,copy,json
+import os
 from unittest.mock import patch
 sys.path.insert(0,str(pathlib.Path(__file__).parent))
 import osworld_free_mesh_shim as shim
@@ -92,7 +93,10 @@ class MeshTests(unittest.TestCase):
    bodies.append(dict(body))
    return 503,{'status':'NO_ZERO_SPEND_MULTIMODAL_CAPACITY'}
   shim.request_mesh=unavailable
-  for _ in range(4):self.assertEqual(shim.call_mesh(self.msgs),'WAIT')
+  # This case proves the accessibility-only degradation when the local VLM is
+  # unavailable.  CI normally enables it, so make that prerequisite explicit.
+  with patch.dict(os.environ,{'ARBM_ENABLE_LOCAL_VLM':'0'}):
+   for _ in range(4):self.assertEqual(shim.call_mesh(self.msgs),'WAIT')
   self.assertTrue(shim.STATE['visual_capacity_exhausted'])
   self.assertEqual(bodies[-1]['provider_hint'],'text')
  def test_corrupt_http_input_terminates_without_client_retry(self):
