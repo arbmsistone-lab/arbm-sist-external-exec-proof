@@ -2,7 +2,7 @@ import json
 import os
 import unittest
 from unittest.mock import patch
-from osworld_openrouter_free import FreeRoute, eligible, PREFERRED, MAX_FREE_CANDIDATES
+from osworld_openrouter_free import FreeRoute, eligible, PREFERRED, MAX_FREE_CANDIDATES, FREE_ROUTER_MODEL
 
 MODEL={'id':PREFERRED[0], 'pricing':{'prompt':'0','completion':'0'},
        'architecture':{'input_modalities':['text','image'],'output_modalities':['text']},
@@ -23,7 +23,7 @@ class RouteTests(unittest.TestCase):
         self.requests.append((path,payload))
         if path=='/key':return 200,{'data':{'is_free_tier':True}},{}
         if path=='/models':return 200,{'data':[MODEL,dict(MODEL,id=PREFERRED[1])]},{}
-        return self.replies.pop(0)
+        return self.replies.pop(0) if self.replies else (503,{}, {})
 
     def answer(self,cost=0,action=ACTION):
         return 200,{'usage':{'cost':cost},'choices':[{'message':{'content':json.dumps(action)}}]},{}
@@ -65,7 +65,7 @@ class RouteTests(unittest.TestCase):
         result,_=self.route.call(BODY,'key')
         self.assertIsNone(result)
         self.assertNotEqual(self.route.state(PREFERRED[0])['state'],'HEALTHY')
-        self.now+=61; self.replies=[self.answer()]
+        self.now+=61; self.route.state(FREE_ROUTER_MODEL)['until']=self.now+100; self.replies=[self.answer()]
         result,_=self.route.call(BODY,'key')
         self.assertEqual(result['model'],PREFERRED[0])
         self.assertEqual(self.route.state(PREFERRED[0])['state'],'HEALTHY')
@@ -81,6 +81,29 @@ class RouteTests(unittest.TestCase):
             result,attempts=self.route.call(BODY,'test')
         self.assertEqual(result['model'],extra['id'])
         self.assertLessEqual(len(self.route.models),MAX_FREE_CANDIDATES)
+        self.assertTrue(attempts[-1]['free_plan_proven'])
+
+    def test_one_model_payment_error_does_not_block_other_free_routes(self):
+        self.replies=[(402,{},{}),self.answer()]
+        with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','OPENROUTER_API_KEY':'test'}):
+            result,attempts=self.route.call(BODY,'test')
+        self.assertEqual(result['model'],PREFERRED[1])
+        self.assertEqual(attempts[-2]['status'],402)
+        self.assertEqual(self.route.provider_until,0)
+
+    def test_official_free_router_is_a_zero_price_last_resort(self):
+        self.replies=[self.answer()]
+        self.route.models=[]
+        # The dynamic catalog includes the documented free router even when
+        # no fixed preferred model is listed as available.
+        def transport(path,key,payload=None,timeout=35):
+            if path=='/key': return 200,{'data':{'is_free_tier':True}},{}
+            if path=='/models': return 200,{'data':[]},{}
+            return self.replies.pop(0)
+        self.route=FreeRoute(transport,lambda:self.now)
+        with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','OPENROUTER_API_KEY':'test'}):
+            result,attempts=self.route.call(BODY,'test')
+        self.assertEqual(result['model'],FREE_ROUTER_MODEL)
         self.assertTrue(attempts[-1]['free_plan_proven'])
 
     def test_auth_failure_disables_provider_and_no_billing_retry(self):

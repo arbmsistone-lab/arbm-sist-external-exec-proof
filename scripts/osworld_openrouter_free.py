@@ -17,6 +17,7 @@ PREFERRED = ['nex-agi/nex-n2.5-pro:free', 'thinkingmachines/inkling:free',
 # proven during admission first, then admit a bounded set of newly listed
 # FREE vision models only when their catalog metadata passes `eligible`.
 MAX_FREE_CANDIDATES = 16
+FREE_ROUTER_MODEL = 'openrouter/free'
 
 
 def zero(value):
@@ -97,7 +98,11 @@ class FreeRoute:
         except (ValueError, TypeError): delay = 60
         if status in (401,403,404,413): delay = 300
         state.update(state=reason, until=self.clock()+delay)
-        if status in (401,403,402): self.provider_until = self.clock()+delay
+        # A 402 from one advertised zero-price model must never promote a
+        # paid retry, but it also is not proof that every other catalogued
+        # FREE model is unavailable.  Only authentication failures disable
+        # the provider globally.
+        if status in (401,403): self.provider_until = self.clock()+delay
 
     def call(self, body, key=None, budget=55, raw_messages=None, raw_tokens=512, temperature=0):
         key = key if key is not None else os.environ.get('OPENROUTER_API_KEY', '')
@@ -133,12 +138,17 @@ class FreeRoute:
             preferred = [by_id[name] for name in PREFERRED if name in by_id]
             extras = sorted((m for m in eligible_models if m['id'] not in PREFERRED),
                             key=lambda m: m['id'])
-            self.models = (preferred + extras)[:MAX_FREE_CANDIDATES]
+            free_router = {'id':FREE_ROUTER_MODEL,
+                'pricing':{'prompt':'0','completion':'0','request':'0','image':'0'},
+                'context_length':16000,
+                'architecture':{'input_modalities':['text','image'],'output_modalities':['text']}}
+            self.models = (preferred + extras)[:MAX_FREE_CANDIDATES - 1] + [free_router]
             self.catalog_hash = hashlib.sha256(json.dumps(self.models, sort_keys=True).encode()).hexdigest()
             self.catalog_until = self.clock()+300
         models = sorted(self.models, key=lambda m: (self.state(m['id'])['failures'] /
             (1+self.state(m['id'])['successes']),
-            PREFERRED.index(m['id']) if m['id'] in PREFERRED else len(PREFERRED),
+            (PREFERRED.index(m['id']) if m['id'] in PREFERRED
+             else len(PREFERRED) + (1 if m['id'] == FREE_ROUTER_MODEL else 0)),
             self.state(m['id'])['latency_seconds'], m['id']))
         for model in models:
             name = model['id']; state = self.state(name)
@@ -188,7 +198,7 @@ class FreeRoute:
                         'provider':'openrouter-free','model':name,'raw_response':data},attempts
                 return {'action':action, 'provider':'openrouter-free', 'model':name}, attempts
             self.failure(name, status if status != 200 else 422, headers)
-            if status in (401,403,402): break
+            if status in (401,403): break
         return None, attempts
 
 
