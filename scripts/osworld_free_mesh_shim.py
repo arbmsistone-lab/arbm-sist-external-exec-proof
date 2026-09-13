@@ -7,6 +7,7 @@ from osworld_milestones import Milestones, verified_facts
 from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response, visual_reference_recovery
 from osworld_v32_policy import DecisionKind, apply_live_policy
 from osworld_openrouter_free import FREE_ROUTE
+from osworld_recovery import recovery_policy, semantic_terminal
 
 UPSTREAM = 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5'
 EXPECTED_PIPELINE = 'arbm-osworld-v32-isolated'
@@ -154,7 +155,7 @@ def call_mesh(messages):
         STATE["memory"].append("OBSERVED MILESTONE: "+json.dumps(semantic["milestone"],ensure_ascii=False))
         STATE["memory"]=STATE["memory"][-8:]
         log_event({"status":"MILESTONE_VERIFIED","milestone":semantic["milestone"]})
-    if MILESTONES.stalled>=16:return terminal("SEMANTIC_RECOVERY_EXHAUSTED")
+    if semantic_terminal(MILESTONES.stalled, VERIFIER.no_progress):return terminal("SEMANTIC_RECOVERY_EXHAUSTED")
     if VERIFIER.no_progress>=MAX_NO_PROGRESS or STATE['wait_responses']>=MAX_WAIT_RESPONSES or STATE['step']>MAX_STEPS:
         return terminal('RECOVERY_EXHAUSTED' if STATE['step']<=MAX_STEPS else 'STEP_BUDGET')
     STATE['phase']='plan' if VERIFIER.no_progress>=2 or not STATE['plan'] else 'execute'
@@ -164,11 +165,11 @@ def call_mesh(messages):
           'phase':STATE['phase'],'no_progress_count':VERIFIER.no_progress,'step':STATE['step'],
           'verifier':verification,'verified_milestones':MILESTONES.context(),'recovery_strategy':RECOVERY[VERIFIER.recovery_level],
           'route_cooldowns':STATE['cooldowns'],'expected_build':EXPECTED_BUILD}
-    if MILESTONES.stalled>=6:body['recovery_strategy']='No verified subtask milestone. Replan from last verified fact; read required source before switching to output app. Specify a testable checkpoint.'
+    recovery=recovery_policy(body['instruction'], body.get('active_application','unknown'), MILESTONES.stalled, VERIFIER.no_progress, VERIFIER.recovery_level, STATE['provider'])
+    if recovery['strategy']:body['recovery_strategy']=recovery['strategy']
+    if recovery['provider_hint']:body['provider_hint']=recovery['provider_hint']
     visual_recovery=visual_reference_recovery(body['instruction'],body.get('active_application','unknown'),MILESTONES.stalled)
     if visual_recovery:body['recovery_strategy']=visual_recovery
-    if MILESTONES.stalled>=8:body['provider_hint']='text'
-    elif VERIFIER.recovery_level>=4:body['provider_hint']='groq' if STATE['provider']=='mistral-free' else 'mistral'
     try:body,metrics=pack_payload(body)
     except ValueError as exc:return terminal(str(exc))
     OBS_DIR.mkdir(parents=True,exist_ok=True)
