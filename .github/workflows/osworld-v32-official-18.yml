@@ -136,23 +136,14 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           p=Path('osworld/desktop_env/controllers/setup.py')
-          s=p.read_text()
-          old='''            form = MultipartEncoder({
-                "file_path": path,
-                "file_data": (os.path.basename(path), open(cache_path, "rb"))
-            })
-          '''
-          new='''            parent = os.path.dirname(path)
-            if parent:
-                self._execute_setup(["mkdir", "-p", parent], quiet=True, timeout=30)
-
-            form = MultipartEncoder({
-                "file_path": path,
-                "file_data": (os.path.basename(path), open(cache_path, "rb"))
-            })
-          '''
-          assert old in s, 'UPSTREAM_UPLOAD_BLOCK_CHANGED'
-          p.write_text(s.replace(old,new,1))
+          lines=p.read_text().splitlines()
+          start=next(i for i,line in enumerate(lines) if 'def _download_setup' in line)
+          idx=next(i for i in range(start,len(lines)) if 'form = MultipartEncoder({' in lines[i])
+          indent=lines[idx][:len(lines[idx])-len(lines[idx].lstrip())]
+          marker='self._execute_setup(["mkdir", "-p", parent], quiet=True, timeout=30)'
+          assert not any(marker in line for line in lines[start:idx+1]), 'UPLOAD_PARENT_ALREADY_PATCHED'
+          lines[idx:idx]=[f'{indent}parent = os.path.dirname(path)', f'{indent}if parent:', f'{indent}    {marker}', '']
+          p.write_text('\n'.join(lines)+'\n')
           print('OSWORLD_UPLOAD_PARENT_PATCH_APPLIED')
           PY
           git -C osworld diff -- desktop_env/controllers/setup.py > osworld-upload-parent.patch
