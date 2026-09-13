@@ -52,6 +52,7 @@ jobs:
           name: osworld-v32-live-preflight
           path: |
             osworld-v32-live-preflight.json
+            osworld-v32-initial-admission.json
             osworld-v32-judge-admission.json
           if-no-files-found: error
           retention-days: 90

@@ -22,6 +22,11 @@ def main(root):
     third_proof={'status':'LIVE_FREE_PROBE_PASS' if third_result else 'UNAVAILABLE',
                  'purpose':'provider admission only; no benchmark action executed',
                  'result':third_result,'attempts':third_attempts}
+    # Preserve the first provider response even when its authentication probe
+    # places the shared route on cooldown before the later binary judge runs.
+    # This contains only sanitized attempts and is essential for diagnosing a
+    # rejected repository secret without leaking its value.
+    Path('osworld-v32-initial-admission.json').write_text(json.dumps(third_proof,indent=2))
     mistral_body={**body,'provider_hint':'mistral','request_budget_ms':60000,
         'route_cooldowns':{route+':'+model:int((time.time()+120)*1000)
             for route,models in [('groq-multimodal-free',['qwen/qwen3.8-27b','qwen/qwen3.6-27b']),
