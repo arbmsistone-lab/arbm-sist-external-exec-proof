@@ -106,6 +106,19 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(result['model'],FREE_ROUTER_MODEL)
         self.assertTrue(attempts[-1]['free_plan_proven'])
 
+    def test_catalog_outage_uses_static_zero_price_candidates(self):
+        def transport(path,key,payload=None,timeout=35):
+            if path=='/key': return 200,{'data':{'is_free_tier':True}},{}
+            if path=='/models': return 503,{},{}
+            return self.answer()
+        self.route=FreeRoute(transport,lambda:self.now)
+        result,attempts=self.route.call(BODY,'test')
+        self.assertEqual(result['model'],PREFERRED[0])
+        self.assertEqual(attempts[1]['status'],'catalog_unavailable_static_fallback')
+        self.assertEqual(attempts[1]['http'],503)
+        self.assertTrue(attempts[-1]['free_plan_proven'])
+        self.assertTrue(all(x['pricing']['prompt']=='0' for x in self.route.models))
+
     def test_auth_failure_disables_provider_and_no_billing_retry(self):
         self.replies=[(401,{}, {})]
         result,_=self.route.call(BODY,'key')

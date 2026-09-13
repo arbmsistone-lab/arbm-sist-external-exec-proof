@@ -20,6 +20,13 @@ MAX_FREE_CANDIDATES = 16
 FREE_ROUTER_MODEL = 'openrouter/free'
 
 
+def zero_price_model(name):
+    return {'id':name,
+            'pricing':{'prompt':'0','completion':'0','request':'0','image':'0'},
+            'context_length':16000,
+            'architecture':{'input_modalities':['text','image'],'output_modalities':['text']}}
+
+
 def zero(value):
     if isinstance(value, bool): return False
     try: return math.isfinite(float(value)) and float(value) == 0
@@ -69,6 +76,13 @@ class FreeRoute:
         self.auth_until = 0
         self.states = {}
         self.provider_until = 0
+
+    @staticmethod
+    def static_free_models():
+        # The fixed candidates are explicitly suffixed :free.  They are used
+        # only while /models is temporarily unavailable; the request still
+        # carries a zero-price ceiling and its response must prove zero cost.
+        return [zero_price_model(name) for name in PREFERRED] + [zero_price_model(FREE_ROUTER_MODEL)]
 
     @staticmethod
     def http(path, key, payload=None, timeout=35):
@@ -132,17 +146,16 @@ class FreeRoute:
                 event(status='request_budget_elapsed');return None,attempts
             status, data, _ = self.transport('/models', key, timeout=min(15,deadline-self.clock()))
             if status != 200:
-                event(status='catalog_unavailable', http=status); return None, attempts
-            eligible_models = [m for m in data.get('data', []) if eligible(m)]
-            by_id = {m['id']: m for m in eligible_models}
-            preferred = [by_id[name] for name in PREFERRED if name in by_id]
-            extras = sorted((m for m in eligible_models if m['id'] not in PREFERRED),
-                            key=lambda m: m['id'])
-            free_router = {'id':FREE_ROUTER_MODEL,
-                'pricing':{'prompt':'0','completion':'0','request':'0','image':'0'},
-                'context_length':16000,
-                'architecture':{'input_modalities':['text','image'],'output_modalities':['text']}}
-            self.models = (preferred + extras)[:MAX_FREE_CANDIDATES - 1] + [free_router]
+                self.models = self.static_free_models()
+                event(status='catalog_unavailable_static_fallback', http=status,
+                      candidates=len(self.models))
+            else:
+                eligible_models = [m for m in data.get('data', []) if eligible(m)]
+                by_id = {m['id']: m for m in eligible_models}
+                preferred = [by_id[name] for name in PREFERRED if name in by_id]
+                extras = sorted((m for m in eligible_models if m['id'] not in PREFERRED),
+                                key=lambda m: m['id'])
+                self.models = (preferred + extras)[:MAX_FREE_CANDIDATES - 1] + [zero_price_model(FREE_ROUTER_MODEL)]
             self.catalog_hash = hashlib.sha256(json.dumps(self.models, sort_keys=True).encode()).hexdigest()
             self.catalog_until = self.clock()+300
         models = sorted(self.models, key=lambda m: (self.state(m['id'])['failures'] /
