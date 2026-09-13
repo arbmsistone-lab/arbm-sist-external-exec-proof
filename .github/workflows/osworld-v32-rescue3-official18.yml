@@ -11,7 +11,7 @@ permissions:
   contents: read
   id-token: write
 concurrency:
-  group: osworld-v32-rescue3-official18
+  group: osworld-v32-rescue4-shard-b-infra
   cancel-in-progress: false
 jobs:
   preflight:
