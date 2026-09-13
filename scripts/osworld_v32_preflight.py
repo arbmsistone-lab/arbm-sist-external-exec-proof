@@ -1,0 +1,39 @@
+"""Live GitHub OIDC and zero-cost provider admission before cloud VM boot."""
+import base64
+import json
+import os
+from pathlib import Path
+import time
+from osworld_control import pack_payload, validate_response
+import osworld_free_mesh_shim as shim
+
+
+def main(root):
+    if os.environ.get('ZERO_SPEND_MODE') != 'HARD': raise RuntimeError('HARD_MODE_REQUIRED')
+    http, data = shim.request_mesh({})
+    if http != 400 or data.get('error') != 'INSTRUCTION_REQUIRED':
+        raise RuntimeError('LIVE_OIDC_REJECTED:' + json.dumps({'http':http,'data':data}))
+    pngs = sorted(root.glob('**/task-001/results/**/tasks/001/*.png'))
+    if not pngs: raise RuntimeError('REAL_RECORDED_SCREENSHOT_REQUIRED')
+    body, metrics = pack_payload({'instruction':'Identify the visible foreground and choose one safe GUI action to inspect it.',
+        'observation':'', 'screenshot_data_url':'data:image/png;base64,' + base64.b64encode(pngs[0].read_bytes()).decode(),
+        'expected_build':shim.EXPECTED_BUILD, 'phase':'execute','step':1,'memory':'', 'verified_milestones':[]})
+    attempts=[]
+    for attempt in range(3):
+        http, data = shim.request_mesh(body)
+        attempts.append({'http':http,'data':data,'payload':metrics})
+        Path('osworld-v32-live-preflight.json').write_text(json.dumps({'screenshot_source_run':34733419571,
+            'purpose':'provider admission only; not a benchmark result','candidate_sha':os.environ['GITHUB_SHA'],
+            'oidc':'PASS','attempts':attempts},indent=2))
+        if http == 200:
+            validate_response(data,shim.EXPECTED_PIPELINE,shim.EXPECTED_BUILD)
+            if data.get('github_sha') != os.environ['GITHUB_SHA']: raise RuntimeError('OIDC_SHA_MISMATCH')
+            print('LIVE_OIDC_AND_FREE_PROVIDER_PASS'); return
+        if http not in (429,503): break
+        time.sleep(25)
+    raise RuntimeError('LIVE_FREE_CAPACITY_NOT_PROVEN:' + json.dumps(attempts))
+
+
+if __name__ == '__main__':
+    import sys
+    main(Path(sys.argv[1]))

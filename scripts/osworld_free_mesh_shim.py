@@ -154,7 +154,8 @@ def call_mesh(messages):
                    'model':data.get('model'),'agent_build':data.get('agent_build'),'pipeline':data.get('pipeline'),
                    'provider_attempts':data.get('provider_attempts',[]),'action':data.get('action'),
                    'mandatory_cost_usd':data.get('mandatory_cost_usd'),'paid_fallback_used':data.get('paid_fallback_used'),
-                   'transition_review':data.get('transition_review'),'payload':metrics,'observation_file':str(evidence_path)})
+                   'transition_review':data.get('transition_review'),'error':data.get('error'),
+                   'detail':str(data.get('detail') or '')[:200],'payload':metrics,'observation_file':str(evidence_path)})
         if data.get('pipeline') or http==200:
             try:validate_response(data,EXPECTED_PIPELINE,EXPECTED_BUILD)
             except ValueError as exc:return terminal(str(exc))

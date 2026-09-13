@@ -90,3 +90,11 @@ console.log('REVIEW_WAIT_COMMAND_NORMALIZATION_PASS');
 console.log('OPEN_SOURCE_CONTINUITY_PASS');
 console.log('REVIEW_BUDGET_GUARD_PASS');
 console.log('INDEPENDENT_TRANSITION_REVIEW_PASS');
+// Real rescue branch was absent from the allowlist. Admit only its exact workflow.
+const rescuePayload={repository:'arbmsistone-lab/arbm-sist-external-exec-proof',ref:'refs/heads/chatgpt/osworld-v32-rescue-20260912',event_name:'workflow_dispatch',run_id:'offline',sha:'test',workflow_ref:'arbmsistone-lab/arbm-sist-external-exec-proof/.github/workflows/osworld-v32-official-18.yml@refs/heads/chatgpt/osworld-v32-rescue-20260912'};
+for(const [patch,accepted] of [[{},true],[{repository:'other/repo'},false],[{ref:rescuePayload.ref+'-other'},false],[{workflow_ref:'other-workflow'},false],[{event_name:'pull_request'},false]]){
+ context.jwtVerify=async()=>({payload:{...rescuePayload,...patch}});
+ response=await context.handler(new Request('https://offline.test',{method:'POST',headers:{authorization:'Bearer offline'},body:'{}'}));
+ assert.equal(response.status,accepted?400:401);
+}
+console.log('RESCUE_OIDC_EXACT_WORKFLOW_PASS');

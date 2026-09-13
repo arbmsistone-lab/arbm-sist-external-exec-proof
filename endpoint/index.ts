@@ -35,7 +35,9 @@ async function auth(req: Request) {
   const { payload } = await jwtVerify(m[1], JWKS, { issuer: ISS, audience: AUD, algorithms: ["RS256"] });
   if (payload.repository !== REPO) throw new Error("OIDC_REPOSITORY");
   const ref = String(payload.ref || "");
-  if (!(ref.startsWith("refs/heads/codex/osworld-close-") || ref.startsWith("refs/heads/codex/free-capacity-osworld-v31-providers-") || ref.startsWith("refs/heads/codex/osworld-v32-"))) throw new Error("OIDC_REF");
+  const rescue = ref === "refs/heads/chatgpt/osworld-v32-rescue-20260912";
+  if (!(rescue || ref.startsWith("refs/heads/codex/osworld-close-") || ref.startsWith("refs/heads/codex/free-capacity-osworld-v31-providers-") || ref.startsWith("refs/heads/codex/osworld-v32-"))) throw new Error("OIDC_REF");
+  if (rescue && payload.workflow_ref !== REPO + "/.github/workflows/osworld-v32-official-18.yml@" + ref) throw new Error("OIDC_WORKFLOW");
   if (!["push", "workflow_dispatch"].includes(String(payload.event_name || ""))) throw new Error("OIDC_EVENT");
   return { runId: String(payload.run_id || ""), sha: String(payload.sha || ""), ref };
 }
