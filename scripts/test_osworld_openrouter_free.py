@@ -141,4 +141,16 @@ class RouteTests(unittest.TestCase):
         self.assertIsNone(result)
 
 
+    def test_healthy_lower_latency_model_is_preferred(self):
+        fast=PREFERRED[1]; slow=PREFERRED[0]
+        self.route.models=[dict(MODEL,id=slow),dict(MODEL,id=fast)]
+        self.route.auth_until=999; self.route.catalog_until=999
+        self.route.state(slow).update(state='HEALTHY',latency_seconds=9,successes=2)
+        self.route.state(fast).update(state='HEALTHY',latency_seconds=2,successes=2)
+        self.replies=[self.answer()]
+        result,_=self.route.call(BODY,'key')
+        self.assertEqual(result['model'],fast)
+
+
+
 if __name__=='__main__': unittest.main()

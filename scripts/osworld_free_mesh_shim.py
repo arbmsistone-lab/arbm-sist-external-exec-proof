@@ -11,12 +11,13 @@ from osworld_openrouter_paid import PAID_ROUTE
 from osworld_groq_free import GROQ_FREE_ROUTE
 from osworld_local_vlm import LOCAL_VLM_ROUTE
 from osworld_recovery import recovery_policy, rejects_visual_navigation_loop, semantic_terminal
+from osworld_elite_controller import EliteController
 
 UPSTREAM = 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5'
 EXPECTED_PIPELINE = 'arbm-osworld-v32-isolated'
 EXPECTED_BUILD = 'arbm-osworld-v32a-20260912'
 MAX_NO_PROGRESS = int(os.environ.get('ARBM_MAX_NO_PROGRESS', '12'))
-MAX_WAIT_RESPONSES = int(os.environ.get('ARBM_MAX_WAIT_RESPONSES', '60'))
+MAX_WAIT_RESPONSES = int(os.environ.get('ARBM_MAX_WAIT_RESPONSES', '4'))
 MAX_STEPS = int(os.environ.get('ARBM_MAX_STEPS', '160'))
 LOG = os.environ.get('ARBM_OSWORLD_SHIM_LOG', 'osworld-v32-shim.log')
 OBS_DIR = Path(os.environ.get('ARBM_OSWORLD_OBSERVATIONS', 'shim-observations'))
@@ -29,6 +30,11 @@ STATE = {'step':0,'previous':'','executed':0,'phase':'plan','plan':'','memory':[
          'history':[],'wait_responses':0,'cooldowns':{},'terminal':'','provider':'','model':''}
 VERIFIER = Verifier()
 MILESTONES = Milestones()
+ELITE = EliteController(
+    fast_latency_s=float(os.environ.get('ARBM_ELITE_FAST_LATENCY_S','8')),
+    hard_latency_s=float(os.environ.get('ARBM_ELITE_HARD_LATENCY_S','20')),
+    max_waits=int(os.environ.get('ARBM_ELITE_MAX_WAITS','2')),
+    max_stall=int(os.environ.get('ARBM_ELITE_MAX_STALL','3')))
 STARTED = time.monotonic()
 MAX_TASK_SECONDS = int(os.environ.get('ARBM_TASK_SECONDS', '2400'))
 HEALTH = {'last_event':'initializing','last_error':'','retry':0,'pending_since':None}
@@ -201,11 +207,14 @@ def request_mesh(body):
     return http,data
 
 def call_mesh(messages):
+    if STATE.get('step',0)==0 and not STATE.get('terminal'):
+        ELITE.reset()
     if STATE['terminal']:return 'FAIL'
     if time.monotonic()-STARTED>=MAX_TASK_SECONDS:return terminal('TASK_DEADLINE')
     STATE['step']+=1
     obs,screenshot=latest_observation(messages)
     verification=VERIFIER.observe(obs,screenshot)
+    elite_decision=ELITE.observe(bool(verification.get('progress')))
     semantic=MILESTONES.observe(obs)
     if semantic.get("status")=="VERIFIED":
         STATE["memory"].append("OBSERVED MILESTONE: "+json.dumps(semantic["milestone"],ensure_ascii=False))
@@ -214,13 +223,16 @@ def call_mesh(messages):
     if semantic_terminal(MILESTONES.stalled, VERIFIER.no_progress):return terminal("SEMANTIC_RECOVERY_EXHAUSTED")
     if VERIFIER.no_progress>=MAX_NO_PROGRESS or STATE['wait_responses']>=MAX_WAIT_RESPONSES or STATE['step']>MAX_STEPS:
         return terminal('RECOVERY_EXHAUSTED' if STATE['step']<=MAX_STEPS else 'STEP_BUDGET')
-    STATE['phase']='plan' if VERIFIER.no_progress>=2 or not STATE['plan'] else 'execute'
+    STATE['phase']='plan' if (elite_decision['mode']=='replan' or VERIFIER.no_progress>=2 or not STATE['plan']) else 'execute'
     body={'instruction':task_from(messages),'observation':obs,'screenshot_data_url':screenshot,
           'previous_command':STATE['previous'],'executed_count':STATE['executed'],
           'memory':'\n'.join([STATE['plan']]+STATE['memory'][-5:]+[str(x) for x in STATE['history'][-4:]]),
           'phase':STATE['phase'],'no_progress_count':VERIFIER.no_progress,'step':STATE['step'],
           'verifier':verification,'verified_milestones':MILESTONES.context(),'recovery_strategy':RECOVERY[VERIFIER.recovery_level],
-          'route_cooldowns':STATE['cooldowns'],'expected_build':EXPECTED_BUILD}
+          'route_cooldowns':STATE['cooldowns'],'expected_build':EXPECTED_BUILD,
+          'performance_mode':elite_decision['mode'],
+          'performance_reason':elite_decision['reason'],
+          'performance_metrics':ELITE.metrics()}
     recovery=recovery_policy(body['instruction'], body.get('active_application','unknown'), MILESTONES.stalled, VERIFIER.no_progress, VERIFIER.recovery_level, STATE['provider'], STATE.get('visual_capacity_exhausted',False))
     if recovery['strategy']:body['recovery_strategy']=recovery['strategy']
     if recovery['provider_hint']:body['provider_hint']=recovery['provider_hint']
@@ -239,6 +251,8 @@ def call_mesh(messages):
         HEALTH['pending_since']=None
         if not isinstance(data,dict):data={'status':'INVALID_UPSTREAM_RESPONSE'}
         track_attempts(data)
+        successful=[a for a in (data.get('provider_attempts') or []) if a.get('status')==200 and a.get('latency_seconds') is not None]
+        if successful: ELITE.record_latency(successful[-1].get('latency_seconds'))
         log_event({'http':http,'attempt':attempt+1,'status':data.get('status'),'provider':data.get('provider'),
                    'model':data.get('model'),'agent_build':data.get('agent_build'),'pipeline':data.get('pipeline'),
                    'provider_attempts':data.get('provider_attempts',[]),'action':data.get('action'),
@@ -258,6 +272,7 @@ def call_mesh(messages):
         if data.get('status') == 'LOCAL_ACTION_UNAVAILABLE':
             log_event({'status':'LOCAL_ACTION_UNAVAILABLE','reason':'local_contract_failure'})
             STATE['wait_responses']+=1
+            ELITE.note_wait()
             return 'WAIT'
         if http==409:
             if data.get('status')!='REPLAN_REQUIRED':return terminal('ENDPOINT_CONFLICT')
@@ -276,9 +291,12 @@ def call_mesh(messages):
             if decision_kind==DecisionKind.NOOP_VERIFIED.value:
                 log_event({'status':'NOOP_VERIFIED','checkpoint':action.get('checkpoint')})
                 STATE['wait_responses']+=1
+                ELITE.note_wait()
                 return 'WAIT'
             if decision_kind==DecisionKind.HOLD_CAPACITY.value:
                 log_event({'status':'HOLD_CAPACITY'})
+                STATE['wait_responses']+=1
+                ELITE.note_wait()
                 return 'WAIT'
             for fact in verified_facts(action,obs):
                 entry='OBSERVED SOURCE: '+json.dumps(fact,ensure_ascii=False)
@@ -308,6 +326,11 @@ def call_mesh(messages):
                     route='mistral-multimodal-free' if data.get('provider')=='mistral-free' else 'groq-multimodal-free'
                     STATE['cooldowns'][route+':'+str(data.get('model'))]=int((time.time()+90)*1000)
                     continue
+                elite_action=ELITE.before_action(command)
+                if not elite_action['allow']:
+                    body['memory']=(body['memory']+'\nELITE TABU: action rejected because it previously produced no verified progress. Replan from the current screenshot with a genuinely different control/path.')[-4500:]
+                    log_event({'status':'ELITE_TABU_REJECTED','command':command,'reason':elite_action['reason']})
+                    continue
                 STATE['previous']=command;STATE['executed']+=1;STATE['wait_responses']=0
                 STATE['history'].append({'command':command,'expected':action.get('expected_change','')})
                 STATE['history']=STATE['history'][-12:]
@@ -326,6 +349,10 @@ def call_mesh(messages):
             time.sleep(2+attempt)
         else:break
     STATE['wait_responses']+=1
+    ELITE.note_wait()
+    if ELITE.decision()['mode']=='replan' and STATE['wait_responses']>=MAX_WAIT_RESPONSES:
+        log_event({'status':'ELITE_WAIT_BUDGET','performance_metrics':ELITE.metrics()})
+        return terminal('RECOVERY_EXHAUSTED')
     # Provider scarcity is not cognitive failure. Back off instead of burning
     # OSWorld steps rapidly while all FREE multimodal routes are cooling down.
     # For a visual task, however, an extended all-provider outage must not

@@ -56,13 +56,13 @@ class GroqFreeRoute:
                 {'type':'text','text':prompt(body)},
                 {'type':'image_url','image_url':{'url':body['screenshot_data_url']}}]}]
             payload = {'model':model, 'messages':messages, 'temperature':temperature,
-                       'max_completion_tokens':raw_tokens if raw_messages is not None else 1600,
+                       'max_completion_tokens':raw_tokens if raw_messages is not None else int(os.environ.get('ARBM_ACTION_MAX_TOKENS','1000')),
                        'response_format':{'type':'json_object'}}
             if raw_messages is not None:
                 payload.pop('response_format')
             before = self.clock()
             status, data, headers = self.transport('/chat/completions', key, payload,
-                                                   timeout=min(35, remaining))
+                                                   timeout=min(float(os.environ.get('ARBM_FREE_CALL_TIMEOUT_S','20')), remaining))
             text = None
             error = ''
             if status == 200:

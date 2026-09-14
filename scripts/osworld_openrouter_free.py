@@ -159,11 +159,12 @@ class FreeRoute:
                 self.models = (preferred + extras)[:MAX_FREE_CANDIDATES - 1] + [zero_price_model(FREE_ROUTER_MODEL)]
             self.catalog_hash = hashlib.sha256(json.dumps(self.models, sort_keys=True).encode()).hexdigest()
             self.catalog_until = self.clock()+300
-        models = sorted(self.models, key=lambda m: (self.state(m['id'])['failures'] /
-            (1+self.state(m['id'])['successes']),
-            (PREFERRED.index(m['id']) if m['id'] in PREFERRED
-             else len(PREFERRED) + (1 if m['id'] == FREE_ROUTER_MODEL else 0)),
-            self.state(m['id'])['latency_seconds'], m['id']))
+        models = sorted(self.models, key=lambda m: (
+            0 if self.state(m['id'])['state']=='HEALTHY' else 1,
+            self.state(m['id'])['failures'] / (1+self.state(m['id'])['successes']),
+            self.state(m['id'])['latency_seconds'],
+            (PREFERRED.index(m['id']) if m['id'] in PREFERRED else len(PREFERRED) + (1 if m['id'] == FREE_ROUTER_MODEL else 0)),
+            m['id']))
         for model in models:
             name = model['id']; state = self.state(name)
             external_until = float((body.get('route_cooldowns') or {}).get(ROUTE+':'+name, 0))/1000
@@ -174,7 +175,7 @@ class FreeRoute:
             state['state'] = 'HALF_OPEN' if state['failures'] else 'DEGRADED'
             payload = {'model':name, 'messages':raw_messages if raw_messages is not None else [{'role':'user','content':[
                 {'type':'text','text':prompt(body)}, {'type':'image_url','image_url':{'url':body['screenshot_data_url']}}]}],
-                'temperature':0, 'max_tokens':1600,
+                'temperature':0, 'max_tokens':int(os.environ.get('ARBM_ACTION_MAX_TOKENS','1000')),
                 'provider':{'allow_fallbacks':True, 'max_price':{'prompt':0,'completion':0,'request':0,'image':0}}}
             if raw_messages is not None:
                 # The evaluator's messages, images, system prompt and output
@@ -183,7 +184,7 @@ class FreeRoute:
             elif 'response_format' in model.get('supported_parameters', []): payload['response_format'] = {'type':'json_object'}
             if 'reasoning' in model.get('supported_parameters', []): payload['reasoning'] = {'enabled':False}
             before = self.clock()
-            status, data, headers = self.transport('/chat/completions', key, payload, timeout=min(35, remaining))
+            status, data, headers = self.transport('/chat/completions', key, payload, timeout=min(float(os.environ.get('ARBM_FREE_CALL_TIMEOUT_S','20')), remaining))
             latency = self.clock()-before
             cost_proven = status == 200 and zero((data.get('usage') or {}).get('cost'))
             action = None; error = ''
