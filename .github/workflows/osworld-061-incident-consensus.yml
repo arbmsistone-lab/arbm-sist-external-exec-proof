@@ -1,5 +1,10 @@
 name: OSWorld 061 incident consensus
 on:
+  push:
+    branches: [chatgpt/arbm-agent-elite-v2-20260914]
+    paths:
+      - .github/workflows/osworld-061-incident-consensus.yml
+      - scripts/osworld_incident_consensus.py
   workflow_dispatch:
     inputs:
       run_id:
@@ -24,7 +29,7 @@ jobs:
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
           name: osworld-v32-official18-B
-          run-id: ${{ inputs.run_id }}
+          run-id: ${{ inputs.run_id || '34882204601' }}
           github-token: ${{ github.token }}
           path: incident-evidence
       - name: Install pinned audit runtime
