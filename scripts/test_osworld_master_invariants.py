@@ -51,10 +51,11 @@ class MasterInvariantTests(unittest.TestCase):
 
     def test_preflight_independent_failover_excludes_groq_mesh(self):
         text=(ROOT/'scripts/osworld_v32_preflight.py').read_text()
-        self.assertIn('shim.FREE_ROUTE.call(failover_body',text)
-        self.assertIn('LOCAL_VLM_ROUTE.call(failover_body',text)
+        self.assertIn('shim.FREE_ROUTE.call({},budget=100,raw_messages=independent_messages',text)
+        self.assertIn('LOCAL_VLM_ROUTE.call({},budget=180,raw_messages=independent_messages',text)
         self.assertNotIn('request_mesh(failover_body)',text)
-        self.assertIn('Groq excluded from this proof',text)
+        self.assertIn('direct OpenRouter FREE, then direct local-cloud binary admission; Groq excluded from this proof',text)
+        self.assertIn("osworld-v32-independent-failover.json",text)
 
     def test_openai_compatible_response_reports_v32_model(self):
         text=(ROOT/'scripts/osworld_free_mesh_shim.py').read_text()

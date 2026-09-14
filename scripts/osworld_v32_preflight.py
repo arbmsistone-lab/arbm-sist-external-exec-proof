@@ -39,15 +39,19 @@ def main(root):
             for route,models in [('groq-multimodal-free',['qwen/qwen3.8-27b','qwen/qwen3.6-27b']),
                                  ('groq-accessibility-free',['openai/gpt-oss-120b','openai/gpt-oss-20b'])]
             for model in models}}
-    failover_result,failover_attempts=shim.FREE_ROUTE.call(failover_body,budget=100)
+    independent_messages=[{'role':'system','content':'Output exactly YES or NO.'},
+        {'role':'user','content':[{'type':'text','text':'Is this a desktop screenshot? Answer only YES or NO.'},
+            {'type':'image_url','image_url':{'url':body['screenshot_data_url'],'detail':'high'}}]}]
+    failover_result,failover_attempts=shim.FREE_ROUTE.call({},budget=100,raw_messages=independent_messages,raw_tokens=10)
     if not failover_result:
-        local_result,local_attempts=LOCAL_VLM_ROUTE.call(failover_body,budget=180)
-        failover_attempts.extend(local_attempts)
-        failover_result=local_result
+        local_result,local_attempts=LOCAL_VLM_ROUTE.call({},budget=180,raw_messages=independent_messages,raw_tokens=10)
+        failover_attempts.extend(local_attempts); failover_result=local_result
+    failover_ok=bool(failover_result and binary_token(failover_result.get('text')) in ('YES','NO'))
     failover_proof={'result':failover_result,'attempts':failover_attempts,
-        'status':'LIVE_INDEPENDENT_FREE_FAILOVER_PASS' if failover_result else 'UNAVAILABLE',
-        'purpose':'direct OpenRouter FREE, then direct local-cloud fallback; Groq excluded from this proof'}
-    if not failover_result: raise RuntimeError('INDEPENDENT_FREE_FAILOVER_UNPROVEN')
+        'status':'LIVE_INDEPENDENT_FREE_FAILOVER_PASS' if failover_ok else 'UNAVAILABLE',
+        'purpose':'direct OpenRouter FREE, then direct local-cloud binary admission; Groq excluded from this proof'}
+    Path('osworld-v32-independent-failover.json').write_text(json.dumps(failover_proof,indent=2))
+    if not failover_ok: raise RuntimeError('INDEPENDENT_FREE_FAILOVER_UNPROVEN')
     judge_messages=[{'role':'system','content':'You are a strict binary classifier. Output MUST be exactly one token: YES or NO. No punctuation, no extra words, no explanations.'},
         {'role':'user','content':[{'type':'text','text':'Does this image show a full-screen photograph of a football field with football players? Answer only YES or NO.'},
             {'type':'image_url','image_url':{'url':body['screenshot_data_url'],'detail':'high'}}]}]
