@@ -204,7 +204,7 @@ def call_mesh(messages):
     STATE['step']+=1
     STATE.setdefault('facts',[])
     obs,screenshot=latest_observation(messages)
-    _,active_application=foreground_context(obs)
+    focused_obs,active_application=foreground_context(obs)
     had_semantic_expectation=MILESTONES.pending is not None
     verification=VERIFIER.observe(obs,screenshot)
     semantic=MILESTONES.observe(obs)
@@ -293,8 +293,8 @@ def call_mesh(messages):
             continue
         if http==200 and data.get('ok') is True:
             try:
-                action=ground_action(data.get('action'),body.get('active_application','unknown'),obs,body.get('verified_milestones',[]))
-                decision=apply_live_policy(action,body.get('active_application','unknown'),body.get('observation',''),body.get('verified_milestones',[]))
+                action=ground_action(data.get('action'),body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
+                decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
             except ValueError as exc:
                 body['memory']=(body['memory']+'\nPOLICY REJECTED: '+str(exc)+'. Replan within deterministic v32 state constraints.')[-4500:]
                 body['provider_hint']='groq' if data.get('provider')=='mistral-free' else 'mistral'
@@ -309,7 +309,7 @@ def call_mesh(messages):
                 STATE['provider_waits']=STATE.get('provider_waits',0)+1
                 log_event({'status':'HOLD_CAPACITY','provider_waits':STATE['provider_waits']})
                 return 'WAIT'
-            for fact in verified_facts(action,obs):
+            for fact in verified_facts(action,focused_obs):
                 entry='OBSERVED SOURCE: '+json.dumps(fact,ensure_ascii=False)
                 if entry not in STATE['memory']:STATE['memory'].append(entry)
                 if fact not in STATE['facts']: STATE['facts'].append(fact)

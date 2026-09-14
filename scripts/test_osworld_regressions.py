@@ -108,6 +108,12 @@ class ContractTests(unittest.TestCase):
         self.assertIn('file.pdf',focused)
         self.assertIn('BACKGROUND',focused)
 
+    def test_pointer_without_target_is_rejected(self):
+        with self.assertRaisesRegex(ValueError,'POINTER_TARGET_REQUIRED'):
+            control.ground_action({'action':'exec','command':"pyautogui.click(10, 20)"},'GIMP','',[])
+        with self.assertRaisesRegex(ValueError,'POINTER_TARGET_INVALID'):
+            control.ground_action({'action':'exec','command':"pyautogui.click(10, 20)",'target':{'source':'screenshot','label':''}},'GIMP','',[])
+
     def test_accessibility_target_rewrites_wrong_click_coordinate(self):
         obs="push-button\tConvert\t\t\t\t(1100, 660)\t(80, 52)"
         action={'action':'exec','plan':'Click Convert to continue','summary':'Use the visible Convert button',
@@ -124,6 +130,25 @@ class ContractTests(unittest.TestCase):
                 'command':"pyautogui.click(1135, 680)"}
         out=control.ground_action(action,'GIMP',obs,[])
         self.assertEqual(out['command'],'pyautogui.click(1135, 680)')
+
+    def test_rgb_verifier_detects_chroma_only_change(self):
+        def data(color):
+            buf=io.BytesIO(); Image.new('RGB',(96,64),color).save(buf,format='PNG')
+            return 'data:image/png;base64,'+base64.b64encode(buf.getvalue()).decode()
+        v=control.Verifier(); v.observe('same tree',data((224,32,32)))
+        v.issued("pyautogui.press('enter')")
+        self.assertTrue(v.observe('same tree',data((32,112,224)))['progress'])
+
+    def test_background_accessibility_target_cannot_resolve(self):
+        raw=('push-button\tConvert\t\t\t\t(1100, 660)\t(80, 52)\n'
+             'push-button\tMinimise\t\t\t\t(1802, 27)\t(30, 35)\n'
+             'menu\tGoogle Chrome\t\t\t\t(99, 0)\t(162, 27)')
+        focused,app=control.foreground_context(raw)
+        self.assertEqual(app,'Google Chrome'); self.assertNotIn('Convert',focused)
+        action={'action':'exec','target':{'source':'accessibility','label':'Convert','role':'push-button'},
+                'command':"pyautogui.click(824, 646)"}
+        with self.assertRaisesRegex(ValueError,'ACCESSIBILITY_TARGET_UNRESOLVED'):
+            control.ground_action(action,app,focused,[])
 
     def test_screenshot_target_is_not_rewritten_without_accessibility_proof(self):
         obs="push-button\tOther\t\t\t\t(1100, 660)\t(80, 52)"

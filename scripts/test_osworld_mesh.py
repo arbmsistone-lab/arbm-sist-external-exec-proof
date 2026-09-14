@@ -152,7 +152,7 @@ class MeshTests(unittest.TestCase):
   shim.MILESTONES.stalled=8
   bodies=[]
   first=self.response({'action':'exec','command':"pyautogui.hotkey('ctrl', 'o')",'plan':'open the target again'})
-  second=self.response({'action':'exec','command':'pyautogui.click(344, 64)','plan':'open Colors for a visible target adjustment'})
+  second=self.response({'action':'exec','command':'pyautogui.click(344, 64)','plan':'open Colors for a visible target adjustment','target':{'source':'accessibility','label':'Colors','role':'menu'}})
   responses=[(200,first),(200,second)]
   def mesh(body):
    bodies.append(dict(body));return responses.pop(0)

@@ -113,7 +113,7 @@ def tree_signature(text):
 
 def _parse_accessibility_controls(observation):
     controls=[]
-    interactive={'push-button','button','menu-item','check-box','radio-button','combo-box','entry','link','toggle-button','spin-button','slider','tab'}
+    interactive={'push-button','button','menu','menu-item','check-box','radio-button','combo-box','entry','link','toggle-button','spin-button','slider','tab'}
     for line in str(observation or '').splitlines():
         cols=line.split('\t')
         if len(cols)<7 or cols[0] not in interactive: continue
@@ -178,6 +178,12 @@ def _compile_grounded_click(action, observation):
 def ground_action(action, active_application, observation='', verified_milestones=None):
     """Compile desktop activation and block unsafe source-context abandonment."""
     a=canonical_action(action)
+    if a.get('action')=='exec' and re.search(r'pyautogui\.(?:click|doubleClick|rightClick)\s*\(',a.get('command','')):
+        target=a.get('target')
+        if not isinstance(target,dict): raise ValueError('POINTER_TARGET_REQUIRED')
+        source=str(target.get('source') or '').lower(); label=str(target.get('label') or '').strip()
+        if source not in {'accessibility','screenshot'} or not label: raise ValueError('POINTER_TARGET_INVALID')
+        if source=='accessibility' and not str(target.get('role') or '').strip(): raise ValueError('ACCESSIBILITY_ROLE_REQUIRED')
     a=_compile_grounded_click(a,observation)
     plan=str(a.get('plan') or '').lower()
     active=str(active_application or 'unknown')
@@ -218,9 +224,9 @@ def visual_signature(image):
         return ''
     try:
         from PIL import Image
-        im = Image.open(io.BytesIO(base64.b64decode(image.split(',',1)[1]))).convert('L')
-        im = im.crop((0, min(28, im.height // 10), im.width, im.height)).resize((64,36))
-        # Quantization removes antialiasing/cursor noise from the observation identity.
+        im = Image.open(io.BytesIO(base64.b64decode(image.split(',',1)[1]))).convert('RGB')
+        im = im.crop((0, min(28, im.height // 10), im.width, im.height)).resize((48,27))
+        # Quantized RGB preserves chroma/saturation changes while suppressing cursor/AA noise.
         return bytes((x // 32) for x in im.tobytes()).hex()
     except Exception:
         return ''
