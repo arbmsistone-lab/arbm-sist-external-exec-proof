@@ -27,7 +27,7 @@ LOCAL_FALLBACK_CAPACITY_STATUSES = {
     'FREE_QUOTA_EXHAUSTED',
 }
 STATE = {'step':0,'previous':'','executed':0,'phase':'plan','plan':'','memory':[],
-         'history':[],'wait_responses':0,'cooldowns':{},'terminal':'','provider':'','model':''}
+         'history':[],'wait_responses':0,'provider_waits':0,'cooldowns':{},'terminal':'','provider':'','model':''}
 VERIFIER = Verifier()
 MILESTONES = Milestones()
 ELITE = EliteController(
@@ -168,9 +168,7 @@ def request_mesh(body):
                 'mandatory_cost_usd':0,'paid_fallback_used':False,'scoreable':False,
                 'github_sha':os.environ.get('GITHUB_SHA'),'github_run_id':os.environ.get('GITHUB_RUN_ID')}
     if os.environ.get('ARBM_VALIDATION_SPEND_MODE') == 'paid-bounded':
-        response=paid_router()
-        if response: return response
-        return 503,{'status':'PAID_ROUTE_UNAVAILABLE','provider_attempts':router_attempts,
+        return 503,{'status':'PAID_ROUTE_DISABLED_BY_POLICY','provider_attempts':router_attempts,
                     'mandatory_cost_usd':0,'paid_fallback_used':False}
     # Once capacity exhaustion has been observed for this task, retry the
     # quota-independent route directly.  Do not spend the remaining action
@@ -271,8 +269,8 @@ def call_mesh(messages):
             continue
         if data.get('status') == 'LOCAL_ACTION_UNAVAILABLE':
             log_event({'status':'LOCAL_ACTION_UNAVAILABLE','reason':'local_contract_failure'})
-            STATE['wait_responses']+=1
-            ELITE.note_wait()
+            STATE['provider_waits']=STATE.get('provider_waits',0)+1
+            log_event({'status':'LOCAL_PROVIDER_WAIT','provider_waits':STATE['provider_waits']})
             return 'WAIT'
         if http==409:
             if data.get('status')!='REPLAN_REQUIRED':return terminal('ENDPOINT_CONFLICT')
@@ -294,9 +292,8 @@ def call_mesh(messages):
                 ELITE.note_wait()
                 return 'WAIT'
             if decision_kind==DecisionKind.HOLD_CAPACITY.value:
-                log_event({'status':'HOLD_CAPACITY'})
-                STATE['wait_responses']+=1
-                ELITE.note_wait()
+                STATE['provider_waits']=STATE.get('provider_waits',0)+1
+                log_event({'status':'HOLD_CAPACITY','provider_waits':STATE['provider_waits']})
                 return 'WAIT'
             for fact in verified_facts(action,obs):
                 entry='OBSERVED SOURCE: '+json.dumps(fact,ensure_ascii=False)
@@ -331,7 +328,7 @@ def call_mesh(messages):
                     body['memory']=(body['memory']+'\nELITE TABU: action rejected because it previously produced no verified progress. Replan from the current screenshot with a genuinely different control/path.')[-4500:]
                     log_event({'status':'ELITE_TABU_REJECTED','command':command,'reason':elite_action['reason']})
                     continue
-                STATE['previous']=command;STATE['executed']+=1;STATE['wait_responses']=0
+                STATE['previous']=command;STATE['executed']+=1;STATE['wait_responses']=0;STATE['provider_waits']=0
                 STATE['history'].append({'command':command,'expected':action.get('expected_change','')})
                 STATE['history']=STATE['history'][-12:]
                 VERIFIER.issued(command)
@@ -348,22 +345,18 @@ def call_mesh(messages):
             body['route_cooldowns']=STATE['cooldowns']
             time.sleep(2+attempt)
         else:break
-    STATE['wait_responses']+=1
-    ELITE.note_wait()
-    if ELITE.decision()['mode']=='replan' and STATE['wait_responses']>=MAX_WAIT_RESPONSES:
-        log_event({'status':'ELITE_WAIT_BUDGET','performance_metrics':ELITE.metrics()})
-        return terminal('RECOVERY_EXHAUSTED')
+    STATE['provider_waits']=STATE.get('provider_waits',0)+1
     # Provider scarcity is not cognitive failure. Back off instead of burning
     # OSWorld steps rapidly while all FREE multimodal routes are cooling down.
     # For a visual task, however, an extended all-provider outage must not
     # consume the remaining episode: retain the observed visual context and
     # ask an available accessibility route to make one grounded recovery move.
-    if recovery['visual_task'] and STATE['wait_responses'] >= 3:
+    if recovery['visual_task'] and STATE['provider_waits'] >= 3:
         if not STATE.get('visual_capacity_exhausted'):
-            log_event({'status':'VISUAL_CAPACITY_FALLBACK','provider_waits':STATE['wait_responses']})
+            log_event({'status':'VISUAL_CAPACITY_FALLBACK','provider_waits':STATE['provider_waits']})
         STATE['visual_capacity_exhausted']=True
-    time.sleep(min(12, 2 + STATE['wait_responses']))
-    log_event({'status':'WAIT_PROVIDER_CAPACITY','provider_waits':STATE['wait_responses'],
+    time.sleep(min(12, 2 + STATE['provider_waits']))
+    log_event({'status':'WAIT_PROVIDER_CAPACITY','provider_waits':STATE['provider_waits'],
                'recovery_strategy':RECOVERY[VERIFIER.recovery_level]})
     return 'WAIT'
 
