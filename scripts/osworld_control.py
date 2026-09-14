@@ -339,6 +339,21 @@ def compress_screenshot(image):
     raise ValueError('SCREENSHOT_PAYLOAD_TOO_LARGE')
 
 
+def compress_reference_screenshot(image):
+    if not image: return '',{}
+    from PIL import Image
+    im=Image.open(io.BytesIO(base64.b64decode(image.split(',',1)[1]))).convert('RGB')
+    original=im.size; im.thumbnail((640,360))
+    for quality in (40,28,18):
+        out=io.BytesIO(); im.save(out,format='JPEG',quality=quality,optimize=True)
+        if len(out.getvalue())<=52000:
+            data='data:image/jpeg;base64,'+base64.b64encode(out.getvalue()).decode()
+            return data,{'reference_width':original[0],'reference_height':original[1],
+                         'reference_transmitted_width':im.width,'reference_transmitted_height':im.height,
+                         'reference_image_bytes':len(out.getvalue())}
+    return '',{}
+
+
 def pack_payload(body):
     def size(x): return len(json.dumps(x,ensure_ascii=False).encode())
     before=size(body);b=dict(body)
@@ -348,7 +363,8 @@ def pack_payload(body):
     b['observation']=compact_tree(focused,b['instruction'],limit=6500)
     b['memory']=str(b.get('memory',''))[-4500:]
     b['screenshot_data_url'],im=compress_screenshot(b.get('screenshot_data_url',''))
-    b['image_geometry']=im
+    b['reference_screenshot_data_url'],ref=compress_reference_screenshot(b.get('reference_screenshot_data_url',''))
+    b['image_geometry']={**im,**ref}
     after=size(b)
     if after>MAX_PAYLOAD_BYTES:
         raise ValueError('PAYLOAD_GATE')

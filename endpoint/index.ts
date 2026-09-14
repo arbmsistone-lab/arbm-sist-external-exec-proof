@@ -136,7 +136,7 @@ PROPOSED ACTION TO AUDIT: ${JSON.stringify(body.review_action).slice(0,1800)}`;
     if(Date.now()>body.request_deadline-1000)break;
     if (cooling("g:" + model) || Number(body.route_cooldowns?.[route+":"+model]||0)>Date.now()) { attempts.push({ route, model, status: "cooldown" }); continue; }
     try {
-      const content: any = textOnly?p:[{ type: "text", text: p }, { type: "image_url", image_url: { url: image } }];
+      const content: any = textOnly?p:[{ type: "text", text: p }, { type: "image_url", image_url: { url: image } }, ...(String(body.reference_screenshot_data_url||"").startsWith("data:image/")?[{type:"text",text:"HISTORICAL VERIFIED VISUAL MEMORY:"},{type:"image_url",image_url:{url:String(body.reference_screenshot_data_url)}}]:[])];
       const providerBody=JSON.stringify({ model, messages: [{ role: "system", content: "Return one valid JSON object only." }, { role: "user", content }], response_format: { type: "json_object" }, temperature: 0, reasoning_effort: textOnly?"low":"none", max_completion_tokens: textOnly?1600:850 });
       const requestBytes=new TextEncoder().encode(providerBody).length;
       if(requestBytes>420000){attempts.push({route,model,status:"payload_gate",request_bytes:requestBytes});continue;}
@@ -170,7 +170,7 @@ async function callMistral(p: string, image: string, body: any) {
     if(Date.now()>body.request_deadline-1000)break;
     if (cooling("m:" + model) || Number(body.route_cooldowns?.["mistral-multimodal-free:"+model]||0)>Date.now()) { attempts.push({ route: "mistral-multimodal-free", model, status: "cooldown" }); continue; }
     try {
-      const content: any[] = [{ type: "text", text: p }, { type: "image_url", image_url: image }];
+      const content: any[] = [{ type: "text", text: p }, { type: "image_url", image_url: image }, ...(String(body.reference_screenshot_data_url||"").startsWith("data:image/")?[{type:"text",text:"HISTORICAL VERIFIED VISUAL MEMORY:"},{type:"image_url",image_url:String(body.reference_screenshot_data_url)}]:[])];
       const providerBody=JSON.stringify({ model, messages: [{ role: "system", content: "Return JSON only." }, { role: "user", content }], temperature: 0, max_tokens: 900, response_format: { type: "json_object" } });
       const requestBytes=new TextEncoder().encode(providerBody).length;
       if(requestBytes>420000){attempts.push({route:"mistral-multimodal-free",model,status:"payload_gate",request_bytes:requestBytes});continue;}

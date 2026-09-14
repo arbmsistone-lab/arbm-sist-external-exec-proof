@@ -174,7 +174,7 @@ class FreeRoute:
             if remaining < 2: break
             state['state'] = 'HALF_OPEN' if state['failures'] else 'DEGRADED'
             payload = {'model':name, 'messages':raw_messages if raw_messages is not None else [{'role':'user','content':[
-                {'type':'text','text':prompt(body)}, {'type':'image_url','image_url':{'url':body['screenshot_data_url']}}]}],
+                {'type':'text','text':prompt(body)}, {'type':'image_url','image_url':{'url':body['screenshot_data_url']}}, *([{'type':'text','text':'HISTORICAL VERIFIED VISUAL MEMORY:'},{'type':'image_url','image_url':{'url':body['reference_screenshot_data_url']}}] if str(body.get('reference_screenshot_data_url','')).startswith('data:image/') else [])]}],
                 'temperature':0, 'max_tokens':int(os.environ.get('ARBM_ACTION_MAX_TOKENS','1000')),
                 'provider':{'allow_fallbacks':True, 'max_price':{'prompt':0,'completion':0,'request':0,'image':0}}}
             if raw_messages is not None:

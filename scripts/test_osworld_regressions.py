@@ -1,9 +1,12 @@
 import copy
+import base64
+import io
 import importlib.util
 import json
 import pathlib
 import tempfile
 import unittest
+from PIL import Image
 
 ROOT = pathlib.Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('control', ROOT / 'osworld_control.py')
@@ -77,6 +80,16 @@ class ContractTests(unittest.TestCase):
         self.assertLessEqual(len(json.dumps(packed,ensure_ascii=False).encode()),control.MAX_PAYLOAD_BYTES)
         self.assertLessEqual(len(packed['observation']),control.MAX_TREE_CHARS)
         self.assertGreater(metrics['before_bytes'],metrics['after_bytes'])
+
+    def test_visual_memory_is_separate_and_bounded(self):
+        buf=io.BytesIO(); Image.new('RGB',(12,12),(255,255,255)).save(buf,format='PNG')
+        tiny='data:image/png;base64,'+base64.b64encode(buf.getvalue()).decode()
+        packed,metrics=control.pack_payload({'instruction':'match visual style','observation':'menu\tGIMP\t\t\t\t(10, 0)\t(80, 20)',
+            'memory':'','screenshot_data_url':tiny,'reference_screenshot_data_url':tiny})
+        self.assertTrue(packed['screenshot_data_url'].startswith('data:image/jpeg;base64,'))
+        self.assertTrue(packed['reference_screenshot_data_url'].startswith('data:image/jpeg;base64,'))
+        self.assertLessEqual(metrics.get('reference_image_bytes',0),52000)
+        self.assertLessEqual(len(json.dumps(packed).encode()),control.MAX_PAYLOAD_BYTES)
 
     def test_foreground_removes_recorded_occluded_controls(self):
         tree='label\tHome\tHome\t\t\t(1833, 1037)\t(40, 17)\nlabel\tfile.pdf\tfile.pdf\t\t\t(1793, 920)\t(120, 34)\npush-button\tCalendar (Ctrl+3)\t\t\t\t(77, 124)\t(30, 30)\npush-button\tMinimise\tMinimise\t\t\t(1802, 27)\t(30, 35)\nmenu\tGoogle Chrome\t\t\t\t(99, 0)\t(162, 27)'

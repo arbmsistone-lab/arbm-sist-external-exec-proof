@@ -27,7 +27,7 @@ LOCAL_FALLBACK_CAPACITY_STATUSES = {
     'FREE_QUOTA_EXHAUSTED',
 }
 STATE = {'step':0,'previous':'','executed':0,'phase':'plan','plan':'','memory':[],
-         'history':[],'wait_responses':0,'provider_waits':0,'cooldowns':{},'terminal':'','provider':'','model':''}
+         'history':[],'wait_responses':0,'provider_waits':0,'cooldowns':{},'terminal':'','provider':'','model':'','visual_memory':''}
 VERIFIER = Verifier()
 MILESTONES = Milestones()
 ELITE = EliteController(
@@ -215,6 +215,7 @@ def call_mesh(messages):
         STATE["memory"].append("OBSERVED MILESTONE: "+json.dumps(semantic["milestone"],ensure_ascii=False))
         STATE["memory"]=STATE["memory"][-8:]
         log_event({"status":"MILESTONE_VERIFIED","milestone":semantic["milestone"]})
+        if screenshot: STATE['visual_memory']=screenshot
     if semantic_terminal(MILESTONES.stalled, VERIFIER.no_progress):return terminal("SEMANTIC_RECOVERY_EXHAUSTED")
     if VERIFIER.no_progress>=MAX_NO_PROGRESS or STATE['wait_responses']>=MAX_WAIT_RESPONSES or STATE['step']>MAX_STEPS:
         return terminal('RECOVERY_EXHAUSTED' if STATE['step']<=MAX_STEPS else 'STEP_BUDGET')
@@ -228,6 +229,7 @@ def call_mesh(messages):
           'performance_mode':elite_decision['mode'],
           'performance_reason':elite_decision['reason'],
           'performance_metrics':ELITE.metrics(),
+          'reference_screenshot_data_url':STATE.get('visual_memory','') if STATE.get('visual_memory') and STATE.get('visual_memory')!=screenshot else '',
           'task_ledger':{'verified_milestones':MILESTONES.context().get('verified',[]),
                          'recent_outcomes':STATE['history'][-6:],
                          'provider_waits':STATE.get('provider_waits',0),

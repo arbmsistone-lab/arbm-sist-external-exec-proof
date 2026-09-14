@@ -54,7 +54,8 @@ class GroqFreeRoute:
             if remaining < 2: break
             messages = raw_messages if raw_messages is not None else [{'role':'user','content':[
                 {'type':'text','text':prompt(body)},
-                {'type':'image_url','image_url':{'url':body['screenshot_data_url']}}]}]
+                {'type':'image_url','image_url':{'url':body['screenshot_data_url']}},
+                *([{'type':'text','text':'HISTORICAL VERIFIED VISUAL MEMORY:'},{'type':'image_url','image_url':{'url':body['reference_screenshot_data_url']}}] if str(body.get('reference_screenshot_data_url','')).startswith('data:image/') else [])]}]
             payload = {'model':model, 'messages':messages, 'temperature':temperature,
                        'max_completion_tokens':raw_tokens if raw_messages is not None else int(os.environ.get('ARBM_ACTION_MAX_TOKENS','1000')),
                        'response_format':{'type':'json_object'}}
