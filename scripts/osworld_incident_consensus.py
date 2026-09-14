@@ -1,5 +1,5 @@
 """Fail-closed multi-AI incident consensus for OSWorld evidence."""
-import json, sys
+import base64, json, sys
 from pathlib import Path
 from collections import Counter
 from osworld_openrouter_free import FREE_ROUTE
@@ -23,6 +23,16 @@ def load_evidence(root: Path):
             parts.append(f'### {name}\n{text[-18000:]}')
     return '\n\n'.join(parts)[-48000:]
 
+def evidence_image(root: Path):
+    candidates=[]
+    for ext in ("*.png","*.jpg","*.jpeg","*.webp"):
+        candidates.extend(root.rglob(ext))
+    candidates=[p for p in candidates if p.is_file() and p.stat().st_size>0]
+    if not candidates:return None
+    p=max(candidates,key=lambda x:x.stat().st_mtime)
+    mime="image/png" if p.suffix.lower()==".png" else "image/jpeg"
+    return "data:%s;base64,%s"%(mime,base64.b64encode(p.read_bytes()).decode())
+
 def parse_json(text):
     text=str(text or '').strip()
     a=text.find('{'); b=text.rfind('}')
@@ -38,7 +48,10 @@ def ask(route, messages, budget):
 def main(root: Path, codex_path=None):
     evidence=load_evidence(root)
     if not evidence: raise RuntimeError('INCIDENT_EVIDENCE_REQUIRED')
-    messages=[{'role':'system','content':SYSTEM},{'role':'user','content':'INCIDENT EVIDENCE\n'+evidence}]
+    image=evidence_image(root)
+    content=[{'type':'text','text':'INCIDENT EVIDENCE\n'+evidence}]
+    if image:content.append({'type':'image_url','image_url':{'url':image}})
+    messages=[{'role':'system','content':SYSTEM},{'role':'user','content':content}]
     reviews={
         'groq_free':ask(GROQ_FREE_ROUTE,messages,100),
         'openrouter_free':ask(FREE_ROUTE,messages,100),

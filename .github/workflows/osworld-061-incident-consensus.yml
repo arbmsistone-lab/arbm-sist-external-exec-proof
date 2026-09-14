@@ -1,0 +1,46 @@
+name: OSWorld 061 incident consensus
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Failed official run to audit
+        required: true
+        default: '34882204601'
+permissions:
+  actions: read
+  contents: read
+jobs:
+  consensus:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      ZERO_SPEND_MODE: HARD
+      ARBM_ENABLE_LOCAL_VLM: '1'
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Download failed 061 evidence
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: osworld-v32-official18-B
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+          path: incident-evidence
+      - name: Install pinned audit runtime
+        run: |
+          python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
+          python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
+      - name: Run independent FREE incident consensus
+        run: |
+          ROOT=$(dirname "$(find incident-evidence -name osworld.log -type f | head -1)")
+          test -n "$ROOT"
+          python scripts/osworld_incident_consensus.py "$ROOT"
+      - name: Preserve consensus evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: osworld-061-incident-consensus
+          path: osworld-v32-incident-consensus.json
+          if-no-files-found: warn
+          retention-days: 90
