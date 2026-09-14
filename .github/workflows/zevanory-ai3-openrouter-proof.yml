@@ -1,0 +1,42 @@
+name: ZEVANORY OpenRouter FREE proof
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      MODEL: openrouter/free
+      ZERO_SPEND: 'true'
+    steps:
+      - name: Assert FREE-only contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$OPENROUTER_API_KEY"
+          test "$MODEL" = "openrouter/free"
+          test "$ZERO_SPEND" = "true"
+      - name: Real FREE inference proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, urllib.request, urllib.error
+          body=json.dumps({'model':os.environ['MODEL'],'messages':[{'role':'user','content':'Reply with the single word OK.'}],'temperature':0}).encode()
+          req=urllib.request.Request('https://openrouter.ai/api/v1/chat/completions',data=body,method='POST',headers={'Authorization':'Bearer '+os.environ['OPENROUTER_API_KEY'],'Content-Type':'application/json','HTTP-Referer':'https://zevanory.api.br','X-Title':'ZEVANORY FREE Mesh Proof'})
+          with urllib.request.urlopen(req,timeout=30) as r:
+              data=json.load(r); status=r.status
+          content=str(data.get('choices',[{}])[0].get('message',{}).get('content','')).strip()
+          if status!=200 or not content: raise SystemExit('OPENROUTER_FREE_INFERENCE_FAILED')
+          out={'state':'PASS','http_status':status,'requested_model':os.environ['MODEL'],'returned_model':data.get('model'),'content_nonempty':True,'zero_spend_contract':True,'new_spend_usd':0}
+          open('openrouter-free-proof.json','w').write(json.dumps(out,indent=2)+'\n')
+          print(json.dumps(out))
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: zevanory-openrouter-free-proof
+          path: openrouter-free-proof.json
+          retention-days: 30
