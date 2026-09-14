@@ -6,7 +6,7 @@ from osworld_mesh_preflight import PNG_1X1
 
 STRATEGIES = [
     'foreground-proof','archive-lock','verified-noop','capacity-hold',
-    'planner-default','planner-mistral-first','planner-text-first',
+    'planner-default','planner-openrouter-first','planner-text-first',
     'reviewer-advisory','policy-replan','build-parity'
 ]
 
@@ -36,9 +36,9 @@ def run_strategy(name):
         st=extract_state('Desktop','label x.pdf')
         out=decision_from_agent({'action':'exec','command':"pyautogui.press('enter')"},st,provider_available=False)
         return {'pass':out['kind']=='HOLD_CAPACITY','detail':out}
-    if name in ('planner-default','planner-mistral-first','planner-text-first'):
+    if name in ('planner-default','planner-openrouter-first','planner-text-first'):
         body=base_body()
-        if name=='planner-mistral-first': body['provider_hint']='mistral'
+        if name=='planner-openrouter-first': body['provider_hint']='openrouter'
         if name=='planner-text-first': body['provider_hint']='text'
         http,data,metrics=live(body)
         ok=http in (200,409) and data.get('mandatory_cost_usd')==0 and data.get('paid_fallback_used') is False

@@ -34,22 +34,20 @@ def main(root):
     # This contains only sanitized attempts and is essential for diagnosing a
     # rejected repository secret without leaking its value.
     Path('osworld-v32-initial-admission.json').write_text(json.dumps(third_proof,indent=2))
-    mistral_body={**body,'provider_hint':'mistral','request_budget_ms':60000,
+    failover_body={**body,'provider_hint':'openrouter','request_budget_ms':60000,
         'route_cooldowns':{route+':'+model:int((time.time()+120)*1000)
             for route,models in [('groq-multimodal-free',['qwen/qwen3.8-27b','qwen/qwen3.6-27b']),
                                  ('groq-accessibility-free',['openai/gpt-oss-120b','openai/gpt-oss-20b'])]
             for model in models}}
-    mistral_http,mistral_data=shim.request_gateway(mistral_body)
-    mistral_proof={'http':mistral_http,'data':mistral_data,
-        'status':'UNAVAILABLE','purpose':'independent Mistral admission; not benchmark evidence'}
-    if mistral_http==200:
-        validate_response(mistral_data,shim.EXPECTED_PIPELINE,shim.EXPECTED_BUILD)
-        if mistral_data.get('provider')!='mistral-free': raise RuntimeError('INDEPENDENT_MISTRAL_ROUTE_MISMATCH')
-        mistral_proof['status']='LIVE_FREE_PROBE_PASS'
-    failover_http,failover_data=shim.request_mesh(mistral_body)
-    failover_proof={'http':failover_http,'data':failover_data,
-        'purpose':'real independent FREE route failover admission; not benchmark evidence'}
-    if failover_http==200: validate_response(failover_data,shim.EXPECTED_PIPELINE,shim.EXPECTED_BUILD)
+    failover_result,failover_attempts=shim.FREE_ROUTE.call(failover_body,budget=100)
+    if not failover_result:
+        local_result,local_attempts=LOCAL_VLM_ROUTE.call(failover_body,budget=180)
+        failover_attempts.extend(local_attempts)
+        failover_result=local_result
+    failover_proof={'result':failover_result,'attempts':failover_attempts,
+        'status':'LIVE_INDEPENDENT_FREE_FAILOVER_PASS' if failover_result else 'UNAVAILABLE',
+        'purpose':'direct OpenRouter FREE, then direct local-cloud fallback; Groq excluded from this proof'}
+    if not failover_result: raise RuntimeError('INDEPENDENT_FREE_FAILOVER_UNPROVEN')
     judge_messages=[{'role':'system','content':'You are a strict binary classifier. Output MUST be exactly one token: YES or NO. No punctuation, no extra words, no explanations.'},
         {'role':'user','content':[{'type':'text','text':'Does this image show a full-screen photograph of a football field with football players? Answer only YES or NO.'},
             {'type':'image_url','image_url':{'url':body['screenshot_data_url'],'detail':'high'}}]}]
@@ -74,7 +72,7 @@ def main(root):
         attempts.append({'http':http,'data':data,'payload':metrics})
         Path('osworld-v32-live-preflight.json').write_text(json.dumps({'screenshot_source_run':34733419571,
             'purpose':'provider admission only; not a benchmark result','candidate_sha':os.environ['GITHUB_SHA'],
-            'oidc':'PASS','third_provider':third_proof,'mistral_provider':mistral_proof,
+            'oidc':'PASS','third_provider':third_proof,
             'free_failover':failover_proof,'judge_provider':judge_proof,'attempts':attempts},indent=2))
         if http == 200:
             validate_response(data,shim.EXPECTED_PIPELINE,shim.EXPECTED_BUILD)

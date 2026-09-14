@@ -29,8 +29,8 @@ jobs:
     env:
       ZERO_SPEND_MODE: HARD
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '24'
       - name: Install pinned local test dependencies
@@ -53,7 +53,7 @@ jobs:
         run: python scripts/osworld_mesh_preflight.py run30
       - name: Upload sanitized preflight evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: osworld-mesh-preflight
           path: |
@@ -81,7 +81,7 @@ jobs:
       ARBM_TASK_SECONDS: 2400
       ARBM_TASK_TIMEOUT: 50m
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Prove free KVM runner
         shell: bash
         run: |
@@ -184,7 +184,7 @@ jobs:
           exit "$overall"
       - name: Upload all task evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: top3-osworld-task-bundle
           path: top3-evidence
@@ -196,9 +196,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Download all task evidence
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
           pattern: top3-osworld-task-*
           path: evidence
@@ -209,7 +209,7 @@ jobs:
           python scripts/osworld_evidence.py aggregate evidence | tee aggregate.json
       - name: Upload aggregate evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: osworld-aggregate
           path: aggregate.json

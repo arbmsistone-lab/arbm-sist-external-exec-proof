@@ -5,13 +5,13 @@ root=Path('matrix-collected')
 files=sorted(root.rglob('*.json'))
 results=[json.loads(p.read_text(encoding='utf-8')) for p in files]
 by={r['strategy']:r for r in results}
-required={'foreground-proof','archive-lock','verified-noop','capacity-hold','planner-default','planner-mistral-first','planner-text-first','reviewer-advisory','policy-replan','build-parity'}
+required={'foreground-proof','archive-lock','verified-noop','capacity-hold','planner-default','planner-openrouter-first','planner-text-first','reviewer-advisory','policy-replan','build-parity'}
 missing=sorted(required-set(by))
 security=['foreground-proof','archive-lock','verified-noop','capacity-hold','reviewer-advisory','build-parity']
 security_ok=not missing and all(bool(by[x].get('pass')) for x in security)
 
 candidates=[]
-weights={'planner-default':100,'planner-mistral-first':95,'planner-text-first':90,'policy-replan':85}
+weights={'planner-default':100,'planner-openrouter-first':95,'planner-text-first':90,'policy-replan':85}
 for name,weight in weights.items():
     r=by.get(name,{})
     if r.get('pass') and r.get('http')==200 and r.get('status')=='PASS':

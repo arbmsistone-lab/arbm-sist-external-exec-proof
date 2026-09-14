@@ -5,15 +5,13 @@ const ISS = "https://token.actions.githubusercontent.com";
 const AUD = "arbm-sist-benchmark";
 const REPO = "arbmsistone-lab/arbm-sist-external-exec-proof";
 const JWKS = createRemoteJWKSet(new URL(ISS + "/.well-known/jwks"));
-const BUILD = "arbm-osworld-v32a-20260912";
+const BUILD = "arbm-osworld-v32-master-20260914";
 const PIPELINE = "arbm-osworld-v32-isolated";
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions";
 const GROQ_MODELS = ["qwen/qwen3.8-27b", "qwen/qwen3.6-27b"];
 const GROQ_TEXT_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"];
 // Run38 and gate39 show small fallback models repeatedly abandon unmet source subtasks.
 // Exhausted quality-qualified routes return capacity failure, never a weaker unqualified action.
-const MISTRAL_MODELS = ["mistral-small-latest"];
 const COOLDOWN = new Map<string, number>();
 
 const respond = (x: unknown, status = 200) => new Response(JSON.stringify(x), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
@@ -35,9 +33,11 @@ async function auth(req: Request) {
   const { payload } = await jwtVerify(m[1], JWKS, { issuer: ISS, audience: AUD, algorithms: ["RS256"] });
   if (payload.repository !== REPO) throw new Error("OIDC_REPOSITORY");
   const ref = String(payload.ref || "");
-  const rescue = ref === "refs/heads/chatgpt/osworld-v32-rescue-20260912";
-  if (!(rescue || ref.startsWith("refs/heads/codex/osworld-close-") || ref.startsWith("refs/heads/codex/free-capacity-osworld-v31-providers-") || ref.startsWith("refs/heads/codex/osworld-v32-"))) throw new Error("OIDC_REF");
-  if (rescue && payload.workflow_ref !== REPO + "/.github/workflows/osworld-v32-official-18.yml@" + ref) throw new Error("OIDC_WORKFLOW");
+  const allowedRefs = new Set([
+    "refs/heads/chatgpt/arbm-agent-elite-v2-20260914",
+  ]);
+  if (!allowedRefs.has(ref)) throw new Error("OIDC_REF");
+  if (payload.workflow_ref !== REPO + "/.github/workflows/osworld-v32-official-18.yml@" + ref) throw new Error("OIDC_WORKFLOW");
   if (!["push", "workflow_dispatch"].includes(String(payload.event_name || ""))) throw new Error("OIDC_EVENT");
   return { runId: String(payload.run_id || ""), sha: String(payload.sha || ""), ref };
 }
@@ -92,6 +92,14 @@ function canonicalAction(value: any) {
   if(!['exec','wait','finish'].includes(kind))throw new Error('INVALID_ACTION');
   command=kind==='exec'?normalizeCommand(command):'';
   if(kind==='exec'&&validate(command))throw new Error(validate(command));
+  const pointer=kind==='exec' && /pyautogui\.(?:click|doubleClick|rightClick|moveTo|dragTo)\s*\(/.test(command);
+  if(pointer){
+    const target=value.target;
+    if(!target||typeof target!=='object'||Array.isArray(target))throw new Error('POINTER_TARGET_REQUIRED');
+    const source=String(target.source||'').trim(),label=String(target.label||'').trim(),role=String(target.role||'').trim();
+    if(!['accessibility','screenshot'].includes(source)||!label)throw new Error('POINTER_TARGET_PROVENANCE_REQUIRED');
+    if(source==='accessibility'&&!role)throw new Error('ACCESSIBILITY_ROLE_REQUIRED');
+  }
   return {...value,action:kind,command};
 }
 function prompt(body: any) {
@@ -162,37 +170,6 @@ PROPOSED ACTION TO AUDIT: ${JSON.stringify(body.review_action).slice(0,1800)}`;
 
 async function callGroqText(p:string,image:string,body:any){return callGroq(p,image,body,true);}
 
-async function callMistral(p: string, image: string, body: any) {
-  const key = String(Deno.env.get("MISTRAL_API_KEY") || "").trim();
-  const confirmed = String(Deno.env.get("ARBM_MISTRAL_ZERO_SPEND_CONFIRMED") || "") === "1" && String(Deno.env.get("ARBM_MISTRAL_LIVE_PROVEN") || "") === "1";
-  if (!key || !confirmed) return { result: null, attempts: [{ route: "mistral-multimodal-free", status: key ? "zero_spend_unconfirmed" : "not_configured", mandatory_cost_usd: 0, paid_fallback_used: false }] };
-  const attempts: any[] = [];
-  for (const model of MISTRAL_MODELS) {
-    if(Date.now()>body.request_deadline-1000)break;
-    if (cooling("m:" + model) || Number(body.route_cooldowns?.["mistral-multimodal-free:"+model]||0)>Date.now()) { attempts.push({ route: "mistral-multimodal-free", model, status: "cooldown" }); continue; }
-    try {
-      const content: any[] = [{ type: "text", text: p }, { type: "image_url", image_url: image }, ...(String(body.reference_screenshot_data_url||"").startsWith("data:image/")?[{type:"text",text:"HISTORICAL VERIFIED VISUAL MEMORY:"},{type:"image_url",image_url:String(body.reference_screenshot_data_url)}]:[])];
-      const providerBody=JSON.stringify({ model, messages: [{ role: "system", content: "Return JSON only." }, { role: "user", content }], temperature: 0, max_tokens: 900, response_format: { type: "json_object" } });
-      const requestBytes=new TextEncoder().encode(providerBody).length;
-      if(requestBytes>420000){attempts.push({route:"mistral-multimodal-free",model,status:"payload_gate",request_bytes:requestBytes});continue;}
-      const res = await fetch(MISTRAL_URL, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${key}` }, body: providerBody, signal: AbortSignal.timeout(Math.max(1000,Math.min(35000,body.request_deadline-Date.now()))) });
-      const raw = await res.json().catch(() => ({}));
-      let out = res.ok ? parseJson(String(raw?.choices?.[0]?.message?.content || "")) : null;
-      let contractError=""; try {if(out)out=canonicalAction(out);}catch(e:any){contractError=String(e.message);out=null;}
-      const retryAfter = res.headers.get("retry-after");
-      if (res.status === 429) cool("m:" + model, Math.max(60, Number(retryAfter || 0)));
-      attempts.push({ route: "mistral-multimodal-free", model, status: res.status, parsed: !!out, contract_error: contractError, request_bytes: requestBytes, prompt_tokens: raw?.usage?.prompt_tokens, completion_tokens: raw?.usage?.completion_tokens, response_text: String(raw?.choices?.[0]?.message?.content||raw?.error?.failed_generation||"").slice(0,6000), zero_spend_confirmed: true, retry_after: retryAfter, error_message: scrub(raw?.message || raw?.error?.message), mandatory_cost_usd: 0, paid_fallback_used: false });
-      if (out) return { result: { action: out, provider: "mistral-free", model, zeroSpendProven: true }, attempts };
-      if ([401, 403].includes(res.status)) break;
-      if (res.status === 429 || res.status >= 500 || [400, 404, 422].includes(res.status)) continue;
-    } catch (e: any) {
-      attempts.push({ route: "mistral-multimodal-free", model, status: "transport", error: scrub(e?.message || e), mandatory_cost_usd: 0, paid_fallback_used: false });
-      continue;
-    }
-  }
-  return { result: null, attempts };
-}
-
 function needsReview(action:any,body:any){
   const expected=String(action?.checkpoint?.application||'').trim().toLowerCase();
   const active=String(body.active_application||'unknown').trim().toLowerCase();
@@ -213,7 +190,7 @@ Deno.serve(async (req: Request) => {
     const p = prompt(body), hint = String(body?.provider_hint || "");
     const attempts: any[] = [];
     let result: any = null;
-    const routes=hint==="text"?[callGroqText,callGroq,callMistral]:hint==="mistral"?[callMistral,callGroq,callGroqText]:[callGroq,callGroqText,callMistral];
+    const routes=hint==="text"?[callGroqText,callGroq]:[callGroq,callGroqText];
     for(const route of routes){const r=await route(p,image,body);attempts.push(...r.attempts);if(r.result){result=r.result;break;}}
     if (!result) return respond({ ok: false, status: "NO_ZERO_SPEND_MULTIMODAL_CAPACITY", pipeline: PIPELINE, agent_build: BUILD, provider_attempts: attempts, mandatory_cost_usd: 0, paid_fallback_used: false, scoreable: false }, 503);
     if(needsReview(result.action,body)){

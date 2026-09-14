@@ -10,7 +10,8 @@ from osworld_control import canonical_action
 from osworld_openrouter_free import prompt
 
 ROUTE = 'local-cloud-vlm'
-MODEL = os.environ.get('ARBM_LOCAL_VLM_MODEL', 'HuggingFaceTB/SmolVLM-256M-Instruct')
+MODEL = 'HuggingFaceTB/SmolVLM-256M-Instruct'
+MODEL_REVISION = '7e3e67edbbed1bf9888184d9df282b700a323964'
 
 
 def _local_action_grounding_gate(action):
@@ -98,8 +99,8 @@ def default_infer(text, image_b64, max_tokens):
     from PIL import Image
     from transformers import AutoProcessor, AutoModelForImageTextToText
     if not hasattr(default_infer,'runtime'):
-        processor=AutoProcessor.from_pretrained(MODEL)
-        model=AutoModelForImageTextToText.from_pretrained(MODEL,torch_dtype=torch.float32)
+        processor=AutoProcessor.from_pretrained(MODEL,revision=MODEL_REVISION)
+        model=AutoModelForImageTextToText.from_pretrained(MODEL,revision=MODEL_REVISION,torch_dtype=torch.float32)
         model.eval()
         default_infer.runtime=(processor,model)
     processor,model=default_infer.runtime
@@ -120,7 +121,7 @@ class LocalVLMRoute:
 
     def call(self, body, budget=105, raw_messages=None, raw_tokens=512, temperature=0):
         attempts=[]
-        base={'route':ROUTE,'model':MODEL,'mandatory_cost_usd':0,'paid_fallback_used':False,
+        base={'route':ROUTE,'model':MODEL,'model_revision':MODEL_REVISION,'mandatory_cost_usd':0,'paid_fallback_used':False,
               'compute_scope':'github-public-cloud-runner'}
         if os.environ.get('ZERO_SPEND_MODE')!='HARD':
             return None,[{**base,'status':'hard_mode_required'}]

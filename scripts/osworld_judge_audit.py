@@ -1,5 +1,6 @@
 """Audit native evaluator inputs against the independent FREE backend receipt."""
 import base64
+from collections import Counter
 import hashlib
 import json
 import mimetypes
@@ -42,8 +43,9 @@ def audit_judgements(root,task,sha):
         raw_cost=float(response.get('usage',{}).get('cost') or 0)
         if text!=event.get('response_text') or not zero(raw_cost):raise ValueError('JUDGE_RAW_RESPONSE_CHANGED_OR_COST')
         request=json.loads(raw)
-        receipts.append((signature(request['messages']),text.strip()))
+        receipts.append((json.dumps(signature(request['messages']),sort_keys=True,separators=(',',':')),text.strip()))
     native=list((root/'official-evaluator-raw').glob('call_*.json'))
+    native_pairs=[]
     for path in native:
         record=json.loads(path.read_text())
         if record.get('call_type')=='chat':messages=record['messages']
@@ -61,7 +63,7 @@ def audit_judgements(root,task,sha):
                         {'type':'image_url','image_url':{'url':'data:'+mime+';base64,'+base64.b64encode(file.read_bytes()).decode()}}])
             messages.append({'role':'user','content':content})
         else:raise ValueError('UNKNOWN_NATIVE_EVALUATOR_CALL')
-        pair=(signature(messages),record['response'].strip())
-        if pair not in receipts:raise ValueError('NATIVE_JUDGE_INPUT_OR_RESPONSE_NOT_PROVEN')
-    if receipts and not native:raise ValueError('NATIVE_JUDGE_RECEIPT_MISSING')
+        pair=(json.dumps(signature(messages),sort_keys=True,separators=(',',':')),record['response'].strip())
+        native_pairs.append(pair)
+    if Counter(receipts)!=Counter(native_pairs):raise ValueError('NATIVE_JUDGE_RECEIPT_SET_NOT_PROVEN')
     return {'native_calls':len(native),'backend_responses':len(receipts),'spend_mode':'HARD','input_and_response_integrity':'PASS'}

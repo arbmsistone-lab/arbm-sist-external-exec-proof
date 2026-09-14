@@ -4,6 +4,7 @@ This module has no network access and never reads the guest filesystem.
 """
 import ast
 import base64
+import binascii
 import hashlib
 import io
 import json
@@ -228,7 +229,7 @@ def visual_signature(image):
         im = im.crop((0, min(28, im.height // 10), im.width, im.height)).resize((48,27))
         # Quantized RGB preserves chroma/saturation changes while suppressing cursor/AA noise.
         return bytes((x // 32) for x in im.tobytes()).hex()
-    except Exception:
+    except (ValueError, OSError, IndexError, binascii.Error):
         return ''
 
 

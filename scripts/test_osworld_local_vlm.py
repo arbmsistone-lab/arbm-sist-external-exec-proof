@@ -1,8 +1,8 @@
-﻿import base64
+import base64
 import os
 import unittest
 from unittest.mock import patch
-from osworld_local_vlm import LocalVLMRoute, parse_action_object
+from osworld_local_vlm import LocalVLMRoute, parse_action_object, MODEL_REVISION
 
 PNG=base64.b64encode(b'fixture').decode()
 BODY={'instruction':'Dismiss visible menu','screenshot_data_url':'data:image/png;base64,'+PNG}
@@ -20,6 +20,9 @@ class LocalGroundingGateTests(unittest.TestCase):
         self.assertEqual(action['target']['label'],'Convert')
 
 class LocalVLMTests(unittest.TestCase):
+    def test_model_revision_is_immutable_commit(self):
+        self.assertRegex(MODEL_REVISION,r'^[0-9a-f]{40}$')
+
     def setUp(self):
         self.env=patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','ARBM_ENABLE_LOCAL_VLM':'1'})
         self.env.start();self.addCleanup(self.env.stop)

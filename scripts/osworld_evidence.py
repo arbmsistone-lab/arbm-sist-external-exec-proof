@@ -10,13 +10,16 @@ REQUIRED = ('candidate-sha.txt','zero-spend-mode.txt','osworld-agent-version.txt
 
 def seal(root):
     files=sorted(p for p in root.rglob('*') if p.is_file() and p.name!='SHA256SUMS.txt')
+    if any(p.is_symlink() for p in files): raise ValueError('SYMLINK_EVIDENCE_FORBIDDEN')
     (root/'SHA256SUMS.txt').write_text(''.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.relative_to(root).as_posix()+'\n' for p in files),encoding='utf-8')
 
 def verify(root):
     listed=set()
     for line in (root/'SHA256SUMS.txt').read_text(encoding='utf-8').splitlines():
         digest,name=line.split('  ',1)
-        p=(root/name).resolve()
+        raw_path=root/name
+        if raw_path.is_symlink(): raise ValueError('SYMLINK_EVIDENCE_FORBIDDEN')
+        p=raw_path.resolve()
         if not p.is_relative_to(root.resolve()) or name in listed:raise ValueError('UNSAFE_CHECKSUM_PATH')
         listed.add(name)
         if hashlib.sha256(p.read_bytes()).hexdigest()!=digest:raise ValueError('CHECKSUM_MISMATCH:'+name)
@@ -48,7 +51,7 @@ def aggregate(root):
         telemetry=[json.loads(x) for x in (d/'provider-telemetry.jsonl').read_text(encoding='utf-8').splitlines()]
         issued=False
         for x in telemetry:
-            if x.get('status')=='SHIM_ERROR' or (x.get('status')=='TERMINAL_FAIL' and x.get('reason') not in ('RECOVERY_EXHAUSTED','STEP_BUDGET')):raise ValueError('FATAL_AGENT:'+task)
+            if x.get('status') in ('SHIM_ERROR','TERMINAL_FAIL'):raise ValueError('FATAL_AGENT:'+task)
             if x.get('http')==200:
                 if x.get('agent_build')!=manifest['agent_build']:raise ValueError('ENDPOINT_CHANGED')
                 if x.get('mandatory_cost_usd')!=0 or x.get('paid_fallback_used') is not False:raise ValueError('ZERO_SPEND_UNPROVEN')

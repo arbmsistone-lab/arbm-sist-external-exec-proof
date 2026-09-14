@@ -6,7 +6,7 @@ const path=process.argv[2] || 'endpoint/index.ts';
 let source=fs.readFileSync(path,'utf8').replace(/^import .*;\r?\n/gm,'');
 source=stripTypeScriptTypes(source);
 const context={console,URL,Response,Request,TextEncoder,AbortSignal,Date,Map,JSON,Number,String,Math,Set,
-  createRemoteJWKSet:()=>null,jwtVerify:async()=>({payload:{repository:'arbmsistone-lab/arbm-sist-external-exec-proof',ref:'refs/heads/codex/osworld-close-test',event_name:'push',run_id:'offline',sha:'test'}}),
+  createRemoteJWKSet:()=>null,jwtVerify:async()=>({payload:{repository:'arbmsistone-lab/arbm-sist-external-exec-proof',ref:'refs/heads/chatgpt/arbm-agent-elite-v2-20260914',workflow_ref:'arbmsistone-lab/arbm-sist-external-exec-proof/.github/workflows/osworld-v32-official-18.yml@refs/heads/chatgpt/arbm-agent-elite-v2-20260914',event_name:'push',run_id:'offline',sha:'test'}}),
   Deno:{env:{get:()=>undefined},serve:f=>{context.handler=f;}}};
 vm.createContext(context);vm.runInContext(source,context);
 const run=s=>vm.runInContext(s,context);
@@ -20,26 +20,29 @@ for(const action of ['EXEC','execute','plan','click','type']) {
 }
 assert.equal(run('canonicalAction({action:"PLAN",plan:"next"}).action'),'wait');
 assert.throws(()=>run('canonicalAction({action:"exec",command:["pyautogui.click(1,2)",{}]})'));
+assert.throws(()=>run('canonicalAction({action:"exec",command:"pyautogui.click(1,2)"})'),/POINTER_TARGET_REQUIRED/);
+assert.throws(()=>run('canonicalAction({action:"exec",command:"pyautogui.click(1,2)",target:{source:"accessibility",label:"Convert"}})'),/ACCESSIBILITY_ROLE_REQUIRED/);
+assert.equal(run('canonicalAction({action:"exec",command:"pyautogui.click(1,2)",target:{source:"screenshot",label:"color swatch",role:""}}).action'),'exec');
 console.log('ENDPOINT_CONTRACT_PASS');
+assert.equal(run('BUILD'),'arbm-osworld-v32-master-20260914');
+assert.equal(run('PIPELINE'),'arbm-osworld-v32-isolated');
+console.log('MASTER_BUILD_IDENTITY_PASS');
 // Exercise real handler and routing with deterministic FREE/HTTP fixtures.
 const attempts=[];
-context.Deno.env.get=k=>['GROQ_API_KEY','MISTRAL_API_KEY'].includes(k)?'offline-test':k.startsWith('ARBM_MISTRAL_')?'1':undefined;
+context.Deno.env.get=k=>k==='GROQ_API_KEY'?'offline-test':undefined;
 const freeHeaders={'x-ratelimit-limit-requests':'1000','x-ratelimit-limit-tokens':'8000'};
 const good={choices:[{message:{content:JSON.stringify({action:'EXEC',command:"pyautogui.press('enter')"})}}]};
 for(const failure of [413,422,429,500,503]){
- run('COOLDOWN.clear()');let count=0;
- context.fetch=async(url,options)=>{
-  attempts.push({url,body:JSON.parse(options.body)});count++;
-  return new Response(JSON.stringify(count<=4?{error:{message:'offline quota fixture'}}:good),{status:count<=4?failure:200,headers:freeHeaders});
- };
+ run('COOLDOWN.clear()');
+ context.fetch=async(url,options)=>{attempts.push({url,body:JSON.parse(options.body)});return new Response(JSON.stringify({error:{message:'offline quota fixture'}}),{status:failure,headers:freeHeaders});};
  const req=new Request('https://offline.test',{method:'POST',headers:{authorization:'Bearer offline'},body:JSON.stringify({instruction:'press enter',observation:'OK button',screenshot_data_url:'data:image/png;base64,AA=='})});
  const response=await context.handler(req);const data=await response.json();
- assert.equal(response.status,200,JSON.stringify(data));
- assert.equal(data.provider,'mistral-free');assert.equal(data.paid_fallback_used,false);assert.equal(data.mandatory_cost_usd,0);
- assert.equal(data.provider_attempts.length,5);
- assert.equal(data.action.action,'exec');
- assert.equal(data.provider_attempts[4].zero_spend_confirmed,true);
+ assert.equal(response.status,503,JSON.stringify(data));assert.equal(data.status,'NO_ZERO_SPEND_MULTIMODAL_CAPACITY');assert.equal(data.paid_fallback_used,false);assert.equal(data.mandatory_cost_usd,0);
 }
+run('COOLDOWN.clear()');
+context.fetch=async()=>new Response(JSON.stringify(good),{status:200,headers:freeHeaders});
+let groqOk=await context.handler(new Request('https://offline.test',{method:'POST',headers:{authorization:'Bearer offline'},body:JSON.stringify({instruction:'press enter',observation:'OK button',screenshot_data_url:'data:image/png;base64,AA=='})}));
+let groqData=await groqOk.json();assert.equal(groqOk.status,200,JSON.stringify(groqData));assert.equal(groqData.provider,'groqcloud-free');assert.equal(groqData.provider_attempts[0].free_plan_proven,true);
 run('COOLDOWN.clear()');
 let calls=0;context.fetch=async()=>{calls++;return new Response(JSON.stringify(good),{status:200,headers:freeHeaders});};
 let response=await context.handler(new Request('https://offline.test',{method:'POST',headers:{authorization:'Bearer offline'},body:JSON.stringify({instruction:'x',expected_build:'wrong',screenshot_data_url:'x'})}));
@@ -60,7 +63,7 @@ console.log('GROQ_OUTPUT_BUDGET_AND_MEMORY_PASS');
 // reviewer revises to the source. The rejected proposal must never be returned.
 run('COOLDOWN.clear()');
 const badPlan={action:'exec',command:"pyautogui.hotkey('ctrl','3')",checkpoint:{application:'Calendar'}};
-const revised={action:'exec',command:"pyautogui.doubleClick(1015,1040)",review_verdict:'revise',review_reason:'Required source attachment has not been read'};
+const revised={action:'exec',command:"pyautogui.doubleClick(1015,1040)",target:{source:'screenshot',label:'required source attachment',role:''},review_verdict:'revise',review_reason:'Required source attachment has not been read'};
 let reviewCalls=[];
 context.fetch=async(url,options)=>{
  const b=JSON.parse(options.body);reviewCalls.push(b);
@@ -90,11 +93,11 @@ console.log('REVIEW_WAIT_COMMAND_NORMALIZATION_PASS');
 console.log('OPEN_SOURCE_CONTINUITY_PASS');
 console.log('REVIEW_BUDGET_GUARD_PASS');
 console.log('INDEPENDENT_TRANSITION_REVIEW_PASS');
-// Real rescue branch was absent from the allowlist. Admit only its exact workflow.
-const rescuePayload={repository:'arbmsistone-lab/arbm-sist-external-exec-proof',ref:'refs/heads/chatgpt/osworld-v32-rescue-20260912',event_name:'workflow_dispatch',run_id:'offline',sha:'test',workflow_ref:'arbmsistone-lab/arbm-sist-external-exec-proof/.github/workflows/osworld-v32-official-18.yml@refs/heads/chatgpt/osworld-v32-rescue-20260912'};
-for(const [patch,accepted] of [[{},true],[{repository:'other/repo'},false],[{ref:rescuePayload.ref+'-other'},false],[{workflow_ref:'other-workflow'},false],[{event_name:'pull_request'},false]]){
- context.jwtVerify=async()=>({payload:{...rescuePayload,...patch}});
+// Master benchmark branch is the only OIDC ref admitted by the production endpoint.
+const masterPayload={repository:'arbmsistone-lab/arbm-sist-external-exec-proof',ref:'refs/heads/chatgpt/arbm-agent-elite-v2-20260914',event_name:'workflow_dispatch',run_id:'offline',sha:'test',workflow_ref:'arbmsistone-lab/arbm-sist-external-exec-proof/.github/workflows/osworld-v32-official-18.yml@refs/heads/chatgpt/arbm-agent-elite-v2-20260914'};
+for(const [patch,accepted] of [[{},true],[{repository:'other/repo'},false],[{ref:'refs/heads/chatgpt/osworld-v32-rescue-20260912'},false],[{ref:masterPayload.ref+'-other'},false],[{workflow_ref:'other-workflow'},false],[{event_name:'pull_request'},false]]){
+ context.jwtVerify=async()=>({payload:{...masterPayload,...patch}});
  response=await context.handler(new Request('https://offline.test',{method:'POST',headers:{authorization:'Bearer offline'},body:'{}'}));
  assert.equal(response.status,accepted?400:401);
 }
-console.log('RESCUE_OIDC_EXACT_WORKFLOW_PASS');
+console.log('MASTER_OIDC_EXACT_WORKFLOW_PASS');

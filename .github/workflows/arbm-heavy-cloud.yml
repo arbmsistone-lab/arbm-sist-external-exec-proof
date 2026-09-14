@@ -28,7 +28,7 @@ jobs:
             ripgrep-cargo-test|ripgrep-cargo-check) ;;
             *) echo 'MISSION_NOT_ALLOWLISTED'; exit 64 ;;
           esac
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Rebuild and verify frozen SWE baseline
         shell: bash
         run: |
@@ -59,7 +59,7 @@ jobs:
           sha256sum evidence.json > evidence.sha256
           cat evidence.json
       - name: Upload evidence
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: arbm-heavy-cloud-${{ inputs.request_id }}
           path: |

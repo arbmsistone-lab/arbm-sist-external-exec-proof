@@ -14,7 +14,7 @@ from osworld_elite_controller import EliteController
 
 UPSTREAM = 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5'
 EXPECTED_PIPELINE = 'arbm-osworld-v32-isolated'
-EXPECTED_BUILD = 'arbm-osworld-v32a-20260912'
+EXPECTED_BUILD = 'arbm-osworld-v32-master-20260914'
 MAX_NO_PROGRESS = int(os.environ.get('ARBM_MAX_NO_PROGRESS', '12'))
 MAX_WAIT_RESPONSES = int(os.environ.get('ARBM_MAX_WAIT_RESPONSES', '4'))
 MAX_PROVIDER_WAIT_RESPONSES = int(os.environ.get('ARBM_MAX_PROVIDER_WAIT_RESPONSES', '24'))
@@ -123,7 +123,7 @@ def request_gateway(body):
         with urllib.request.urlopen(req,timeout=75) as res:return res.status,json.loads(res.read())
     except urllib.error.HTTPError as err:
         try:data=json.loads(err.read())
-        except Exception:data={'status':'INVALID_UPSTREAM_RESPONSE'}
+        except (json.JSONDecodeError, UnicodeDecodeError):data={'status':'INVALID_UPSTREAM_RESPONSE'}
         return err.code,data
     except (urllib.error.URLError,TimeoutError,json.JSONDecodeError) as exc:
         return 503,{'status':'TRANSPORT_ERROR','error_type':type(exc).__name__}
@@ -174,11 +174,11 @@ def request_mesh(body):
         # next OSWorld observation provide new visual context instead.
         return 503,{'status':'LOCAL_ACTION_UNAVAILABLE','provider_attempts':router_attempts,
                     'mandatory_cost_usd':0,'paid_fallback_used':False}
-    response=groq_router()
-    if response: return response
     if body.get('provider_hint')=='openrouter':
         response=router()
         if response: return response
+    response=groq_router()
+    if response: return response
     body['request_budget_ms']=max(1000,min(60000,int((105-(time.monotonic()-started))*1000)))
     http,data=request_gateway(body)
     capacity_unavailable=(http in (429,500,502,503,504) or
@@ -297,7 +297,7 @@ def call_mesh(messages):
                 decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
             except ValueError as exc:
                 body['memory']=(body['memory']+'\nPOLICY REJECTED: '+str(exc)+'. Replan within deterministic v32 state constraints.')[-4500:]
-                body['provider_hint']='groq' if data.get('provider')=='mistral-free' else 'mistral'
+                body['provider_hint']='openrouter' if str(data.get('provider') or '').startswith('groq') else 'text'
                 continue
             decision_kind=decision['kind']
             if decision_kind==DecisionKind.NOOP_VERIFIED.value:
@@ -335,8 +335,8 @@ def call_mesh(messages):
                 recent=[x['command'] for x in STATE['history'][-6:]]
                 if VERIFIER.no_progress and command in recent:
                     body['memory']=(body['memory']+'\nNO EFFECT: rejected repeated action '+command+'. Change GUI strategy or target.')[-4500:]
-                    body['provider_hint']='groq' if data.get('provider')=='mistral-free' else 'mistral'
-                    route='mistral-multimodal-free' if data.get('provider')=='mistral-free' else 'groq-multimodal-free'
+                    body['provider_hint']='openrouter' if str(data.get('provider') or '').startswith('groq') else 'text'
+                    route='groq-multimodal-free' if str(data.get('provider') or '').startswith('groq') else 'openrouter-multimodal-free'
                     STATE['cooldowns'][route+':'+str(data.get('model'))]=int((time.time()+90)*1000)
                     continue
                 elite_action=ELITE.before_action(command,action.get('target'))
@@ -403,7 +403,7 @@ class Handler(BaseHTTPRequestHandler):
                 # unmodified evaluator run. It can never produce DONE or PASS.
                 log_event({'status':'SHIM_ERROR','error_type':type(exc).__name__,'reason':str(exc)[:200]})
                 content=terminal('SHIM_INTERNAL_ERROR:'+type(exc).__name__)
-        self.send_json(200,{'id':'arbm-osworld-v31-isolated','object':'chat.completion','created':int(time.time()),'model':'gpt-arbm-osworld-v31-isolated','choices':[{'index':0,'message':{'role':'assistant','content':content},'finish_reason':'stop'}],'usage':{'prompt_tokens':0,'completion_tokens':0,'total_tokens':0}})
+        self.send_json(200,{'id':'arbm-osworld-v32-isolated','object':'chat.completion','created':int(time.time()),'model':'gpt-arbm-osworld-v32-isolated','choices':[{'index':0,'message':{'role':'assistant','content':content},'finish_reason':'stop'}],'usage':{'prompt_tokens':0,'completion_tokens':0,'total_tokens':0}})
 
 if __name__=='__main__':
     threading.Thread(target=heartbeat,daemon=True).start()

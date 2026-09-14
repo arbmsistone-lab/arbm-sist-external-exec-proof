@@ -32,7 +32,7 @@ def call(body,already_packed=False):
      raise ValueError('PREFLIGHT_EXEC_REQUIRED:'+decision['kind'])
    except ValueError as exc:
     packed['memory']=(str(packed.get('memory',''))+'\nPOLICY REJECTED: '+str(exc)+'. Replan within deterministic v32 constraints.')[-4500:]
-    packed['provider_hint']='groq' if data.get('provider')=='mistral-free' else 'mistral'
+    packed['provider_hint']='openrouter' if str(data.get('provider') or '').startswith('groq') else 'text'
     continue
    return action,evidence
   if http not in (429,503):break

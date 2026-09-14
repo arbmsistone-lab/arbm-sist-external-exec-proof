@@ -58,5 +58,5 @@ def recovery_policy(instruction, active_application, stalled, verifier_no_progre
         # Keep visual recovery provider-neutral so every healthy FREE multimodal route stays eligible.
         result['provider_hint'] = None if visual else 'text'
     elif int(recovery_level) >= 4:
-        result['provider_hint'] = None if visual else ('groq' if current_provider == 'mistral-free' else 'mistral')
+        result['provider_hint'] = None if visual else 'text'
     return result

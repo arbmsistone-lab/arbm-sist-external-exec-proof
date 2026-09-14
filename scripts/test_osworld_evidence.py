@@ -31,6 +31,12 @@ class EvidenceTests(unittest.TestCase):
    (d/'results'/'tasks'/d.name/'result.txt').write_text('0');(d/'results'/'results.json').write_text(json.dumps([{'task_id':d.name,'status':'success','score':0}]))
    seal(d)
   with self.assertRaisesRegex(ValueError,'ZERO_SCORE'):aggregate(self.root)
+ def test_symlink_evidence_is_rejected(self):
+  import os
+  d=self.root/'001'; target=d/'task-rc.txt'; link=d/'linked-proof.txt'
+  try: os.symlink(target,link)
+  except OSError: self.skipTest('symlink unavailable')
+  with self.assertRaisesRegex(ValueError,'SYMLINK_EVIDENCE_FORBIDDEN'):seal(d)
  def test_missing_free_proof(self):
   d=self.root/'001';p=d/'provider-telemetry.jsonl';x=json.loads(p.read_text());x['provider_attempts']=[];p.write_text(json.dumps(x));seal(d)
   with self.assertRaisesRegex(ValueError,'FREE_PROVIDER_UNPROVEN'):aggregate(self.root)

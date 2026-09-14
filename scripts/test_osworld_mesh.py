@@ -16,7 +16,7 @@ class MeshTests(unittest.TestCase):
   self.sleeper=patch.object(shim.time,'sleep',lambda *_:None);self.sleeper.start();self.addCleanup(self.sleeper.stop)
   self.msgs=[{'role':'system','content':'You are asked to complete the following task: press enter'},{'role':'user','content':'saved output button'}]
  def response(self,action=None,**overrides):
-  return {'ok':True,'status':'PASS','pipeline':shim.EXPECTED_PIPELINE,'agent_build':shim.EXPECTED_BUILD,'mandatory_cost_usd':0,'paid_fallback_used':False,'provider':'mistral-free','model':'free-model','provider_attempts':[{'route':'mistral-multimodal-free','model':'free-model','status':200,'zero_spend_confirmed':True}],'action':action or {'action':'exec','command':"pyautogui.press('enter')"},**overrides}
+  return {'ok':True,'status':'PASS','pipeline':shim.EXPECTED_PIPELINE,'agent_build':shim.EXPECTED_BUILD,'mandatory_cost_usd':0,'paid_fallback_used':False,'provider':'groq-free','model':'free-model','provider_attempts':[{'route':'groq-multimodal-free','model':'free-model','status':200,'free_plan_proven':True}],'action':action or {'action':'exec','command':"pyautogui.press('enter')"},**overrides}
  def test_error_recovery(self):
   for status in (413,422,429,500,502,503,504):
    with self.subTest(status=status):
