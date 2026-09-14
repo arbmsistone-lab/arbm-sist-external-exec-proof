@@ -89,10 +89,10 @@ class MeshTests(unittest.TestCase):
   self.assertEqual(shim.STATE['terminal'],'')
  def test_provider_wait_has_independent_terminal_budget(self):
   shim.request_mesh=lambda b:(503,self.response(ok=False,status='NO_ZERO_SPEND_MULTIMODAL_CAPACITY'))
-  shim.MAX_WAIT_RESPONSES=3
-  results=[shim.call_mesh(self.msgs) for _ in range(5)]
+  with patch.object(shim,'MAX_PROVIDER_WAIT_RESPONSES',3):
+   results=[shim.call_mesh(self.msgs) for _ in range(5)]
   self.assertIn('WAIT',results);self.assertIn('FAIL',results)
-  self.assertEqual(shim.STATE['terminal'],'RECOVERY_EXHAUSTED')
+  self.assertEqual(shim.STATE['terminal'],'PROVIDER_CAPACITY_EXHAUSTED')
  def test_visual_provider_outage_degrades_to_accessibility_before_terminal(self):
   bodies=[]
   self.msgs=[{'role':'system','content':'You are asked to complete the following task: apply the same color grading in GIMP'},

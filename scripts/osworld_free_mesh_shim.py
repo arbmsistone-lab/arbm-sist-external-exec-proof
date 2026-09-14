@@ -18,6 +18,7 @@ EXPECTED_PIPELINE = 'arbm-osworld-v32-isolated'
 EXPECTED_BUILD = 'arbm-osworld-v32a-20260912'
 MAX_NO_PROGRESS = int(os.environ.get('ARBM_MAX_NO_PROGRESS', '12'))
 MAX_WAIT_RESPONSES = int(os.environ.get('ARBM_MAX_WAIT_RESPONSES', '4'))
+MAX_PROVIDER_WAIT_RESPONSES = int(os.environ.get('ARBM_MAX_PROVIDER_WAIT_RESPONSES', '24'))
 MAX_STEPS = int(os.environ.get('ARBM_MAX_STEPS', '160'))
 LOG = os.environ.get('ARBM_OSWORLD_SHIM_LOG', 'osworld-v32-shim.log')
 OBS_DIR = Path(os.environ.get('ARBM_OSWORLD_OBSERVATIONS', 'shim-observations'))
@@ -346,6 +347,9 @@ def call_mesh(messages):
             time.sleep(2+attempt)
         else:break
     STATE['provider_waits']=STATE.get('provider_waits',0)+1
+    if STATE['provider_waits'] >= MAX_PROVIDER_WAIT_RESPONSES:
+        log_event({'status':'PROVIDER_WAIT_BUDGET','provider_waits':STATE['provider_waits']})
+        return terminal('PROVIDER_CAPACITY_EXHAUSTED')
     # Provider scarcity is not cognitive failure. Back off instead of burning
     # OSWorld steps rapidly while all FREE multimodal routes are cooling down.
     # For a visual task, however, an extended all-provider outage must not
