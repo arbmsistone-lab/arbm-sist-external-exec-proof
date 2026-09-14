@@ -37,7 +37,11 @@ async function auth(req: Request) {
     "refs/heads/chatgpt/arbm-agent-elite-v2-20260914",
   ]);
   if (!allowedRefs.has(ref)) throw new Error("OIDC_REF");
-  if (payload.workflow_ref !== REPO + "/.github/workflows/osworld-v32-official-18.yml@" + ref) throw new Error("OIDC_WORKFLOW");
+  const allowedWorkflows = new Set([
+    REPO + "/.github/workflows/osworld-v32-official-18.yml@" + ref,
+    REPO + "/.github/workflows/osworld-v32-cloud-matrix.yml@" + ref,
+  ]);
+  if (!allowedWorkflows.has(String(payload.workflow_ref || ""))) throw new Error("OIDC_WORKFLOW");
   if (!["push", "workflow_dispatch"].includes(String(payload.event_name || ""))) throw new Error("OIDC_EVENT");
   return { runId: String(payload.run_id || ""), sha: String(payload.sha || ""), ref };
 }
