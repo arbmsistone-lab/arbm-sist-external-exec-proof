@@ -8,8 +8,12 @@ import math
 import statistics
 
 
-def action_fingerprint(command):
+def action_fingerprint(command, target=None):
     clean = ' '.join(str(command or '').split())
+    if isinstance(target,dict) and str(target.get('label') or '').strip():
+        import re
+        method=(re.search(r'pyautogui\.(\w+)',clean) or [None,'exec'])[1]
+        clean='|'.join((method,str(target.get('source') or '').casefold(),str(target.get('role') or '').casefold(),str(target.get('label') or '').strip().casefold()))
     return hashlib.sha256(clean.encode()).hexdigest()[:16]
 
 
@@ -31,8 +35,8 @@ class EliteController:
         self.no_progress_events = 0
         self.wait_events = 0
 
-    def before_action(self, command):
-        fp = action_fingerprint(command)
+    def before_action(self, command, target=None):
+        fp = action_fingerprint(command,target)
         if fp in self.failed_actions:
             return {'allow': False, 'mode': 'replan', 'reason': 'tabu_failed_action',
                     'fingerprint': fp}

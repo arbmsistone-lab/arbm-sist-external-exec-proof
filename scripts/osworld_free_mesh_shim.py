@@ -27,7 +27,7 @@ LOCAL_FALLBACK_CAPACITY_STATUSES = {
     'FREE_QUOTA_EXHAUSTED',
 }
 STATE = {'step':0,'previous':'','executed':0,'phase':'plan','plan':'','memory':[],
-         'history':[],'wait_responses':0,'provider_waits':0,'cooldowns':{},'terminal':'','provider':'','model':'','visual_memory':''}
+         'history':[],'wait_responses':0,'provider_waits':0,'cooldowns':{},'terminal':'','provider':'','model':'','visual_memory':'','visual_memory_meta':None}
 VERIFIER = Verifier()
 MILESTONES = Milestones()
 ELITE = EliteController(
@@ -203,10 +203,15 @@ def call_mesh(messages):
     if time.monotonic()-STARTED>=MAX_TASK_SECONDS:return terminal('TASK_DEADLINE')
     STATE['step']+=1
     obs,screenshot=latest_observation(messages)
+    had_semantic_expectation=MILESTONES.pending is not None
     verification=VERIFIER.observe(obs,screenshot)
     semantic=MILESTONES.observe(obs)
     semantic_progress=semantic.get('status')=='VERIFIED'
-    elite_decision=ELITE.observe(bool(verification.get('progress') or semantic_progress))
+    if had_semantic_expectation and verification.get('progress') and not semantic_progress:
+        VERIFIER.no_progress += 1
+        VERIFIER.last_result={**VERIFIER.last_result,'progress':False,'reason':'visual_change_without_semantic_checkpoint','no_progress':VERIFIER.no_progress,'recovery_level':VERIFIER.recovery_level}
+        verification=VERIFIER.last_result
+    elite_decision=ELITE.observe(bool(semantic_progress if had_semantic_expectation else verification.get('progress')))
     if STATE['history'] and 'outcome' not in STATE['history'][-1]:
         STATE['history'][-1]['outcome']={'progress':bool(verification.get('progress')),
             'semantic_verified':semantic_progress,'verifier_reason':verification.get('reason'),
@@ -215,7 +220,9 @@ def call_mesh(messages):
         STATE["memory"].append("OBSERVED MILESTONE: "+json.dumps(semantic["milestone"],ensure_ascii=False))
         STATE["memory"]=STATE["memory"][-8:]
         log_event({"status":"MILESTONE_VERIFIED","milestone":semantic["milestone"]})
-        if screenshot: STATE['visual_memory']=screenshot
+        if screenshot and not STATE.get('visual_memory'):
+            STATE['visual_memory']=screenshot
+            STATE['visual_memory_meta']=semantic['milestone']
     if semantic_terminal(MILESTONES.stalled, VERIFIER.no_progress):return terminal("SEMANTIC_RECOVERY_EXHAUSTED")
     if VERIFIER.no_progress>=MAX_NO_PROGRESS or STATE['wait_responses']>=MAX_WAIT_RESPONSES or STATE['step']>MAX_STEPS:
         return terminal('RECOVERY_EXHAUSTED' if STATE['step']<=MAX_STEPS else 'STEP_BUDGET')
@@ -230,6 +237,7 @@ def call_mesh(messages):
           'performance_reason':elite_decision['reason'],
           'performance_metrics':ELITE.metrics(),
           'reference_screenshot_data_url':STATE.get('visual_memory','') if STATE.get('visual_memory') and STATE.get('visual_memory')!=screenshot else '',
+          'reference_visual_meta':STATE.get('visual_memory_meta'),
           'task_ledger':{'verified_milestones':MILESTONES.context().get('verified',[]),
                          'recent_outcomes':STATE['history'][-6:],
                          'provider_waits':STATE.get('provider_waits',0),
@@ -326,7 +334,7 @@ def call_mesh(messages):
                     route='mistral-multimodal-free' if data.get('provider')=='mistral-free' else 'groq-multimodal-free'
                     STATE['cooldowns'][route+':'+str(data.get('model'))]=int((time.time()+90)*1000)
                     continue
-                elite_action=ELITE.before_action(command)
+                elite_action=ELITE.before_action(command,action.get('target'))
                 if not elite_action['allow']:
                     body['memory']=(body['memory']+'\nELITE TABU: action rejected because it previously produced no verified progress. Replan from the current screenshot with a genuinely different control/path.')[-4500:]
                     log_event({'status':'ELITE_TABU_REJECTED','command':command,'reason':elite_action['reason']})

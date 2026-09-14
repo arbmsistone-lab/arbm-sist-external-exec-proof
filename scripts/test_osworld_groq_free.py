@@ -20,7 +20,7 @@ class GroqFreeTests(unittest.TestCase):
 
     @staticmethod
     def answer(action=ACTION):
-        return 200,{'choices':[{'message':{'content':json.dumps(action)}}]}, {'x-ratelimit-remaining-requests':'999'}
+        return 200,{'choices':[{'message':{'content':json.dumps(action)}}]}, {'x-ratelimit-remaining-requests':'999','x-ratelimit-limit-requests':'1000','x-ratelimit-limit-tokens':'8000'}
 
     def test_free_vision_result_requires_parsed_gui_action(self):
         self.replies=[self.answer()]
@@ -50,6 +50,14 @@ class GroqFreeTests(unittest.TestCase):
         self.assertEqual(result['model'],MODELS[1])
         self.assertEqual(attempts[0]['status'],403)
         self.assertEqual(self.route.until,0)
+
+    def test_http_200_without_free_plan_proof_is_rejected(self):
+        self.replies=[(200,{'choices':[{'message':{'content':json.dumps(ACTION)}}]},{'x-ratelimit-remaining-requests':'9'}),
+                      (429,{},{})]
+        result,attempts=self.route.call(BODY,'free-key')
+        self.assertIsNone(result)
+        self.assertFalse(attempts[0]['free_plan_proven'])
+        self.assertEqual(attempts[0]['contract_error'],'FREE_PLAN_PROOF_MISSING')
 
 
 if __name__=='__main__':unittest.main()

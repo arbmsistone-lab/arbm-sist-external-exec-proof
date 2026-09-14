@@ -66,7 +66,9 @@ class GroqFreeRoute:
                                                    timeout=min(float(os.environ.get('ARBM_FREE_CALL_TIMEOUT_S','20')), remaining))
             text = None
             error = ''
-            if status == 200:
+            rpd=headers.get('x-ratelimit-limit-requests'); tpm=headers.get('x-ratelimit-limit-tokens')
+            free_proven=(status == 200 and str(rpd)=='1000' and str(tpm)=='8000')
+            if status == 200 and free_proven:
                 try:
                     text = data['choices'][0]['message']['content'].strip()
                     if text.startswith('```'): text = text.split('\n', 1)[1].rsplit('```', 1)[0]
@@ -75,8 +77,9 @@ class GroqFreeRoute:
                     action = None; error = str(exc)[:150]
             else:
                 action = None
-            event(model=model, status=status, zero_spend_confirmed=(status == 200 and action is not None),
-                  free_plan='groq-free', parsed=action is not None, contract_error=error,
+                if status == 200 and not free_proven: error='FREE_PLAN_PROOF_MISSING'
+            event(model=model, status=status, zero_spend_confirmed=free_proven and action is not None, free_plan_proven=free_proven,
+                  rate_limit_rpd=rpd, rate_limit_tpm=tpm, parsed=action is not None, contract_error=error,
                   latency_seconds=round(self.clock()-before, 3),
                   retry_after=headers.get('retry-after'),
                   remaining_requests=headers.get('x-ratelimit-remaining-requests'))

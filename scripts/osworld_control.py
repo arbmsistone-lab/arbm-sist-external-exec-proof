@@ -267,7 +267,9 @@ class Verifier:
         evidence=str(action.get('verification') or '').strip()
         words={w for w in re.findall(r'\w+',evidence.lower()) if len(w)>3}
         visible={w for w in re.findall(r'\w+',observation.lower()) if len(w)>3}
-        return self.changes > 0 and self.no_progress < 3 and math.isfinite(confidence) and confidence >= .8 and len(evidence)>=8 and bool(words & visible)
+        artifacts=[x.casefold() for x in re.findall(r'[A-Za-z0-9_.-]+\.(?:jpg|jpeg|png|pdf|docx|xlsx|pptx|zip|csv)',evidence,re.I)]
+        specific=any(x in observation.casefold() for x in artifacts) if artifacts else len(words & visible)>=2
+        return self.changes > 0 and self.no_progress < 2 and math.isfinite(confidence) and confidence >= .8 and len(evidence)>=8 and specific
 
 
 def compact_tree(text, instruction='', limit=MAX_TREE_CHARS):

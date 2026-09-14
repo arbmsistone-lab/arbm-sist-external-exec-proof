@@ -21,7 +21,7 @@ class OfficialGateTests(unittest.TestCase):
         d = self.root / ('task-' + task); d.mkdir()
         values = {'task-id.txt':task, 'candidate-sha.txt':'test-sha', 'release.txt':PINS['release'],
             'max-steps.txt':'500', 'task-rc.txt':'0', 'zero-spend-mode.txt':'HARD',
-            'runner-environment.txt':'github-hosted', 'osworld.log':'unit fixture; not benchmark evidence',
+            'runner-environment.txt':'github-hosted', 'osworld.log':('found_edited_photo=1 (path=agent-output)' if task=='061' else 'unit fixture; not benchmark evidence'),
             'shim-runtime.log':'unit fixture', 'pins.json':json.dumps(PINS),
             'evaluator-integrity.json':json.dumps({'task.py':{'before':'hash','after':'hash'}}),
             'shim.jsonl':json.dumps({'commit':'test-sha','task_id':task,'http':200,'mandatory_cost_usd':0,
@@ -70,6 +70,11 @@ class OfficialGateTests(unittest.TestCase):
                       {'status':'WAIT_PROVIDER_CAPACITY'}):
             d = self.change('shim.jsonl', json.dumps({'commit':'test-sha','task_id':'061',**event}))
             with self.assertRaises(ValueError): audit_task(d,'061','test-sha')
+
+    def test_061_evaluator_fallback_cannot_fake_agent_output(self):
+        d=self.change('osworld.log','found_edited_photo=0 (path=None)\nAfter GIMP export: edited_photo=cache/061/IMG_7318_edited.jpg')
+        with self.assertRaisesRegex(ValueError,'AGENT_OUTPUT_PROVENANCE_UNPROVEN'):
+            audit_task(d,'061','test-sha')
 
     def test_missing_task_and_extra_task(self):
         (self.root / 'task-061' / 'task-id.txt').unlink()

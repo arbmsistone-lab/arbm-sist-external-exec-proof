@@ -38,6 +38,12 @@ def audit_task(root, task, sha, paid=False):
     if len(results) != 1 or results[0].parent.name != task: raise ValueError('OFFICIAL_RESULT_COUNT_OR_ID')
     score = float(results[0].read_text().strip())
     if not math.isfinite(score) or not 0 <= score <= 1: raise ValueError('INVALID_OFFICIAL_SCORE')
+    if task == '061':
+        runtime=value('osworld.log')
+        first_fallback=min([i for i in (runtime.find('After darktable export'),runtime.find('After GIMP export')) if i>=0] or [len(runtime)])
+        first_agent_proof=runtime.find('found_edited_photo=1')
+        if first_agent_proof < 0 or first_agent_proof > first_fallback:
+            raise ValueError('AGENT_OUTPUT_PROVENANCE_UNPROVEN')
     summaries = list(root.glob('results/**/results.json'))
     if len(summaries) != 1: raise ValueError('OFFICIAL_SUMMARY_COUNT')
     summary = json.loads(summaries[0].read_text())
