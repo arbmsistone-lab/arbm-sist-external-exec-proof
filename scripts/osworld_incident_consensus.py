@@ -15,13 +15,21 @@ Never invent missing evidence. critical_dissent is true if a safe decision
 cannot be made from the evidence."""
 
 def load_evidence(root: Path):
-    parts=[]
+    markers=("TERMINAL_FAIL","TASK_DEADLINE","PROVIDER","CAPACITY","WAIT_",
+             "LOCAL_ACTION_UNAVAILABLE","ACTION_ISSUED","score","provenance",
+             "AGENT_OUTPUT","FREE_","rate","429","403","quality")
+    rows=[]
     for name in ('task-rc.txt','osworld.log','shim.jsonl','gate-result.json','official-score.json'):
         p=root/name
-        if p.is_file():
-            text=p.read_text(errors='replace')
-            parts.append(f'### {name}\n{text[-18000:]}')
-    return '\n\n'.join(parts)[-48000:]
+        if not p.is_file(): continue
+        text=p.read_text(errors='replace')
+        lines=text.splitlines()
+        selected=[line for line in lines if any(m.casefold() in line.casefold() for m in markers)]
+        if not selected: selected=lines[-20:]
+        rows.append('### '+name+'\n'+'\n'.join(selected[-35:]))
+    digest='\n\n'.join(rows)
+    # 6k chars is intentionally below the smallest reviewer context after prompt/image overhead.
+    return digest[-6000:]
 
 def evidence_image(root: Path):
     candidates=[]
