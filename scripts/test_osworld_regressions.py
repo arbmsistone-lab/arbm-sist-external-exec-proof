@@ -87,6 +87,31 @@ class ContractTests(unittest.TestCase):
         self.assertIn('file.pdf',focused)
         self.assertIn('BACKGROUND',focused)
 
+    def test_accessibility_target_rewrites_wrong_click_coordinate(self):
+        obs="push-button\tConvert\t\t\t\t(1100, 660)\t(80, 52)"
+        action={'action':'exec','plan':'Click Convert to continue','summary':'Use the visible Convert button',
+                'target':{'source':'accessibility','label':'Convert','role':'push-button'},
+                'command':"pyautogui.click(824, 646)"}
+        out=control.ground_action(action,'GIMP',obs,[])
+        self.assertEqual(out['command'],'pyautogui.click(1140, 686)')
+        self.assertIn('Accessibility-grounded',out.get('compiler_note',''))
+
+    def test_accessibility_target_keeps_valid_coordinate(self):
+        obs="push-button\tConvert\t\t\t\t(1100, 660)\t(80, 52)"
+        action={'action':'exec','plan':'Click Convert','summary':'Convert image',
+                'target':{'source':'accessibility','label':'Convert','role':'push-button'},
+                'command':"pyautogui.click(1135, 680)"}
+        out=control.ground_action(action,'GIMP',obs,[])
+        self.assertEqual(out['command'],'pyautogui.click(1135, 680)')
+
+    def test_screenshot_target_is_not_rewritten_without_accessibility_proof(self):
+        obs="push-button\tOther\t\t\t\t(1100, 660)\t(80, 52)"
+        action={'action':'exec','plan':'Click visual swatch','summary':'Use screenshot target',
+                'target':{'source':'screenshot','label':'swatch','role':''},
+                'command':"pyautogui.click(824, 646)"}
+        out=control.ground_action(action,'GIMP',obs,[])
+        self.assertEqual(out['command'],'pyautogui.click(824, 646)')
+
     def test_real_replay_desktop_plan_compiles_to_correct_shortcut(self):
         a=control.ground_action({'action':'exec','plan':'Bring the Desktop to the foreground to access files','command':"pyautogui.hotkey('alt', 'tab')"},'Google Chrome')
         self.assertEqual(a['command'],"pyautogui.hotkey('ctrl', 'win', 'd')")

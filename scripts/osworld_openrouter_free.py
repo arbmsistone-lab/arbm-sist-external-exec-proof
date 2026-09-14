@@ -54,7 +54,7 @@ STRING. No shell, terminal, scripts, filesystem/network APIs, clipboard extracti
 hidden state or benchmark internals. Typing a path in a visible file dialog is
 allowed. Scroll by 3-6; sleep at most 3 seconds. Never repeat an ineffective action.
 Remember only facts visible in the current source; consult verified milestones.
-Finish only when all requested outputs are visibly verified.
+Finish only when all requested outputs are visibly verified. For click/doubleClick/rightClick include target {source,label,role}; prefer exact accessibility label/role when present, otherwise source=screenshot and use ORIGINAL desktop coordinates.
 JSON fields: action (exec|wait|finish), command (string), plan, summary, verification
 (observed result of previous action), expected_change, confidence, observed_facts
 ([{quote: exact text from CURRENT accessibility}]), checkpoint
@@ -63,7 +63,7 @@ All other descriptive fields are short factual STRINGS.
 ''' + '\nCURRENT REQUEST:\n' + json.dumps({k: body.get(k) for k in
         ('instruction', 'active_application', 'observation', 'memory',
          'previous_command', 'verified_milestones', 'recovery_strategy',
-         'verifier', 'image_geometry')}, ensure_ascii=False)
+         'verifier', 'image_geometry', 'task_ledger')}, ensure_ascii=False)
 
 
 class FreeRoute:

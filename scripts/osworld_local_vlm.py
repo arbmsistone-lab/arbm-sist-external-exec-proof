@@ -13,6 +13,19 @@ ROUTE = 'local-cloud-vlm'
 MODEL = os.environ.get('ARBM_LOCAL_VLM_MODEL', 'HuggingFaceTB/SmolVLM-256M-Instruct')
 
 
+def _local_action_grounding_gate(action):
+    """Small local VLM may not originate unanchored pointer coordinates."""
+    if not isinstance(action,dict) or action.get('action')!='exec': return action
+    command=str(action.get('command') or '')
+    pointer=bool(re.search(r'pyautogui\.(?:click|doubleClick|rightClick)\s*\(',command))
+    if not pointer: return action
+    target=action.get('target')
+    if not (isinstance(target,dict) and str(target.get('source') or '').lower()=='accessibility'
+            and str(target.get('label') or '').strip()):
+        raise ValueError('LOCAL_GROUNDING_REQUIRED')
+    return action
+
+
 def parse_action_object(output):
     """Compile a model action without expanding the GUI command allowlist.
 
@@ -36,7 +49,7 @@ def parse_action_object(output):
             # still passes through canonical_action's AST and literal checks.
             if 'command' in value and 'action' not in value:
                 value={**value,'action':'exec'}
-            return canonical_action(value)
+            return _local_action_grounding_gate(canonical_action(value))
     # A direct GUI program is safe only after the same AST/literal validation
     # applied to JSON actions.  Prefer the last fenced Python block; models
     # commonly place their explanation before it.
@@ -44,7 +57,7 @@ def parse_action_object(output):
                       flags=re.DOTALL|re.IGNORECASE)
     command=(blocks[-1] if blocks else raw).strip()
     if re.match(r'(?:import\s+pyautogui\s*\n)?\s*pyautogui\.',command):
-        return canonical_action({'action':'exec','command':command})
+        return _local_action_grounding_gate(canonical_action({'action':'exec','command':command}))
     raise ValueError('LOCAL_ACTION_REQUIRED')
 
 
@@ -72,7 +85,7 @@ def action_prompt(body):
     than act.  Keep only the current visual decision and the secure format.
     """
     return ('Return exactly one JSON object and nothing else. '
-            'Schema: {"action":"exec","command":"pyautogui.<allowed literal call>"}. '
+            'Schema: {"action":"exec","command":"pyautogui.<allowed literal call>","target":{"source":"accessibility|screenshot","label":"visible target","role":"role"}}. '
             'Choose one visible GUI action; no shell, terminal, filesystem, network, prose, markdown, or wait.\n'
             'TASK:\n' + str(body.get('instruction') or '')[:1800] + '\n'
             'FOREGROUND:\n' + str(body.get('active_application') or 'unknown') + '\n'

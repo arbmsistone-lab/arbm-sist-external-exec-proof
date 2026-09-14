@@ -1,14 +1,23 @@
-import base64
+﻿import base64
 import os
 import unittest
 from unittest.mock import patch
-from osworld_local_vlm import LocalVLMRoute
+from osworld_local_vlm import LocalVLMRoute, parse_action_object
 
 PNG=base64.b64encode(b'fixture').decode()
 BODY={'instruction':'Dismiss visible menu','screenshot_data_url':'data:image/png;base64,'+PNG}
 RAW=[{'role':'user','content':[{'type':'text','text':'Answer NO'},
       {'type':'image_url','image_url':{'url':'data:image/png;base64,'+PNG}}]}]
 
+
+class LocalGroundingGateTests(unittest.TestCase):
+    def test_local_pointer_requires_accessibility_target(self):
+        with self.assertRaisesRegex(ValueError, 'LOCAL_GROUNDING_REQUIRED'):
+            parse_action_object('{"action":"exec","command":"pyautogui.click(10, 20)"}')
+
+    def test_local_accessibility_pointer_is_allowed(self):
+        action=parse_action_object('{"action":"exec","command":"pyautogui.click(10, 20)","target":{"source":"accessibility","label":"Convert","role":"push-button"}}')
+        self.assertEqual(action['target']['label'],'Convert')
 
 class LocalVLMTests(unittest.TestCase):
     def setUp(self):

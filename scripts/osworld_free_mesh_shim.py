@@ -7,7 +7,6 @@ from osworld_milestones import Milestones, verified_facts
 from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response, visual_reference_recovery
 from osworld_v32_policy import DecisionKind, apply_live_policy
 from osworld_openrouter_free import FREE_ROUTE
-from osworld_openrouter_paid import PAID_ROUTE
 from osworld_groq_free import GROQ_FREE_ROUTE
 from osworld_local_vlm import LOCAL_VLM_ROUTE
 from osworld_recovery import recovery_policy, rejects_visual_navigation_loop, semantic_terminal
@@ -152,14 +151,6 @@ def request_mesh(body):
                 'agent_build':EXPECTED_BUILD,**result,'provider_attempts':router_attempts,
                 'mandatory_cost_usd':0,'paid_fallback_used':False,'scoreable':False,
                 'github_sha':os.environ.get('GITHUB_SHA'),'github_run_id':os.environ.get('GITHUB_RUN_ID')}
-    def paid_router():
-        result, attempts=PAID_ROUTE.call(body,budget=max(2,min(55,105-(time.monotonic()-started))))
-        router_attempts.extend(attempts)
-        if result:
-            return 200,{'ok':True,'status':'PASS','pipeline':EXPECTED_PIPELINE,
-                'agent_build':EXPECTED_BUILD,**result,'provider_attempts':router_attempts,
-                'scoreable':False,'github_sha':os.environ.get('GITHUB_SHA'),
-                'github_run_id':os.environ.get('GITHUB_RUN_ID')}
     def local_router():
         result, attempts=LOCAL_VLM_ROUTE.call(body,budget=max(2,min(80,105-(time.monotonic()-started))))
         router_attempts.extend(attempts)
@@ -213,8 +204,13 @@ def call_mesh(messages):
     STATE['step']+=1
     obs,screenshot=latest_observation(messages)
     verification=VERIFIER.observe(obs,screenshot)
-    elite_decision=ELITE.observe(bool(verification.get('progress')))
     semantic=MILESTONES.observe(obs)
+    semantic_progress=semantic.get('status')=='VERIFIED'
+    elite_decision=ELITE.observe(bool(verification.get('progress') or semantic_progress))
+    if STATE['history'] and 'outcome' not in STATE['history'][-1]:
+        STATE['history'][-1]['outcome']={'progress':bool(verification.get('progress')),
+            'semantic_verified':semantic_progress,'verifier_reason':verification.get('reason'),
+            'no_progress':verification.get('no_progress'),'milestone':semantic.get('milestone')}
     if semantic.get("status")=="VERIFIED":
         STATE["memory"].append("OBSERVED MILESTONE: "+json.dumps(semantic["milestone"],ensure_ascii=False))
         STATE["memory"]=STATE["memory"][-8:]
@@ -231,7 +227,11 @@ def call_mesh(messages):
           'route_cooldowns':STATE['cooldowns'],'expected_build':EXPECTED_BUILD,
           'performance_mode':elite_decision['mode'],
           'performance_reason':elite_decision['reason'],
-          'performance_metrics':ELITE.metrics()}
+          'performance_metrics':ELITE.metrics(),
+          'task_ledger':{'verified_milestones':MILESTONES.context().get('verified',[]),
+                         'recent_outcomes':STATE['history'][-6:],
+                         'provider_waits':STATE.get('provider_waits',0),
+                         'cognitive_waits':STATE.get('wait_responses',0)}}
     recovery=recovery_policy(body['instruction'], body.get('active_application','unknown'), MILESTONES.stalled, VERIFIER.no_progress, VERIFIER.recovery_level, STATE['provider'], STATE.get('visual_capacity_exhausted',False))
     if recovery['strategy']:body['recovery_strategy']=recovery['strategy']
     if recovery['provider_hint']:body['provider_hint']=recovery['provider_hint']
@@ -306,7 +306,7 @@ def call_mesh(messages):
             # Model memory_patch often describes its intended next action as done.
             # Only the independently observed milestone above enters durable memory.
             if kind=='finish':
-                if MILESTONES.verified and VERIFIER.can_finish(action,obs):
+                if MILESTONES.verified and MILESTONES.stalled==0 and VERIFIER.can_finish(action,obs):
                     STATE['phase']='done';log_event({'status':'VERIFIED_FINISH','action':action});return 'DONE'
                 body['memory']=(body['memory']+'\nFINISH REJECTED: no sufficient observed completion. Verify all outputs on screen.')[-4500:]
                 continue

@@ -111,9 +111,67 @@ def tree_signature(text):
     return hashlib.sha256('\n'.join(sorted(lines)).encode()).hexdigest()
 
 
+def _parse_accessibility_controls(observation):
+    controls=[]
+    interactive={'push-button','button','menu-item','check-box','radio-button','combo-box','entry','link','toggle-button','spin-button','slider','tab'}
+    for line in str(observation or '').splitlines():
+        cols=line.split('\t')
+        if len(cols)<7 or cols[0] not in interactive: continue
+        xy=re.findall(r'-?\d+',cols[-2]); wh=re.findall(r'\d+',cols[-1])
+        if len(xy)!=2 or len(wh)!=2: continue
+        x,y=map(int,xy); w,h=map(int,wh)
+        name=cols[1].replace('\u200b','').strip()
+        if not name or w<=0 or h<=0: continue
+        controls.append({'role':cols[0],'name':name,'x':x,'y':y,'w':w,'h':h,
+                         'cx':x+w//2,'cy':y+h//2})
+    return controls
+
+
+def _resolve_accessibility_target(action, observation):
+    target=action.get('target') if isinstance(action,dict) else None
+    controls=_parse_accessibility_controls(observation)
+    if not controls: return None
+    if isinstance(target,dict) and str(target.get('source') or '').lower()=='accessibility':
+        label=normalized_target(target.get('label'))
+        role=normalized_target(target.get('role'))
+        hits=[c for c in controls if normalized_target(c['name'])==label and (not role or normalized_target(c['role'])==role)]
+        return hits[0] if len(hits)==1 else None
+    intent=' '.join(str(action.get(k) or '') for k in ('plan','summary'))
+    norm_intent=normalized_target(intent)
+    hits=[c for c in controls if len(normalized_target(c['name']))>=3 and normalized_target(c['name']) in norm_intent]
+    longest=max((len(normalized_target(c['name'])) for c in hits),default=0)
+    hits=[c for c in hits if len(normalized_target(c['name']))==longest]
+    return hits[0] if len(hits)==1 else None
+
+
+def normalized_target(value):
+    return re.sub(r'\s+',' ',str(value or '').replace('\u200b','')).strip().casefold()
+
+
+def _compile_grounded_click(action, observation):
+    if action.get('action')!='exec': return action
+    target=_resolve_accessibility_target(action,observation)
+    if not target: return action
+    tree=ast.parse(action['command']); changed=False
+    for node in tree.body:
+        if not isinstance(node,ast.Expr) or not isinstance(node.value,ast.Call): continue
+        call=node.value
+        if not (isinstance(call.func,ast.Attribute) and call.func.attr in {'click','doubleClick','rightClick'}): continue
+        if len(call.args)<2: continue
+        try: x=float(ast.literal_eval(call.args[0])); y=float(ast.literal_eval(call.args[1]))
+        except (ValueError,TypeError): continue
+        inside=target['x']<=x<=target['x']+target['w'] and target['y']<=y<=target['y']+target['h']
+        if inside: continue
+        call.args[0]=ast.Constant(target['cx']); call.args[1]=ast.Constant(target['cy']); changed=True
+    if changed:
+        action=dict(action); action['command']='\n'.join(ast.unparse(n.value) for n in tree.body)
+        action['compiler_note']='Accessibility-grounded target resolved deterministically: '+target['role']+' '+target['name']
+    return action
+
 def ground_action(action, active_application, observation='', verified_milestones=None):
     """Compile desktop activation and block unsafe source-context abandonment."""
     a=canonical_action(action)
+    a=_compile_grounded_click(a,observation)
     plan=str(a.get('plan') or '').lower()
     active=str(active_application or 'unknown')
     reveal=bool(re.search(r'(?:bring|show|reveal|switch to) (?:the )?desktop\b',plan))
