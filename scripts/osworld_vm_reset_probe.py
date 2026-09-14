@@ -21,7 +21,7 @@ def cloud_validation_spend_mode():
     spend_mode = os.environ.get('ZERO_SPEND_MODE')
     if (os.environ.get('RUNNER_ENVIRONMENT') != 'github-hosted' or
             os.environ.get('GITHUB_ACTIONS') != 'true' or
-            spend_mode not in ('HARD', 'PAID_BOUNDED')):
+            spend_mode != 'HARD'):
         raise RuntimeError('CLOUD_ONLY_VALIDATION_MODE_REQUIRED')
     return spend_mode
 

@@ -131,11 +131,15 @@ def _resolve_accessibility_target(action, observation):
     target=action.get('target') if isinstance(action,dict) else None
     controls=_parse_accessibility_controls(observation)
     if not controls: return None
-    if isinstance(target,dict) and str(target.get('source') or '').lower()=='accessibility':
-        label=normalized_target(target.get('label'))
-        role=normalized_target(target.get('role'))
-        hits=[c for c in controls if normalized_target(c['name'])==label and (not role or normalized_target(c['role'])==role)]
-        return hits[0] if len(hits)==1 else None
+    if isinstance(target,dict):
+        source=str(target.get('source') or '').lower()
+        if source=='accessibility':
+            label=normalized_target(target.get('label'))
+            role=normalized_target(target.get('role'))
+            hits=[c for c in controls if normalized_target(c['name'])==label and (not role or normalized_target(c['role'])==role)]
+            return hits[0] if len(hits)==1 else None
+        if source=='screenshot':
+            return None
     intent=' '.join(str(action.get(k) or '') for k in ('plan','summary'))
     norm_intent=normalized_target(intent)
     hits=[c for c in controls if len(normalized_target(c['name']))>=3 and normalized_target(c['name']) in norm_intent]
@@ -150,7 +154,10 @@ def normalized_target(value):
 
 def _compile_grounded_click(action, observation):
     if action.get('action')!='exec': return action
+    declared=action.get('target') if isinstance(action,dict) else None
     target=_resolve_accessibility_target(action,observation)
+    if isinstance(declared,dict) and str(declared.get('source') or '').lower()=='accessibility' and not target:
+        raise ValueError('ACCESSIBILITY_TARGET_UNRESOLVED')
     if not target: return action
     tree=ast.parse(action['command']); changed=False
     for node in tree.body:
@@ -356,10 +363,17 @@ def compress_reference_screenshot(image):
     return '',{}
 
 
+def bounded_instruction(value, limit=7000):
+    text=str(value or '')
+    if len(text)<=limit: return text
+    marker='\n[...middle omitted; objective and final constraints preserved...]\n'
+    tail=max(1200,limit//3); head=limit-tail-len(marker)
+    return text[:head]+marker+text[-tail:]
+
 def pack_payload(body):
     def size(x): return len(json.dumps(x,ensure_ascii=False).encode())
     before=size(body);b=dict(body)
-    b['instruction']=str(b.get('instruction',''))[:7000]
+    b['instruction']=bounded_instruction(b.get('instruction',''),7000)
     focused,active=foreground_context(str(b.get('observation','')))
     b['active_application']=active
     b['observation']=compact_tree(focused,b['instruction'],limit=6500)
@@ -376,17 +390,9 @@ def pack_payload(body):
 def validate_response(data,pipeline,build):
     if not isinstance(data,dict) or data.get('pipeline')!=pipeline or data.get('agent_build')!=build:
         raise ValueError('ENDPOINT_INCOMPATIBLE')
-    mode=os.environ.get('ARBM_VALIDATION_SPEND_MODE','zero')
+    if os.environ.get('ARBM_VALIDATION_SPEND_MODE','zero') != 'zero':
+        raise ValueError('NON_ZERO_SPEND_MODE_FORBIDDEN')
     attempts=data.get('provider_attempts') or []
-    if mode=='paid-bounded':
-        try: cost=float(data.get('mandatory_cost_usd'))
-        except (TypeError,ValueError): raise ValueError('PAID_COST_PROOF_MISSING')
-        cap=float(os.environ.get('ARBM_PAID_REQUEST_MAX_USD','0.25'))
-        if not (0 < cost <= cap) or data.get('paid_fallback_used') is not True:
-            raise ValueError('PAID_BUDGET_PROOF_INVALID')
-        if data.get('ok') and not any(a.get('model')==data.get('model') and a.get('status')==200 and a.get('paid_route_proven') is True for a in attempts):
-            raise ValueError('PROVIDER_PAID_PROOF_MISSING')
-        return
     if data.get('mandatory_cost_usd') != 0 or data.get('paid_fallback_used') is not False:
         raise ValueError('ZERO_SPEND_UNPROVEN')
     if data.get('ok') and not any(a.get('model')==data.get('model') and a.get('status')==200 and

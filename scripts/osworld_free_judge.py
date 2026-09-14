@@ -9,7 +9,6 @@ import os
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from osworld_openrouter_free import FREE_ROUTE
-from osworld_openrouter_paid import PAID_ROUTE
 from osworld_groq_free import GROQ_FREE_ROUTE
 from osworld_local_vlm import LOCAL_VLM_ROUTE
 
@@ -20,8 +19,6 @@ def complete(request, route=FREE_ROUTE):
     if not isinstance(messages,list) or not messages or any(not isinstance(m,dict) or m.get('role') not in ('system','user','assistant') for m in messages): raise ValueError('JUDGE_MESSAGES_REQUIRED')
     tokens=request.get('max_completion_tokens',request.get('max_tokens',512))
     if type(tokens)!=int or not 1<=tokens<=8192: raise ValueError('JUDGE_OUTPUT_BUDGET_INVALID')
-    if os.environ.get('ARBM_VALIDATION_SPEND_MODE')=='paid-bounded':
-        return PAID_ROUTE.call({},budget=105,raw_messages=messages,raw_tokens=tokens,temperature=request.get('temperature',0))
     routes=(GROQ_FREE_ROUTE, route, LOCAL_VLM_ROUTE) if route is FREE_ROUTE else (route,)
     attempts=[]; result=None
     for candidate in routes:
@@ -45,7 +42,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if self.path!='/v1/chat/completions':return self.reply(404,{})
-        if os.environ.get('ARBM_VALIDATION_SPEND_MODE','zero') not in ('zero','paid-bounded'):
+        if os.environ.get('ARBM_VALIDATION_SPEND_MODE','zero') != 'zero':
             return self.reply(503,{'error':{'message':'VALIDATION_SPEND_MODE_INVALID'}})
         if self.headers.get('Authorization')!='Bearer zero-spend-oidc-shim':return self.reply(401,{'error':{'message':'LOCAL_JUDGE_AUTH_REQUIRED'}})
         self.close_connection=True;self.connection.settimeout(60)
@@ -60,9 +57,8 @@ class Handler(BaseHTTPRequestHandler):
             prefix=directory/('call-%04d'%index)
             prefix.with_name(prefix.name+'-request.json').write_bytes(raw)
             result,attempts=complete(request)
-            paid=os.environ.get('ARBM_VALIDATION_SPEND_MODE')=='paid-bounded'
             event={'task_id':os.environ.get('TASK_ID'),'candidate_sha':os.environ.get('GITHUB_SHA'),
-                'status':('REAL_PAID_MODEL_RESPONSE' if paid else 'REAL_FREE_MODEL_RESPONSE') if result else 'MODEL_ROUTES_UNAVAILABLE',
+                'status':'REAL_FREE_MODEL_RESPONSE' if result else 'MODEL_ROUTES_UNAVAILABLE',
                 'request_sha256':hashlib.sha256(raw).hexdigest(),'provider_attempts':attempts,
                 'mandatory_cost_usd':(result or {}).get('mandatory_cost_usd',0),
                 'paid_fallback_used':bool((result or {}).get('paid_fallback_used',False))}
@@ -80,6 +76,6 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__=='__main__':
-    if os.environ.get('ARBM_VALIDATION_SPEND_MODE','zero') not in ('zero','paid-bounded'):
+    if os.environ.get('ARBM_VALIDATION_SPEND_MODE','zero') != 'zero':
         raise RuntimeError('VALIDATION_SPEND_MODE_INVALID')
     HTTPServer(('127.0.0.1',8089),Handler).serve_forever()

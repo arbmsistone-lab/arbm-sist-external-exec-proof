@@ -74,6 +74,14 @@ class ContractTests(unittest.TestCase):
         self.assertTrue(v.can_finish(a, 'saved output'))
         self.assertFalse(v.can_finish({**a,'verification':''}, 'saved output'))
 
+    def test_long_instruction_preserves_objective_and_final_constraints(self):
+        text='OBJECTIVE_START '+('middle '*2000)+' FINAL_CONSTRAINT_DO_NOT_SPEND'
+        packed,_=control.pack_payload({'instruction':text,'observation':'','memory':'','screenshot_data_url':''})
+        self.assertTrue(packed['instruction'].startswith('OBJECTIVE_START'))
+        self.assertTrue(packed['instruction'].endswith('FINAL_CONSTRAINT_DO_NOT_SPEND'))
+        self.assertIn('middle omitted',packed['instruction'])
+        self.assertLessEqual(len(packed['instruction']),7000)
+
     def test_payload_gate_measures_utf8_bytes(self):
         body={'instruction':'task','observation':'雪'*60000,'memory':'m'*20000,'screenshot_data_url':''}
         packed, metrics=control.pack_payload(body)
@@ -124,6 +132,23 @@ class ContractTests(unittest.TestCase):
                 'command':"pyautogui.click(824, 646)"}
         out=control.ground_action(action,'GIMP',obs,[])
         self.assertEqual(out['command'],'pyautogui.click(824, 646)')
+
+    def test_declared_accessibility_target_must_resolve_uniquely(self):
+        obs="push-button\tConvert\t\t\t\t(1100, 660)\t(80, 52)"
+        missing={'action':'exec','target':{'source':'accessibility','label':'Save','role':'push-button'},'command':"pyautogui.click(10, 10)"}
+        with self.assertRaisesRegex(ValueError,'ACCESSIBILITY_TARGET_UNRESOLVED'):
+            control.ground_action(missing,'GIMP',obs,[])
+        duplicate=obs+"\npush-button\tConvert\t\t\t\t(900, 600)\t(80, 52)"
+        action={'action':'exec','target':{'source':'accessibility','label':'Convert','role':'push-button'},'command':"pyautogui.click(10, 10)"}
+        with self.assertRaisesRegex(ValueError,'ACCESSIBILITY_TARGET_UNRESOLVED'):
+            control.ground_action(action,'GIMP',duplicate,[])
+
+    def test_explicit_screenshot_target_never_uses_plan_text_to_hijack_accessibility(self):
+        obs="push-button\tConvert\t\t\t\t(1100, 660)\t(80, 52)"
+        action={'action':'exec','plan':'Convert image after clicking visual swatch','summary':'Convert later',
+                'target':{'source':'screenshot','label':'swatch','role':''},'command':"pyautogui.click(300, 400)"}
+        out=control.ground_action(action,'GIMP',obs,[])
+        self.assertEqual(out['command'],'pyautogui.click(300, 400)')
 
     def test_real_replay_desktop_plan_compiles_to_correct_shortcut(self):
         a=control.ground_action({'action':'exec','plan':'Bring the Desktop to the foreground to access files','command':"pyautogui.hotkey('alt', 'tab')"},'Google Chrome')

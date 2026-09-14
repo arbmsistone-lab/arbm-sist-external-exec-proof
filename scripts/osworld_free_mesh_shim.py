@@ -4,7 +4,7 @@ from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from osworld_ingress import project_messages
 from osworld_milestones import Milestones, verified_facts
-from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response, visual_reference_recovery
+from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response, visual_reference_recovery, foreground_context
 from osworld_v32_policy import DecisionKind, apply_live_policy
 from osworld_openrouter_free import FREE_ROUTE
 from osworld_groq_free import GROQ_FREE_ROUTE
@@ -27,7 +27,7 @@ LOCAL_FALLBACK_CAPACITY_STATUSES = {
     'FREE_QUOTA_EXHAUSTED',
 }
 STATE = {'step':0,'previous':'','executed':0,'phase':'plan','plan':'','memory':[],
-         'history':[],'wait_responses':0,'provider_waits':0,'cooldowns':{},'terminal':'','provider':'','model':'','visual_memory':'','visual_memory_meta':None}
+         'history':[],'facts':[],'wait_responses':0,'provider_waits':0,'cooldowns':{},'terminal':'','provider':'','model':'','visual_memory':'','visual_memory_meta':None}
 VERIFIER = Verifier()
 MILESTONES = Milestones()
 ELITE = EliteController(
@@ -159,8 +159,8 @@ def request_mesh(body):
                 'agent_build':EXPECTED_BUILD,**result,'provider_attempts':router_attempts,
                 'mandatory_cost_usd':0,'paid_fallback_used':False,'scoreable':False,
                 'github_sha':os.environ.get('GITHUB_SHA'),'github_run_id':os.environ.get('GITHUB_RUN_ID')}
-    if os.environ.get('ARBM_VALIDATION_SPEND_MODE') == 'paid-bounded':
-        return 503,{'status':'PAID_ROUTE_DISABLED_BY_POLICY','provider_attempts':router_attempts,
+    if os.environ.get('ARBM_VALIDATION_SPEND_MODE','zero') != 'zero':
+        return 503,{'status':'NON_ZERO_SPEND_MODE_FORBIDDEN','provider_attempts':router_attempts,
                     'mandatory_cost_usd':0,'paid_fallback_used':False}
     # Once capacity exhaustion has been observed for this task, retry the
     # quota-independent route directly.  Do not spend the remaining action
@@ -202,7 +202,9 @@ def call_mesh(messages):
     if STATE['terminal']:return 'FAIL'
     if time.monotonic()-STARTED>=MAX_TASK_SECONDS:return terminal('TASK_DEADLINE')
     STATE['step']+=1
+    STATE.setdefault('facts',[])
     obs,screenshot=latest_observation(messages)
+    _,active_application=foreground_context(obs)
     had_semantic_expectation=MILESTONES.pending is not None
     verification=VERIFIER.observe(obs,screenshot)
     semantic=MILESTONES.observe(obs)
@@ -228,7 +230,7 @@ def call_mesh(messages):
         return terminal('RECOVERY_EXHAUSTED' if STATE['step']<=MAX_STEPS else 'STEP_BUDGET')
     STATE['phase']='plan' if (elite_decision['mode']=='replan' or VERIFIER.no_progress>=2 or not STATE['plan']) else 'execute'
     body={'instruction':task_from(messages),'observation':obs,'screenshot_data_url':screenshot,
-          'previous_command':STATE['previous'],'executed_count':STATE['executed'],
+          'previous_command':STATE['previous'],'executed_count':STATE['executed'],'active_application':active_application,
           'memory':'\n'.join([STATE['plan']]+STATE['memory'][-5:]+[str(x) for x in STATE['history'][-4:]]),
           'phase':STATE['phase'],'no_progress_count':VERIFIER.no_progress,'step':STATE['step'],
           'verifier':verification,'verified_milestones':MILESTONES.context(),'recovery_strategy':RECOVERY[VERIFIER.recovery_level],
@@ -239,6 +241,7 @@ def call_mesh(messages):
           'reference_screenshot_data_url':STATE.get('visual_memory','') if STATE.get('visual_memory') and STATE.get('visual_memory')!=screenshot else '',
           'reference_visual_meta':STATE.get('visual_memory_meta'),
           'task_ledger':{'verified_milestones':MILESTONES.context().get('verified',[]),
+                         'verified_facts':STATE.get('facts',[])[:24],
                          'recent_outcomes':STATE['history'][-6:],
                          'provider_waits':STATE.get('provider_waits',0),
                          'cognitive_waits':STATE.get('wait_responses',0)}}
@@ -309,6 +312,8 @@ def call_mesh(messages):
             for fact in verified_facts(action,obs):
                 entry='OBSERVED SOURCE: '+json.dumps(fact,ensure_ascii=False)
                 if entry not in STATE['memory']:STATE['memory'].append(entry)
+                if fact not in STATE['facts']: STATE['facts'].append(fact)
+            STATE['facts']=STATE['facts'][-24:]
             STATE['memory']=STATE['memory'][-12:]
             kind=action['action']
             STATE['provider'],STATE['model']=data.get('provider',''),data.get('model','')

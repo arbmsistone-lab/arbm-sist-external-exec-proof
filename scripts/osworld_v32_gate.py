@@ -18,7 +18,7 @@ PINS = {'release': 'osworld-v2-2026.08.08', 'upstream_sha': 'd578d2d4e0dc82b43e2
         'evaluator': 'OSWorld V2 official', 'max_steps': 500}
 
 
-def audit_task(root, task, sha, paid=False):
+def audit_task(root, task, sha):
     verify(root)
     required = ['task-id.txt','candidate-sha.txt','release.txt','max-steps.txt','task-rc.txt',
                 'osworld.log','shim.jsonl','shim-runtime.log','pins.json','zero-spend-mode.txt',
@@ -29,8 +29,7 @@ def audit_task(root, task, sha, paid=False):
     if value('task-id.txt') != task or value('candidate-sha.txt') != sha: raise ValueError('TASK_OR_SHA_MISMATCH')
     if value('release.txt') != PINS['release'] or value('max-steps.txt') != '500': raise ValueError('RELEASE_OR_STEPS_MISMATCH')
     if value('task-rc.txt') != '0': raise ValueError('TASK_PROCESS_FAILED')
-    expected_spend='PAID_BOUNDED' if paid else 'HARD'
-    if value('zero-spend-mode.txt') != expected_spend or value('runner-environment.txt') != 'github-hosted': raise ValueError('COST_OR_CLOUD_GATE')
+    if value('zero-spend-mode.txt') != 'HARD' or value('runner-environment.txt') != 'github-hosted': raise ValueError('COST_OR_CLOUD_GATE')
     if json.loads(value('pins.json')) != PINS: raise ValueError('OFFICIAL_PINS_MISMATCH')
     integrity = json.loads(value('evaluator-integrity.json'))
     if not integrity or any(x['before'] != x['after'] for x in integrity.values()): raise ValueError('EVALUATOR_MODIFIED')
@@ -55,24 +54,18 @@ def audit_task(root, task, sha, paid=False):
         if event.get('commit') != sha or event.get('task_id') != task: raise ValueError('SHIM_PROVENANCE_MISMATCH')
         if event.get('status') in ('SHIM_ERROR', 'TERMINAL_FAIL'): raise ValueError('FATAL_SHIM:' + str(event.get('reason')))
         if 'http' in event:
-            if paid and event.get('http')==200:
-                cost=float(event.get('mandatory_cost_usd') or 0)
-                if not 0 < cost <= float(os.environ.get('ARBM_PAID_REQUEST_MAX_USD','0.05')) or event.get('paid_fallback_used') is not True: raise ValueError('PAID_SPEND_UNPROVEN')
-                for attempt in event.get('provider_attempts', []):
-                    if attempt.get('status')==200 and not attempt.get('paid_route_proven'): raise ValueError('PAID_PROVIDER_UNPROVEN')
-            elif not paid:
-                if event.get('mandatory_cost_usd') != 0 or event.get('paid_fallback_used') is not False: raise ValueError('ZERO_SPEND_UNPROVEN')
-                for attempt in event.get('provider_attempts', []):
-                    if attempt.get('status') == 200 and not (attempt.get('free_plan_proven') is True or attempt.get('zero_spend_confirmed') is True): raise ValueError('FREE_PROVIDER_UNPROVEN')
+            if event.get('mandatory_cost_usd') != 0 or event.get('paid_fallback_used') is not False: raise ValueError('ZERO_SPEND_UNPROVEN')
+            for attempt in event.get('provider_attempts', []):
+                if attempt.get('status') == 200 and not (attempt.get('free_plan_proven') is True or attempt.get('zero_spend_confirmed') is True): raise ValueError('FREE_PROVIDER_UNPROVEN')
         issued |= event.get('status') == 'ACTION_ISSUED'
     if not issued: raise ValueError('NO_REAL_AGENT_ACTION')
-    judges=audit_judgements(root,task,sha,paid=paid)
+    judges=audit_judgements(root,task,sha)
     return {'task_id': task, 'score': score, 'pass': score == 1.0,
             'judge_audit':judges,
             'evidence_manifest_sha256': hashlib.sha256((root / 'SHA256SUMS.txt').read_bytes()).hexdigest()}
 
 
-def aggregate(root, sha, focal=False, paid=False):
+def aggregate(root, sha, focal=False):
     expected = ['061'] if focal else [task for group in SHARDS.values() for task in group]
     dirs = list(root.rglob('task-id.txt'))
     actual = [path.read_text().strip() for path in dirs]
@@ -81,11 +74,11 @@ def aggregate(root, sha, focal=False, paid=False):
             'candidate_sha':sha,'expected_tasks':expected,'found_tasks':actual,'failure':'OFFICIAL_TASK_SET'},indent=2))
         raise ValueError('OFFICIAL_TASK_SET:' + json.dumps(actual))
     rows = []
-    for path in sorted(dirs): rows.append(audit_task(path.parent, path.read_text().strip(), sha, paid=paid))
+    for path in sorted(dirs): rows.append(audit_task(path.parent, path.read_text().strip(), sha))
     passed = sum(row['pass'] for row in rows)
     out = {'status': ('FOCAL_061_PASS' if focal else 'OFFICIAL18_SCORES_PASS') if passed == len(expected) else 'NOT PROVEN',
            'candidate_sha': sha, 'official_tasks': len(expected), 'binary_successes': passed, 'tasks': rows, 'pins': PINS,
-           'spend_mode': 'PAID_BOUNDED' if paid else 'HARD', 'heavy_local': 0}
+           'spend_mode': 'HARD', 'heavy_local': 0}
     Path('osworld-v32-official18-summary.json').write_text(json.dumps(out, indent=2) + '\n')
     if passed != len(expected): raise ValueError('OFFICIAL_SCORE_GATE:' + json.dumps(out))
     return out
@@ -94,9 +87,9 @@ def aggregate(root, sha, focal=False, paid=False):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('mode', choices=['seal','task','aggregate'])
     parser.add_argument('root', type=Path); parser.add_argument('--task'); parser.add_argument('--sha', default=os.environ.get('GITHUB_SHA'))
-    parser.add_argument('--focal', action='store_true'); parser.add_argument('--paid', action='store_true'); args = parser.parse_args()
+    parser.add_argument('--focal', action='store_true'); args = parser.parse_args()
     if args.mode == 'seal': seal(args.root)
     elif args.mode == 'task':
-        row = audit_task(args.root, args.task, args.sha, paid=args.paid); print(json.dumps(row))
+        row = audit_task(args.root, args.task, args.sha); print(json.dumps(row))
         if not row['pass']: raise SystemExit('OFFICIAL_SCORE_BELOW_ONE')
-    else: print(json.dumps(aggregate(args.root, args.sha, args.focal, paid=args.paid)))
+    else: print(json.dumps(aggregate(args.root, args.sha, args.focal)))
