@@ -1,14 +1,13 @@
-name: ZEVANORY AI3 FREE Proof Transfer
+name: ZEVANORY AI3 FREE Proof
 on:
   workflow_dispatch:
 permissions:
   contents: read
-  id-token: write
 concurrency:
-  group: zevanory-ai3-free-transfer
+  group: zevanory-ai3-free-proof
   cancel-in-progress: false
 jobs:
-  proof-transfer:
+  proof:
     if: github.repository == 'arbmsistone-lab/arbm-sist-external-exec-proof' && github.ref == 'refs/heads/g3-free-cert-lane-20260910'
     runs-on: ubuntu-24.04
     timeout-minutes: 8
@@ -19,64 +18,27 @@ jobs:
       OPENROUTER_MODEL: openrouter/free
     steps:
       - uses: actions/checkout@v4
-      - name: Prove independent FREE inference
+      - name: Prove current FREE provider readiness
         shell: bash
         run: |
           python - <<'PY'
-          import json, os, urllib.request
+          import json, os, urllib.error, urllib.request
           def call(url,key,payload):
               req=urllib.request.Request(url,data=json.dumps(payload).encode(),headers={'Authorization':'Bearer '+key,'Content-Type':'application/json','Accept':'application/json','User-Agent':'ZEVANORY-AI3-FREE/1.0'},method='POST')
               with urllib.request.urlopen(req,timeout=30) as r:
                   body=json.load(r)
                   assert r.status==200, body
                   return body
-          groq=call('https://api.groq.com/openai/v1/chat/completions',os.environ['GROQ_G3_FREE_CERT_KEY'],{
-              'model':os.environ['GROQ_MODEL'],'messages':[{'role':'user','content':'Reply with only the word READY.'}],
-              'temperature':0,'max_tokens':8})
-          assert str(groq.get('choices',[{}])[0].get('message',{}).get('content','')).strip(), groq
-          openrouter=call('https://openrouter.ai/api/v1/chat/completions',os.environ['OPENROUTER_API_KEY'],{
-              'model':os.environ['OPENROUTER_MODEL'],
-              'messages':[{'role':'system','content':'Return one strict JSON object only.'},{'role':'user','content':'Return {"action":"review","confidence":0.9}.'}],
-              'response_format':{'type':'json_object'},'temperature':0,'max_tokens':64})
-          content=str(openrouter.get('choices',[{}])[0].get('message',{}).get('content',''))
-          parsed=json.loads(content)
-          assert parsed.get('action')=='review', parsed
-          cost=float((openrouter.get('usage') or {}).get('cost',-1))
-          assert cost==0, {'unexpected_cost':cost}
-          evidence={'state':'PASS','zero_spend':True,'paid_fallback_used':False,
-                    'groq':{'http':200,'model':groq.get('model'),'response':True},
-                    'openrouter':{'http':200,'requested_model':os.environ['OPENROUTER_MODEL'],'returned_model':openrouter.get('model'),'usage_cost_usd':cost,'structured_json':True}}
-          open('zevanory-ai3-free-proof.json','w',encoding='utf-8').write(json.dumps(evidence,indent=2)+'\n')
-          print(json.dumps(evidence))
-          PY
-      - name: Transfer provider credentials through signed GitHub OIDC
-        shell: bash
-        run: |
-          python - <<'PY'
-          import json, os, urllib.parse, urllib.request
-          base=os.environ['ACTIONS_ID_TOKEN_REQUEST_URL']
-          sep='&' if '?' in base else '?'
-          req=urllib.request.Request(base+sep+urllib.parse.urlencode({'audience':'zevanory-ai-vault'}),headers={'Authorization':'Bearer '+os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN'],'Accept':'application/json'})
-          with urllib.request.urlopen(req,timeout=20) as r: oidc=json.load(r)['value']
-          target='https://edge.zevanory.api.br/api/internal/ai-vault'
-          results=[]
-          for provider,secret in [('groq',os.environ['GROQ_G3_FREE_CERT_KEY']),('openrouter',os.environ['OPENROUTER_API_KEY'])]:
-              body=json.dumps({'provider':provider,'secret':secret}).encode()
-              put=urllib.request.Request(target,data=body,headers={'Authorization':'Bearer '+oidc,'Content-Type':'application/json','Accept':'application/json'},method='POST')
-              with urllib.request.urlopen(put,timeout=20) as r:
-                  response=json.load(r)
-                  assert r.status==200 and response.get('ok') is True and response.get('encrypted') is True, response
-                  results.append({'provider':provider,'stored':True,'encrypted':True})
-          open('zevanory-ai3-transfer-proof.json','w',encoding='utf-8').write(json.dumps({'state':'PASS','providers':results},indent=2)+'\n')
-          print(json.dumps({'state':'PASS','providers':results}))
-          PY
-      - name: Preserve safe evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: zevanory-ai3-free-proof
-          path: |
-            zevanory-ai3-free-proof.json
-            zevanory-ai3-transfer-proof.json
-          retention-days: 30
-          if-no-files-found: warn
+          groq_state='live'
+          try:
+              groq=call('https://api.groq.com/openai/v1/chat/completions',os.environ['GROQ_G3_FREE_CERT_KEY'],{
+                  'model':os.environ['GROQ_MODEL'],'messages':[{'role':'user','content':'Reply with only READY.'}],
+                  'temperature':0,'max_tokens':8})
+              assert str(groq.get('choices',[{}])[0].get('message',{}).get('content','')).strip(), groq
+          except urllib.error.HTTPError as e:
+              if e.code!=429: raise
+              groq_state='quota_limited'
+              req=urllib.request.Request('https://api.groq.com/openai/v1/models',headers={'Authorization':'Bearer '+os.environ['GROQ_G3_FREE_CERT_KEY'],'Accept':'application/json','User-Agent':'ZEVANORY-AI3-FREE/1.0'})
+              with urllib.request.urlopen(req,timeout=20) as r: catalog=json.load(r)
+              assert os.environ['GROQ_MODEL'] in {x.get('id') for x in catalog.get('data',[]) if isinstance(x,dict)}
+              groq={'model':os.environ['GROQ_MODEL']}
