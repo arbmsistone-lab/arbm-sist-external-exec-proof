@@ -6,7 +6,7 @@ from osworld_ingress import project_messages
 from osworld_milestones import Milestones, verified_facts
 from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response, visual_reference_recovery, foreground_context
 from osworld_v32_policy import DecisionKind, apply_live_policy
-from osworld_openrouter_free import FREE_ROUTE
+from osworld_openrouter_free import FREE_ROUTE, prompt as openrouter_prompt
 from osworld_groq_free import GROQ_FREE_ROUTE
 from osworld_local_vlm import LOCAL_VLM_ROUTE
 from osworld_recovery import recovery_policy, rejects_visual_navigation_loop, semantic_terminal
@@ -162,39 +162,49 @@ def request_mesh(body):
     if os.environ.get('ARBM_VALIDATION_SPEND_MODE','zero') != 'zero':
         return 503,{'status':'NON_ZERO_SPEND_MODE_FORBIDDEN','provider_attempts':router_attempts,
                     'mandatory_cost_usd':0,'paid_fallback_used':False}
-    # Once capacity exhaustion has been observed for this task, retry the
-    # quota-independent route directly.  Do not spend the remaining action
-    # deadline probing remote providers known to be unavailable.
-    if body.get('provider_hint') == 'local-only':
-        response=local_router()
-        if response:
-            return response
-        # Greedy local inference is deterministic for the same frame.  Do not
-        # spend three full generations repeating an invalid answer; let the
-        # next OSWorld observation provide new visual context instead.
-        return 503,{'status':'LOCAL_ACTION_UNAVAILABLE','provider_attempts':router_attempts,
-                    'mandatory_cost_usd':0,'paid_fallback_used':False}
-    if body.get('provider_hint')=='openrouter':
-        response=router()
-        if response: return response
+    def text_router():
+        remaining=max(2,min(45,105-(time.monotonic()-started)))
+        raw=[{'role':'system','content':'Return exactly one JSON desktop action. Use only the provided accessibility tree and verified facts. Never claim visual details that are not in the tree.'},
+             {'role':'user','content':openrouter_prompt({**body,'screenshot_data_url':''})}]
+        result, attempts=FREE_ROUTE.call(body,budget=remaining,raw_messages=raw,raw_tokens=900)
+        router_attempts.extend(attempts)
+        if not result:return None
+        try:
+            text=str(result.get('text') or '').strip()
+            if text.startswith('`'):text=text.split('\n',1)[1].rsplit('`',1)[0]
+            action=canonical_action(json.loads(text))
+        except (ValueError,TypeError,json.JSONDecodeError):
+            return None
+        return 200,{'ok':True,'status':'PASS','pipeline':EXPECTED_PIPELINE,'agent_build':EXPECTED_BUILD,
+            'action':action,'provider':'openrouter-free-text','model':result.get('model'),
+            'provider_attempts':router_attempts,'mandatory_cost_usd':0,'paid_fallback_used':False,'scoreable':False,
+            'github_sha':os.environ.get('GITHUB_SHA'),'github_run_id':os.environ.get('GITHUB_RUN_ID')}
+    # Eager failover: every request traverses independent FREE candidates in
+    # the same cycle. A degraded local route can never capture later turns.
+    if body.get('provider_hint')=='text':
+        response=text_router()
+        if response:return response
+    response=router()
+    if response:return response
     response=groq_router()
-    if response: return response
+    if response:return response
     body['request_budget_ms']=max(1000,min(60000,int((105-(time.monotonic()-started))*1000)))
     http,data=request_gateway(body)
-    capacity_unavailable=(http in (429,500,502,503,504) or
-                          isinstance(data,dict) and data.get('status') in LOCAL_FALLBACK_CAPACITY_STATUSES)
-    if capacity_unavailable:
-        response=router()
-        if response:
-            response[1]['provider_attempts']=(data.get('provider_attempts') or [])+router_attempts
-            return response
-        response=local_router()
-        if response:
-            response[1]['provider_attempts']=(data.get('provider_attempts') or [])+router_attempts
-            return response
-    if router_attempts:
-        data['provider_attempts']=(data.get('provider_attempts') or [])+router_attempts
-    return http,data
+    if http==200 and isinstance(data,dict) and data.get('ok') is True:
+        if router_attempts:data['provider_attempts']=(data.get('provider_attempts') or [])+router_attempts
+        return http,data
+    gateway_attempts=(data.get('provider_attempts') or []) if isinstance(data,dict) else []
+    response=text_router()
+    if response:
+        response[1]['provider_attempts']=gateway_attempts+router_attempts
+        return response
+    response=local_router()
+    if response:
+        response[1]['provider_attempts']=gateway_attempts+router_attempts
+        return response
+    return 503,{'status':'FREE_MESH_EXHAUSTED_CURRENT_CYCLE',
+                'provider_attempts':gateway_attempts+router_attempts,
+                'mandatory_cost_usd':0,'paid_fallback_used':False}
 
 def call_mesh(messages):
     if STATE.get('step',0)==0 and not STATE.get('terminal'):
@@ -275,17 +285,12 @@ def call_mesh(messages):
             try:validate_response(data,EXPECTED_PIPELINE,EXPECTED_BUILD)
             except ValueError as exc:return terminal(str(exc))
         if http in (401,403):return terminal('ENDPOINT_AUTH_OR_VERSION')
-        if (data.get('status') in LOCAL_FALLBACK_CAPACITY_STATUSES and
-                os.environ.get('ARBM_ENABLE_LOCAL_VLM') == '1'):
-            # The current request already tried the safe local route.  If it
-            # was unavailable too, keep subsequent retries local-only.
-            body['provider_hint']='local-only'
+        if data.get('status') in LOCAL_FALLBACK_CAPACITY_STATUSES | {'LOCAL_ACTION_UNAVAILABLE','FREE_MESH_EXHAUSTED_CURRENT_CYCLE'}:
+            # Never pin later turns to one degraded provider. Retry the whole
+            # FREE mesh inside this same OSWorld turn with a different order.
+            body['provider_hint']='text' if attempt else 'openrouter'
+            log_event({'status':'EAGER_FREE_FAILOVER','attempt':attempt+1,'reason':data.get('status')})
             continue
-        if data.get('status') == 'LOCAL_ACTION_UNAVAILABLE':
-            log_event({'status':'LOCAL_ACTION_UNAVAILABLE','reason':'local_contract_failure'})
-            STATE['provider_waits']=STATE.get('provider_waits',0)+1
-            log_event({'status':'LOCAL_PROVIDER_WAIT','provider_waits':STATE['provider_waits']})
-            return 'WAIT'
         if http==409:
             if data.get('status')!='REPLAN_REQUIRED':return terminal('ENDPOINT_CONFLICT')
             reason=str(data.get('review_reason') or 'independent reviewer requested replanning')
@@ -362,22 +367,10 @@ def call_mesh(messages):
             time.sleep(2+attempt)
         else:break
     STATE['provider_waits']=STATE.get('provider_waits',0)+1
-    if STATE['provider_waits'] >= MAX_PROVIDER_WAIT_RESPONSES:
-        log_event({'status':'PROVIDER_WAIT_BUDGET','provider_waits':STATE['provider_waits']})
-        return terminal('PROVIDER_CAPACITY_EXHAUSTED')
-    # Provider scarcity is not cognitive failure. Back off instead of burning
-    # OSWorld steps rapidly while all FREE multimodal routes are cooling down.
-    # For a visual task, however, an extended all-provider outage must not
-    # consume the remaining episode: retain the observed visual context and
-    # ask an available accessibility route to make one grounded recovery move.
-    if recovery['visual_task'] and STATE['provider_waits'] >= 3:
-        if not STATE.get('visual_capacity_exhausted'):
-            log_event({'status':'VISUAL_CAPACITY_FALLBACK','provider_waits':STATE['provider_waits']})
-        STATE['visual_capacity_exhausted']=True
-    time.sleep(min(12, 2 + STATE['provider_waits']))
-    log_event({'status':'WAIT_PROVIDER_CAPACITY','provider_waits':STATE['provider_waits'],
-               'recovery_strategy':RECOVERY[VERIFIER.recovery_level]})
-    return 'WAIT'
+    log_event({'status':'FREE_MESH_EXHAUSTED','provider_waits':STATE['provider_waits']})
+    # All configured FREE routes were attempted repeatedly inside this same
+    # OSWorld turn. Never burn benchmark steps with provider-capacity WAITs.
+    return terminal('PROVIDER_CAPACITY_EXHAUSTED')
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self,*_):pass

@@ -65,48 +65,53 @@ class MeshTests(unittest.TestCase):
   self.assertEqual(data['mandatory_cost_usd'],0)
   self.assertFalse(data['paid_fallback_used'])
 
- def test_local_only_never_probes_remote_providers(self):
+ def test_local_only_hint_cannot_capture_failover_mesh(self):
   body={'instruction':'edit the image','observation':'GIMP canvas','screenshot_data_url':'data:image/png;base64,AA==','provider_hint':'local-only'}
-  local_result={'provider':'local-cloud-vlm','model':'local-test','action':{'action':'exec','command':"pyautogui.press('enter')"}}
-  with patch.object(shim.GROQ_FREE_ROUTE,'call',side_effect=AssertionError('groq must not run')),        patch.object(shim,'request_gateway',side_effect=AssertionError('gateway must not run')),        patch.object(shim.FREE_ROUTE,'call',side_effect=AssertionError('openrouter must not run')),        patch.object(shim.LOCAL_VLM_ROUTE,'call',return_value=(local_result,[{'route':'local-cloud-vlm','model':'local-test','status':200,'zero_spend_confirmed':True}])):
+  remote_result={'provider':'openrouter-free','model':'or-free','action':{'action':'exec','command':"pyautogui.press('enter')"}}
+  with patch.object(shim.FREE_ROUTE,'call',return_value=(remote_result,[{'route':'openrouter-multimodal-free','model':'or-free','status':200,'free_plan_proven':True}])) as router, \
+       patch.object(shim.GROQ_FREE_ROUTE,'call',side_effect=AssertionError('groq should not run after earlier success')), \
+       patch.object(shim.LOCAL_VLM_ROUTE,'call',side_effect=AssertionError('local should not capture route')), \
+       patch.object(shim,'request_gateway',side_effect=AssertionError('gateway should not run after earlier success')):
    http,data=shim.request_mesh(body)
-  self.assertEqual(http,200)
-  self.assertEqual(data['provider'],'local-cloud-vlm')
+  self.assertEqual(http,200);self.assertTrue(router.called)
+  self.assertEqual(data['provider'],'openrouter-free')
 
- def test_local_only_invalid_action_returns_without_remote_retry(self):
-  body={'instruction':'edit','observation':'GIMP','screenshot_data_url':'data:image/png;base64,AA==','provider_hint':'local-only'}
-  with patch.object(shim.GROQ_FREE_ROUTE,'call',side_effect=AssertionError('remote must not run')),        patch.object(shim,'request_gateway',side_effect=AssertionError('gateway must not run')),        patch.object(shim.FREE_ROUTE,'call',side_effect=AssertionError('router must not run')),        patch.object(shim.LOCAL_VLM_ROUTE,'call',return_value=(None,[{'route':'local-cloud-vlm','status':'local_model_error'}])) as local:
+ def test_openrouter_first_prevents_unnecessary_groq_dependency(self):
+  body={'instruction':'edit','observation':'GIMP','screenshot_data_url':'data:image/png;base64,AA=='}
+  remote_result={'provider':'openrouter-free','model':'or-free','action':{'action':'exec','command':"pyautogui.press('enter')"}}
+  with patch.object(shim.FREE_ROUTE,'call',return_value=(remote_result,[{'route':'openrouter-multimodal-free','model':'or-free','status':200,'free_plan_proven':True}])) as router, \
+       patch.object(shim.GROQ_FREE_ROUTE,'call',side_effect=AssertionError('groq must not run after OpenRouter success')):
    http,data=shim.request_mesh(body)
-  self.assertEqual(http,503)
-  self.assertEqual(data['status'],'LOCAL_ACTION_UNAVAILABLE')
-  self.assertEqual(local.call_count,1)
-
- def test_provider_wait_does_not_masquerade_as_cognitive_failure(self):
-  shim.request_mesh=lambda b:(503,self.response(ok=False,status='NO_ZERO_SPEND_MULTIMODAL_CAPACITY'))
-  results=[shim.call_mesh(self.msgs) for _ in range(15)]
-  self.assertEqual(set(results),{'WAIT'})
-  self.assertEqual(shim.VERIFIER.no_progress,0)
-  self.assertEqual(shim.STATE['terminal'],'')
- def test_provider_wait_has_independent_terminal_budget(self):
-  shim.request_mesh=lambda b:(503,self.response(ok=False,status='NO_ZERO_SPEND_MULTIMODAL_CAPACITY'))
-  with patch.object(shim,'MAX_PROVIDER_WAIT_RESPONSES',3):
-   results=[shim.call_mesh(self.msgs) for _ in range(5)]
-  self.assertIn('WAIT',results);self.assertIn('FAIL',results)
+  self.assertEqual(http,200);self.assertTrue(router.called);self.assertEqual(data['provider'],'openrouter-free')
+ def test_full_free_mesh_exhaustion_is_fail_closed_not_wait_loop(self):
+  shim.request_mesh=lambda b:(503,{'status':'FREE_MESH_EXHAUSTED_CURRENT_CYCLE','provider_attempts':[]})
+  result=shim.call_mesh(self.msgs)
+  self.assertEqual(result,'FAIL')
   self.assertEqual(shim.STATE['terminal'],'PROVIDER_CAPACITY_EXHAUSTED')
- def test_visual_provider_outage_degrades_to_accessibility_before_terminal(self):
+  self.assertEqual(shim.VERIFIER.no_progress,0)
+
+ def test_capacity_retry_stays_inside_same_osworld_turn(self):
+  calls=[]
+  def unavailable(body):
+   calls.append(dict(body));return 503,{'status':'NO_ZERO_SPEND_MULTIMODAL_CAPACITY','provider_attempts':[]}
+  shim.request_mesh=unavailable
+  result=shim.call_mesh(self.msgs)
+  self.assertEqual(result,'FAIL')
+  self.assertEqual(len(calls),3)
+  self.assertEqual(calls[1].get('provider_hint'),'openrouter')
+  self.assertEqual(calls[2].get('provider_hint'),'text')
+  self.assertEqual(shim.STATE['terminal'],'PROVIDER_CAPACITY_EXHAUSTED')
+
+ def test_visual_capacity_failure_never_sets_sticky_local_only(self):
   bodies=[]
   self.msgs=[{'role':'system','content':'You are asked to complete the following task: apply the same color grading in GIMP'},
              {'role':'user','content':'menu\tGNU Image Manipulation Program\t""\t\t\t(99, 0)\t(287, 27)'}]
   def unavailable(body):
-   bodies.append(dict(body))
-   return 503,{'status':'NO_ZERO_SPEND_MULTIMODAL_CAPACITY'}
+   bodies.append(dict(body));return 503,{'status':'NO_ZERO_SPEND_MULTIMODAL_CAPACITY'}
   shim.request_mesh=unavailable
-  # This case proves the accessibility-only degradation when the local VLM is
-  # unavailable.  CI normally enables it, so make that prerequisite explicit.
-  with patch.dict(os.environ,{'ARBM_ENABLE_LOCAL_VLM':'0'}):
-   for _ in range(4):self.assertEqual(shim.call_mesh(self.msgs),'WAIT')
-  self.assertTrue(shim.STATE['visual_capacity_exhausted'])
-  self.assertEqual(bodies[-1]['provider_hint'],'text')
+  self.assertEqual(shim.call_mesh(self.msgs),'FAIL')
+  self.assertTrue(all(x.get('provider_hint')!='local-only' for x in bodies))
+  self.assertEqual([x.get('provider_hint') for x in bodies],[None,'openrouter','text'])
  def test_corrupt_http_input_terminates_without_client_retry(self):
   import threading,urllib.request,urllib.error
   server=shim.ThreadingHTTPServer(('127.0.0.1',0),shim.Handler)
