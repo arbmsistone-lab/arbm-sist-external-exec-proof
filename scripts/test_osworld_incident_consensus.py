@@ -12,20 +12,20 @@ class ConsensusTests(unittest.TestCase):
   p=pathlib.Path(t.name);(p/'osworld.log').write_text('provider capacity failure evidence')
   return p
 
- def test_three_independent_reviews_accept_two_of_three_consensus(self):
-  root=self.evidence();rows=[verdict(),verdict(),verdict('AGENT_LOGIC')]
-  with patch.object(c,'ask',side_effect=rows),patch.object(c.Path,'write_text',return_value=None):
+ def test_five_reviewers_accept_three_vote_consensus(self):
+  root=self.evidence();local=[verdict(),verdict()];remote=[verdict(),verdict('AGENT_LOGIC'),verdict('AGENT_LOGIC')]
+  with patch.object(c,'local_text_review',side_effect=local),patch.object(c,'ask',side_effect=remote),patch.object(c.Path,'write_text',return_value=None):
    c.main(root)
 
  def test_critical_dissent_blocks_consensus(self):
-  root=self.evidence();rows=[verdict(),verdict(dissent=True),verdict()]
-  with patch.object(c,'ask',side_effect=rows),patch.object(c.Path,'write_text',return_value=None):
+  root=self.evidence();local=[verdict(),verdict(dissent=True)];remote=[verdict(),verdict(),verdict()]
+  with patch.object(c,'local_text_review',side_effect=local),patch.object(c,'ask',side_effect=remote),patch.object(c.Path,'write_text',return_value=None):
    with self.assertRaisesRegex(RuntimeError,'MULTI_AI_CONSENSUS_NOT_REACHED'):c.main(root)
 
  def test_codex_required_mode_fails_closed_when_review_missing(self):
   root=self.evidence();missing=root/'codex.json'
-  rows=[verdict(),verdict(),verdict()]
-  with patch.object(c,'ask',side_effect=rows):
+  local=[verdict(),verdict()];remote=[verdict(),verdict(),verdict()]
+  with patch.object(c,'local_text_review',side_effect=local),patch.object(c,'ask',side_effect=remote):
    with self.assertRaisesRegex(RuntimeError,'CODEX_REVIEW_REQUIRED_BUT_MISSING'):
     c.main(root,str(missing))
 

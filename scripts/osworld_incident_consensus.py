@@ -5,6 +5,7 @@ from collections import Counter
 from osworld_openrouter_free import FREE_ROUTE
 from osworld_groq_free import GROQ_FREE_ROUTE
 from osworld_local_vlm import LOCAL_VLM_ROUTE
+from osworld_local_text_review import review as local_text_review
 
 SYSTEM = """You are a senior incident reviewer. Analyze only supplied evidence.
 Return one compact JSON object with keys: root_cause_class, causal_chain,
@@ -48,6 +49,8 @@ def parse_json(text):
     try:return json.loads(text[a:b+1])
     except json.JSONDecodeError:return None
 
+NEUTRAL_IMAGE='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+
 def ask(route, messages, budget):
     result, attempts=route.call({},budget=budget,raw_messages=messages,raw_tokens=900)
     parsed=parse_json((result or {}).get('text')) if result else None
@@ -56,14 +59,16 @@ def ask(route, messages, budget):
 def main(root: Path, codex_path=None):
     evidence=load_evidence(root)
     if not evidence: raise RuntimeError('INCIDENT_EVIDENCE_REQUIRED')
-    image=evidence_image(root)
-    content=[{'type':'text','text':'INCIDENT EVIDENCE\n'+evidence}]
-    if image:content.append({'type':'image_url','image_url':{'url':image}})
-    messages=[{'role':'system','content':SYSTEM},{'role':'user','content':content}]
+    text_messages=[{'role':'system','content':SYSTEM},{'role':'user','content':'INCIDENT EVIDENCE\n'+evidence}]
+    vlm_messages=[{'role':'system','content':SYSTEM},{'role':'user','content':[
+        {'type':'text','text':'INCIDENT EVIDENCE\n'+evidence},
+        {'type':'image_url','image_url':{'url':NEUTRAL_IMAGE}}]}]
     reviews={
-        'groq_free':ask(GROQ_FREE_ROUTE,messages,100),
-        'openrouter_free':ask(FREE_ROUTE,messages,100),
-        'local_cloud':ask(LOCAL_VLM_ROUTE,messages,180),
+        'qwen_local':local_text_review('qwen_local',SYSTEM,evidence),
+        'smollm_local':local_text_review('smollm_local',SYSTEM,evidence),
+        'vlm_local':ask(LOCAL_VLM_ROUTE,vlm_messages,180),
+        'groq_free':ask(GROQ_FREE_ROUTE,text_messages,100),
+        'openrouter_free':ask(FREE_ROUTE,text_messages,100),
     }
     codex=None
     if codex_path:
@@ -76,7 +81,7 @@ def main(root: Path, codex_path=None):
     top,count=classes.most_common(1)[0] if classes else ('UNKNOWN',0)
     critical=any(bool(v.get('critical_dissent')) for v in valid.values())
     quorum_required=4 if codex_path else 3
-    converged=count>=3 if codex_path else count>=2
+    converged=count>=4 if codex_path else count>=3
     accepted=len(valid)>=quorum_required and converged and not critical and top!='UNKNOWN'
     out={'status':'CONSENSUS_ACCEPTED' if accepted else 'CONSENSUS_BLOCKED',
          'root_cause_class':top,'votes':dict(classes),'reviews':reviews,
