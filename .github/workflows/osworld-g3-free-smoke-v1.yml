@@ -13,6 +13,9 @@ on:
       probe_only:
         type: boolean
         default: false
+      coordinate_grid:
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -29,6 +32,7 @@ jobs:
       ARBM_G3_FREE_MODEL: ${{ inputs.model }}
       ZERO_SPEND: 'true'
       HEAVY_LOCAL: '0'
+      ARBM_G3_COORDINATE_GRID: ${{ inputs.coordinate_grid && '1' || '0' }}
     steps:
       - name: Checkout G3 tooling
         uses: actions/checkout@v4

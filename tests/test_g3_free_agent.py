@@ -316,6 +316,31 @@ class FreeAgentTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, 'MODEL_PROVIDER_MISMATCH'):
                     agent_module.ArbmG3Agent(client=self.agent.client)
 
+    def test_grid_preserves_original_geometry_and_bytes(self):
+        before = bytes(self.obs['screenshot'])
+        transformed = agent_module.coordinate_grid(before)
+        self.assertEqual(self.obs['screenshot'], before)
+        self.assertEqual(Image.open(io.BytesIO(transformed)).size, (1920, 1080))
+        self.assertEqual(agent_module.coordinate_grid(before), transformed)
+        self.assertNotEqual(before, transformed)
+
+    def test_grid_is_opt_in_and_does_not_change_action_mapping(self):
+        self.responses = [response()]
+        with patch.dict(os.environ, {'ARBM_G3_COORDINATE_GRID': '1'}):
+            _, commands = self.predict()
+        self.assertEqual(commands, ['pyautogui.click(x=960, y=540)'])
+        self.assertEqual(len(self.calls[0]['messages'][1]['content']), 2)
+        self.assertIn('coordinate_ruler', self.calls[0]['messages'][1]['content'][0]['text'])
+        terminal = json.loads(self.log.read_text().splitlines()[-1])
+        self.assertEqual(terminal['screenshot_hash'], hashlib.sha256(self.obs['screenshot']).hexdigest())
+        self.assertEqual(terminal['coordinate_reference']['kind'], 'normalized_grid_100_v1')
+
+    def test_default_keeps_original_model_image(self):
+        self.responses = [response()]
+        with patch.dict(os.environ, {'ARBM_G3_COORDINATE_GRID': '0'}):
+            self.predict()
+        self.assertEqual(self.agent._model_screenshot, self.obs['screenshot'])
+
 
 if __name__ == '__main__':
     unittest.main()

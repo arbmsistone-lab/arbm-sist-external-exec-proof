@@ -14,7 +14,7 @@ import time
 from collections import deque
 from decimal import Decimal, InvalidOperation
 
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageDraw, ImageFont
 from mm_agents.gemini_action_parser import convert_to_pyautogui_action
 
 ALLOWED_MODELS = ('dots-studio/dots-3-note-preview:free',
@@ -216,6 +216,28 @@ def screenshot_ocr(screenshot, width, height):
                 'latency_ms': round((time.monotonic() - started) * 1000, 3)}
 
 
+def coordinate_grid(screenshot):
+    """Pure host-side geometry aid; no task knowledge or guest modification."""
+    original = Image.open(io.BytesIO(screenshot)).convert('RGBA')
+    width, height = original.size
+    overlay = Image.new('RGBA', original.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    font = ImageFont.load_default(size=max(10, min(18, height // 60)))
+    for n in range(100, 1000, 100):
+        x, y = round(n * width / 1000), round(n * height / 1000)
+        draw.line((x, 0, x, height - 1), fill=(0, 100, 220, 65))
+        draw.line((0, y, width - 1, y), fill=(0, 100, 220, 65))
+        if n % 200:
+            continue
+        for point, label in (((x + 2, 2), f'x{n}'), ((2, y + 2), f'y{n}')):
+            box = draw.textbbox(point, label, font=font)
+            draw.rectangle(box, fill=(255, 255, 255, 220))
+            draw.text(point, label, font=font, fill=(0, 40, 130, 255))
+    result = io.BytesIO()
+    Image.alpha_composite(original, overlay).convert('RGB').save(result, format='PNG')
+    return result.getvalue()
+
+
 class ArbmG3Agent:
     def __init__(self, model=None, client=None, **kwargs):
         self.model_id = os.environ.get('ARBM_G3_FREE_MODEL', MODEL)
@@ -299,6 +321,15 @@ class ArbmG3Agent:
         self._screen_fingerprint = hashlib.sha256(small.tobytes()).hexdigest()
         self._ocr = screenshot_ocr(screenshot, self._width, self._height)
         self._context['ocr'] = self._ocr
+        enabled = os.environ.get('ARBM_G3_COORDINATE_GRID') == '1'
+        started = time.monotonic()
+        self._model_screenshot = coordinate_grid(screenshot) if enabled else screenshot
+        self._context['coordinate_reference'] = {
+            'kind': 'normalized_grid_100_v1' if enabled else 'original_screenshot',
+            'derived_from_original_only': True,
+            'model_image_sha256': hashlib.sha256(self._model_screenshot).hexdigest(),
+            'original_dimensions_preserved': [self._width, self._height],
+            'latency_ms': round((time.monotonic() - started) * 1000, 3)}
 
     def _messages_for(self, screenshot, correction):
         summary = {'task': self._instruction, 'working_memory': self._memory,
@@ -307,10 +338,16 @@ class ArbmG3Agent:
                    'unchanged_steps': self._same_screen_steps,
                    'screen_pixels': [self._width, self._height], 'correction': correction}
         summary['visible_text_from_same_screenshot'] = self._ocr
+        if self._context['coordinate_reference']['kind'] == 'normalized_grid_100_v1':
+            summary['coordinate_ruler'] = (
+                'The blue grid is an agent-added ruler, not application controls. '
+                'Each line is 100 normalized units; top labels are x, left labels are y. '
+                'Read x and y independently from the grid. Coordinates remain 0..1000 '
+                'over the entire unchanged-size image. Interpolate between grid lines.')
         return [{'role': 'system', 'content': SYSTEM}, {'role': 'user', 'content': [
             {'type': 'text', 'text': json.dumps(summary, ensure_ascii=False)},
             {'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,' +
-                                             base64.b64encode(screenshot).decode('ascii')}},
+                                             base64.b64encode(self._model_screenshot).decode('ascii')}},
         ]}]
 
     def _request(self, messages):
@@ -417,7 +454,7 @@ class ArbmG3Agent:
             messages = self._messages_for(screenshot, correction)
             self._call_index += 1
             self._record({'event': 'request_started', 'request_state': 'STARTED',
-                          'context_text_chars': sum(len(str(m)) for m in messages) - len(base64.b64encode(screenshot))})
+                          'context_text_chars': sum(len(str(m)) for m in messages) - len(base64.b64encode(self._model_screenshot))})
             started = time.monotonic()
             event, accepted, retry_reason, fatal = 'request_failed_classified', None, None, None
             try:

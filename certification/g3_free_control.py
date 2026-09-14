@@ -150,8 +150,13 @@ def probe(model, output):
         text, _ = agent.predict(instruction, {'screenshot': image.getvalue()})
         action = json.loads(text)
         params = action['parameters']
-        if (action['action'] != 'click' or not 550 <= params['x'] <= 750 or
-                not 250 <= params['y'] <= 585 or marker not in action['state_summary']):
+        checks = {'requested_action': action['action'] == 'click',
+                  'x_inside_original_target': type(params.get('x')) is int and 550 <= params['x'] <= 750,
+                  'y_inside_original_target': type(params.get('y')) is int and 250 <= params['y'] <= 585,
+                  'context_marker_retained': marker in action['state_summary']}
+        record.update(proposed_action=action, probe_checks=checks,
+                      synthetic_image_sha256=hashlib.sha256(image.getvalue()).hexdigest())
+        if not all(checks.values()):
             raise RuntimeError('IMAGE_CONTEXT_GROUNDING_PROBE_FAILED')
         report = journal_report(os.environ['ARBM_G3_USAGE_LOG'])
         if not report['accounting_complete'] or not report['all_calls_observed_zero_cost']:

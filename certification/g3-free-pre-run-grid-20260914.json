@@ -1,0 +1,21 @@
+{
+  "base_sha": "25cd462df6187288675845341d008161675e9aa2",
+  "observed_at_utc": "2026-09-14T00:12:08.031916+00:00",
+  "A": "PASS: 41 tests, compile, lint, diff checks; grid is opt-in, dimensions/action mapping preserved",
+  "B": "PASS: grid derived from screenshot only; official evaluator/task/assets/VM and criteria unchanged; no paid or production changes",
+  "C": "PASS_FOR_ONE_GRID_LING_SMOKE: price zero, bounded outputs/retries, one image, same model; probe required before VM",
+  "requested_model": "inclusionai/ling-3.0-flash-vl:free",
+  "coordinate_grid": true,
+  "regression_default_grid": false,
+  "ZERO_SPEND": true,
+  "HEAVY_LOCAL": 0,
+  "falsifiable_hypothesis": "A normalized ruler corrects Ling vertical grounding error without changing the synthetic probe or thresholds. If grounding fails, VM remains blocked.",
+  "baseline_run": 34791682024,
+  "baseline_score": null,
+  "content_sha256_lf": {
+    "certification/g3-openrouter-free-adapter.py": "be78c87213499af9eb212da306981a4b00d8d4823563b0d44e2ee00ba3b930ca",
+    "certification/g3_free_control.py": "bbeb5514376fd7498459201fa0243e134b869dca26fcc3e49b2013df9c939e34",
+    "tests/test_g3_free_agent.py": "1113a5d93a51d36ec93878634b15be0bcf6a9aaf7ee3f127469bd47d39cd2d4a",
+    ".github/workflows/osworld-g3-free-smoke-v1.yml": "f83c707b82caf8da2a093388702b7fef417fda7fa07e713b037cb7f6b7f0d66d"
+  }
+}
