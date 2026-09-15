@@ -18,16 +18,17 @@ cannot be made from the evidence."""
 def load_evidence(root: Path):
     markers=("TERMINAL_FAIL","TASK_DEADLINE","PROVIDER","CAPACITY","WAIT_",
              "LOCAL_ACTION_UNAVAILABLE","ACTION_ISSUED","score","provenance",
-             "AGENT_OUTPUT","FREE_","rate","429","403","quality")
+             "AGENT_OUTPUT","FREE_","rate","429","403","quality","accessibility","HTTP 500","NoneType","Sample Colorize","Apply","EXPORT_PROVEN","Traceback")
     rows=[]
-    for name in ('task-rc.txt','osworld.log','shim.jsonl','gate-result.json','official-score.json'):
-        p=root/name
-        if not p.is_file(): continue
-        text=p.read_text(errors='replace')
-        lines=text.splitlines()
-        selected=[line for line in lines if any(m.casefold() in line.casefold() for m in markers)]
-        if not selected: selected=lines[-20:]
-        rows.append('### '+name+'\n'+'\n'.join(selected[-35:]))
+    names=('run.log','probe-result.json','task-rc.txt','osworld.log','shim.jsonl','gate-result.json','official-score.json')
+    for name in names:
+        for p in sorted(root.rglob(name)):
+            if not p.is_file(): continue
+            text=p.read_text(errors='replace')
+            lines=text.splitlines()
+            selected=[line for line in lines if any(m.casefold() in line.casefold() for m in markers)]
+            if not selected: selected=lines[-30:]
+            rows.append('### '+str(p.relative_to(root))+'\n'+'\n'.join(selected[-60:]))
     digest='\n\n'.join(rows)
     # 6k chars is intentionally below the smallest reviewer context after prompt/image overhead.
     return digest[-6000:]

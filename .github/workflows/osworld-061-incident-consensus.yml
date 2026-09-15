@@ -8,9 +8,13 @@ on:
   workflow_dispatch:
     inputs:
       run_id:
-        description: Failed official run to audit
+        description: Workflow run to audit
         required: true
         default: '34882204601'
+      artifact_name:
+        description: Evidence artifact name
+        required: true
+        default: 'osworld-v32-official18-B'
 permissions:
   actions: read
   contents: read
@@ -28,7 +32,7 @@ jobs:
       - name: Download failed 061 evidence
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
-          name: osworld-v32-official18-B
+          name: ${{ inputs.artifact_name || 'osworld-v32-official18-B' }}
           run-id: ${{ inputs.run_id || '34882204601' }}
           github-token: ${{ github.token }}
           path: incident-evidence
@@ -38,8 +42,8 @@ jobs:
           python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
       - name: Run independent FREE incident consensus
         run: |
-          ROOT=$(dirname "$(find incident-evidence -name osworld.log -type f | head -1)")
-          test -n "$ROOT"
+          ROOT=incident-evidence
+          test -d "$ROOT"
           python scripts/osworld_incident_consensus.py "$ROOT"
       - name: Preserve consensus evidence
         if: always()

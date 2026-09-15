@@ -69,8 +69,18 @@ def step(env, command, pause=1):
     return env.step(command, pause=pause)[0]
 
 
+def recover_control(env, obs, label, role=None, limit=12):
+    """Re-observe until a control is freshly grounded; never reuse stale geometry."""
+    for _ in range(limit):
+        tree = (obs or {}).get('accessibility_tree')
+        if tree and has(tree, label, role):
+            return obs, unique(tree, label, role)
+        obs = idle(env, 1)
+    raise RuntimeError(f'CONTROL_REOBSERVE_TIMEOUT:{label}')
+
+
 def click(env, obs, label, role=None, pause=1):
-    c = unique(obs['accessibility_tree'], label, role)
+    obs, c = recover_control(env, obs, label, role)
     return step(env, f"pyautogui.click({c['cx']}, {c['cy']})", pause)
 
 
