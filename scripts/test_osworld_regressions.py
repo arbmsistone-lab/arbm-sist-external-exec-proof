@@ -114,6 +114,27 @@ class ContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'POINTER_TARGET_INVALID'):
             control.ground_action({'action':'exec','command':"pyautogui.click(10, 20)",'target':{'source':'screenshot','label':''}},'GIMP','',[])
 
+    def test_single_pointer_without_target_is_repaired_from_unique_accessibility_intent(self):
+        obs="push-button\tConvert\t\t\t\t(1100, 660)\t(80, 52)"
+        action={'action':'exec','plan':'Click Convert to continue','summary':'Use the visible Convert button',
+                'command':"pyautogui.click(824, 646)"}
+        out=control.ground_action(action,'GIMP',obs,[])
+        self.assertEqual(out['target'],{'source':'accessibility','label':'Convert','role':'push-button'})
+        self.assertEqual(out['command'],'pyautogui.click(1140, 686)')
+
+    def test_missing_target_repair_fails_closed_for_multiple_pointer_calls(self):
+        obs="push-button\tConvert\t\t\t\t(1100, 660)\t(80, 52)"
+        action={'action':'exec','plan':'Click Convert','command':"pyautogui.click(824,646)\npyautogui.click(824,646)"}
+        with self.assertRaisesRegex(ValueError,'POINTER_TARGET_REQUIRED'):
+            control.ground_action(action,'GIMP',obs,[])
+
+    def test_missing_target_repair_fails_closed_for_ambiguous_accessibility(self):
+        obs=("push-button\tConvert\t\t\t\t(1100, 660)\t(80, 52)\n"
+             "push-button\tConvert\t\t\t\t(900, 600)\t(80, 52)")
+        action={'action':'exec','plan':'Click Convert','command':"pyautogui.click(824,646)"}
+        with self.assertRaisesRegex(ValueError,'POINTER_TARGET_REQUIRED'):
+            control.ground_action(action,'GIMP',obs,[])
+
     def test_accessibility_target_rewrites_wrong_click_coordinate(self):
         obs="push-button\tConvert\t\t\t\t(1100, 660)\t(80, 52)"
         action={'action':'exec','plan':'Click Convert to continue','summary':'Use the visible Convert button',

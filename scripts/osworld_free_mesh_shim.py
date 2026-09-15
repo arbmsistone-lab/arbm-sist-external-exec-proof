@@ -265,6 +265,8 @@ def call_mesh(messages):
     OBS_DIR.mkdir(parents=True,exist_ok=True)
     evidence_path=OBS_DIR/('step_%04d.json'%STATE['step'])
     evidence_path.write_text(json.dumps({'request':body,'payload':metrics},ensure_ascii=False),encoding='utf-8')
+    policy_rejections=0
+    provider_capacity_cycles=0
     for attempt in range(3):
         if time.monotonic()-STARTED>=MAX_TASK_SECONDS-170:return terminal('TASK_DEADLINE')
         HEALTH['pending_since']=time.time()
@@ -286,6 +288,7 @@ def call_mesh(messages):
             except ValueError as exc:return terminal(str(exc))
         if http in (401,403):return terminal('ENDPOINT_AUTH_OR_VERSION')
         if data.get('status') in LOCAL_FALLBACK_CAPACITY_STATUSES | {'LOCAL_ACTION_UNAVAILABLE','FREE_MESH_EXHAUSTED_CURRENT_CYCLE'}:
+            provider_capacity_cycles+=1
             # Never pin later turns to one degraded provider. Retry the whole
             # FREE mesh inside this same OSWorld turn with a different order.
             body['provider_hint']='text' if attempt else 'openrouter'
@@ -301,8 +304,10 @@ def call_mesh(messages):
                 action=ground_action(data.get('action'),body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
                 decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
             except ValueError as exc:
-                body['memory']=(body['memory']+'\nPOLICY REJECTED: '+str(exc)+'. Replan within deterministic v32 state constraints.')[-4500:]
+                policy_rejections+=1
+                body['memory']=(body['memory']+'\nPOLICY REJECTED: '+str(exc)+'. Replan within deterministic v32 state constraints. This is a local action-contract rejection, not provider-capacity evidence.')[-4500:]
                 body['provider_hint']='openrouter' if str(data.get('provider') or '').startswith('groq') else 'text'
+                log_event({'status':'LOCAL_POLICY_REJECTED','reason':str(exc),'attempt':attempt+1})
                 continue
             decision_kind=decision['kind']
             if decision_kind==DecisionKind.NOOP_VERIFIED.value:
@@ -366,8 +371,13 @@ def call_mesh(messages):
             body['route_cooldowns']=STATE['cooldowns']
             time.sleep(2+attempt)
         else:break
+    if policy_rejections and provider_capacity_cycles==0:
+        # Valid zero-cost model responses existed, but every candidate action
+        # violated the local action contract.  Preserve the true cause; never
+        # mislabel compiler/policy rejection as provider exhaustion.
+        return terminal('ACTION_CONTRACT_EXHAUSTED')
     STATE['provider_waits']=STATE.get('provider_waits',0)+1
-    log_event({'status':'FREE_MESH_EXHAUSTED','provider_waits':STATE['provider_waits']})
+    log_event({'status':'FREE_MESH_EXHAUSTED','provider_waits':STATE['provider_waits'],'policy_rejections':policy_rejections,'provider_capacity_cycles':provider_capacity_cycles})
     # All configured FREE routes were attempted repeatedly inside this same
     # OSWorld turn. Never burn benchmark steps with provider-capacity WAITs.
     return terminal('PROVIDER_CAPACITY_EXHAUSTED')
