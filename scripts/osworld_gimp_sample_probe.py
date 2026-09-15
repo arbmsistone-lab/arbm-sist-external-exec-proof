@@ -209,11 +209,7 @@ def main(image, evidence):
         if TARGET.casefold() not in tree.casefold():
             raise RuntimeError('TARGET_NOT_ACTIVE_AFTER_SAMPLE')
 
-        obs = click(env, obs, 'Colors', 'menu')
-        save_obs(evidence, '41-colors-open', obs)
-        obs = click(env, obs, 'Map', 'menu-item')
-        save_obs(evidence, '42-map-open', obs)
-        obs = click(env, obs, 'Sample Colorize', 'menu-item', 2)
+        obs = step(env, "pyautogui.press('/'); pyautogui.sleep(0.6); pyautogui.write('Sample Colorize', interval=0.04); pyautogui.sleep(1); pyautogui.press('enter')", 2)
         tree = save_obs(evidence, '43-sample-colorize-dialog', obs)
         labels = [
             {'role': c['role'], 'name': c['name']}
