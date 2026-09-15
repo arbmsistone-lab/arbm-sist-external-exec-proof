@@ -36,6 +36,18 @@ class TestV32Policy(unittest.TestCase):
             enforce_policy(state, {"kind":"FINISH_CANDIDATE"})
 
 
+    def test_host_workspace_path_is_forbidden(self):
+        state=extract_state('GNU Image Manipulation Program','')
+        action={'action':'exec','command':"pyautogui.write('/home/oai/share/IMG_7328_edited.jpg')"}
+        with self.assertRaisesRegex(ValueError,'HOST_WORKSPACE_PATH_FORBIDDEN'):
+            enforce_policy(state,{'kind':DecisionKind.EXEC.value,'command':action['command']})
+
+    def test_guest_picture_path_remains_allowed(self):
+        state=extract_state('GNU Image Manipulation Program','')
+        action={'action':'exec','command':"pyautogui.write('/home/user/Pictures/IMG_7318_edited.jpg')"}
+        out=enforce_policy(state,{'kind':DecisionKind.EXEC.value,'command':action['command']})
+        self.assertEqual(out['kind'],DecisionKind.EXEC.value)
+
 if __name__ == "__main__":
     unittest.main()
 

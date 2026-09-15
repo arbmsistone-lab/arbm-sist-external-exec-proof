@@ -71,6 +71,13 @@ def enforce_policy(state: WorldState, proposed: dict) -> dict:
     if kind != DecisionKind.EXEC.value:
         raise ValueError("INVALID_DECISION_KIND")
 
+    # `/home/oai/share` is a controller/host workspace namespace, not an
+    # OSWorld guest task path.  A model must never smuggle host-local paths into
+    # GUI typing commands; task-visible guest paths such as ~/Pictures remain
+    # unaffected.
+    if re.search(r"(?:^|[\\/'\"])home[\\/]oai[\\/]share(?:[\\/]|$)", command, re.I):
+        raise ValueError("HOST_WORKSPACE_PATH_FORBIDDEN")
+
     if state.current_source and not state.source_read:
         lower = command.lower()
         switching = any(x in lower for x in ("hotkey('alt', 'tab')", "hotkey(\"alt\", \"tab\")", "hotkey('ctrl', 'win', 'd')", "hotkey('ctrl', 'super', 'd')"))
