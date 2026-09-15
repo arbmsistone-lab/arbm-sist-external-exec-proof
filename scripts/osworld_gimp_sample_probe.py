@@ -100,26 +100,61 @@ def profile_modal(tree):
     )
 
 
+def _xml_root(tree):
+    text = str(tree or '')
+    if not text.lstrip().startswith('<'):
+        return None
+    try:
+        return ET.fromstring(text)
+    except ET.ParseError:
+        return None
+
+
+def _state(node, name):
+    return next((v for k, v in node.attrib.items()
+                 if k == name or k.endswith('}' + name)), '')
+
+
+def gimp_visible(tree):
+    """True only for a real GIMP process/window, never the GNOME dock launcher."""
+    root = _xml_root(tree)
+    if root is None:
+        return False
+    for node in root.iter():
+        tag = node.tag.rsplit('}', 1)[-1]
+        name = (node.attrib.get('name') or '').replace('\u200b', '').strip().casefold()
+        if tag == 'application' and (name == 'gimp' or name.startswith('gimp-')):
+            return True
+        if tag == 'frame' and 'gimp' in name:
+            if _state(node, 'visible') != 'false' and _state(node, 'showing') != 'false':
+                return True
+    return False
+
+
+def active_gimp_document(tree, filename):
+    root = _xml_root(tree)
+    if root is None:
+        return False
+    stem = Path(str(filename)).stem.casefold()
+    for node in root.iter():
+        if node.tag.rsplit('}', 1)[-1] != 'frame':
+            continue
+        name = (node.attrib.get('name') or '').replace('\u200b', '').strip().casefold()
+        if stem in name and 'gimp' in name and _state(node, 'active') == 'true':
+            return True
+    return False
+
+
 def target_loaded(tree):
-    low = str(tree or '').casefold()
-    return (
-        TARGET.casefold() in low
-        and 'gnu image manipulation program' in low
-        and not profile_modal(tree)
-    )
+    return active_gimp_document(tree, TARGET) and not profile_modal(tree)
 
 
 def chooser_ready(tree):
     return has(tree, SAMPLE, 'table-cell') and has(tree, 'Open', 'push-button')
 
 
-def gimp_visible(tree):
-    low = str(tree or '').casefold()
-    return 'gnu image manipulation program' in low or '<application name="gimp' in low
-
-
-def wait_for_target(env, obs, evidence, prefix, limit=24):
-    launched = False
+def wait_for_target(env, obs, evidence, prefix, limit=45):
+    launch_attempts = 0
     target_open_requested = False
     location_attempted = False
     for i in range(limit):
@@ -130,14 +165,18 @@ def wait_for_target(env, obs, evidence, prefix, limit=24):
         if target_loaded(tree):
             return obs
         if not gimp_visible(tree):
-            if not launched:
-                obs = step(env, "pyautogui.hotkey('ctrl', 'alt', 't'); pyautogui.sleep(0.8); pyautogui.write('gimp ~/Pictures/' + TARGET, interval=0.03); pyautogui.press('enter')", 2)
-                launched = True
+            if launch_attempts == 0 and has(tree, 'GNU Image Manipulation Program', 'push-button'):
+                obs = click(env, obs, 'GNU Image Manipulation Program', 'push-button', 3)
+                launch_attempts += 1
+                continue
+            if launch_attempts < 2:
+                obs = step(env, "pyautogui.hotkey('ctrl', 'alt', 't'); pyautogui.sleep(0.8); pyautogui.write('gimp', interval=0.03); pyautogui.press('enter')", 3)
+                launch_attempts += 1
                 continue
             obs = idle(env, 1)
             continue
-        if not target_open_requested:
-            obs = step(env, "pyautogui.hotkey('ctrl', 'o')", 1)
+        if not target_open_requested and not has(tree, 'Open', 'push-button'):
+            obs = step(env, "pyautogui.hotkey('ctrl', 'o')", 2)
             target_open_requested = True
             continue
         if has(tree, TARGET, 'table-cell') and has(tree, 'Open', 'push-button'):
@@ -160,8 +199,7 @@ def open_sample_reference(env, obs, evidence, limit=20):
         if profile_modal(tree):
             obs = click(env, obs, 'Keep', 'push-button', 2)
             continue
-        low = tree.casefold()
-        if SAMPLE.casefold() in low and gimp_visible(tree) and not has(tree, 'Open', 'push-button'):
+        if active_gimp_document(tree, SAMPLE) and not has(tree, 'Open', 'push-button'):
             return obs
         if has(tree, SAMPLE, 'table-cell') and has(tree, 'Open', 'push-button'):
             obs = click(env, obs, SAMPLE, 'table-cell')
