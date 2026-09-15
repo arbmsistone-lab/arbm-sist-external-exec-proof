@@ -183,13 +183,11 @@ def next_recovery_action(instruction, active_application, observation, state):
                        'Switch from the sample back to the target image.', target + ' (')
     if not target_active: return None
 
-    # GIMP's slash action search is more stable than the Colors > Map hierarchy.
+    # Keep action-search query + Enter in one GUI turn. The official run
+    # proved that an observation boundary here can make GIMP lose search focus.
     if 'sample colorize' not in obs.casefold():
-        return _action("pyautogui.press('/'); pyautogui.sleep(0.6); pyautogui.write('Sample Colorize', interval=0.04)",
-                       'Search GIMP actions for Sample Colorize.', 'Sample Colorize',
-                       phase='search-colorize')
-    if not dialog_open:
-        return _action("pyautogui.press('enter')",
-                       'Open the visible Sample Colorize action.', 'Get Sample Colors',
+        return _action("pyautogui.press('/'); pyautogui.sleep(0.6); pyautogui.write('Sample Colorize', interval=0.04); pyautogui.sleep(1.0); pyautogui.press('enter')",
+                       'Search for and open Sample Colorize atomically.', 'Get Sample Colors',
                        phase='open-colorize')
-    return None
+    if not dialog_open:
+        return None

@@ -53,15 +53,12 @@ class GimpStyleTransferTests(unittest.TestCase):
         target_obs = frame('[IMG_7318_original] (imported)-1.0 - GIMP')
         state = {'sample_loaded': True}
         search = next_recovery_action(TASK, APP, target_obs, state)
-        self.assertEqual(search['command'], "pyautogui.press('/'); pyautogui.sleep(0.6); pyautogui.write('Sample Colorize', interval=0.04)")
         self.assertIn("pyautogui.press('/')", search['command'])
         self.assertIn("pyautogui.write('Sample Colorize'", search['command'])
-        self.assertEqual(search['checkpoint']['visible_text'], 'Sample Colorize')
-
-        result_obs = target_obs + '\nmenu-item\tSample Colorize\tSample Colorize\tx\tx\t(200, 200)\t(200, 30)'
-        enter = next_recovery_action(TASK, APP, result_obs, state)
-        self.assertEqual(enter['command'], "pyautogui.press('enter')")
-        self.assertEqual(enter['checkpoint']['visible_text'], 'Get Sample Colors')
+        self.assertIn("pyautogui.sleep(1.0)", search['command'])
+        self.assertTrue(search['command'].endswith("pyautogui.press('enter')"))
+        self.assertEqual(search['checkpoint']['visible_text'], 'Get Sample Colors')
+        self.assertEqual(search['specialist_phase'], 'open-colorize')
 
     def test_dialog_drives_sample_apply_close_in_order(self):
         obs = (frame('[IMG_7318_original] (imported)-1.0 - GIMP') + '\n'

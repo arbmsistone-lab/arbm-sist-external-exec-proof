@@ -36,9 +36,12 @@ class GimpSpecialistIntegrationTests(unittest.TestCase):
         self.assertIn("pyautogui.press('/')", result)
         self.assertIn("pyautogui.write('Sample Colorize'", result)
         self.assertNotIn("pyautogui.write('/Sample Colorize'", result)
+        self.assertIn("pyautogui.sleep(1.0)", result)
+        self.assertIn("pyautogui.press('enter')", result)
+        self.assertLess(result.index("pyautogui.write('Sample Colorize'"), result.index("pyautogui.press('enter')"))
         self.assertEqual(shim.STATE['history'][-1]['source'], 'gimp-specialist')
         self.assertIsNotNone(shim.MILESTONES.pending)
-        self.assertEqual(shim.MILESTONES.pending['predicate']['visible_text'], 'Sample Colorize')
+        self.assertEqual(shim.MILESTONES.pending['predicate']['visible_text'], 'Get Sample Colors')
 
     def test_wrong_app_does_not_activate_specialist(self):
         obs = frame('[IMG_7318_original] (imported)-1.0 - GIMP')
