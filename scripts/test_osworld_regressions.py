@@ -58,6 +58,13 @@ class ContractTests(unittest.TestCase):
             v.observe('same screen', '')
         self.assertEqual(v.no_progress, 0)
 
+    def test_verifier_surfaces_bounded_new_visible_information(self):
+        v=control.Verifier()
+        v.observe('label\tExisting item\t\t\t\t(1, 1)\t(20, 20)', '')
+        result=v.observe('label\tExisting item\t\t\t\t(1, 1)\t(20, 20)\ntext\tStatus: upload complete\t\t\t\t(2, 2)\t(40, 20)', '')
+        self.assertTrue(any('upload complete' in x for x in result['new_visible_lines']))
+        self.assertLessEqual(len(result['new_visible_lines']),12)
+
     def test_new_observation_verifies_change(self):
         v = control.Verifier()
         v.observe('dialog closed', '')

@@ -270,6 +270,7 @@ class Verifier:
     def __init__(self):
         self.last_tree = None
         self.last_visual = ''
+        self.last_visible_lines = set()
         self.seen = deque(maxlen=32)
         self.no_progress = 0
         self.changes = 0
@@ -285,6 +286,15 @@ class Verifier:
 
     def observe(self, text, image):
         sig, visual = tree_signature(text), visual_signature(image)
+        current_lines={re.sub(r'\s+',' ',x.replace('\u200b','')).strip() for x in str(text or '').splitlines()}
+        current_lines={x for x in current_lines if x and not x.startswith(('ACTIVE APPLICATION','BACKGROUND DESKTOP','[Compacted'))}
+        new_visible=[]
+        if self.last_visible_lines:
+            candidates=current_lines-self.last_visible_lines
+            # Surface bounded, current-screen novelty so mid-task events are not
+            # lost inside a long trajectory. This is observation-only evidence.
+            new_visible=sorted(candidates,key=lambda x:(0 if any(k in x.casefold() for k in ('error','warning','message','notification','dialog','status','complete','failed','success')) else 1,len(x)))[:12]
+            new_visible=[x[:320] for x in new_visible]
         tree_changed = self.last_tree is not None and sig != self.last_tree
         visual_changed = False
         if visual and self.last_visual and len(visual) == len(self.last_visual):
@@ -299,9 +309,11 @@ class Verifier:
             else:
                 self.no_progress += 1
         self.last_result = {'progress':bool(progress),'tree_changed':tree_changed,'visual_changed':visual_changed,
-                            'novel_tree':novel,'no_progress':self.no_progress,'recovery_level':self.recovery_level,
+                            'novel_tree':novel,'new_visible_lines':new_visible,
+                            'no_progress':self.no_progress,'recovery_level':self.recovery_level,
                             'before_tree_sha256':self.last_tree,'after_tree_sha256':sig}
         self.seen.append(sig)
+        self.last_visible_lines=current_lines
         self.last_tree, self.last_visual = sig,visual
         self.pending = False
         return self.last_result
