@@ -2,6 +2,9 @@
 import hashlib, json, os, re, sys
 from pathlib import Path
 
+TARGET = 'IMG_7318_original.jpg'
+SAMPLE = 'IMG_7328_edited.jpg'
+
 
 def file_sha(path):
     with open(path, 'rb') as f:
@@ -19,8 +22,7 @@ def controls(tree):
             continue
         x, y = map(int, xy); w, h = map(int, wh)
         out.append(dict(role=cols[0], name=cols[1].replace('\u200b', '').strip(),
-                        x=x, y=y, w=w, h=h, cx=x+w//2, cy=y+h//2))
-    return out
+                        x=x, y=y, w=w, h=h, cx=x+w//2, cy=y+h//2))    return out
 
 
 def matches(tree, label, role=None):
@@ -45,23 +47,59 @@ def save_obs(root, name, obs):
     return tree
 
 
+def step(env, command, pause=1):
+    return env.step(command, pause=pause)[0]
+
 def click(env, obs, label, role=None, pause=1):
     c = unique(obs['accessibility_tree'], label, role)
-    command = f"pyautogui.click({c['cx']}, {c['cy']})"
-    return env.step(command, pause=pause)[0]
+    return step(env, f"pyautogui.click({c['cx']}, {c['cy']})", pause)
 
 
-def click_if_unique(env, obs, label, role=None, pause=1):
-    hits = matches(obs.get('accessibility_tree'), label, role)
-    if len(hits) > 1:
-        raise RuntimeError('CONTROL_NOT_UNIQUE:' + label + ':' + str(len(hits)))
-    if not hits:
-        return obs, False
-    return click(env, obs, label, role, pause), True
+def has(tree, label, role=None):
+    return len(matches(tree, label, role)) == 1
 
 
-def key(env, command, pause=1):
-    return env.step(command, pause=pause)[0]
+def idle(env, seconds=1):
+    return step(env, f"pyautogui.sleep({int(seconds)})", seconds)
+
+
+def profile_modal(tree):
+    low = str(tree or '').casefold()
+    return ('convert to rgb working space?' in low or 'embedded color profile' in low) and has(tree, 'Keep', 'push-button')
+
+
+def target_loaded(tree):
+    low = str(tree or '').casefold()
+    return TARGET.casefold() in low and 'gnu image manipulation program' in low and not profile_modal(tree)
+
+
+def chooser_ready(tree):
+    return has(tree, SAMPLE, 'table-cell') and has(tree, 'Open', 'push-button')
+
+
+def wait_for_target(env, obs, evidence, prefix, limit=12):
+    for i in range(limit):
+        tree = save_obs(evidence, f'{prefix}-{i:02d}', obs)
+        if profile_modal(tree):
+            obs = click(env, obs, 'Keep', 'push-button', 2)
+            continue
+        if target_loaded(tree):
+            return obs
+        obs = idle(env, 1)
+    raise RuntimeError('TARGET_GIMP_STATE_NOT_READY')
+def open_sample_chooser(env, obs, evidence, limit=10):
+    obs = step(env, "pyautogui.hotkey('ctrl', 'o')", 1)
+    for i in range(limit):
+        tree = save_obs(evidence, f'20-open-stage-{i:02d}', obs)
+        if profile_modal(tree):
+            obs = click(env, obs, 'Keep', 'push-button', 2)
+            obs = wait_for_target(env, obs, evidence, '21-post-profile', 6)
+            obs = step(env, "pyautogui.hotkey('ctrl', 'o')", 1)
+            continue
+        if chooser_ready(tree):
+            return obs
+        obs = idle(env, 1)
+    raise RuntimeError('SAMPLE_CHOOSER_NOT_READY')
 
 
 def main(image, evidence):
@@ -71,45 +109,33 @@ def main(image, evidence):
     from task_loader import load_task_from_file
     task = load_task_from_file('evaluation_examples/task_class/task_061.py')
     evidence = Path(evidence); evidence.mkdir(parents=True, exist_ok=True)
-    base_before = file_sha(image); env = None
-    proof = {'purpose': 'GIMP Sample Colorize UI probe only; no evaluator/score',
+    base_before = file_sha(image); env = None    proof = {'purpose': 'GIMP Sample Colorize UI probe only; no evaluator/score',
              'candidate_sha': os.environ.get('GITHUB_SHA'), 'zero_spend_mode': 'HARD',
              'heavy_local': 0, 'status': 'NOT_PROVEN'}
     try:
         env = DesktopEnv(provider_name='docker', path_to_vm=str(image), headless=True,
                          action_space='pyautogui', require_a11y_tree=True, volume_size=50)
-        obs = env.reset(task_config=task); save_obs(evidence, '00-reset', obs)
-
-        # Reset can expose a staged file chooser over an already-open target image.
-        # Dismiss only when Cancel is an exact, unique observed control.
-        obs, dismissed = click_if_unique(env, obs, 'Cancel', 'push-button')
-        if dismissed:
-            save_obs(evidence, '01-initial-chooser-cancelled', obs)
-
-        obs, kept = click_if_unique(env, obs, 'Keep', 'push-button')
-        if kept:
-            save_obs(evidence, '02-target-profile-kept', obs)
-
-        obs = key(env, "pyautogui.hotkey('ctrl', 'o')")
-        save_obs(evidence, '03-open-chooser', obs)
-        obs = click(env, obs, 'IMG_7328_edited.jpg', 'table-cell')
-        save_obs(evidence, '04-sample-selected', obs)
+        obs = env.reset(task_config=task)
+        obs = wait_for_target(env, obs, evidence, '00-startup')
+        obs = open_sample_chooser(env, obs, evidence)
+        obs = click(env, obs, SAMPLE, 'table-cell')
+        save_obs(evidence, '30-sample-selected', obs)
         obs = click(env, obs, 'Open', 'push-button', 2)
-        save_obs(evidence, '05-sample-opened', obs)
-        obs, kept = click_if_unique(env, obs, 'Keep', 'push-button')
-        if kept:
-            save_obs(evidence, '06-sample-profile-kept', obs)
-
-        obs = key(env, "pyautogui.hotkey('ctrl', 'pageup')")
-        save_obs(evidence, '07-target-active', obs)
+        tree = save_obs(evidence, '31-sample-opened', obs)
+        if profile_modal(tree):
+            obs = click(env, obs, 'Keep', 'push-button', 2)
+            save_obs(evidence, '32-sample-profile-kept', obs)
+        obs = step(env, "pyautogui.hotkey('ctrl', 'pageup')", 1)
+        tree = save_obs(evidence, '40-target-active', obs)
+        if TARGET.casefold() not in tree.casefold():
+            raise RuntimeError('TARGET_NOT_ACTIVE_AFTER_SAMPLE')
         obs = click(env, obs, 'Colors', 'menu')
-        save_obs(evidence, '08-colors-open', obs)
-        obs = click(env, obs, 'Map', 'menu-item')
-        save_obs(evidence, '09-map-open', obs)
+        save_obs(evidence, '41-colors-open', obs)        obs = click(env, obs, 'Map', 'menu-item')
+        save_obs(evidence, '42-map-open', obs)
         obs = click(env, obs, 'Sample Colorize', 'menu-item', 2)
-        tree = save_obs(evidence, '10-sample-colorize-dialog', obs)
+        tree = save_obs(evidence, '43-sample-colorize-dialog', obs)
         labels = [{'role': c['role'], 'name': c['name']} for c in controls(tree) if c['name']]
-        proof.update(status='DIALOG_PROVEN', dialog_controls=labels[-120:])
+        proof.update(status='DIALOG_PROVEN', dialog_controls=labels[-160:])
     finally:
         if env is not None:
             env.close()
