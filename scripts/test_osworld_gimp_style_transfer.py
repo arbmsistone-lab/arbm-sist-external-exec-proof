@@ -87,13 +87,31 @@ class GimpStyleTransferTests(unittest.TestCase):
         state = {'sample_loaded': True, 'owned': True, 'colorize_closed': True}
         a = next_recovery_action(TASK, APP, target, state)
         self.assertEqual(a['specialist_phase'], 'export-open')
-        dialog = target + '\ndialog\tExport Image\tExport Image\tx'
+        dialog = target + '\ndialog\tExport Image\tExport Image\tx\npush-button\tExport\tExport\tx'
         state['export_open_requested'] = True
         a = next_recovery_action(TASK, APP, dialog, state)
-        self.assertEqual(a['specialist_phase'], 'export-location')
-        state['export_location_requested'] = True
+        self.assertEqual(a['specialist_phase'], 'export-name-focus')
+        self.assertEqual(a['command'], "pyautogui.hotkey('alt', 'n')")
+        state['export_name_requested'] = True
         a = next_recovery_action(TASK, APP, dialog, state)
-        self.assertIn('/home/user/Pictures/IMG_7318_edited.jpg', a['command'])
+        self.assertEqual(a['specialist_phase'], 'export-name')
+        self.assertIn('IMG_7318_edited.jpg', a['command'])
+        state['export_name_typed'] = True
+        a = next_recovery_action(TASK, APP, dialog, state)
+        self.assertEqual(a['specialist_phase'], 'export-submit')
+        self.assertEqual(a['target']['label'], 'Export')
+
+    def test_original_overwrite_modal_is_cancelled_fail_closed(self):
+        target = frame('[IMG_7318_original] (imported)-1.0 - GIMP')
+        obs = (target + '\ndialog\tExport Image\tExport Image\tx\n'
+               'label\tA file named "IMG_7318_original.jpg" already exists. Do you want to replace it?\tx\n'
+               'push-button\tCancel\tCancel\tx')
+        state = {'sample_loaded': True, 'owned': True, 'colorize_closed': True,
+                 'export_open_requested': True, 'export_name_requested': True,
+                 'export_name_typed': True, 'export_submitted': True}
+        a = next_recovery_action(TASK, APP, obs, state)
+        self.assertEqual(a['specialist_phase'], 'export-original-overwrite-cancel')
+        self.assertEqual(a['target']['label'], 'Cancel')
 
 
 if __name__ == '__main__':

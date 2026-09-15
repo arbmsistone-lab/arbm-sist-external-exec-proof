@@ -82,15 +82,20 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p gimp-sample-probe
-          (cd osworld && PYTHONPATH="$GITHUB_WORKSPACE/scripts:$PWD" uv run python ../scripts/osworld_gimp_sample_probe.py "$QCOW_PATH" "$GITHUB_WORKSPACE/gimp-sample-probe")
+          (cd osworld && PYTHONPATH="$GITHUB_WORKSPACE/scripts:$PWD" uv run python ../scripts/osworld_gimp_sample_probe.py "$QCOW_PATH" "$GITHUB_WORKSPACE/gimp-sample-probe") 2>&1 | tee gimp-sample-probe/probe-run.log
           test "$(sha256sum "$QCOW_PATH" | cut -d' ' -f1)" = "$(cat qcow-base.sha256)"
           python - <<'PY'
           import json
           p=json.load(open('gimp-sample-probe/probe-result.json'))
           assert p['status']=='EXPORT_PROVEN' and p.get('output_visible_in_chooser') is True,p
+          assert int(p.get('output_bytes') or 0)>1024,p
+          assert len(str(p.get('output_sha256') or ''))==64,p
           assert p['zero_spend_mode']=='HARD' and p['heavy_local']==0,p
           print('GIMP_STYLE_EXPORT_PROVEN')
           PY
+          test -s gimp-sample-probe/IMG_7318_edited.jpg
+          test -s gimp-sample-probe/exported-output.sha256
+          test -s gimp-sample-probe/probe-run.log
       - name: Preserve diagnostic evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

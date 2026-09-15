@@ -182,22 +182,90 @@ def wait_for_control(env, obs, evidence, prefix, label, role=None, limit=20):
         obs=idle(env,1)
     raise RuntimeError(f"CONTROL_TIMEOUT:{label}")
 
+def editable_text_values(tree):
+    text = str(tree or '')
+    if not text.lstrip().startswith('<'):
+        return []
+    try:
+        root = ET.fromstring(text)
+    except ET.ParseError:
+        return []
+    values = []
+    for node in root.iter():
+        if node.tag.rsplit('}', 1)[-1] != 'text':
+            continue
+        editable = any(k.endswith('}editable') and v == 'true' for k, v in node.attrib.items())
+        if editable:
+            values.append((node.text or '').replace('\u200b', '').strip())
+    return values
+
+
+def export_alert_name(tree):
+    low = str(tree or '')
+    m = re.search(r'A file named &quot;([^&]+)&quot; already exists', low)
+    return m.group(1) if m else ''
+
+
 def prove_export_via_gui(env, obs, evidence):
     obs=click(env,obs,'Get Sample Colors','push-button',2); save_obs(evidence,'50-sample-colors-loaded',obs)
     obs=click(env,obs,'Apply','push-button',2); save_obs(evidence,'60-colorize-applied',obs)
     obs=click(env,obs,'Close','push-button',2); save_obs(evidence,'70-colorize-closed',obs)
+    output_path='/home/user/Pictures/' + OUTPUT
+    if env.controller.get_file(output_path) is not None:
+        raise RuntimeError('OUTPUT_PREEXISTED_BEFORE_EXPORT')
+    (evidence/'output-absent-before-export.txt').write_text(output_path+'\n',encoding='utf-8')
     obs=step(env,"pyautogui.hotkey('ctrl','shift','e')",2)
     obs,tree=wait_for_control(env,obs,evidence,'80-export-open','Export','push-button')
-    obs=step(env,"pyautogui.hotkey('ctrl','l'); pyautogui.write('~/Pictures/'+OUTPUT, interval=0.02); pyautogui.press('enter')",2)
-    tree=save_obs(evidence,'81-export-path',obs)
-    if has(tree,'Export','push-button'): obs=click(env,obs,'Export','push-button',2)
-    for i in range(20):
-        tree=save_obs(evidence,f'82-export-confirm-{i:02d}',obs)
-        if not has(tree,'Export','push-button'): break
-        obs=click(env,obs,'Export','push-button',2)
-    obs=step(env,"pyautogui.hotkey('ctrl','o')",2); tree=save_obs(evidence,'90-output-chooser',obs)
-    if not has(tree,OUTPUT,'table-cell'): raise RuntimeError('EXPORTED_OUTPUT_NOT_VISIBLE_IN_CHOOSER')
-    return obs,tree
+
+    # Export As is already rooted in the source image folder. Select Pictures explicitly,
+    # then edit the dedicated Name field (Alt+N) instead of abusing Ctrl+L.
+    if has(tree,'Pictures','table-cell'):
+        obs=click(env,obs,'Pictures','table-cell',1)
+    obs=step(env,"pyautogui.hotkey('alt','n'); pyautogui.hotkey('ctrl','a'); pyautogui.write('"+OUTPUT+"', interval=0.02)",1)
+    tree=save_obs(evidence,'81-export-name',obs)
+    values=editable_text_values(tree)
+    if OUTPUT not in values:
+        raise RuntimeError('EXPORT_NAME_NOT_SET')
+    if TARGET in values:
+        raise RuntimeError('EXPORT_NAME_STILL_ORIGINAL')
+
+    obs=click(env,obs,'Export','push-button',2)
+    for i in range(12):
+        tree=save_obs(evidence,f'82-export-state-{i:02d}',obs)
+        low=tree.casefold()
+        alert=export_alert_name(tree)
+        if alert:
+            if alert.casefold()==TARGET.casefold():
+                raise RuntimeError('ORIGINAL_OVERWRITE_ATTEMPT_BLOCKED')
+            if alert.casefold()==OUTPUT.casefold():
+                raise RuntimeError('OUTPUT_PREEXISTED_PROVENANCE_UNSAFE')
+        if has(tree,'Export Image as JPEG','dialog') and has(tree,'Export','push-button'):
+            obs=click(env,obs,'Export','push-button',2)
+            continue
+        export_dialog = has(tree,'Export Image','dialog') or has(tree,'Export Image as JPEG','dialog')
+        if gimp_visible(tree) and not export_dialog:
+            break
+        obs=idle(env,1)
+    else:
+        raise RuntimeError('EXPORT_DIALOG_DID_NOT_SETTLE')
+
+    # Prove bytes through the official controller before any chooser-based visual proof.
+    data = env.controller.get_file(output_path)
+    if not isinstance(data, (bytes, bytearray)) or len(data) < 1024:
+        raise RuntimeError('EXPORTED_OUTPUT_BYTES_UNPROVEN')
+    digest = hashlib.sha256(data).hexdigest()
+    (evidence/'exported-output.sha256').write_text(digest+'  '+OUTPUT+'\n',encoding='utf-8')
+    (evidence/'exported-output.bytes').write_text(str(len(data))+'\n',encoding='utf-8')
+    (evidence/OUTPUT).write_bytes(data)
+
+    obs=step(env,"pyautogui.hotkey('ctrl','o')",2)
+    tree=save_obs(evidence,'90-output-chooser',obs)
+    if has(tree,'Pictures','table-cell'):
+        obs=click(env,obs,'Pictures','table-cell',1)
+        tree=save_obs(evidence,'91-output-pictures',obs)
+    if not has(tree,OUTPUT,'table-cell'):
+        raise RuntimeError('EXPORTED_OUTPUT_NOT_VISIBLE_IN_CHOOSER')
+    return obs,tree,{'bytes':len(data),'sha256':digest}
 
 def main(image, evidence):
     if (
@@ -251,9 +319,10 @@ def main(image, evidence):
             for c in controls(tree)
             if c['name']
         ]
-        obs, output_tree = prove_export_via_gui(env, obs, evidence)
-        proof.update(status='EXPORT_PROVEN', dialog_controls=labels[-160:],
-                     output=OUTPUT, output_visible_in_chooser=has(output_tree, OUTPUT, 'table-cell'))
+        obs, output_tree, output_proof = prove_export_via_gui(env, obs, evidence)
+        proof.update(status='EXPORT_PROVEN', dialog_controls=labels[-160:], output=OUTPUT,
+                     output_visible_in_chooser=has(output_tree, OUTPUT, 'table-cell'),
+                     output_bytes=output_proof['bytes'], output_sha256=output_proof['sha256'])
     finally:
         if env is not None:
             env.close()

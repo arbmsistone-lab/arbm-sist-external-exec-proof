@@ -127,17 +127,26 @@ def next_recovery_action(instruction, active_application, observation, state):
             if not target_active: return None
             return _action("pyautogui.hotkey('ctrl', 'shift', 'e')",
                            'Open GIMP Export As for the edited target.', 'Export Image', phase='export-open')
-        if 'export image' in obs.casefold() and not state.get('export_location_requested'):
-            return _action("pyautogui.hotkey('ctrl', 'l')", 'Focus the export location entry.',
-                           output_path, checkpoint=False, phase='export-location')
-        if state.get('export_location_requested') and not state.get('export_path_typed'):
-            return _action("pyautogui.write(%r, interval=0.02)" % output_path,
-                           'Type the exact task output path.', task['output'], checkpoint=False, phase='export-path')
-        if state.get('export_path_typed') and not state.get('export_submitted'):
-            return _action("pyautogui.press('enter')", 'Submit the exact export path.',
-                           'Export Image as JPEG', phase='export-submit')
-        if _has(obs, 'Export', 'push-button') and state.get('export_submitted'):
-            return _click('Export', 'push-button', 'Confirm JPEG export.', task['output'],
+        low = obs.casefold()
+        if target.casefold() in low and 'already exists' in low and _has(obs, 'Cancel', 'push-button'):
+            return _click('Cancel', 'push-button',
+                          'Abort any attempt to overwrite the original target image.',
+                          'Export Image', checkpoint=False, phase='export-original-overwrite-cancel')
+        if task['output'].casefold() in low and 'already exists' in low:
+            return None
+        if 'export image' in low and not state.get('export_name_requested'):
+            return _action("pyautogui.hotkey('alt', 'n')",
+                           'Focus the dedicated export Name field.', task['output'],
+                           checkpoint=False, phase='export-name-focus')
+        if state.get('export_name_requested') and not state.get('export_name_typed'):
+            return _action("pyautogui.hotkey('ctrl','a'); pyautogui.write(%r, interval=0.02)" % task['output'],
+                           'Replace the source filename with the exact task output filename.',
+                           task['output'], checkpoint=False, phase='export-name')
+        if state.get('export_name_typed') and not state.get('export_submitted') and _has(obs, 'Export', 'push-button'):
+            return _click('Export', 'push-button', 'Submit the exact output filename.',
+                          'Export Image as JPEG', checkpoint=False, phase='export-submit')
+        if state.get('export_submitted') and 'export image as jpeg' in low and _has(obs, 'Export', 'push-button'):
+            return _click('Export', 'push-button', 'Confirm JPEG export options.', task['output'],
                           checkpoint=False, phase='export-confirm')
         if state.get('export_confirmed') and task['output'].casefold() in obs.casefold():
             return {'action':'finish','command':'','plan':'Finish after visible export confirmation.',

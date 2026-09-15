@@ -247,10 +247,15 @@ def try_gimp_specialist(body, obs, focused_obs):
     elif phase=='apply-colorize':specialist_state['colorize_applied']=True
     elif phase=='close-colorize':specialist_state['colorize_closed']=True
     elif phase=='export-open':specialist_state['export_open_requested']=True
-    elif phase=='export-location':specialist_state['export_location_requested']=True
-    elif phase=='export-path':specialist_state['export_path_typed']=True
+    elif phase=='export-name-focus':specialist_state['export_name_requested']=True
+    elif phase=='export-name':specialist_state['export_name_typed']=True
     elif phase=='export-submit':specialist_state['export_submitted']=True
     elif phase=='export-confirm':specialist_state['export_confirmed']=True
+    elif phase=='export-original-overwrite-cancel':
+        specialist_state['export_name_requested']=False
+        specialist_state['export_name_typed']=False
+        specialist_state['export_submitted']=False
+        specialist_state['export_confirmed']=False
     VERIFIER.issued(command)
     if isinstance(action.get('checkpoint'),dict):MILESTONES.expect(action,obs)
     log_event({'status':'GIMP_SPECIALIST_ACTION_ISSUED','command':command,'checkpoint':action.get('checkpoint')})
