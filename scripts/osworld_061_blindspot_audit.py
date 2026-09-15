@@ -20,7 +20,7 @@ checks=[
  ("A08_launcher_not_window", "never the GNOME dock launcher" in probe),
  ("A09_active_target_required", "active_gimp_document(tree, TARGET)" in probe),
  ("A10_active_sample_required", "active_gimp_document(tree, SAMPLE)" in probe),
- ("A11_sample_colorize_dialog", "Sample Colorize" in probe and "dialog_open" in style),
+ ("A11_sample_colorize_dialog", "Sample Colorize" in probe and "dialog_open" in style and "pyautogui.press('/')" in style and "pyautogui.write('/Sample Colorize'" not in style),
  ("A12_get_sample_colors", "Get Sample Colors" in probe and "sample-colors" in style),
  ("A13_apply_colorize", "Apply" in probe and "apply-colorize" in style),
  ("A14_close_colorize", "Close" in probe and "close-colorize" in style),

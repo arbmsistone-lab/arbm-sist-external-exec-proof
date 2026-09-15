@@ -7,7 +7,7 @@ import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-# Candidate-trigger marker: run non-scoring Sample Colorize probe on this exact SHA.
+# Candidate-trigger marker: run non-scoring Sample Colorize probe on this exact audit-hardened SHA.
 TARGET = 'IMG_7318_original.jpg'
 SAMPLE = 'IMG_7328_edited.jpg'
 OUTPUT = 'IMG_7318_edited.jpg'
