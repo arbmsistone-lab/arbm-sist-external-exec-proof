@@ -87,9 +87,9 @@ jobs:
           python - <<'PY'
           import json
           p=json.load(open('gimp-sample-probe/probe-result.json'))
-          assert p['status']=='DIALOG_PROVEN',p
+          assert p['status']=='EXPORT_PROVEN' and p.get('output_visible_in_chooser') is True,p
           assert p['zero_spend_mode']=='HARD' and p['heavy_local']==0,p
-          print('GIMP_SAMPLE_COLORIZE_DIALOG_PROVEN')
+          print('GIMP_STYLE_EXPORT_PROVEN')
           PY
       - name: Preserve diagnostic evidence
         if: always()
