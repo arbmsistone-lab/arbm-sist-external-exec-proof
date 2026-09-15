@@ -152,6 +152,10 @@ def open_sample_reference(env, obs, evidence, limit=20):
         low = tree.casefold()
         if SAMPLE.casefold() in low and gimp_visible(tree) and not has(tree, 'Open', 'push-button'):
             return obs
+        if has(tree, SAMPLE, 'table-cell') and has(tree, 'Open', 'push-button'):
+            obs = click(env, obs, SAMPLE, 'table-cell')
+            obs = click(env, obs, 'Open', 'push-button', 2)
+            continue
         if has(tree, 'Open', 'push-button') and not location_attempted:
             obs = step(env, "pyautogui.hotkey('ctrl', 'l'); pyautogui.write('~/Pictures/' + SAMPLE, interval=0.03); pyautogui.press('enter')", 2)
             location_attempted = True
