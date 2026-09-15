@@ -121,7 +121,7 @@ def wait_for_target(env, obs, evidence, prefix, limit=24):
             return obs
         if not gimp_visible(tree):
             if not launched:
-                obs = step(env, "pyautogui.press('win'); pyautogui.sleep(0.5); pyautogui.write('gimp', interval=0.05); pyautogui.sleep(0.5); pyautogui.press('enter')", 2)
+                obs = step(env, "pyautogui.hotkey('ctrl', 'alt', 't'); pyautogui.sleep(0.8); pyautogui.write('gimp ~/Pictures/' + TARGET, interval=0.03); pyautogui.press('enter')", 2)
                 launched = True
                 continue
             obs = idle(env, 1)
