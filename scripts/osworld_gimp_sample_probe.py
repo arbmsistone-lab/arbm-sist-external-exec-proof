@@ -277,8 +277,11 @@ def prove_export_via_gui(env, obs, evidence):
                 raise RuntimeError('ORIGINAL_OVERWRITE_ATTEMPT_BLOCKED')
             if alert.casefold()==OUTPUT.casefold():
                 raise RuntimeError('OUTPUT_PREEXISTED_PROVENANCE_UNSAFE')
-        if has(tree,'Export Image as JPEG','dialog') and has(tree,'Export','push-button'):
-            obs=click(env,obs,'Export','push-button',2)
+        if has(tree,'Export Image as JPEG','dialog'):
+            # The JPEG modal overlays the parent Export dialog, so two buttons share
+            # the label 'Export'. Use the active modal accelerator instead of a
+            # globally ambiguous accessibility target.
+            obs=step(env,"pyautogui.hotkey('alt','e')",2)
             continue
         export_dialog = has(tree,'Export Image','dialog') or has(tree,'Export Image as JPEG','dialog')
         if gimp_visible(tree) and not export_dialog:

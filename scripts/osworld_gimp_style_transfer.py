@@ -145,9 +145,10 @@ def next_recovery_action(instruction, active_application, observation, state):
         if state.get('export_name_typed') and not state.get('export_submitted') and _has(obs, 'Export', 'push-button'):
             return _click('Export', 'push-button', 'Submit the exact output filename.',
                           'Export Image as JPEG', checkpoint=False, phase='export-submit')
-        if state.get('export_submitted') and 'export image as jpeg' in low and _has(obs, 'Export', 'push-button'):
-            return _click('Export', 'push-button', 'Confirm JPEG export options.', task['output'],
-                          checkpoint=False, phase='export-confirm')
+        if state.get('export_submitted') and 'export image as jpeg' in low:
+            return _action("pyautogui.hotkey('alt','e')",
+                           'Confirm JPEG export options in the active modal.', task['output'],
+                           checkpoint=False, phase='export-confirm')
         if state.get('export_confirmed') and task['output'].casefold() in obs.casefold():
             return {'action':'finish','command':'','plan':'Finish after visible export confirmation.',
                     'summary':'Edited target exported by the agent.','confidence':1.0,
