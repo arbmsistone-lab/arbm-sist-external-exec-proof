@@ -53,8 +53,9 @@ class GimpStyleTransferTests(unittest.TestCase):
         target_obs = frame('[IMG_7318_original] (imported)-1.0 - GIMP')
         state = {'sample_loaded': True}
         search = next_recovery_action(TASK, APP, target_obs, state)
-        self.assertEqual(search['command'], "pyautogui.write('/Sample Colorize', interval=0.04)")
-        self.assertNotIn(';', search['command'])
+        self.assertEqual(search['command'], "pyautogui.press('/'); pyautogui.sleep(0.6); pyautogui.write('Sample Colorize', interval=0.04)")
+        self.assertIn("pyautogui.press('/')", search['command'])
+        self.assertIn("pyautogui.write('Sample Colorize'", search['command'])
         self.assertEqual(search['checkpoint']['visible_text'], 'Sample Colorize')
 
         result_obs = target_obs + '\nmenu-item\tSample Colorize\tSample Colorize\tx\tx\t(200, 200)\t(200, 30)'

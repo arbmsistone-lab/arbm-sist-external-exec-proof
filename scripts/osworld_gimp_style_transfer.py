@@ -185,7 +185,7 @@ def next_recovery_action(instruction, active_application, observation, state):
 
     # GIMP's slash action search is more stable than the Colors > Map hierarchy.
     if 'sample colorize' not in obs.casefold():
-        return _action("pyautogui.write('/Sample Colorize', interval=0.04)",
+        return _action("pyautogui.press('/'); pyautogui.sleep(0.6); pyautogui.write('Sample Colorize', interval=0.04)",
                        'Search GIMP actions for Sample Colorize.', 'Sample Colorize',
                        phase='search-colorize')
     if not dialog_open:
