@@ -40,7 +40,8 @@ class GimpStyleTransferTests(unittest.TestCase):
         a = next_recovery_action(TASK, APP, obs, {})
         self.assertEqual(a['target']['label'], 'IMG_7328_edited.jpg')
         self.assertEqual(a['command'], 'pyautogui.doubleClick(0, 0)')
-        self.assertEqual(a['checkpoint']['visible_text'], 'IMG_7328_edited.jpg (')
+        self.assertIsNone(a['checkpoint'])
+        self.assertEqual(a['specialist_phase'], 'open-sample')
 
     def test_background_tab_label_does_not_fake_active_document(self):
         obs = (frame('[IMG_7328_edited] (imported)-2 - GIMP') + '\n' +
@@ -61,11 +62,38 @@ class GimpStyleTransferTests(unittest.TestCase):
         self.assertEqual(enter['command'], "pyautogui.press('enter')")
         self.assertEqual(enter['checkpoint']['visible_text'], 'Get Sample Colors')
 
-    def test_dialog_is_terminal_for_specialist_route(self):
+    def test_dialog_drives_sample_apply_close_in_order(self):
         obs = (frame('[IMG_7318_original] (imported)-1.0 - GIMP') + '\n'
                'dialog\tSample Colorize\tSample Colorize\tx\tx\t(200, 200)\t(800, 600)\n'
-               'push-button\tGet Sample Colors\tGet Sample Colors\tx\tx\t(300, 700)\t(120, 30)')
-        self.assertIsNone(next_recovery_action(TASK, APP, obs, {'sample_loaded': True}))
+               'push-button\tGet Sample Colors\tGet Sample Colors\tx\tx\t(300, 700)\t(120, 30)\n'
+               'push-button\tApply\tApply\tx\tx\t(600, 700)\t(90, 30)\n'
+               'push-button\tClose\tClose\tx\tx\t(700, 700)\t(90, 30)')
+        a = next_recovery_action(TASK, APP, obs, {'sample_loaded': True})
+        self.assertEqual(a['target']['label'], 'Get Sample Colors')
+        a = next_recovery_action(TASK, APP, obs, {'sample_loaded': True, 'sample_colors_requested': True})
+        self.assertEqual(a['target']['label'], 'Apply')
+        a = next_recovery_action(TASK, APP, obs, {'sample_loaded': True, 'sample_colors_requested': True, 'colorize_applied': True})
+        self.assertEqual(a['target']['label'], 'Close')
+
+    def test_official_tree_active_layer_recovers_sample_without_frame(self):
+        obs = ('label\tIMG_7318_original.jpg (454.6 MB)\tx\n'
+               'label\tIMG_7328_edited.jpg (454.6 MB)\tx\n'
+               'table-cell\tIMG_7328_edited.jpg\tIMG_7328_edited.jpg\tx\tx\t(1846, 555)\t(128, 38)')
+        a = next_recovery_action(TASK, APP, obs, {'sample_loaded': True, 'owned': True})
+        self.assertEqual(a['command'], "pyautogui.hotkey('ctrl', 'pageup')")
+
+    def test_export_sequence_stays_inside_specialist(self):
+        target = frame('[IMG_7318_original] (imported)-1.0 - GIMP')
+        state = {'sample_loaded': True, 'owned': True, 'colorize_closed': True}
+        a = next_recovery_action(TASK, APP, target, state)
+        self.assertEqual(a['specialist_phase'], 'export-open')
+        dialog = target + '\ndialog\tExport Image\tExport Image\tx'
+        state['export_open_requested'] = True
+        a = next_recovery_action(TASK, APP, dialog, state)
+        self.assertEqual(a['specialist_phase'], 'export-location')
+        state['export_location_requested'] = True
+        a = next_recovery_action(TASK, APP, dialog, state)
+        self.assertIn('/home/user/Pictures/IMG_7318_edited.jpg', a['command'])
 
 
 if __name__ == '__main__':

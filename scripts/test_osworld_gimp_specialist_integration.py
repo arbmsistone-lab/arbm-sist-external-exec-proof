@@ -51,6 +51,23 @@ class GimpSpecialistIntegrationTests(unittest.TestCase):
         self.assertIn('pyautogui.doubleClick(250, 155)', result)
         self.assertNotIn('doubleClick(0, 0)', result)
 
+    def test_dialog_internal_action_has_no_false_semantic_pending(self):
+        shim.STATE['gimp_specialist'] = {'sample_loaded': True, 'owned': True}
+        obs = ('dialog\tSample Colorize\tSample Colorize\tx\tx\t(200,200)\t(800,600)\n'
+               'push-button\tGet Sample Colors\tGet Sample Colors\tx\tx\t(300,700)\t(120,30)\n'
+               'push-button\tApply\tApply\tx\tx\t(600,700)\t(90,30)\n'
+               'push-button\tClose\tClose\tx\tx\t(700,700)\t(90,30)')
+        result = shim.try_gimp_specialist(self.body(), obs, obs)
+        self.assertIn('pyautogui.click', result)
+        self.assertTrue(shim.STATE['gimp_specialist']['sample_colors_requested'])
+        self.assertIsNone(shim.MILESTONES.pending)
+
+    def test_owned_specialist_holds_unknown_intermediate_state(self):
+        shim.STATE['gimp_specialist'] = {'sample_loaded': True, 'owned': True}
+        obs = 'label\tTransient GIMP state\tx'
+        self.assertEqual(shim.try_gimp_specialist(self.body(), obs, obs), 'WAIT')
+        self.assertEqual(shim.STATE['gimp_specialist']['uncertain_turns'], 1)
+
 
 if __name__ == '__main__':
     unittest.main()

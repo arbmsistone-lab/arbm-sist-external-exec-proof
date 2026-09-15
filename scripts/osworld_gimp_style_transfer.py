@@ -54,30 +54,28 @@ def _has(obs, name, role=None):
     return False
 
 
-def _action(command, plan, visible_text, target=None):
+def _action(command, plan, visible_text, target=None, checkpoint=True, phase=None):
     action = {'action': 'exec', 'command': command, 'plan': plan, 'summary': plan,
-              'expected_change': visible_text,
-              'checkpoint': {'name': visible_text,
-                             'application': 'GNU Image Manipulation Program',
-                             'visible_text': visible_text},
-              'confidence': 1.0, 'observed_facts': [],
+              'expected_change': visible_text, 'confidence': 1.0, 'observed_facts': [],
               'verification': 'next foreground must expose the named visible state'}
-    if target:
-        action['target'] = target
+    action['checkpoint'] = ({'name': visible_text, 'application': 'GNU Image Manipulation Program',
+                             'visible_text': visible_text} if checkpoint else None)
+    if target: action['target'] = target
+    if phase: action['specialist_phase'] = phase
     return action
 
 
-def _click(label, role, plan, visible_text, double=False):
+def _click(label, role, plan, visible_text, double=False, checkpoint=True, phase=None):
     method = 'doubleClick' if double else 'click'
     return _action('pyautogui.%s(0, 0)' % method, plan, visible_text,
-                   {'source': 'accessibility', 'label': label, 'role': role})
+                   {'source': 'accessibility', 'label': label, 'role': role}, checkpoint, phase)
 
 
 def next_recovery_action(instruction, active_application, observation, state):
     """Return one grounded GUI action, or None when evidence is insufficient."""
     task = parse_reference_pair_task(instruction)
     app = str(active_application or '').casefold()
-    if not task or not ('gimp' in app or 'gnu image manipulation program' in app):
+    if not task or not (state.get('owned') or 'gimp' in app or 'gnu image manipulation program' in app):
         return None
     obs = str(observation or '')
     sample = task['reference_edited']
@@ -86,11 +84,13 @@ def next_recovery_action(instruction, active_application, observation, state):
     # Embedded-profile prompts are foreground modals. Keep the supplied profile;
     # verify the document surface becomes visible again after dismissal.
     if _has(obs, 'Keep', 'push-button') and 'embedded color profile' in obs.casefold():
+        profile_image = sample if sample.casefold() in obs.casefold() else target
         return _click('Keep', 'push-button', 'Keep the supplied embedded color profile.',
-                      target + ' (')
+                      profile_image + ' (', phase='keep-profile')
 
-    sample_active = _active_document(obs, sample)
-    target_active = _active_document(obs, target)
+    chooser_open = _has(obs, 'Open', 'push-button')
+    sample_active = _active_document(obs, sample) or (_has(obs, sample, 'table-cell') and not chooser_open)
+    target_active = _active_document(obs, target) or (_has(obs, target, 'table-cell') and not chooser_open)
     if sample_active:
         state['sample_loaded'] = True
     if target_active:
@@ -101,31 +101,63 @@ def next_recovery_action(instruction, active_application, observation, state):
     if _has(obs, sample, 'table-cell') and _has(obs, 'Open', 'push-button'):
         return _click(sample, 'table-cell',
                       'Open the edited reference image as the color sample.',
-                      sample + ' (', double=True)
+                      sample + ' (', double=True, checkpoint=False, phase='open-sample')
 
     # If the sample is not represented yet, open GIMP's chooser once.
     if not state.get('sample_loaded') and sample.casefold() not in obs.casefold():
         return _action("pyautogui.hotkey('ctrl', 'o')",
-                       'Open another image in GIMP.', 'Open Image')
+                       'Open another image in GIMP.', 'Open Image', checkpoint=False, phase='open-chooser')
 
-    # The window frame, not background tab labels, proves which document is active.
-    if state.get('sample_loaded') and sample_active and not target_active:
-        return _action("pyautogui.hotkey('ctrl', 'pageup')",
-                       'Switch from the sample back to the target image.',
-                       target + ' (')
-    if not target_active:
+    dialog_open = _has(obs, 'Sample Colorize', 'dialog')
+    if dialog_open:
+        if not state.get('sample_colors_requested'):
+            return _click('Get Sample Colors', 'push-button',
+                          'Load the visible edited reference colors into Sample Colorize.',
+                          'Sample Colorize', checkpoint=False, phase='sample-colors')
+        if not state.get('colorize_applied'):
+            return _click('Apply', 'push-button',
+                          'Apply the sampled color mapping to the destination image.',
+                          'Sample Colorize', checkpoint=False, phase='apply-colorize')
+        return _click('Close', 'push-button', 'Close Sample Colorize after applying the mapping.',
+                      target + ' (', checkpoint=False, phase='close-colorize')
+
+    output_path = '/home/user/Pictures/' + task['output']
+    if state.get('colorize_closed'):
+        if not state.get('export_open_requested'):
+            if not target_active: return None
+            return _action("pyautogui.hotkey('ctrl', 'shift', 'e')",
+                           'Open GIMP Export As for the edited target.', 'Export Image', phase='export-open')
+        if 'export image' in obs.casefold() and not state.get('export_location_requested'):
+            return _action("pyautogui.hotkey('ctrl', 'l')", 'Focus the export location entry.',
+                           output_path, checkpoint=False, phase='export-location')
+        if state.get('export_location_requested') and not state.get('export_path_typed'):
+            return _action("pyautogui.write(%r, interval=0.02)" % output_path,
+                           'Type the exact task output path.', task['output'], checkpoint=False, phase='export-path')
+        if state.get('export_path_typed') and not state.get('export_submitted'):
+            return _action("pyautogui.press('enter')", 'Submit the exact export path.',
+                           'Export Image as JPEG', phase='export-submit')
+        if _has(obs, 'Export', 'push-button') and state.get('export_submitted'):
+            return _click('Export', 'push-button', 'Confirm JPEG export.', task['output'],
+                          checkpoint=False, phase='export-confirm')
+        if state.get('export_confirmed') and task['output'].casefold() in obs.casefold():
+            return {'action':'finish','command':'','plan':'Finish after visible export confirmation.',
+                    'summary':'Edited target exported by the agent.','confidence':1.0,
+                    'verification':task['output']+' exported'}
         return None
 
+    # The active edited-reference layer is enough when GIMP omits a frame node.
+    if state.get('sample_loaded') and sample_active and not target_active:
+        return _action("pyautogui.hotkey('ctrl', 'pageup')",
+                       'Switch from the sample back to the target image.', target + ' (')
+    if not target_active: return None
+
     # GIMP's slash action search is more stable than the Colors > Map hierarchy.
-    # A single write call types '/' (opening action search) and the query, so
-    # every specialist turn remains one GUI call.
     if 'sample colorize' not in obs.casefold():
         return _action("pyautogui.write('/Sample Colorize', interval=0.04)",
-                       'Search GIMP actions for Sample Colorize.', 'Sample Colorize')
-
-    # The result must be visibly present before Enter. The next positive state
-    # is the proven Sample Colorize dialog from the diagnostic VM probe.
-    if not _has(obs, 'Sample Colorize', 'dialog'):
+                       'Search GIMP actions for Sample Colorize.', 'Sample Colorize',
+                       phase='search-colorize')
+    if not dialog_open:
         return _action("pyautogui.press('enter')",
-                       'Open the visible Sample Colorize action.', 'Get Sample Colors')
+                       'Open the visible Sample Colorize action.', 'Get Sample Colors',
+                       phase='open-colorize')
     return None

@@ -211,13 +211,22 @@ def try_gimp_specialist(body, obs, focused_obs):
     """Issue one generic GIMP specialist action through the normal safety gates."""
     specialist_state=STATE.setdefault('gimp_specialist',{})
     candidate=next_recovery_action(body.get('instruction',''),body.get('active_application','unknown'),focused_obs,specialist_state)
-    if not candidate:return None
+    if not candidate:
+        if specialist_state.get('owned'):
+            specialist_state['uncertain_turns']=specialist_state.get('uncertain_turns',0)+1
+            log_event({'status':'GIMP_SPECIALIST_HOLD','uncertain_turns':specialist_state['uncertain_turns']})
+            if specialist_state['uncertain_turns']<=2:return 'WAIT'
+        return None
     try:
         action=ground_action(candidate,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
         decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
     except ValueError as exc:
         log_event({'status':'GIMP_SPECIALIST_POLICY_REJECTED','reason':str(exc),'action':candidate})
         return None
+    if action.get('action')=='finish':
+        if decision.get('kind')==DecisionKind.FINISH_CANDIDATE.value and MILESTONES.verified and MILESTONES.stalled==0 and VERIFIER.can_finish(action,obs):
+            STATE['phase']='done';log_event({'status':'GIMP_SPECIALIST_VERIFIED_FINISH','action':action});return 'DONE'
+        log_event({'status':'GIMP_SPECIALIST_FINISH_REJECTED','action':action});return 'WAIT'
     if decision.get('kind')!=DecisionKind.EXEC.value or action.get('action')!='exec':return None
     command=action['command']
     if rejects_visual_navigation_loop(action,body['instruction'],body.get('active_application','unknown'),MILESTONES.stalled):
@@ -232,7 +241,18 @@ def try_gimp_specialist(body, obs, focused_obs):
     STATE['previous']=command;STATE['executed']+=1;STATE['wait_responses']=0;STATE['provider_waits']=0
     STATE['history'].append({'command':command,'expected':action.get('expected_change',''),'source':'gimp-specialist'})
     STATE['history']=STATE['history'][-12:]
-    VERIFIER.issued(command);MILESTONES.expect(action,obs)
+    specialist_state['owned']=True;specialist_state['uncertain_turns']=0
+    phase=action.get('specialist_phase')
+    if phase=='sample-colors':specialist_state['sample_colors_requested']=True
+    elif phase=='apply-colorize':specialist_state['colorize_applied']=True
+    elif phase=='close-colorize':specialist_state['colorize_closed']=True
+    elif phase=='export-open':specialist_state['export_open_requested']=True
+    elif phase=='export-location':specialist_state['export_location_requested']=True
+    elif phase=='export-path':specialist_state['export_path_typed']=True
+    elif phase=='export-submit':specialist_state['export_submitted']=True
+    elif phase=='export-confirm':specialist_state['export_confirmed']=True
+    VERIFIER.issued(command)
+    if isinstance(action.get('checkpoint'),dict):MILESTONES.expect(action,obs)
     log_event({'status':'GIMP_SPECIALIST_ACTION_ISSUED','command':command,'checkpoint':action.get('checkpoint')})
     return '```python\n'+command+'\n```'
 def call_mesh(messages):
