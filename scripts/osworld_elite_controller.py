@@ -28,6 +28,8 @@ class EliteController:
         self.failed_actions = deque(maxlen=int(tabu_size))
         self.pending_action = None
         self.latencies = deque(maxlen=32)
+        self.checkpoints = deque(maxlen=16)
+        self.backtrack_events = 0
         self.stall = 0
         self.waits = 0
         self.issued = 0
@@ -57,6 +59,8 @@ class EliteController:
                 self.no_progress_events += 1
                 self.stall += 1
                 self.failed_actions.append(self.pending_action)
+                if self.stall == self.max_stall and self.checkpoints:
+                    self.backtrack_events += 1
             self.pending_action = None
         elif progress:
             self.progress_events += 1
@@ -69,12 +73,33 @@ class EliteController:
         self.wait_events += 1
         return self.decision()
 
+    def checkpoint(self, proof):
+        if not isinstance(proof,dict):
+            return self.recovery_anchor()
+        item={k:str(proof.get(k) or '')[:300] for k in ('name','application','visible_text','observation_sha256')}
+        key=(item['application'].casefold(),item['visible_text'].casefold(),item['observation_sha256'])
+        if item['application'] and item['visible_text'] and not any(
+                (x['application'].casefold(),x['visible_text'].casefold(),x['observation_sha256'])==key
+                for x in self.checkpoints):
+            self.checkpoints.append(item)
+        return self.recovery_anchor()
+
+    def recovery_anchor(self):
+        return {
+            'last_verified_checkpoint': dict(self.checkpoints[-1]) if self.checkpoints else None,
+            'checkpoint_count': len(self.checkpoints),
+            'tabu_action_count': len(self.failed_actions),
+            'backtrack_events': self.backtrack_events,
+        }
+
     def reset(self):
         self.waits = 0
         self.stall = 0
         self.latencies.clear()
         self.pending_action = None
         self.failed_actions.clear()
+        self.checkpoints.clear()
+        self.backtrack_events = 0
         self.issued = 0
         self.progress_events = 0
         self.no_progress_events = 0
@@ -96,6 +121,8 @@ class EliteController:
         if self.waits >= self.max_waits:
             return self._state('replan', 'wait_budget', p95)
         if self.stall >= self.max_stall:
+            if self.checkpoints:
+                return self._state('replan', 'checkpoint_backtrack', p95)
             return self._state('replan', 'progress_budget', p95)
         if p95 > self.hard_latency_s:
             return self._state('replan', 'latency_hard', p95)
@@ -121,6 +148,9 @@ class EliteController:
             'wait_events': self.wait_events,
             'progress_ratio': round(progress_ratio, 6),
             'tabu_actions': len(self.failed_actions),
+            'verified_checkpoints': len(self.checkpoints),
+            'backtrack_events': self.backtrack_events,
+            'last_verified_checkpoint': dict(self.checkpoints[-1]) if self.checkpoints else None,
             'latency_samples': len(xs),
             'latency_p50_s': round(statistics.median(xs), 3) if xs else 0.0,
             'latency_max_s': round(max(xs), 3) if xs else 0.0,

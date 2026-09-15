@@ -231,7 +231,8 @@ def call_mesh(messages):
     if semantic.get("status")=="VERIFIED":
         STATE["memory"].append("OBSERVED MILESTONE: "+json.dumps(semantic["milestone"],ensure_ascii=False))
         STATE["memory"]=STATE["memory"][-8:]
-        log_event({"status":"MILESTONE_VERIFIED","milestone":semantic["milestone"]})
+        ELITE.checkpoint(semantic["milestone"])
+        log_event({"status":"MILESTONE_VERIFIED","milestone":semantic["milestone"],"backtrack_anchor":ELITE.recovery_anchor()})
         if screenshot and not STATE.get('visual_memory'):
             STATE['visual_memory']=screenshot
             STATE['visual_memory_meta']=semantic['milestone']
@@ -253,10 +254,17 @@ def call_mesh(messages):
           'task_ledger':{'verified_milestones':MILESTONES.context().get('verified',[]),
                          'verified_facts':STATE.get('facts',[])[:24],
                          'recent_outcomes':STATE['history'][-6:],
+                         'backtrack_anchor':ELITE.recovery_anchor(),
+                         'root_instruction_sha256':hashlib.sha256(task_from(messages).encode()).hexdigest(),
                          'provider_waits':STATE.get('provider_waits',0),
                          'cognitive_waits':STATE.get('wait_responses',0)}}
     recovery=recovery_policy(body['instruction'], body.get('active_application','unknown'), MILESTONES.stalled, VERIFIER.no_progress, VERIFIER.recovery_level, STATE['provider'], STATE.get('visual_capacity_exhausted',False))
     if recovery['strategy']:body['recovery_strategy']=recovery['strategy']
+    if elite_decision['mode']=='replan' and ELITE.recovery_anchor().get('last_verified_checkpoint'):
+        anchor=ELITE.recovery_anchor()['last_verified_checkpoint']
+        body['recovery_strategy']=(str(body.get('recovery_strategy') or '')+
+            '\nCHECKPOINT BACKTRACK: the last independently verified state is '+json.dumps(anchor,ensure_ascii=False)+
+            '. Treat it as known-good and do not undo verified work. From the current foreground, choose a genuinely different route toward the next unmet subgoal; the next action must name a new observable checkpoint.')[-3000:]
     if recovery['provider_hint']:body['provider_hint']=recovery['provider_hint']
     visual_recovery=visual_reference_recovery(body['instruction'],body.get('active_application','unknown'),MILESTONES.stalled)
     if visual_recovery:body['recovery_strategy']=visual_recovery

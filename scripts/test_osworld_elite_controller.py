@@ -55,5 +55,23 @@ class EliteControllerTests(unittest.TestCase):
         self.assertTrue(c.before_action("pyautogui.hotkey('alt','tab')")['allow'])
 
 
+    def test_checkpoint_backtrack_anchor_is_verified_state_only(self):
+        c=EliteController(max_stall=2)
+        proof={'name':'Reference opened','application':'GIMP','visible_text':'IMG_7328_edited.jpg','observation_sha256':'abc123'}
+        anchor=c.checkpoint(proof)
+        self.assertEqual(anchor['checkpoint_count'],1)
+        self.assertEqual(anchor['last_verified_checkpoint']['application'],'GIMP')
+        c.before_action("pyautogui.press('x')"); c.observe(False)
+        c.before_action("pyautogui.press('y')"); decision=c.observe(False)
+        self.assertEqual(decision['mode'],'replan')
+        self.assertEqual(decision['reason'],'checkpoint_backtrack')
+        self.assertEqual(c.metrics()['backtrack_events'],1)
+
+    def test_invalid_checkpoint_is_not_admitted(self):
+        c=EliteController()
+        c.checkpoint({'name':'x','application':'','visible_text':''})
+        self.assertEqual(c.metrics()['verified_checkpoints'],0)
+
+
 if __name__=='__main__':
     unittest.main()
