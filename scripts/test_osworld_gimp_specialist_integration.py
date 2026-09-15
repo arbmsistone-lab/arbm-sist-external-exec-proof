@@ -33,7 +33,9 @@ class GimpSpecialistIntegrationTests(unittest.TestCase):
     def test_search_action_passes_normal_policy_and_milestone_path(self):
         obs = frame('[IMG_7318_original] (imported)-1.0 - GIMP')
         result = shim.try_gimp_specialist(self.body(), obs, obs)
-        self.assertIn("pyautogui.write('/Sample Colorize'", result)
+        self.assertIn("pyautogui.press('/')", result)
+        self.assertIn("pyautogui.write('Sample Colorize'", result)
+        self.assertNotIn("pyautogui.write('/Sample Colorize'", result)
         self.assertEqual(shim.STATE['history'][-1]['source'], 'gimp-specialist')
         self.assertIsNotNone(shim.MILESTONES.pending)
         self.assertEqual(shim.MILESTONES.pending['predicate']['visible_text'], 'Sample Colorize')
