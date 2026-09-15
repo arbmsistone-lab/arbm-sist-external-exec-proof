@@ -142,19 +142,23 @@ def wait_for_target(env, obs, evidence, prefix, limit=24):
     raise RuntimeError('TARGET_GIMP_STATE_NOT_READY')
 
 
-def open_sample_chooser(env, obs, evidence, limit=10):
+def open_sample_reference(env, obs, evidence, limit=20):
     obs = step(env, "pyautogui.hotkey('ctrl', 'o')", 1)
+    location_attempted = False
     for i in range(limit):
         tree = save_obs(evidence, f'20-open-stage-{i:02d}', obs)
         if profile_modal(tree):
             obs = click(env, obs, 'Keep', 'push-button', 2)
-            obs = wait_for_target(env, obs, evidence, '21-post-profile', 6)
-            obs = step(env, "pyautogui.hotkey('ctrl', 'o')", 1)
             continue
-        if chooser_ready(tree):
+        low = tree.casefold()
+        if SAMPLE.casefold() in low and gimp_visible(tree) and not has(tree, 'Open', 'push-button'):
             return obs
+        if has(tree, 'Open', 'push-button') and not location_attempted:
+            obs = step(env, "pyautogui.hotkey('ctrl', 'l'); pyautogui.write('~/Pictures/' + SAMPLE, interval=0.03); pyautogui.press('enter')", 2)
+            location_attempted = True
+            continue
         obs = idle(env, 1)
-    raise RuntimeError('SAMPLE_CHOOSER_NOT_READY')
+    raise RuntimeError('SAMPLE_REFERENCE_NOT_READY')
 
 
 def main(image, evidence):
@@ -191,11 +195,7 @@ def main(image, evidence):
         )
         obs = env.reset(task_config=task)
         obs = wait_for_target(env, obs, evidence, '00-startup')
-        obs = open_sample_chooser(env, obs, evidence)
-
-        obs = click(env, obs, SAMPLE, 'table-cell')
-        save_obs(evidence, '30-sample-selected', obs)
-        obs = click(env, obs, 'Open', 'push-button', 2)
+        obs = open_sample_reference(env, obs, evidence)
         tree = save_obs(evidence, '31-sample-opened', obs)
         if profile_modal(tree):
             obs = click(env, obs, 'Keep', 'push-button', 2)
