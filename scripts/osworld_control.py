@@ -153,7 +153,7 @@ def normalized_target(value):
     return re.sub(r'\s+',' ',str(value or '').replace('\u200b','')).strip().casefold()
 
 
-def _pointer_calls(command):
+def _gui_calls(command):
     try:
         tree=ast.parse(str(command or ''))
     except SyntaxError:
@@ -161,27 +161,42 @@ def _pointer_calls(command):
     calls=[]
     for node in tree.body:
         if not isinstance(node,ast.Expr) or not isinstance(node.value,ast.Call):
-            continue
+            return []
         call=node.value
-        if isinstance(call.func,ast.Attribute) and call.func.attr in {'click','doubleClick','rightClick'}:
-            calls.append(call)
+        if not (isinstance(call.func,ast.Attribute) and isinstance(call.func.value,ast.Name)
+                and call.func.value.id=='pyautogui'):
+            return []
+        calls.append(call)
     return calls
 
 
 def _repair_single_pointer_target(action, observation):
     if action.get('action')!='exec' or isinstance(action.get('target'),dict):
         return action
-    # Fail closed for compound pointer programs.  Only one atomic pointer action
-    # may inherit a target, and only when plan/summary resolves one unique
-    # accessibility control in the current foreground observation.
-    if len(_pointer_calls(action.get('command','')))!=1:
+    # Repair is intentionally narrower than normal grounding. It exists only
+    # for a single atomic pointer call whose supplied coordinates already land
+    # inside exactly one accessibility control. Compound programs and semantic
+    # guesses remain fail-closed.
+    calls=_gui_calls(action.get('command',''))
+    if len(calls)!=1 or calls[0].func.attr not in {'click','doubleClick','rightClick'}:
         return action
-    resolved=_resolve_accessibility_target(action,observation)
-    if not resolved:
+    call=calls[0]
+    try:
+        if len(call.args)>=2:
+            x=float(ast.literal_eval(call.args[0])); y=float(ast.literal_eval(call.args[1]))
+        else:
+            kwargs={kw.arg:ast.literal_eval(kw.value) for kw in call.keywords if kw.arg}
+            x=float(kwargs['x']); y=float(kwargs['y'])
+    except (ValueError,TypeError,KeyError):
         return action
+    hits=[c for c in _parse_accessibility_controls(observation)
+          if c['x']<=x<=c['x']+c['w'] and c['y']<=y<=c['y']+c['h']]
+    if len(hits)!=1:
+        return action
+    resolved=hits[0]
     repaired=dict(action)
     repaired['target']={'source':'accessibility','label':resolved['name'],'role':resolved['role']}
-    repaired['compiler_note']='Synthesized unique accessibility target for one atomic pointer action: '+resolved['role']+' '+resolved['name']
+    repaired['compiler_note']='Synthesized coordinate-proven accessibility target for one atomic pointer action: '+resolved['role']+' '+resolved['name']
     return repaired
 
 

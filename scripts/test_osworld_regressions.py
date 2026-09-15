@@ -124,21 +124,28 @@ class ContractTests(unittest.TestCase):
     def test_single_pointer_without_target_is_repaired_from_unique_accessibility_intent(self):
         obs="push-button\tConvert\t\t\t\t(1100, 660)\t(80, 52)"
         action={'action':'exec','plan':'Click Convert to continue','summary':'Use the visible Convert button',
-                'command':"pyautogui.click(824, 646)"}
+                'command':"pyautogui.click(1135, 680)"}
         out=control.ground_action(action,'GIMP',obs,[])
         self.assertEqual(out['target'],{'source':'accessibility','label':'Convert','role':'push-button'})
-        self.assertEqual(out['command'],'pyautogui.click(1140, 686)')
+        self.assertEqual(out['command'],'pyautogui.click(1135, 680)')
+
+    def test_single_pointer_keyword_coordinates_are_repaired(self):
+        obs="push-button\tConvert\t\t\t\t(1100, 660)\t(100, 60)"
+        action={'action':'exec','plan':'Accept the profile conversion','command':"pyautogui.click(x=1183, y=703)"}
+        out=control.ground_action(action,'GIMP',obs,[])
+        self.assertEqual(out['target'],{'source':'accessibility','label':'Convert','role':'push-button'})
+        self.assertEqual(out['command'],'pyautogui.click(x=1183, y=703)')
 
     def test_missing_target_repair_fails_closed_for_multiple_pointer_calls(self):
         obs="push-button\tConvert\t\t\t\t(1100, 660)\t(80, 52)"
-        action={'action':'exec','plan':'Click Convert','command':"pyautogui.click(824,646)\npyautogui.click(824,646)"}
+        action={'action':'exec','plan':'Click Convert then navigate','command':"pyautogui.click(1135,680)\npyautogui.hotkey('ctrl','o')"}
         with self.assertRaisesRegex(ValueError,'POINTER_TARGET_REQUIRED'):
             control.ground_action(action,'GIMP',obs,[])
 
     def test_missing_target_repair_fails_closed_for_ambiguous_accessibility(self):
         obs=("push-button\tConvert\t\t\t\t(1100, 660)\t(80, 52)\n"
-             "push-button\tConvert\t\t\t\t(900, 600)\t(80, 52)")
-        action={'action':'exec','plan':'Click Convert','command':"pyautogui.click(824,646)"}
+             "push-button\tConvert\t\t\t\t(1120, 670)\t(80, 52)")
+        action={'action':'exec','plan':'Click Convert','command':"pyautogui.click(1135,680)"}
         with self.assertRaisesRegex(ValueError,'POINTER_TARGET_REQUIRED'):
             control.ground_action(action,'GIMP',obs,[])
 
