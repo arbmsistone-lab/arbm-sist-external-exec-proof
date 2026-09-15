@@ -11,6 +11,7 @@ from osworld_groq_free import GROQ_FREE_ROUTE
 from osworld_local_vlm import LOCAL_VLM_ROUTE
 from osworld_recovery import recovery_policy, rejects_visual_navigation_loop, semantic_terminal
 from osworld_elite_controller import EliteController
+from osworld_gimp_style_transfer import next_recovery_action
 
 UPSTREAM = 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5'
 EXPECTED_PIPELINE = 'arbm-osworld-v32-isolated'
@@ -27,7 +28,7 @@ LOCAL_FALLBACK_CAPACITY_STATUSES = {
     'FREE_QUOTA_EXHAUSTED',
 }
 STATE = {'step':0,'previous':'','executed':0,'phase':'plan','plan':'','memory':[],
-         'history':[],'facts':[],'wait_responses':0,'provider_waits':0,'cooldowns':{},'terminal':'','provider':'','model':'','visual_memory':'','visual_memory_meta':None}
+         'history':[],'facts':[],'wait_responses':0,'provider_waits':0,'cooldowns':{},'terminal':'','provider':'','model':'','visual_memory':'','visual_memory_meta':None,'gimp_specialist':{}}
 VERIFIER = Verifier()
 MILESTONES = Milestones()
 ELITE = EliteController(
@@ -206,6 +207,34 @@ def request_mesh(body):
                 'provider_attempts':gateway_attempts+router_attempts,
                 'mandatory_cost_usd':0,'paid_fallback_used':False}
 
+def try_gimp_specialist(body, obs, focused_obs):
+    """Issue one generic GIMP specialist action through the normal safety gates."""
+    specialist_state=STATE.setdefault('gimp_specialist',{})
+    candidate=next_recovery_action(body.get('instruction',''),body.get('active_application','unknown'),focused_obs,specialist_state)
+    if not candidate:return None
+    try:
+        action=ground_action(candidate,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
+        decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
+    except ValueError as exc:
+        log_event({'status':'GIMP_SPECIALIST_POLICY_REJECTED','reason':str(exc),'action':candidate})
+        return None
+    if decision.get('kind')!=DecisionKind.EXEC.value or action.get('action')!='exec':return None
+    command=action['command']
+    if rejects_visual_navigation_loop(action,body['instruction'],body.get('active_application','unknown'),MILESTONES.stalled):
+        log_event({'status':'GIMP_SPECIALIST_LOOP_REJECTED','command':command});return None
+    recent=[x['command'] for x in STATE['history'][-6:]]
+    if VERIFIER.no_progress and command in recent:
+        log_event({'status':'GIMP_SPECIALIST_REPEAT_REJECTED','command':command});return None
+    elite_action=ELITE.before_action(command,action.get('target'))
+    if not elite_action['allow']:
+        log_event({'status':'GIMP_SPECIALIST_TABU_REJECTED','command':command,'reason':elite_action['reason']});return None
+    STATE['plan']=str(action.get('plan') or STATE['plan'])[:1400]
+    STATE['previous']=command;STATE['executed']+=1;STATE['wait_responses']=0;STATE['provider_waits']=0
+    STATE['history'].append({'command':command,'expected':action.get('expected_change',''),'source':'gimp-specialist'})
+    STATE['history']=STATE['history'][-12:]
+    VERIFIER.issued(command);MILESTONES.expect(action,obs)
+    log_event({'status':'GIMP_SPECIALIST_ACTION_ISSUED','command':command,'checkpoint':action.get('checkpoint')})
+    return '```python\n'+command+'\n```'
 def call_mesh(messages):
     if STATE.get('step',0)==0 and not STATE.get('terminal'):
         ELITE.reset()
@@ -268,6 +297,8 @@ def call_mesh(messages):
     if recovery['provider_hint']:body['provider_hint']=recovery['provider_hint']
     visual_recovery=visual_reference_recovery(body['instruction'],body.get('active_application','unknown'),MILESTONES.stalled)
     if visual_recovery:body['recovery_strategy']=visual_recovery
+    specialist_result=try_gimp_specialist(body,obs,focused_obs)
+    if specialist_result:return specialist_result
     try:body,metrics=pack_payload(body)
     except ValueError as exc:return terminal(str(exc))
     OBS_DIR.mkdir(parents=True,exist_ok=True)

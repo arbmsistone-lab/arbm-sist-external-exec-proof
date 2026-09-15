@@ -114,7 +114,7 @@ def tree_signature(text):
 
 def _parse_accessibility_controls(observation):
     controls=[]
-    interactive={'push-button','button','menu','menu-item','check-box','radio-button','combo-box','entry','link','toggle-button','spin-button','slider','tab'}
+    interactive={'push-button','button','menu','menu-item','check-box','radio-button','combo-box','entry','link','toggle-button','spin-button','slider','tab','table-cell'}
     for line in str(observation or '').splitlines():
         cols=line.split('\t')
         if len(cols)<7 or cols[0] not in interactive: continue

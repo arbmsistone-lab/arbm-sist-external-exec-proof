@@ -5,104 +5,127 @@ _IMAGE = re.compile(r'([A-Za-z0-9_.-]+\.(?:jpg|jpeg|png|webp))', re.I)
 
 
 def parse_reference_pair_task(instruction):
-    text=str(instruction or '')
-    names=[]
+    text = str(instruction or '')
+    names = []
     for name in _IMAGE.findall(text):
-        if name not in names: names.append(name)
-    originals=[n for n in names if '_original.' in n.lower()]
-    edited=[n for n in names if '_edited.' in n.lower()]
-    if len(originals)<2 or len(edited)<2:
+        if name not in names:
+            names.append(name)
+    originals = [n for n in names if '_original.' in n.lower()]
+    edited = [n for n in names if '_edited.' in n.lower()]
+    if len(originals) < 2 or len(edited) < 2:
         return None
-    # The example pair shares a stem; the output edited file shares the target stem.
-    def stem(n):
-        return re.sub(r'_(?:original|edited)\.[^.]+$','',n,flags=re.I)
-    example=None; target=None; output=None
-    for original in originals:
-        match=next((e for e in edited if stem(e)==stem(original)),None)
-        if match: example=(original,match); break
-    for original in originals:
-        if not example or original!=example[0]:
-            match=next((e for e in edited if stem(e)==stem(original)),None)
-            if match: target=original; output=match; break
-    if not example or not target or not output: return None
-    return {'reference_original':example[0],'reference_edited':example[1],
-            'target_original':target,'output':output}
+
+    def stem(name):
+        return re.sub(r'_(?:original|edited)\.[^.]+$', '', name, flags=re.I)
+
+    pairs = [(o, next((e for e in edited if stem(e) == stem(o)), None)) for o in originals]
+    pairs = [(o, e) for o, e in pairs if e]
+    if len(pairs) < 2:
+        return None
+    example = pairs[0]
+    target, output = pairs[1]
+    return {'reference_original': example[0], 'reference_edited': example[1],
+            'target_original': target, 'output': output}
+
 
 def _active_document(obs, filename):
-    wanted=str(filename or '').casefold()
+    wanted = re.sub(r'\.[^.]+$', '', str(filename or '')).casefold()
     for line in str(obs or '').splitlines():
-        cols=line.split('\t')
-        if len(cols)<2 or cols[0].strip().casefold()!='label': continue
-        name=cols[1].replace('\u200b','').strip().casefold()
-        if name.startswith(wanted+' (') and (' mb)' in name or ' gb)' in name):
+        cols = line.split('\t')
+        if len(cols) < 2 or cols[0].strip().casefold() != 'frame':
+            continue
+        name = cols[1].replace('\u200b', '').strip().casefold()
+        if wanted and wanted in name and 'gimp' in name:
             return True
     return False
 
+
 def _has(obs, name, role=None):
-    needle=str(name or '').casefold()
+    needle = str(name or '').casefold()
     for line in str(obs or '').splitlines():
-        cols=line.split('\t')
-        if len(cols)<2: continue
-        if cols[1].replace('\u200b','').strip().casefold()!=needle: continue
-        if role and cols[0].strip().casefold()!=str(role).casefold(): continue
+        cols = line.split('\t')
+        if len(cols) < 2:
+            continue
+        if cols[1].replace('\u200b', '').strip().casefold() != needle:
+            continue
+        if role and cols[0].strip().casefold() != str(role).casefold():
+            continue
         return True
     return False
 
 
-def _click(label, role, plan, checkpoint):
-    return {'action':'exec','command':'pyautogui.click(0, 0)',
-            'target':{'source':'accessibility','label':label,'role':role},
-            'plan':plan,'summary':plan,'expected_change':checkpoint,
-            'checkpoint':{'name':checkpoint,'application':'GNU Image Manipulation Program',
-                          'visible_text':checkpoint},'confidence':1.0,
-            'observed_facts':[],'verification':'visible control observed'}
+def _action(command, plan, visible_text, target=None):
+    action = {'action': 'exec', 'command': command, 'plan': plan, 'summary': plan,
+              'expected_change': visible_text,
+              'checkpoint': {'name': visible_text,
+                             'application': 'GNU Image Manipulation Program',
+                             'visible_text': visible_text},
+              'confidence': 1.0, 'observed_facts': [],
+              'verification': 'next foreground must expose the named visible state'}
+    if target:
+        action['target'] = target
+    return action
 
 
-def _key(command, plan, checkpoint):
-    return {'action':'exec','command':command,'plan':plan,'summary':plan,
-            'expected_change':checkpoint,
-            'checkpoint':{'name':checkpoint,'application':'GNU Image Manipulation Program',
-                          'visible_text':checkpoint},'confidence':1.0,
-            'observed_facts':[],'verification':'state derived from visible controls'}
+def _click(label, role, plan, visible_text, double=False):
+    method = 'doubleClick' if double else 'click'
+    return _action('pyautogui.%s(0, 0)' % method, plan, visible_text,
+                   {'source': 'accessibility', 'label': label, 'role': role})
+
 
 def next_recovery_action(instruction, active_application, observation, state):
-    """Return one grounded/reversible GUI action, or None when evidence is insufficient."""
-    task=parse_reference_pair_task(instruction)
-    app=str(active_application or '').casefold()
-    if not task or not ('gimp' in app or 'gnu image manipulation program' in app): return None
-    obs=str(observation or '')
-    # Preserve embedded profiles; changing them would alter the provided reference colors.
-    if _has(obs,'Keep','push-button') and 'embedded color profile' in obs:
-        return _click('Keep','push-button','Keep the image embedded color profile.',
-                      'embedded color profile dialog closed')
-    sample=task['reference_edited']
-    target=task['target_original']
-    # A visible GTK chooser gives exact task files; select the edited reference sample.
-    if not state.get('sample_requested') and _has(obs,sample,'table-cell') and _has(obs,'Open','push-button'):
-        state['sample_requested']=True
-        return _click(sample,'table-cell','Select the edited reference image as the color sample.',
-                      sample+' selected')
-    if state.get('sample_requested') and _has(obs,sample,'table-cell') and _has(obs,'Open','push-button'):
-        return _click('Open','push-button','Open the selected edited reference image.',
-                      sample+' opened')
-    # If the sample is not already represented in GIMP, open the file chooser.
+    """Return one grounded GUI action, or None when evidence is insufficient."""
+    task = parse_reference_pair_task(instruction)
+    app = str(active_application or '').casefold()
+    if not task or not ('gimp' in app or 'gnu image manipulation program' in app):
+        return None
+    obs = str(observation or '')
+    sample = task['reference_edited']
+    target = task['target_original']
+
+    # Embedded-profile prompts are foreground modals. Keep the supplied profile;
+    # verify the document surface becomes visible again after dismissal.
+    if _has(obs, 'Keep', 'push-button') and 'embedded color profile' in obs.casefold():
+        return _click('Keep', 'push-button', 'Keep the supplied embedded color profile.',
+                      target + ' (')
+
+    sample_active = _active_document(obs, sample)
+    target_active = _active_document(obs, target)
+    if sample_active:
+        state['sample_loaded'] = True
+    if target_active:
+        state['target_active'] = True
+
+    # A GTK chooser already exposes the exact task files. Double-click the
+    # edited reference: one GUI call both selects and opens it.
+    if _has(obs, sample, 'table-cell') and _has(obs, 'Open', 'push-button'):
+        return _click(sample, 'table-cell',
+                      'Open the edited reference image as the color sample.',
+                      sample + ' (', double=True)
+
+    # If the sample is not represented yet, open GIMP's chooser once.
     if not state.get('sample_loaded') and sample.casefold() not in obs.casefold():
-        state['sample_requested']=False
-        return _key("pyautogui.hotkey('ctrl', 'o')",'Open another image in GIMP.','Open Image')
-    if _active_document(obs,sample):
-        state['sample_loaded']=True
-    # Return to target image before invoking the mapping filter.
-    if (state.get('sample_loaded') and not state.get('target_active') and
-            target.casefold() not in obs.casefold() and not state.get('target_switch')):
-        state['target_switch']=True
-        return _key("pyautogui.hotkey('ctrl', 'pageup')",'Switch from sample back to target image.',target)
-    if _active_document(obs,target): state['target_active']=True
-    if not state.get('target_active'): return None
-    if _has(obs,'Sample Colorize','menu-item'):
-        return _click('Sample Colorize','menu-item','Open Sample Colorize for the visible target image.',
-                      'Sample Colorize')
-    if _has(obs,'Map','menu-item'):
-        return _click('Map','menu-item','Open the Colors Map submenu.','Sample Colorize')
-    if _has(obs,'Colors','menu'):
-        return _click('Colors','menu','Open the GIMP Colors menu.','Map')
+        return _action("pyautogui.hotkey('ctrl', 'o')",
+                       'Open another image in GIMP.', 'Open Image')
+
+    # The window frame, not background tab labels, proves which document is active.
+    if state.get('sample_loaded') and sample_active and not target_active:
+        return _action("pyautogui.hotkey('ctrl', 'pageup')",
+                       'Switch from the sample back to the target image.',
+                       target + ' (')
+    if not target_active:
+        return None
+
+    # GIMP's slash action search is more stable than the Colors > Map hierarchy.
+    # A single write call types '/' (opening action search) and the query, so
+    # every specialist turn remains one GUI call.
+    if 'sample colorize' not in obs.casefold():
+        return _action("pyautogui.write('/Sample Colorize', interval=0.04)",
+                       'Search GIMP actions for Sample Colorize.', 'Sample Colorize')
+
+    # The result must be visibly present before Enter. The next positive state
+    # is the proven Sample Colorize dialog from the diagnostic VM probe.
+    if not _has(obs, 'Sample Colorize', 'dialog'):
+        return _action("pyautogui.press('enter')",
+                       'Open the visible Sample Colorize action.', 'Get Sample Colors')
     return None
