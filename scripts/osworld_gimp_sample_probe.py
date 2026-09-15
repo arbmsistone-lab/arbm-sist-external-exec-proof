@@ -4,6 +4,7 @@ import json
 import os
 import re
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 TARGET = 'IMG_7318_original.jpg'
@@ -16,28 +17,26 @@ def file_sha(path):
 
 
 def controls(tree):
+    text = str(tree or '')
     out = []
-    for line in str(tree or '').splitlines():
-        cols = line.split('\t')
-        if len(cols) < 7:
-            continue
-        xy = re.findall(r'-?\d+', cols[-2])
-        wh = re.findall(r'\d+', cols[-1])
-        if len(xy) != 2 or len(wh) != 2:
-            continue
-        x, y = map(int, xy)
-        w, h = map(int, wh)
-        out.append({
-            'role': cols[0],
-            'name': cols[1].replace('\u200b', '').strip(),
-            'x': x,
-            'y': y,
-            'w': w,
-            'h': h,
-            'cx': x + w // 2,
-            'cy': y + h // 2,
-        })
-    return out
+    if text.lstrip().startswith('<'):
+        try:
+            root = ET.fromstring(text)
+        except ET.ParseError:
+            root = None
+        if root is not None:
+            for node in root.iter():
+                name = (node.attrib.get('name') or '').replace('\u200b', '').strip()
+                coord = next((v for k, v in node.attrib.items() if k.endswith('}screencoord') or k == 'cp:screencoord'), '')
+                size = next((v for k, v in node.attrib.items() if k.endswith('}size') or k == 'cp:size'), '')
+                xy = re.findall(r'-?\d+', coord)
+                wh = re.findall(r'\d+', size)
+                if len(xy) == 2 and len(wh) == 2:
+                    x, y = map(int, xy); w, h = map(int, wh)
+                    out.append({'role': node.tag.rsplit('}', 1)[-1], 'name': name,
+                                'x': x, 'y': y, 'w': w, 'h': h,
+                                'cx': x + w // 2, 'cy': y + h // 2})
+            return out
 
 
 def matches(tree, label, role=None):
