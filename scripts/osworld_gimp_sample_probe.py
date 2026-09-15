@@ -22,7 +22,8 @@ def controls(tree):
             continue
         x, y = map(int, xy); w, h = map(int, wh)
         out.append(dict(role=cols[0], name=cols[1].replace('\u200b', '').strip(),
-                        x=x, y=y, w=w, h=h, cx=x+w//2, cy=y+h//2))    return out
+                        x=x, y=y, w=w, h=h, cx=x+w//2, cy=y+h//2))
+    return out
 
 
 def matches(tree, label, role=None):
