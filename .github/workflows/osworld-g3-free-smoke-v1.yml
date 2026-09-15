@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   smoke:
-    if: github.repository == 'arbmsistone-lab/arbm-sist-external-exec-proof' && github.ref == 'refs/heads/g3-free-cert-lane-20260910'
+    if: github.repository == 'arbmsistone-lab/arbm-sist-external-exec-proof' && (github.ref == 'refs/heads/g3-free-cert-lane-20260910' || github.ref == 'refs/heads/g3-free-cert-recovery-20260915')
     runs-on: ubuntu-24.04
     timeout-minutes: 55
     env:
@@ -48,7 +48,10 @@ jobs:
           GROQ_G3_FREE_CERT_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
         run: |
           set -euo pipefail
-          test "$GITHUB_REF_NAME" = "g3-free-cert-lane-20260910"
+          case "$GITHUB_REF_NAME" in
+            g3-free-cert-lane-20260910|g3-free-cert-recovery-20260915) ;;
+            *) exit 1 ;;
+          esac
           if [ "$ARBM_G3_FREE_MODEL" = "qwen/qwen3.8-27b" ]; then
             test -n "$GROQ_G3_FREE_CERT_KEY"
             echo 'ARBM_G3_PROVIDER=groq' >> "$GITHUB_ENV"
@@ -62,6 +65,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GROQ_G3_FREE_CERT_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
           ARBM_G3_USAGE_LOG: ${{ github.workspace }}/g3-free-probe-usage.jsonl
+          G3_GROQ_ACCOUNT_RECEIPT: ${{ vars.G3_GROQ_ACCOUNT_RECEIPT }}
         run: |
           set -euo pipefail
           python certification/g3_free_control.py probe --model "$ARBM_G3_FREE_MODEL" --output free-capability.json
@@ -104,6 +108,7 @@ jobs:
           cp ../certification/vendor-gemini-agent.py mm_agents/gemini_agent.py
           cp ../certification/vendor-gemini-action-parser.py mm_agents/gemini_action_parser.py
           cp ../certification/g3-openrouter-free-adapter.py mm_agents/arbm_g3_agent.py
+          cp ../certification/g3_groq_account.py g3_groq_account.py
           cp ../certification/g3_paid_control.py mm_agents/g3_paid_control.py
           python - <<'PY'
           p='scripts/python/run_multienv.py'
@@ -162,6 +167,8 @@ jobs:
         shell: bash
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GROQ_G3_FREE_CERT_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
+          G3_GROQ_ACCOUNT_RECEIPT: ${{ vars.G3_GROQ_ACCOUNT_RECEIPT }}
           ARBM_G3_TASK_ID: '001'
           ARBM_G3_SCREENSHOT_OCR: '1'
           ARBM_G3_USAGE_LOG: ${{ github.workspace }}/g3-free-usage.jsonl

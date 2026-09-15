@@ -1,0 +1,27 @@
+{
+  "base_sha": "75a1cbfc8c1c2873b878790f9086078c90421ae8",
+  "branch": "g3-free-cert-recovery-20260915",
+  "observed_at_utc": "2026-09-15T00:19:19.021963+00:00",
+  "A": "PASS: 51 tests, compile, lint and scoped diff; exact-one action validation unchanged",
+  "B": "PASS: task/evaluator/assets/VM/pins/vendor files unchanged; GUI-only actions; PAID and production untouched; isolated from concurrent outside-scope workflow",
+  "C": "PASS_FOR_ONE_GATED_GROQ_RUN: fresh authenticated Free account observation, masked association checked against actual workflow key before catalog GET and inference; missing cost remains null with separate zero-cost contract; quota headers and zero SDK retries",
+  "requested_provider": "groq",
+  "requested_model": "qwen/qwen3.8-27b",
+  "coordinate_grid": true,
+  "ZERO_SPEND": true,
+  "HEAVY_LOCAL": 0,
+  "falsifiable_hypothesis": "Native single-tool Groq Qwen transport passes the unchanged image/context/action probe and executes official task 001 without the repeated multi-tool protocol failure seen with Ling. Any failed admission prevents VM.",
+  "previous_run": 34791944984,
+  "previous_official_score": null,
+  "account_association_limit": "Console exposes only masked identifier. Receipt does not claim full-key cryptographic identity or remaining quota.",
+  "account_receipt_source": "https://console.groq.com/settings/billing/plans",
+  "account_receipt_expiry_seconds": 3600,
+  "files_sha256_lf": {
+    "certification/g3-openrouter-free-adapter.py": "15f210c2ee1e92f2f8a6be40fcfbebf5e4f988b3debc7d38cd3143762d6d9d56",
+    "certification/g3_free_control.py": "fe4a6e24538bf48a08ec77b722052b45b4d224e17c3cbcb968bb1bceb1aa5349",
+    "certification/g3_groq_account.py": "53091245ba2ca71e10855dedf85ab635266640c54671a09700c6717288baf680",
+    "tests/test_g3_free_groq_account.py": "311b65df0aef2ea3709dec3ddf16871a7e32f2ed6c70fc4b1cb45ec321e1343b",
+    ".github/workflows/osworld-g3-free-smoke-v1.yml": "a510e47560c9d8dba6c23cd230646b91a836529750abecb7b98004b7e490a189"
+  },
+  "benchmark_sha": "d578d2d4e0dc82b43e270fdaa7fa89d9708cd154"
+}

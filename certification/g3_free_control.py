@@ -84,6 +84,16 @@ def journal_report(path, close_interrupted=False):
     costs_valid = all(r.get('zero_spend') is True and r.get('reported_cost_usd') is not None and
                       Decimal(str(r['reported_cost_usd'])) == 0 and
                       r.get('returned_model') == r.get('requested_model') for r in completed)
+    def proven_free(row):
+        observed = row.get('reported_cost_usd') is not None and Decimal(str(row['reported_cost_usd'])) == 0
+        contract = row.get('account_contract') or {}
+        associated_free = (row.get('zero_spend_basis') == 'AUTHENTICATED_FREE_ACCOUNT' and
+                           row.get('provider_gateway') == 'groq' and contract.get('plan') == 'Free' and
+                           contract.get('association_method') == 'AUTHENTICATED_CONSOLE_MASKED_SUFFIX_MATCH' and
+                           row.get('contractual_cost_usd') == '0' and
+                           bool(contract.get('account_receipt_sha256')))
+        return (row.get('zero_spend') is True and (observed or associated_free) and
+                row.get('returned_model') == row.get('requested_model'))
     return {'accounting_complete': complete, 'started': sum(starts.values()),
             'journal_state': 'RECONCILED' if starts else 'NO_REQUESTS_STARTED',
             'completed': len(completed), 'failed_classified': len(failed),
@@ -91,6 +101,7 @@ def journal_report(path, close_interrupted=False):
             'pending_requests': sum((starts - terminals).values()),
             'observed_completed_calls_zero_cost': costs_valid and bool(completed),
             'all_calls_observed_zero_cost': costs_valid and bool(completed) and not failed,
+            'all_calls_zero_spend_proven': bool(completed) and not failed and all(proven_free(r) for r in completed),
             'zero_spend_contract': all(r.get('zero_spend_contract') is True for r in rows),
             'execution_blocked': any(r.get('terminal_state') == 'BLOCKED' for r in rows),
             'failure_reasons': dict(Counter(r.get('reason') for r in failed))}
@@ -128,10 +139,8 @@ def probe(model, output):
         elif provider == 'groq':
             if model != 'qwen/qwen3.8-27b':
                 raise RuntimeError('G3_FREE_GROQ_MODEL_REQUIRED')
-            record['catalog'] = {'id': model, 'provider': 'groq',
-                                 'account_plan': 'NOT_PROVEN',
-                                 'catalog_checked': False}
-            raise RuntimeError('G3_FREE_GROQ_ACCOUNT_PROOF_REQUIRED')
+            from g3_groq_account import catalog_admission as groq_catalog_admission
+            record['catalog'] = groq_catalog_admission()
         else:
             raise RuntimeError('G3_FREE_PROVIDER_REQUIRED')
         os.environ['ARBM_G3_FREE_MODEL'] = model
@@ -159,7 +168,7 @@ def probe(model, output):
         if not all(checks.values()):
             raise RuntimeError('IMAGE_CONTEXT_GROUNDING_PROBE_FAILED')
         report = journal_report(os.environ['ARBM_G3_USAGE_LOG'])
-        if not report['accounting_complete'] or not report['all_calls_observed_zero_cost']:
+        if not report['accounting_complete'] or not report['all_calls_zero_spend_proven']:
             raise RuntimeError('PROBE_USAGE_NOT_PROVEN')
         record.update(state='PASS', journal=report, action=action, zero_spend=True,
                       capability=['IMAGE', 'TOOL_CALLING', 'CONTEXT', 'LATENCY', 'ZERO_SPEND'])

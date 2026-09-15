@@ -248,11 +248,15 @@ class ArbmG3Agent:
             raise RuntimeError('G3_FREE_PROVIDER_REQUIRED')
         if ((self.provider_gateway == 'groq') != (self.model_id == 'qwen/qwen3.8-27b')):
             raise RuntimeError('G3_FREE_MODEL_PROVIDER_MISMATCH')
+        self._groq_account = None
+        self._groq_quota = {}
+        self._groq_quota_at = 0
+        self._groq_prompt_tokens = 0
+        self._groq_text_chars = 0
         if client is None:
-            # The available account screenshots do not prove the Groq Free plan.
-            # A workflow boolean cannot replace fresh authenticated account proof.
             if self.provider_gateway == 'groq':
-                raise RuntimeError('G3_FREE_GROQ_ACCOUNT_PROOF_REQUIRED')
+                from g3_groq_account import account_contract
+                self._groq_account = account_contract()
             from openai import OpenAI
             if self.provider_gateway == 'groq':
                 key = os.environ.get('GROQ_G3_FREE_CERT_KEY', '').strip()
@@ -352,6 +356,18 @@ class ArbmG3Agent:
 
     def _request(self, messages):
         results = queue.Queue(maxsize=1)
+        if self._groq_account is not None:
+            from g3_groq_account import account_contract, pace_quota
+            self._groq_account = account_contract()
+            text_chars = len(messages[0]['content']) + len(messages[1]['content'][0]['text'])
+            reserve = self._groq_prompt_tokens + 1024 + max(0, text_chars - self._groq_text_chars)
+            delay = pace_quota(self._groq_quota, self._groq_quota_at, reserve)
+            self._context['quota_wait_ms'] = round(delay * 1000, 3)
+            if delay:
+                time.sleep(delay)
+                account_contract()
+            self._groq_text_chars = text_chars
+            self._context['account_contract'] = self._groq_account
 
         def worker():
             try:
@@ -366,7 +382,13 @@ class ArbmG3Agent:
                         'provider': {'allow_fallbacks': False,
                                      'max_price': {'prompt': 0, 'completion': 0}},
                         'reasoning': {'enabled': False}})
-                response = self.client.chat.completions.create(**kwargs)
+                if self._groq_account is not None:
+                    from g3_groq_account import quota_headers
+                    raw = self.client.chat.completions.with_raw_response.create(**kwargs)
+                    response = raw.parse().model_dump()
+                    response['_g3_quota_headers'] = quota_headers(raw.headers)
+                else:
+                    response = self.client.chat.completions.create(**kwargs)
                 results.put((response, None))
             except BaseException as error:
                 results.put((None, error))
@@ -389,15 +411,32 @@ class ArbmG3Agent:
         usage = data.get('usage') or {}
         self._context['usage'] = {k: usage.get(k) for k in (
             'prompt_tokens', 'completion_tokens', 'total_tokens', 'cost')}
-        try:
-            cost = Decimal(str(usage.get('cost')))
-        except InvalidOperation:
-            raise RuntimeError('G3_FREE_COST_NOT_PROVEN') from None
-        if not cost.is_finite() or cost != 0:
-            self._context['zero_spend'] = False
-            raise RuntimeError('G3_FREE_NONZERO_COST')
+        if usage.get('cost') is None and self._groq_account is not None:
+            # Missing API price stays null. Only fresh associated Free account
+            # evidence can establish the zero-spend contract for this transport.
+            from g3_groq_account import account_contract
+            self._context['account_contract'] = account_contract()
+            self._context['reported_cost_usd'] = None
+            self._context['contractual_cost_usd'] = '0'
+            self._context['zero_spend_basis'] = 'AUTHENTICATED_FREE_ACCOUNT'
+        else:
+            try:
+                cost = Decimal(str(usage.get('cost')))
+            except InvalidOperation:
+                raise RuntimeError('G3_FREE_COST_NOT_PROVEN') from None
+            if not cost.is_finite() or cost != 0:
+                self._context['zero_spend'] = False
+                raise RuntimeError('G3_FREE_NONZERO_COST')
+            self._context['reported_cost_usd'] = str(cost)
+            self._context['zero_spend_basis'] = 'PROVIDER_REPORTED_COST'
         self._context['zero_spend'] = True
-        self._context['reported_cost_usd'] = str(cost)
+        if self._groq_account is not None:
+            self._groq_quota = data.pop('_g3_quota_headers', {})
+            self._groq_quota_at = time.monotonic()
+            self._groq_prompt_tokens = usage.get('prompt_tokens') or 0
+            self._context['quota_headers'] = self._groq_quota
+            if not self._groq_quota or type(usage.get('prompt_tokens')) is not int:
+                raise RuntimeError('G3_FREE_GROQ_QUOTA_NOT_PROVEN')
         choices = data.get('choices') or []
         self._context['response_sha256'] = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
         if len(choices) != 1:
@@ -472,7 +511,9 @@ class ArbmG3Agent:
                 self._context.update(reason=fatal, action_status='REJECTED', terminal_state='BLOCKED')
                 self._context.update(provider_error_details(error))
             finally:
-                self._context['latency_ms'] = round((time.monotonic() - started) * 1000, 3)
+                wall_ms = (time.monotonic() - started) * 1000
+                self._context['call_wall_latency_ms'] = round(wall_ms, 3)
+                self._context['latency_ms'] = round(wall_ms - self._context.get('quota_wait_ms', 0), 3)
                 if retry_reason and retry == 2:
                     self._context['terminal_state'] = 'BLOCKED'
                 if accepted and accepted[0]['action'] in ('done', 'infeasible'):
