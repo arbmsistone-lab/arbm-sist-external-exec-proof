@@ -238,6 +238,35 @@ def editable_text_values(tree):
     return values
 
 
+
+
+def dialog_control(tree, dialog_name, label, role=None):
+    root = _xml_root(tree)
+    if root is None:
+        return None
+    for dialog in root.iter():
+        if dialog.tag.rsplit('}', 1)[-1] != 'dialog':
+            continue
+        if (dialog.attrib.get('name') or '').strip().casefold() != dialog_name.casefold():
+            continue
+        if _state(dialog, 'active') != 'true':
+            continue
+        hits=[]
+        for node in dialog.iter():
+            tag=node.tag.rsplit('}',1)[-1]
+            name=(node.attrib.get('name') or '').replace('\u200b','').strip()
+            if name.casefold()!=label.casefold() or (role and tag.casefold()!=role.casefold()):
+                continue
+            coord=next((v for k,v in node.attrib.items() if k.endswith('}screencoord') or k=='cp:screencoord'),'')
+            size=next((v for k,v in node.attrib.items() if k.endswith('}size') or k=='cp:size'),'')
+            xy=re.findall(r'-?\d+',coord); wh=re.findall(r'\d+',size)
+            if len(xy)==2 and len(wh)==2:
+                x,y=map(int,xy); w,h=map(int,wh)
+                hits.append({'x':x,'y':y,'w':w,'h':h,'cx':x+w//2,'cy':y+h//2})
+        if len(hits)==1:
+            return hits[0]
+    return None
+
 def export_alert_name(tree):
     low = str(tree or '')
     m = re.search(r'A file named &quot;([^&]+)&quot; already exists', low)
@@ -277,11 +306,9 @@ def prove_export_via_gui(env, obs, evidence):
                 raise RuntimeError('ORIGINAL_OVERWRITE_ATTEMPT_BLOCKED')
             if alert.casefold()==OUTPUT.casefold():
                 raise RuntimeError('OUTPUT_PREEXISTED_PROVENANCE_UNSAFE')
-        if has(tree,'Export Image as JPEG','dialog'):
-            # The JPEG modal overlays the parent Export dialog, so two buttons share
-            # the label 'Export'. Use the active modal accelerator instead of a
-            # globally ambiguous accessibility target.
-            obs=step(env,"pyautogui.hotkey('alt','e')",2)
+        jpeg_export=dialog_control(tree,'Export Image as JPEG','Export','push-button')
+        if jpeg_export:
+            obs=step(env,f"pyautogui.click({jpeg_export['cx']}, {jpeg_export['cy']})",2)
             continue
         export_dialog = has(tree,'Export Image','dialog') or has(tree,'Export Image as JPEG','dialog')
         if gimp_visible(tree) and not export_dialog:

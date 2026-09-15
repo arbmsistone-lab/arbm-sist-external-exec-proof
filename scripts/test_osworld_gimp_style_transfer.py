@@ -101,6 +101,20 @@ class GimpStyleTransferTests(unittest.TestCase):
         self.assertEqual(a['specialist_phase'], 'export-submit')
         self.assertEqual(a['target']['label'], 'Export')
 
+
+    def test_jpeg_confirm_uses_button_inside_dialog_not_global_accelerator(self):
+        target = frame('[IMG_7318_original] (imported)-1.0 - GIMP')
+        obs = (target + '\ndialog\tExport Image as JPEG\tExport Image as JPEG\tx\tx\t(992, 413)\t(314, 547)\n'
+               'push-button\tExport\tExport\tx\tx\t(1209, 915)\t(85, 33)\n'
+               'push-button\tExport\tExport\tx\tx\t(1551, 1030)\t(85, 33)')
+        state = {'sample_loaded': True, 'owned': True, 'colorize_closed': True,
+                 'export_open_requested': True, 'export_name_requested': True,
+                 'export_name_typed': True, 'export_submitted': True}
+        a = next_recovery_action(TASK, APP, obs, state)
+        self.assertEqual(a['specialist_phase'], 'export-confirm')
+        self.assertEqual(a['command'], 'pyautogui.click(1251, 931)')
+        self.assertNotIn('hotkey', a['command'])
+
     def test_original_overwrite_modal_is_cancelled_fail_closed(self):
         target = frame('[IMG_7318_original] (imported)-1.0 - GIMP')
         obs = (target + '\ndialog\tExport Image\tExport Image\tx\n'

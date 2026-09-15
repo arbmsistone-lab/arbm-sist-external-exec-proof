@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import os
+import re
 from pathlib import Path
 from osworld_evidence import seal, verify
 from osworld_judge_audit import audit_judgements
@@ -40,9 +41,17 @@ def audit_task(root, task, sha):
     if task == '061':
         runtime=value('osworld.log')
         first_fallback=min([i for i in (runtime.find('After darktable export'),runtime.find('After GIMP export')) if i>=0] or [len(runtime)])
-        first_agent_proof=runtime.find('found_edited_photo=1')
-        if first_agent_proof < 0 or first_agent_proof > first_fallback:
+        proofs=list(re.finditer(r'found_edited_photo=1 \(path=([^\)]+)\)', runtime))
+        if not proofs:
             raise ValueError('AGENT_OUTPUT_PROVENANCE_UNPROVEN')
+        if len(proofs) != 1:
+            raise ValueError('AGENT_OUTPUT_PROVENANCE_COUNT')
+        first_agent_proof=proofs[0].start()
+        proof_path=proofs[0].group(1).strip()
+        if first_agent_proof > first_fallback or not proof_path.endswith('/IMG_7318_edited.jpg'):
+            raise ValueError('AGENT_OUTPUT_PROVENANCE_UNPROVEN')
+        if 'Successfully saved file:' not in runtime[:first_fallback] and 'File downloaded successfully' not in runtime[:first_fallback]:
+            raise ValueError('AGENT_OUTPUT_BYTES_DOWNLOAD_UNPROVEN')
     summaries = list(root.glob('results/**/results.json'))
     if len(summaries) != 1: raise ValueError('OFFICIAL_SUMMARY_COUNT')
     summary = json.loads(summaries[0].read_text())

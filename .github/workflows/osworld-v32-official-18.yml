@@ -34,6 +34,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - run: python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
       - run: python -m unittest discover -s scripts -p 'test_osworld_*.py'
+      - name: Enforce task 061 twenty-point blind-spot audit
+        run: python scripts/osworld_061_blindspot_audit.py
       - run: node scripts/test_endpoint.mjs
       - run: git diff --check
       - name: Fetch real recorded observation for provider admission

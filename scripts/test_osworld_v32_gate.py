@@ -21,7 +21,7 @@ class OfficialGateTests(unittest.TestCase):
         d = self.root / ('task-' + task); d.mkdir()
         values = {'task-id.txt':task, 'candidate-sha.txt':'test-sha', 'release.txt':PINS['release'],
             'max-steps.txt':'500', 'task-rc.txt':'0', 'zero-spend-mode.txt':'HARD',
-            'runner-environment.txt':'github-hosted', 'osworld.log':('found_edited_photo=1 (path=agent-output)' if task=='061' else 'unit fixture; not benchmark evidence'),
+            'runner-environment.txt':'github-hosted', 'osworld.log':('File downloaded successfully\nfound_edited_photo=1 (path=/home/user/Pictures/IMG_7318_edited.jpg)' if task=='061' else 'unit fixture; not benchmark evidence'),
             'shim-runtime.log':'unit fixture', 'pins.json':json.dumps(PINS),
             'evaluator-integrity.json':json.dumps({'task.py':{'before':'hash','after':'hash'}}),
             'shim.jsonl':json.dumps({'commit':'test-sha','task_id':task,'http':200,'mandatory_cost_usd':0,

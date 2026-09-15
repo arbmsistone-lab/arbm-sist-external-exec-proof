@@ -71,6 +71,24 @@ def _click(label, role, plan, visible_text, double=False, checkpoint=True, phase
                    {'source': 'accessibility', 'label': label, 'role': role}, checkpoint, phase)
 
 
+
+
+def _dialog_button(obs, dialog_name, button_name):
+    lines=str(obs or '').splitlines()
+    inside=False
+    for line in lines:
+        cols=line.split('\t')
+        if len(cols)>=2 and cols[0].strip().casefold()=='dialog':
+            inside=cols[1].replace('\u200b','').strip().casefold()==dialog_name.casefold()
+            continue
+        if inside and len(cols)>=7 and cols[0].strip().casefold()=='push-button' and cols[1].replace('\u200b','').strip().casefold()==button_name.casefold():
+            import re
+            xy=re.findall(r'-?\d+',cols[-2]); wh=re.findall(r'\d+',cols[-1])
+            if len(xy)==2 and len(wh)==2:
+                x,y=map(int,xy); w,h=map(int,wh)
+                return x+w//2,y+h//2
+    return None
+
 def next_recovery_action(instruction, active_application, observation, state):
     """Return one grounded GUI action, or None when evidence is insufficient."""
     task = parse_reference_pair_task(instruction)
@@ -146,8 +164,12 @@ def next_recovery_action(instruction, active_application, observation, state):
             return _click('Export', 'push-button', 'Submit the exact output filename.',
                           'Export Image as JPEG', checkpoint=False, phase='export-submit')
         if state.get('export_submitted') and 'export image as jpeg' in low:
-            return _action("pyautogui.hotkey('alt','e')",
+            point=_dialog_button(obs,'Export Image as JPEG','Export')
+            if not point:
+                return None
+            return _action('pyautogui.click(%d, %d)' % point,
                            'Confirm JPEG export options in the active modal.', task['output'],
+                           {'source':'screenshot','label':'Export Image as JPEG / Export'},
                            checkpoint=False, phase='export-confirm')
         if state.get('export_confirmed') and task['output'].casefold() in obs.casefold():
             return {'action':'finish','command':'','plan':'Finish after visible export confirmation.',
