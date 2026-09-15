@@ -103,7 +103,15 @@ def chooser_ready(tree):
     return has(tree, SAMPLE, 'table-cell') and has(tree, 'Open', 'push-button')
 
 
-def wait_for_target(env, obs, evidence, prefix, limit=12):
+def gimp_visible(tree):
+    low = str(tree or '').casefold()
+    return 'gnu image manipulation program' in low or '<application name="gimp' in low
+
+
+def wait_for_target(env, obs, evidence, prefix, limit=24):
+    launched = False
+    target_open_requested = False
+    location_attempted = False
     for i in range(limit):
         tree = save_obs(evidence, f'{prefix}-{i:02d}', obs)
         if profile_modal(tree):
@@ -111,6 +119,25 @@ def wait_for_target(env, obs, evidence, prefix, limit=12):
             continue
         if target_loaded(tree):
             return obs
+        if not gimp_visible(tree):
+            if not launched:
+                obs = step(env, "pyautogui.press('win'); pyautogui.sleep(0.5); pyautogui.write('gimp', interval=0.05); pyautogui.sleep(0.5); pyautogui.press('enter')", 2)
+                launched = True
+                continue
+            obs = idle(env, 1)
+            continue
+        if not target_open_requested:
+            obs = step(env, "pyautogui.hotkey('ctrl', 'o')", 1)
+            target_open_requested = True
+            continue
+        if has(tree, TARGET, 'table-cell') and has(tree, 'Open', 'push-button'):
+            obs = click(env, obs, TARGET, 'table-cell')
+            obs = click(env, obs, 'Open', 'push-button', 2)
+            continue
+        if has(tree, 'Open', 'push-button') and not location_attempted:
+            obs = step(env, "pyautogui.hotkey('ctrl', 'l'); pyautogui.write('~/Pictures/' + TARGET, interval=0.03); pyautogui.press('enter')", 2)
+            location_attempted = True
+            continue
         obs = idle(env, 1)
     raise RuntimeError('TARGET_GIMP_STATE_NOT_READY')
 
