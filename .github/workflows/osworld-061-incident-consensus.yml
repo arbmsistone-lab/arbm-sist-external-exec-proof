@@ -1,27 +1,26 @@
 name: OSWorld 061 incident consensus
 on:
-  push:
-    branches: [chatgpt/arbm-agent-elite-v2-20260914]
-    paths:
-      - .github/workflows/osworld-061-incident-consensus.yml
-      - scripts/osworld_incident_consensus.py
   workflow_dispatch:
     inputs:
-      run_id:
-        description: Workflow run to audit
+      candidate_sha:
+        description: Exact candidate SHA to audit
         required: true
-        default: '34882204601'
+        default: 'c4137974f01c3b14208a07a7e8f216daf81a02c7'
+      run_id:
+        description: Failed official focal run to use as incident evidence
+        required: true
+        default: '35042215104'
       artifact_name:
-        description: Evidence artifact name
+        description: Official shard evidence artifact
         required: true
         default: 'osworld-v32-official18-B'
 permissions:
   actions: read
   contents: read
 jobs:
-  consensus:
+  supreme-audit:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 55
     env:
       ZERO_SPEND_MODE: HARD
       ARBM_ENABLE_LOCAL_VLM: '1'
@@ -29,27 +28,44 @@ jobs:
       GROQ_API_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Download failed 061 evidence
+        with:
+          ref: ${{ inputs.candidate_sha }}
+      - name: Prove exact candidate checkout
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ inputs.candidate_sha }}"
+          test "$ZERO_SPEND_MODE" = HARD
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+      - name: Download failed focal evidence
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
-          name: ${{ inputs.artifact_name || 'osworld-v32-official18-B' }}
-          run-id: ${{ inputs.run_id || '34882204601' }}
+          name: ${{ inputs.artifact_name }}
+          run-id: ${{ inputs.run_id }}
           github-token: ${{ github.token }}
           path: incident-evidence
-      - name: Install pinned audit runtime
+      - name: Install pinned FREE audit runtime
         run: |
+          set -euo pipefail
           python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
           python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
-      - name: Run independent FREE incident consensus
-        run: |
-          ROOT=incident-evidence
-          test -d "$ROOT"
-          python scripts/osworld_incident_consensus.py "$ROOT"
-      - name: Preserve consensus evidence
+      - name: Preserve historical five-model consensus result
+        continue-on-error: true
+        run: python scripts/osworld_incident_consensus.py incident-evidence
+      - name: Run 500 senior deterministic adversarial perspectives
+        run: python scripts/osworld_061_champion_audit.py
+      - name: Run 10 robotic specialists
+        run: python scripts/osworld_061_specialist_swarm.py incident-evidence
+      - name: Run 20 final 3D audits
+        run: python scripts/osworld_061_3d_audit.py incident-evidence
+      - name: Preserve supreme audit evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: osworld-061-incident-consensus
-          path: osworld-v32-incident-consensus.json
+          name: osworld-061-supreme-audit
+          path: |
+            osworld-v32-incident-consensus.json
+            osworld-061-champion-audit.json
+            osworld-061-specialist-swarm.json
+            osworld-061-final-3d-audit.json
           if-no-files-found: warn
           retention-days: 90
