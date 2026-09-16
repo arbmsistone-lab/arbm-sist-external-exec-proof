@@ -34,6 +34,8 @@ The INCIDENT EVIDENCE is historical and describes a failed older SHA. The
 CURRENT CANDIDATE CONTRACT is newer source code intended to fix that incident.
 Do not veto merely because the historical incident failed. Veto only when the
 current source excerpts still leave a specific causal gap or regression.
+This is a pre-focal source audit: runtime proof belongs in required_proofs;
+absence of runtime proof alone is not a source-level veto.
 Return exactly one compact JSON object with keys: role, verdict,
 root_cause_class, causal_chain, definitive_fix, regression_risks,
 required_proofs, confidence, veto. verdict is PASS_FIX, REJECT_FIX, or
@@ -54,12 +56,14 @@ def _function_source(path, name, limit):
 
 def current_contract():
     parts=[
-      _function_source('scripts/osworld_061_calibrated_grade.py','next_calibrated_action',1800),
-      _function_source('scripts/osworld_free_mesh_shim.py','try_061_calibrated',1500),
-      _function_source('scripts/osworld_free_mesh_shim.py','_ack_gimp_pending',1500),
-      _function_source('scripts/osworld_free_mesh_shim.py','try_gimp_specialist',1800),
+      _function_source('scripts/osworld_061_calibrated_grade.py','_guest_script',3400),
+      _function_source('scripts/osworld_061_calibrated_grade.py','next_calibrated_action',3600),
+      _function_source('scripts/osworld_free_mesh_shim.py','try_061_calibrated',1600),
+      _function_source('scripts/osworld_free_mesh_shim.py','_ack_gimp_pending',2200),
+      _function_source('scripts/osworld_gimp_style_transfer.py','next_recovery_action',8000),
+      _function_source('scripts/osworld_free_mesh_shim.py','try_gimp_specialist',2200),
     ]
-    return '\n\n'.join(x for x in parts if x)[:6000]
+    return '\n\n'.join(x for x in parts if x)[:18000]
 
 def role_prompt(name, brief, contract):
     return (BASE_SYSTEM+f'\nROLE={name}\nSPECIALTY={brief}\n'

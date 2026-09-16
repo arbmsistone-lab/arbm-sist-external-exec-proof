@@ -17,10 +17,13 @@ class SpecialistSwarmTests(unittest.TestCase):
 
     def test_current_contract_is_compact_and_transactional(self):
         contract=swarm.current_contract()
-        self.assertLessEqual(len(contract),6000)
+        self.assertLessEqual(len(contract),18000)
         self.assertIn('def try_061_calibrated',contract)
         self.assertIn("TASK_ID') != '061'",contract)
         self.assertIn('def _ack_gimp_pending',contract)
+        self.assertIn('def next_recovery_action',contract)
+        self.assertIn('ARBM061_DONE',contract)
+        self.assertIn('Export Image as JPEG',contract)
 
     def test_historical_evidence_not_duplicated_in_system_prompt(self):
         contract=swarm.current_contract(); evidence='OLD_FAILURE_UNIQUE_TOKEN'
