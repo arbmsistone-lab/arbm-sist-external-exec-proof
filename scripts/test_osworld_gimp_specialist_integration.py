@@ -136,5 +136,13 @@ class GimpSpecialistIntegrationTests(unittest.TestCase):
             self.assertEqual(shim.try_gimp_specialist(self.body(),obs,obs),'DONE')
 
 
+    def test_calibrated_route_is_task061_scoped(self):
+        from unittest.mock import patch
+        obs=frame('[IMG_7318_original] (imported)-1.0 - GIMP')
+        with patch.dict('os.environ', {'TASK_ID':'019'}):
+            self.assertIsNone(shim.try_061_calibrated(self.body(),obs,obs))
+
+
+
 if __name__ == '__main__':
     unittest.main()

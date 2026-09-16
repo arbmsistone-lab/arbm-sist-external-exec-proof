@@ -209,7 +209,9 @@ def request_mesh(body):
                 'mandatory_cost_usd':0,'paid_fallback_used':False}
 
 def try_061_calibrated(body, obs, focused_obs):
-    """Run a reference-pair calibrated route inside the remote guest."""
+    """Run the generic reference-pair calibrator only for official task 061."""
+    if os.environ.get('TASK_ID') not in (None, '', '061'):
+        return None
     state=STATE.setdefault('grade061',{})
     candidate=next_calibrated_action(body.get('instruction',''),body.get('active_application','unknown'),focused_obs,state)
     if not candidate:
