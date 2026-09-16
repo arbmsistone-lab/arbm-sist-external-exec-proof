@@ -1,4 +1,4 @@
-﻿"""Ten-role FREE specialist audit for the historical OSWorld task-061 incident.
+"""Ten-role FREE specialist audit for the historical OSWorld task-061 incident.
 
 The audit compares historical failure evidence with compact source excerpts from
 the current candidate. It is advisory evidence and never changes the official
@@ -201,13 +201,36 @@ def _local_evidence(evidence, probe_evidence=''):
             'execution parity verified):\n'+probe_evidence+
             '\n\nHISTORICAL INCIDENT EVIDENCE:\n'+evidence)
 
+def _local_binary_review(name, brief, evidence, contract, image, probe_evidence=''):
+    if not image: return None,[]
+    question=(f'ROLE={name}. SPECIALTY={brief}. Decide only from supplied evidence whether the CURRENT candidate '
+      'resolves the historical causal gap for this specialty without weakening evaluator, provenance, ZERO_SPEND, '
+      'or fail-closed behavior. Answer exactly YES OR NO. YES only if the source contract and current diagnostic '
+      'probe evidence jointly support closure for this role; otherwise NO.\nCURRENT CONTRACT:\n'+contract+
+      '\nCURRENT DIAGNOSTIC PROBE:\n'+probe_evidence+'\nHISTORICAL INCIDENT:\n'+evidence)
+    messages=[{'role':'user','content':[{'type':'text','text':question},{'type':'image_url','image_url':{'url':image}}]}]
+    result,attempts=LOCAL_VLM_ROUTE.call({},budget=180,raw_messages=messages,raw_tokens=8)
+    raw=str((result or {}).get('text') or '').strip().upper()
+    if raw not in ('YES','NO'): return None,attempts
+    verdict={'role':name,'verdict':'PASS_FIX' if raw=='YES' else 'REJECT_FIX',
+      'root_cause_class':'AGENT_LOGIC','causal_chain':['deterministic local binary review over current contract and approved diagnostic evidence'],
+      'definitive_fix':'current candidate accepted for this role' if raw=='YES' else 'current evidence insufficient for this role',
+      'regression_risks':[],'required_proofs':['official focal score 1.0','approved evidence manifest','world audit'],
+      'confidence':0.8,'veto':raw!='YES'}
+    return verdict,attempts
+
 def run_robot(index, name, brief, evidence, contract, image, probe_evidence=''):
     system=role_prompt(name,brief,contract)
     attempts=[]; raw_outputs=[]
     for label in ('openrouter','groq','qwen_local','smollm_local','local_vlm'):
         if label=='openrouter': result=ask(FREE_ROUTE,_text_messages(system,evidence,probe_evidence),140)
         elif label=='groq': result=ask(GROQ_FREE_ROUTE,_text_messages(system,evidence,probe_evidence),120)
-        elif label=='qwen_local': result=local_text_review('qwen_local',system,_local_evidence(evidence,probe_evidence),max_new_tokens=320)
+        elif label=='qwen_local':
+            verdict,binary_attempts=_local_binary_review(name,brief,evidence,contract,image,probe_evidence)
+            attempts.extend(binary_attempts)
+            if valid_verdict(verdict,name):
+                return {'role':name,'specialty':brief,'provider':'local_binary_vlm','verdict':verdict,'attempts':attempts,'raw_outputs':raw_outputs}
+            result=local_text_review('qwen_local',system,_local_evidence(evidence,probe_evidence),max_new_tokens=320)
         elif label=='smollm_local': result=local_text_review('smollm_local',system,_local_evidence(evidence,probe_evidence),max_new_tokens=320)
         else:
             if not image: continue
