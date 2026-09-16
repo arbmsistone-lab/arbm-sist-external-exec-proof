@@ -84,6 +84,13 @@ class GimpSpecialistIntegrationTests(unittest.TestCase):
         self.assertEqual(shim.try_gimp_specialist(self.body(), obs, obs), 'WAIT')
         self.assertEqual(shim.STATE['gimp_specialist']['uncertain_turns'], 1)
 
+    def test_owned_specialist_never_falls_through_after_repeated_uncertainty(self):
+        shim.STATE['gimp_specialist'] = {'sample_loaded': True, 'owned': True}
+        obs = 'label\tTransient GIMP state\tx'
+        for _ in range(6):
+            self.assertEqual(shim.try_gimp_specialist(self.body(), obs, obs), 'WAIT')
+        self.assertEqual(shim.STATE['gimp_specialist']['uncertain_turns'], 6)
+
 
 if __name__ == '__main__':
     unittest.main()

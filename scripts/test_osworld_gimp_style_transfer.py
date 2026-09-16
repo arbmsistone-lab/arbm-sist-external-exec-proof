@@ -69,10 +69,10 @@ class GimpStyleTransferTests(unittest.TestCase):
         a = next_recovery_action(TASK, APP, obs, state)
         self.assertEqual(a['target']['label'], 'Use subcolors')
         state['use_subcolors_enabled'] = True
-        self.assertEqual(next_recovery_action(TASK, APP, obs, state)['target']['label'], 'Hold intensity')
-        state['hold_intensity_disabled'] = True
         self.assertEqual(next_recovery_action(TASK, APP, obs, state)['target']['label'], 'Original intensity')
         state['original_intensity_disabled'] = True
+        self.assertEqual(next_recovery_action(TASK, APP, obs, state)['target']['label'], 'Hold intensity')
+        state['hold_intensity_disabled'] = True
         self.assertEqual(next_recovery_action(TASK, APP, obs, state)['target']['label'], 'Get Sample Colors')
         state['sample_colors_requested'] = True
         self.assertEqual(next_recovery_action(TASK, APP, obs, state)['target']['label'], 'Apply')
@@ -160,6 +160,19 @@ class GimpStyleTransferTests(unittest.TestCase):
         a = next_recovery_action(TASK, APP, obs, state)
         self.assertEqual(a['specialist_phase'], 'export-original-overwrite-cancel')
         self.assertEqual(a['target']['label'], 'Cancel')
+
+    def test_missing_original_control_uses_bounded_dialog_accelerator(self):
+        obs = (frame('[IMG_7318_original] (imported)-1.0 - GIMP') + '\n'
+               'push-button\tGet Sample Colors\tGet Sample Colors\tx\tx\t(921,722)\t(148,33)\n'
+               'push-button\tApply\tApply\tx\tx\t(1229,722)\t(148,33)\n'
+               'push-button\tClose\tClose\tx\tx\t(1075,722)\t(148,33)\n'
+               'check-box\tUse subcolors\tUse subcolors\tx\tx\t(1026,665)\t(118,21)\n'
+               'check-box\tHold intensity\tHold intensity\tx\tx\t(613,665)\t(117,21)')
+        state = {'sample_loaded': True, 'owned': True, 'use_subcolors_enabled': True}
+        a = next_recovery_action(TASK, APP, obs, state)
+        self.assertEqual(a['specialist_phase'], 'disable-original-intensity')
+        self.assertEqual(a['command'], "pyautogui.hotkey('alt', 'n')")
+        self.assertNotIn('target', a)
 
 
 if __name__ == '__main__':

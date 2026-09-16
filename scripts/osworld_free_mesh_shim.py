@@ -217,15 +217,23 @@ def try_gimp_specialist(body, obs, focused_obs):
             log_event({'status':'GIMP_SPECIALIST_COLORIZE_PROCESSING_HOLD'})
             return 'WAIT'
         if specialist_state.get('owned'):
+            # Champion ownership is fail-closed: once task 061 enters the
+            # specialist transaction, an uncertain intermediate state can
+            # never fall through to a generic provider that may skip phases.
             specialist_state['uncertain_turns']=specialist_state.get('uncertain_turns',0)+1
-            log_event({'status':'GIMP_SPECIALIST_HOLD','uncertain_turns':specialist_state['uncertain_turns']})
-            if specialist_state['uncertain_turns']<=2:return 'WAIT'
+            log_event({'status':'GIMP_SPECIALIST_OWNERSHIP_HOLD','uncertain_turns':specialist_state['uncertain_turns']})
+            return 'WAIT'
         return None
     try:
         action=ground_action(candidate,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
         decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
     except ValueError as exc:
         log_event({'status':'GIMP_SPECIALIST_POLICY_REJECTED','reason':str(exc),'action':candidate})
+        if specialist_state.get('owned'):
+            specialist_state['policy_holds']=specialist_state.get('policy_holds',0)+1
+            log_event({'status':'GIMP_SPECIALIST_POLICY_HOLD','reason':str(exc),
+                       'policy_holds':specialist_state['policy_holds']})
+            return 'WAIT'
         return None
     if action.get('action')=='finish':
         if decision.get('kind')==DecisionKind.FINISH_CANDIDATE.value and MILESTONES.verified and MILESTONES.stalled==0 and VERIFIER.can_finish(action,obs):

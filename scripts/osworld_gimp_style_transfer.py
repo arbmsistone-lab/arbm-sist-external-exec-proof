@@ -1,5 +1,6 @@
 """Fail-closed GUI recovery for reference-pair color/style transfer in GIMP."""
 import re
+from osworld_061_champion import LABELS, ROLES, ACCELERATORS, accelerator_command
 
 _IMAGE = re.compile(r'([A-Za-z0-9_.-]+\.(?:jpg|jpeg|png|webp))', re.I)
 
@@ -71,6 +72,20 @@ def _click(label, role, plan, visible_text, double=False, checkpoint=True, phase
                    {'source': 'accessibility', 'label': label, 'role': role}, checkpoint, phase)
 
 
+def _sample_colorize_dialog(obs):
+    return all(_has(obs, label, 'push-button') for label in ('Get Sample Colors', 'Apply', 'Close'))
+
+
+def _champion_phase(obs, phase, plan, visible_text):
+    label, role = LABELS[phase], ROLES[phase]
+    if _has(obs, label, role):
+        return _click(label, role, plan, visible_text, checkpoint=False, phase=phase)
+    if _sample_colorize_dialog(obs) and phase in ACCELERATORS:
+        return _action(accelerator_command(phase), plan + ' Use the dialog accelerator because the named control is temporarily absent from accessibility.',
+                       visible_text, checkpoint=False, phase=phase)
+    return None
+
+
 
 
 def _dialog_button(obs, dialog_name, button_name):
@@ -134,25 +149,23 @@ def next_recovery_action(instruction, active_application, observation, state):
         if state.get('colorize_closed'):
             return None
         if not state.get('use_subcolors_enabled'):
-            return _click('Use subcolors', 'check-box',
-                          'Enable mixed subcolors for a fuller reference color transfer.',
-                          'Sample Colorize', checkpoint=False, phase='enable-subcolors')
-        if not state.get('hold_intensity_disabled'):
-            return _click('Hold intensity', 'check-box',
-                          'Allow the reference grading to change destination average intensity.',
-                          'Sample Colorize', checkpoint=False, phase='disable-hold-intensity')
+            return _champion_phase(obs, 'enable-subcolors',
+                                   'Enable mixed subcolors for a fuller reference color transfer.', 'Sample Colorize')
+        # Original intensity must be disabled BEFORE Hold intensity. In the
+        # official VM, disabling Hold intensity can make Original intensity
+        # disappear from the simplified accessibility tree.
         if not state.get('original_intensity_disabled'):
-            return _click('Original intensity', 'check-box',
-                          'Allow transferred grading to alter original destination intensity.',
-                          'Sample Colorize', checkpoint=False, phase='disable-original-intensity')
+            return _champion_phase(obs, 'disable-original-intensity',
+                                   'Allow transferred grading to alter original destination intensity.', 'Sample Colorize')
+        if not state.get('hold_intensity_disabled'):
+            return _champion_phase(obs, 'disable-hold-intensity',
+                                   'Allow the reference grading to change destination average intensity.', 'Sample Colorize')
         if not state.get('sample_colors_requested'):
-            return _click('Get Sample Colors', 'push-button',
-                          'Load the visible edited reference colors into Sample Colorize.',
-                          'Sample Colorize', checkpoint=False, phase='sample-colors')
+            return _champion_phase(obs, 'sample-colors',
+                                   'Load the visible edited reference colors into Sample Colorize.', 'Sample Colorize')
         if not state.get('colorize_applied'):
-            return _click('Apply', 'push-button',
-                          'Apply the sampled color mapping to the destination image.',
-                          'Sample Colorize', checkpoint=False, phase='apply-colorize')
+            return _champion_phase(obs, 'apply-colorize',
+                                   'Apply the sampled color mapping to the destination image.', 'Sample Colorize')
         # The official 061 VM exposes a bottom Cancel button while GEGL is still
         # remapping colors. Handing control to the generic agent here caused it
         # to click that Cancel button and abort the actual transformation.

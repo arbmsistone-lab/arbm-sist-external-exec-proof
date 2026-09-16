@@ -36,6 +36,8 @@ jobs:
       - run: python -m unittest discover -s scripts -p 'test_osworld_*.py'
       - name: Enforce task 061 twenty-point blind-spot audit
         run: python scripts/osworld_061_blindspot_audit.py
+      - name: Enforce task 061 champion 500+100 adversarial audit
+        run: python scripts/osworld_061_champion_audit.py
       - run: node scripts/test_endpoint.mjs
       - run: git diff --check
       - name: Fetch real recorded observation for provider admission
