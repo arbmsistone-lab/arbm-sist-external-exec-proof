@@ -38,7 +38,7 @@ core=[
  ('C18_ownership_regression_test', 'test_owned_specialist_never_falls_through_after_repeated_uncertainty' in test_integ),
  ('C19_official_gate_unchanged_semantics', 'OFFICIAL_SCORE_GATE' in gate and 'OFFICIAL_RESULT_COUNT_OR_ID' in gate),
  ('C20_champion_audit_wired', 'osworld_061_champion_audit.py' in workflow),
- ('C21_generic_calibrator_task061_scoped', 'parse_reference_pair_task(instruction)' in cal and 'IMG_7328_original.jpg' not in cal and "os.environ.get('TASK_ID') not in (None, '', '061')" in shim),
+ ('C21_generic_calibrator_task061_scoped', 'parse_reference_pair_task(instruction)' in cal and 'IMG_7328_original.jpg' not in cal and "os.environ.get('TASK_ID') != '061'" in shim),
  ('C22_reference_holdout_gate', 'idx%5!=0' in cal and 'rmse>20' in cal),
  ('C23_specialist_action_canonical', "'status':'ACTION_ISSUED'" in shim and 'reference-pair-calibrated' in shim and 'gimp-style-specialist' in shim),
  ('C24_generic_output_postcondition', "state['output_name']" in style and "state.get('output_name')" in shim),

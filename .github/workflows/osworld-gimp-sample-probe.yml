@@ -8,6 +8,8 @@ on:
       - scripts/osworld_061_calibrated_grade.py
       - scripts/osworld_061_calibrated_probe.py
       - scripts/osworld_local_vlm.py
+      - scripts/osworld_free_mesh_shim.py
+      - scripts/osworld_gimp_style_transfer.py
 permissions:
   contents: read
 concurrency:

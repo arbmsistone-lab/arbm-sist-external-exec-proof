@@ -142,6 +142,12 @@ class GimpSpecialistIntegrationTests(unittest.TestCase):
         with patch.dict('os.environ', {'TASK_ID':'019'}):
             self.assertIsNone(shim.try_061_calibrated(self.body(),obs,obs))
 
+        with patch.dict('os.environ', {}, clear=True):
+            self.assertIsNone(shim.try_061_calibrated(self.body(),obs,obs))
+        with patch.dict('os.environ', {'TASK_ID':'061'}):
+            result=shim.try_061_calibrated(self.body(),obs,obs)
+            self.assertIn('pyautogui',result)
+
 
 
 if __name__ == '__main__':
