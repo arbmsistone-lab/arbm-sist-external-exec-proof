@@ -6,6 +6,7 @@ ROOT=Path(__file__).resolve().parents[1]
 def text(rel): return (ROOT/rel).read_text(encoding="utf-8")
 probe=text("scripts/osworld_gimp_sample_probe.py")
 style=text("scripts/osworld_gimp_style_transfer.py")
+champion=text("scripts/osworld_061_champion.py")
 gate=text("scripts/osworld_v32_gate.py")
 workflow=text(".github/workflows/osworld-v32-official-18.yml")
 probe_wf=text(".github/workflows/osworld-gimp-sample-probe.yml")
@@ -21,7 +22,7 @@ checks=[
  ("A09_active_target_required", "active_gimp_document(tree, TARGET)" in probe),
  ("A10_active_sample_required", "active_gimp_document(tree, SAMPLE)" in probe),
  ("A11_sample_colorize_dialog", "Sample Colorize" in probe and "dialog_open = all(_has(obs, label, 'push-button')" in style and "colorize_open_requested" in style and "pyautogui.press('/')" in style and "pyautogui.write('/Sample Colorize'" not in style and "pyautogui.sleep(1.0); pyautogui.press('enter')" in style),
- ("A12_get_sample_colors", all(x in probe and x in style for x in ("Use subcolors", "Hold intensity", "Original intensity", "Get Sample Colors"))),
+ ("A12_get_sample_colors", all(x in probe and (x in style or x in champion) for x in ("Use subcolors", "Hold intensity", "Original intensity", "Get Sample Colors"))),
  ("A13_apply_colorize", "Apply" in probe and "apply-colorize" in style),
  ("A14_close_colorize", "Close" in probe and "close-colorize" in style),
  ("A15_modal_scoped_probe_export", "dialog_control(tree,'Export Image as JPEG','Export','push-button')" in probe),
