@@ -76,6 +76,15 @@ def _sample_colorize_dialog(obs):
     return all(_has(obs, label, 'push-button') for label in ('Get Sample Colors', 'Apply', 'Close'))
 
 
+def profile_conversion_modal(obs):
+    low = str(obs or '').casefold()
+    return any(marker in low for marker in (
+        'import image from a color profile',
+        'convert to rgb working space?',
+        'convert the image to the built-in srgb color profile?',
+    ))
+
+
 def _champion_phase(obs, phase, plan, visible_text):
     label, role = LABELS[phase], ROLES[phase]
     if _has(obs, label, role):
@@ -118,7 +127,7 @@ def next_recovery_action(instruction, active_application, observation, state):
     # GIMP may stop on the explicit profile-conversion modal before exposing the
     # image surface. Resolve only the semantically named Convert button through
     # the existing accessibility target contract; never fall through to VLM.
-    profile_modal = 'import image from a color profile' in obs.casefold()
+    profile_modal = profile_conversion_modal(obs)
     if profile_modal:
         profile_image = sample if sample.casefold() in obs.casefold() else target
         if _has(obs, 'Convert', 'push-button'):

@@ -234,6 +234,16 @@ class GimpStyleTransferTests(unittest.TestCase):
         self.assertEqual(a['specialist_phase'], 'convert-profile')
         self.assertFalse(state['profile_modal_error'])
 
+    def test_live_vm_rgb_working_space_modal_clicks_convert(self):
+        obs = ("dialog\tConvert to RGB Working Space?\tConvert to RGB Working Space?\tx\tx\t(752,300)\t(485,431)\n"
+               "label\tConvert the image to the built-in sRGB color profile?\tConvert the image to the built-in sRGB color profile?\tx\n"
+               "push-button\tConvert\tConvert\tx\tx\t(1140,686)\t(85,33)\n"
+               "push-button\tKeep\tKeep\tx\tx\t(1049,686)\t(85,33)")
+        state = {'sample_loaded': True, 'owned': True}
+        a = next_recovery_action(TASK, APP, obs, state)
+        self.assertEqual(a['target'], {'source':'accessibility','label':'Convert','role':'push-button'})
+        self.assertEqual(a['specialist_phase'], 'convert-profile')
+
     def test_profile_import_modal_missing_convert_fails_closed_after_three_observations(self):
         obs = "dialog\tImport Image from a Color Profile\tImport Image from a Color Profile\tx\tx\t(800,300)\t(600,400)"
         state = {'sample_loaded': True, 'owned': True}

@@ -28,6 +28,16 @@ class ProbeStateTests(unittest.TestCase):
         self.assertIn('dialog\tImport Image from a Color Profile', tab)
         self.assertIn('push-button\tConvert', tab)
 
+    def test_live_vm_profile_modal_xml_converts_to_tabular_contract(self):
+        xml = ("<root xmlns:cp='urn:cp'><dialog name='Convert to RGB Working Space?' cp:screencoord='(752,300)' cp:size='(485,431)'>"
+               "<label name='Convert the image to the built-in sRGB color profile?'/>"
+               "<push-button name='Convert' cp:screencoord='(1140,686)' cp:size='(85,33)'/>"
+               "<push-button name='Keep' cp:screencoord='(1049,686)' cp:size='(85,33)'/>"
+               "</dialog></root>")
+        tab = tabular_accessibility(xml)
+        self.assertIn('dialog\tConvert to RGB Working Space?', tab)
+        self.assertIn('push-button\tConvert', tab)
+
     def test_active_sample_is_distinct_from_target(self):
         self.assertTrue(gimp_visible(SAMPLE))
         self.assertTrue(active_gimp_document(SAMPLE, 'IMG_7328_edited.jpg'))

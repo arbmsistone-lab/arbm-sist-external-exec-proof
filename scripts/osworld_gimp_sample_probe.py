@@ -6,7 +6,7 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from osworld_gimp_style_transfer import next_recovery_action
+from osworld_gimp_style_transfer import next_recovery_action, profile_conversion_modal
 from osworld_control import ground_action
 
 # Candidate-trigger marker: validate the post-Apply remap-wait fix on this exact candidate SHA.
@@ -32,7 +32,7 @@ def tabular_accessibility(tree):
 def resolve_import_profile_with_specialist(env, obs, evidence, state):
     tree=str((obs or {}).get('accessibility_tree') or '')
     low=tree.casefold()
-    if 'import image from a color profile' not in low:
+    if not profile_conversion_modal(tree):
         return obs, False
     tab=tabular_accessibility(tree)
     candidate=next_recovery_action(TASK_INSTRUCTION, 'GNU Image Manipulation Program', tab, state)
@@ -47,7 +47,7 @@ def resolve_import_profile_with_specialist(env, obs, evidence, state):
     obs=step(env, command, 2)
     after_tree=str((obs or {}).get('accessibility_tree') or '')
     proof={'status':'PROFILE_CONVERT_SPECIALIST_PROVEN','target':target,'command':command,
-           'modal_before':True,'modal_after':'import image from a color profile' in after_tree.casefold(),
+           'modal_before':True,'modal_after':profile_conversion_modal(after_tree),
            'attempts':1,'zero_spend_mode':os.environ.get('ZERO_SPEND_MODE'),'heavy_local':0}
     (evidence/'profile-convert-proof.json').write_text(json.dumps(proof,sort_keys=True),encoding='utf-8')
     if proof['modal_after']:
