@@ -121,6 +121,37 @@ def _smol_chat_messages(messages):
     return out
 
 
+def _binary_contract(messages):
+    if not isinstance(messages,list): return False
+    texts=[]
+    for message in messages:
+        for item in message.get('content',[]):
+            if item.get('type')=='text': texts.append(str(item.get('text') or ''))
+    contract=' '.join(texts).upper()
+    return 'YES OR NO' in contract and ('EXACT' in contract or 'ONLY' in contract or 'ONE TOKEN' in contract)
+
+
+def _binary_label(processor, model, inputs):
+    import torch
+    base_ids=inputs['input_ids']; base_len=base_ids.shape[1]
+    scores={}
+    for label in ('YES','NO'):
+        tokens=processor.tokenizer.encode(label,add_special_tokens=False)
+        if not tokens: raise ValueError('LOCAL_BINARY_TOKENIZATION_FAILED')
+        extra=torch.tensor([tokens],dtype=base_ids.dtype,device=base_ids.device)
+        candidate={k:v for k,v in inputs.items()}
+        candidate['input_ids']=torch.cat((base_ids,extra),dim=1)
+        mask=inputs.get('attention_mask')
+        if mask is not None:
+            ones=torch.ones((mask.shape[0],len(tokens)),dtype=mask.dtype,device=mask.device)
+            candidate['attention_mask']=torch.cat((mask,ones),dim=1)
+        with torch.inference_mode(): logits=model(**candidate).logits
+        logp=torch.log_softmax(logits,dim=-1); score=0.0
+        for index,token in enumerate(tokens): score+=float(logp[0,base_len+index-1,token])
+        scores[label]=score
+    return max(scores,key=scores.get)
+
+
 def default_infer(text, image_b64, max_tokens):
     import torch
     from PIL import Image
@@ -136,6 +167,7 @@ def default_infer(text, image_b64, max_tokens):
     messages=_smol_chat_messages(text) if isinstance(text,list) else [{'role':'user','content':[{'type':'image'},{'type':'text','text':text}]}]
     rendered=processor.apply_chat_template(messages,add_generation_prompt=True)
     inputs=processor(text=rendered,images=images,return_tensors='pt')
+    if _binary_contract(messages): return _binary_label(processor,model,inputs)
     with torch.inference_mode():
         generated=model.generate(**inputs,max_new_tokens=max(1,min(int(max_tokens),192)),do_sample=False)
     prompt_tokens=inputs['input_ids'].shape[1]

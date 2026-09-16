@@ -2,7 +2,7 @@ import base64
 import os
 import unittest
 from unittest.mock import patch
-from osworld_local_vlm import LocalVLMRoute, parse_action_object, MODEL_REVISION, _smol_chat_messages
+from osworld_local_vlm import LocalVLMRoute, parse_action_object, MODEL_REVISION, _smol_chat_messages, _binary_contract
 
 PNG=base64.b64encode(b'fixture').decode()
 BODY={'instruction':'Dismiss visible menu','screenshot_data_url':'data:image/png;base64,'+PNG}
@@ -27,6 +27,12 @@ class LocalVLMTests(unittest.TestCase):
         self.assertEqual([m['role'] for m in folded],['user'])
         self.assertIn('Return exactly YES or NO.',folded[0]['content'][0]['text'])
         self.assertEqual([x['type'] for x in folded[0]['content'][1:]],['text','image'])
+
+    def test_binary_contract_detects_explicit_yes_no_only(self):
+        binary=[{'role':'user','content':[{'type':'text','text':'Answer only YES or NO.'},{'type':'image'}]}]
+        open_ended=[{'role':'user','content':[{'type':'text','text':'Describe the image.'},{'type':'image'}]}]
+        self.assertTrue(_binary_contract(binary))
+        self.assertFalse(_binary_contract(open_ended))
 
     def test_model_revision_is_immutable_commit(self):
         self.assertRegex(MODEL_REVISION,r'^[0-9a-f]{40}$')
