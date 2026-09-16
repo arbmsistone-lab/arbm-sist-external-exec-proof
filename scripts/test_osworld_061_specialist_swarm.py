@@ -17,13 +17,24 @@ class SpecialistSwarmTests(unittest.TestCase):
 
     def test_current_contract_is_compact_and_transactional(self):
         contract=swarm.current_contract()
-        self.assertLessEqual(len(contract),18000)
+        self.assertLessEqual(len(contract),9500)
         self.assertIn('def try_061_calibrated',contract)
         self.assertIn("TASK_ID') != '061'",contract)
         self.assertIn('def _ack_gimp_pending',contract)
         self.assertIn('def next_recovery_action',contract)
         self.assertIn('ARBM061_DONE',contract)
         self.assertIn('Export Image as JPEG',contract)
+        self.assertIn('calibrated_result=try_061_calibrated',contract)
+        self.assertIn('specialist_result=try_gimp_specialist',contract)
+        self.assertIn("if state.get('owned') and not state.get('terminal_failed')",contract)
+        self.assertIn('Close Sample Colorize only after the remap has finished.',contract)
+        self.assertIn('Open the GIMP chooser to prove the exported output exists.',contract)
+        self.assertIn('Finish only after the exported file is visible in the chooser.',contract)
+
+    def test_local_evidence_prioritizes_current_probe(self):
+        merged=swarm._local_evidence('OLD_INCIDENT','CURRENT_PROBE')
+        self.assertLess(merged.index('CURRENT_PROBE'),merged.index('OLD_INCIDENT'))
+        self.assertIn('non-official; no evaluator/score',merged)
 
     def test_historical_evidence_not_duplicated_in_system_prompt(self):
         contract=swarm.current_contract(); evidence='OLD_FAILURE_UNIQUE_TOKEN'
@@ -31,5 +42,40 @@ class SpecialistSwarmTests(unittest.TestCase):
         messages=swarm._text_messages(system,evidence)
         self.assertNotIn(evidence,messages[0]['content'])
         self.assertEqual(messages[1]['content'].count(evidence),1)
+
+    def test_probe_evidence_is_grounded_and_non_official(self):
+        import json,tempfile,os,hashlib
+        with tempfile.TemporaryDirectory() as d:
+            root=pathlib.Path(d); (root/'calibrated').mkdir(); (root/'gimp').mkdir()
+            cal_data=b'A'*2048; gimp_data=b'B'*3072
+            (root/'calibrated'/'IMG_7318_edited.jpg').write_bytes(cal_data)
+            (root/'gimp'/'IMG_7318_edited.jpg').write_bytes(gimp_data)
+            (root/'calibrated'/'calibrated-probe-result.json').write_text(json.dumps({
+              'status':'CALIBRATED_EXPORT_PROVEN','candidate_sha':'d406','zero_spend_mode':'HARD','heavy_local':0,
+              'reference_rmse':4.535,'model':'poly3_residual','output':'IMG_7318_edited.jpg',
+              'output_bytes':len(cal_data),'output_sha256':hashlib.sha256(cal_data).hexdigest()}))
+            (root/'gimp'/'probe-result.json').write_text(json.dumps({
+              'status':'EXPORT_PROVEN','candidate_sha':'d406','zero_spend_mode':'HARD','heavy_local':0,
+              'output':'IMG_7318_edited.jpg','output_visible_in_chooser':True,
+              'output_bytes':len(gimp_data),'output_sha256':hashlib.sha256(gimp_data).hexdigest()}))
+            (root/'gimp'/'output-absent-before-export.txt').write_text('/home/user/Pictures/IMG_7318_edited.jpg')
+            stages=('43-sample-colorize-dialog.png','46-subcolors-enabled.png','47-hold-intensity-disabled.png',
+              '48-original-intensity-disabled.png','50-sample-colors-loaded.png','60-colorize-applied.png',
+              '70-colorize-closed.png','80-export-open-00.png','81-export-name.png','82-export-state-00.png',
+              '90-output-chooser.png','91-output-pictures.png')
+            for name in stages: (root/'gimp'/name).write_bytes(b'x')
+            keys=('DIAGNOSTIC_EXECUTION_PARITY','DIAGNOSTIC_PROBE_RUN_ID','DIAGNOSTIC_PROBE_SHA')
+            old={k:os.environ.get(k) for k in keys}
+            os.environ.update({'DIAGNOSTIC_EXECUTION_PARITY':'1','DIAGNOSTIC_PROBE_RUN_ID':'35081793502','DIAGNOSTIC_PROBE_SHA':'d406'})
+            try: evidence=swarm.load_probe_evidence(root)
+            finally:
+                for k,v in old.items():
+                    if v is None: os.environ.pop(k,None)
+                    else: os.environ[k]=v
+            self.assertIn('4.535',evidence)
+            self.assertIn('diagnostic only, no evaluator/score',evidence)
+            self.assertIn('stage_snapshots_present',evidence)
+
+
 
 if __name__=='__main__': unittest.main()

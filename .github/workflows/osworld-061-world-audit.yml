@@ -27,6 +27,8 @@ jobs:
     env:
       ZERO_SPEND_MODE: HARD
       ARBM_ENABLE_LOCAL_VLM: '1'
+      DIAGNOSTIC_PROBE_RUN_ID: '35081793502'
+      DIAGNOSTIC_PROBE_SHA: 'd4065f6becc17ef15aa4cae8bea0759c41a0812f'
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       GROQ_API_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
     steps:
@@ -38,6 +40,26 @@ jobs:
           run-id: ${{ github.event_name == 'workflow_dispatch' && inputs.run_id || '35042215104' }}
           github-token: ${{ github.token }}
           path: incident-evidence
+      - name: Download calibrated diagnostic probe evidence
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: osworld-061-calibrated-probe
+          run-id: ${{ env.DIAGNOSTIC_PROBE_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: current-probe-evidence/calibrated
+      - name: Download GIMP diagnostic probe evidence
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: osworld-gimp-sample-colorize-probe
+          run-id: ${{ env.DIAGNOSTIC_PROBE_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: current-probe-evidence/gimp
+      - name: Verify diagnostic probe execution parity
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin "$DIAGNOSTIC_PROBE_SHA"
+          git diff --exit-code "$DIAGNOSTIC_PROBE_SHA" HEAD -- scripts/osworld_free_mesh_shim.py scripts/osworld_061_calibrated_grade.py scripts/osworld_gimp_style_transfer.py
+          echo "DIAGNOSTIC_EXECUTION_PARITY=1" >> "$GITHUB_ENV"
       - name: Install pinned FREE audit runtime
         run: |
           set -euo pipefail
@@ -70,5 +92,10 @@ jobs:
             osworld-061-champion-audit.json
             osworld-061-specialist-swarm.json
             osworld-061-final-3d-audit.json
+            current-probe-evidence/calibrated/calibrated-probe-result.json
+            current-probe-evidence/gimp/probe-result.json
+            current-probe-evidence/gimp/output-absent-before-export.txt
+            current-probe-evidence/gimp/exported-output.bytes
+            current-probe-evidence/gimp/exported-output.sha256
           if-no-files-found: warn
           retention-days: 90

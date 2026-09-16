@@ -5,6 +5,7 @@ the current candidate. It is advisory evidence and never changes the official
 evaluator or score gate.
 """
 import json
+import hashlib
 import os
 import sys
 from collections import Counter
@@ -54,16 +55,91 @@ def _function_source(path, name, limit):
     end=min(cuts) if cuts else len(tail)
     return tail[:end][:limit]
 
+def _source_window(path, needle, before=700, after=1000):
+    text=Path(path).read_text(encoding='utf-8',errors='replace')
+    pos=text.find(needle)
+    if pos<0: return ''
+    return text[max(0,pos-before):min(len(text),pos+len(needle)+after)]
+
 def current_contract():
+    # Stay comfortably below the local FREE reviewers' 4096-token budget.
+    # These are exact source windows, ordered by the causal questions raised by
+    # the prior audit: calibrated ownership -> dispatcher -> GIMP transaction.
     parts=[
-      _function_source('scripts/osworld_061_calibrated_grade.py','_guest_script',3400),
-      _function_source('scripts/osworld_061_calibrated_grade.py','next_calibrated_action',3600),
-      _function_source('scripts/osworld_free_mesh_shim.py','try_061_calibrated',1600),
-      _function_source('scripts/osworld_free_mesh_shim.py','_ack_gimp_pending',2200),
-      _function_source('scripts/osworld_gimp_style_transfer.py','next_recovery_action',8000),
-      _function_source('scripts/osworld_free_mesh_shim.py','try_gimp_specialist',2200),
+      _source_window('scripts/osworld_061_calibrated_grade.py','print(f"ARBM061_DONE',300,240),
+      _source_window('scripts/osworld_061_calibrated_grade.py','def next_calibrated_action',0,1300),
+      _source_window('scripts/osworld_free_mesh_shim.py','def try_061_calibrated',0,1300),
+      _source_window('scripts/osworld_free_mesh_shim.py','calibrated_result=try_061_calibrated',180,420),
+      _source_window('scripts/osworld_free_mesh_shim.py','def _ack_gimp_pending',0,1080),
+      _source_window('scripts/osworld_free_mesh_shim.py','specialist_complete=',900,550),
+      _source_window('scripts/osworld_gimp_style_transfer.py','def next_recovery_action',0,260),
+      _source_window('scripts/osworld_gimp_style_transfer.py','The official 061 VM exposes a bottom Cancel button',420,800),
+      _source_window('scripts/osworld_gimp_style_transfer.py','Export Image as JPEG / Export',700,720),
     ]
-    return '\n\n'.join(x for x in parts if x)[:18000]
+    contract='\n\n'.join(x for x in parts if x)
+    if len(contract)>9500:
+        raise RuntimeError('CURRENT_CONTRACT_TOO_LARGE')
+    return contract
+
+def load_probe_evidence(root):
+    root=Path(root)
+    cal_path=root/'calibrated'/'calibrated-probe-result.json'
+    gimp_path=root/'gimp'/'probe-result.json'
+    absent_path=root/'gimp'/'output-absent-before-export.txt'
+    if not (cal_path.is_file() and gimp_path.is_file() and absent_path.is_file()):
+        return ''
+    cal=json.loads(cal_path.read_text(encoding='utf-8'))
+    gimp=json.loads(gimp_path.read_text(encoding='utf-8'))
+    if os.environ.get('DIAGNOSTIC_EXECUTION_PARITY')!='1':
+        return ''
+    if cal.get('status')!='CALIBRATED_EXPORT_PROVEN' or gimp.get('status')!='EXPORT_PROVEN':
+        return ''
+    if cal.get('output')!='IMG_7318_edited.jpg' or gimp.get('output')!='IMG_7318_edited.jpg':
+        return ''
+    expected=os.environ.get('DIAGNOSTIC_PROBE_SHA')
+    run_id=os.environ.get('DIAGNOSTIC_PROBE_RUN_ID')
+    if not expected or not run_id:
+        return ''
+    if cal.get('candidate_sha')!=expected or gimp.get('candidate_sha')!=expected:
+        return ''
+    if cal.get('zero_spend_mode')!='HARD' or gimp.get('zero_spend_mode')!='HARD':
+        return ''
+    if cal.get('heavy_local')!=0 or gimp.get('heavy_local')!=0:
+        return ''
+    rmse=cal.get('reference_rmse'); cal_bytes=cal.get('output_bytes'); gimp_bytes=gimp.get('output_bytes')
+    cal_sha=cal.get('output_sha256'); gimp_sha=gimp.get('output_sha256')
+    if not isinstance(rmse,(int,float)) or isinstance(rmse,bool): return ''
+    if not isinstance(cal_bytes,int) or cal_bytes<=1024 or not isinstance(gimp_bytes,int) or gimp_bytes<=1024: return ''
+    if not (isinstance(cal_sha,str) and len(cal_sha)==64 and isinstance(gimp_sha,str) and len(gimp_sha)==64): return ''
+    if gimp.get('output_visible_in_chooser') is not True: return ''
+    if absent_path.read_text(encoding='utf-8').strip()!='/home/user/Pictures/IMG_7318_edited.jpg': return ''
+    cal_output=root/'calibrated'/cal['output']; gimp_output=root/'gimp'/gimp['output']
+    if not cal_output.is_file() or not gimp_output.is_file(): return ''
+    if cal_output.stat().st_size!=cal_bytes or gimp_output.stat().st_size!=gimp_bytes: return ''
+    def digest(path):
+        h=hashlib.sha256()
+        with path.open('rb') as fh:
+            for chunk in iter(lambda:fh.read(1024*1024),b''): h.update(chunk)
+        return h.hexdigest()
+    if digest(cal_output)!=cal_sha or digest(gimp_output)!=gimp_sha: return ''
+    stages=('43-sample-colorize-dialog.png','46-subcolors-enabled.png',
+      '47-hold-intensity-disabled.png','48-original-intensity-disabled.png',
+      '50-sample-colors-loaded.png','60-colorize-applied.png','70-colorize-closed.png',
+      '80-export-open-00.png','81-export-name.png','82-export-state-00.png',
+      '90-output-chooser.png','91-output-pictures.png')
+    if any(not (root/'gimp'/name).is_file() or (root/'gimp'/name).stat().st_size<=0 for name in stages): return ''
+    summary={
+      'purpose':'CURRENT DIAGNOSTIC PROBE EVIDENCE; diagnostic only, no evaluator/score',
+      'source_run_id':run_id,
+      'execution_parity_verified':True,
+      'calibrated':{'candidate_sha':cal.get('candidate_sha'),'status':cal.get('status'),
+        'reference_rmse':rmse,'model':cal.get('model'),'output':cal.get('output'),'output_bytes':cal_bytes,'output_sha256':cal_sha,'zero_spend_mode':cal.get('zero_spend_mode'),'heavy_local':cal.get('heavy_local')},
+      'gimp_ui':{'candidate_sha':gimp.get('candidate_sha'),'status':gimp.get('status'),
+        'output':gimp.get('output'),'output_visible_in_chooser':gimp.get('output_visible_in_chooser'),
+        'output_bytes':gimp.get('output_bytes'),'output_sha256':gimp.get('output_sha256'),
+        'output_absent_before_export':True,'zero_spend_mode':gimp.get('zero_spend_mode'),'heavy_local':gimp.get('heavy_local'),'stage_snapshots_present':[name for name in stages]},
+      'scope_note':'Probe supports runtime route/evidence only; official focal evaluator score remains required.'}
+    return json.dumps(summary,separators=(',',':'))
 
 def role_prompt(name, brief, contract):
     return (BASE_SYSTEM+f'\nROLE={name}\nSPECIALTY={brief}\n'
@@ -103,27 +179,38 @@ def _repair_messages(name, raw):
     return [{'role':'system','content':'You are a schema repairer. Change format only, never substance.'},
             {'role':'user','content':prompt}]
 
-def _text_messages(system,evidence):
+def _text_messages(system,evidence,probe_evidence=''):
     user=('HISTORICAL INCIDENT EVIDENCE. Decide whether the CURRENT candidate '
           'source excerpts resolve your specialty-specific causal gap.\n'+evidence)
+    if probe_evidence:
+        user += ('\n\nCURRENT DIAGNOSTIC PROBE EVIDENCE (non-official; no evaluator/score; execution parity verified):\n'+probe_evidence)
     return [{'role':'system','content':system},{'role':'user','content':user}]
 
-def _vlm_messages(system,evidence,image):
+def _vlm_messages(system,evidence,image,probe_evidence=''):
+    text='HISTORICAL INCIDENT EVIDENCE\n'+evidence
+    if probe_evidence:
+        text += ('\n\nCURRENT DIAGNOSTIC PROBE EVIDENCE (non-official; no evaluator/score; execution parity verified):\n'+probe_evidence)
     return [{'role':'system','content':system},{'role':'user','content':[
-        {'type':'text','text':'HISTORICAL INCIDENT EVIDENCE\n'+evidence},
-        {'type':'image_url','image_url':{'url':image}}]}]
+        {'type':'text','text':text},{'type':'image_url','image_url':{'url':image}}]}]
 
-def run_robot(index, name, brief, evidence, contract, image):
+def _local_evidence(evidence, probe_evidence=''):
+    if not probe_evidence:
+        return evidence
+    return ('CURRENT DIAGNOSTIC PROBE EVIDENCE (non-official; no evaluator/score; '
+            'execution parity verified):\n'+probe_evidence+
+            '\n\nHISTORICAL INCIDENT EVIDENCE:\n'+evidence)
+
+def run_robot(index, name, brief, evidence, contract, image, probe_evidence=''):
     system=role_prompt(name,brief,contract)
     attempts=[]; raw_outputs=[]
     for label in ('openrouter','groq','qwen_local','smollm_local','local_vlm'):
-        if label=='openrouter': result=ask(FREE_ROUTE,_text_messages(system,evidence),140)
-        elif label=='groq': result=ask(GROQ_FREE_ROUTE,_text_messages(system,evidence),120)
-        elif label=='qwen_local': result=local_text_review('qwen_local',system,evidence,max_new_tokens=320)
-        elif label=='smollm_local': result=local_text_review('smollm_local',system,evidence,max_new_tokens=320)
+        if label=='openrouter': result=ask(FREE_ROUTE,_text_messages(system,evidence,probe_evidence),140)
+        elif label=='groq': result=ask(GROQ_FREE_ROUTE,_text_messages(system,evidence,probe_evidence),120)
+        elif label=='qwen_local': result=local_text_review('qwen_local',system,_local_evidence(evidence,probe_evidence),max_new_tokens=320)
+        elif label=='smollm_local': result=local_text_review('smollm_local',system,_local_evidence(evidence,probe_evidence),max_new_tokens=320)
         else:
             if not image: continue
-            result=ask(LOCAL_VLM_ROUTE,_vlm_messages(system,evidence,image),180)
+            result=ask(LOCAL_VLM_ROUTE,_vlm_messages(system,evidence,image,probe_evidence),180)
         attempts.extend(result.get('attempts') or [])
         raw_outputs.append({'provider':label,'raw':str(result.get('raw') or '')[-1200:]})
         verdict=canonicalize_shape(result.get('verdict'))
@@ -148,7 +235,9 @@ def main(root: Path):
     contract=current_contract()
     if not contract: raise RuntimeError('CURRENT_CANDIDATE_CONTRACT_REQUIRED')
     image=evidence_image(root)
-    robots=[run_robot(i,name,brief,evidence,contract,image)
+    probe_evidence=load_probe_evidence(Path(os.environ.get('CURRENT_PROBE_EVIDENCE','current-probe-evidence')))
+    if not probe_evidence: raise RuntimeError('CURRENT_DIAGNOSTIC_PROBE_EVIDENCE_REQUIRED')
+    robots=[run_robot(i,name,brief,evidence,contract,image,probe_evidence)
             for i,(name,brief) in enumerate(ROLES)]
     valid=[r for r in robots if valid_verdict(r.get('verdict'),r['role'])]
     vetoes=[r['role'] for r in valid if r['verdict']['veto'] or r['verdict']['verdict']!='PASS_FIX']
@@ -159,6 +248,7 @@ def main(root: Path):
          'candidate_sha':os.environ.get('GITHUB_SHA'),'historical_evidence':True,
          'robots_total':10,'valid_reviews':len(valid),'covered_roles':sorted(covered),
          'root_cause_votes':dict(classes),'vetoes':vetoes,'reviews':robots,
+         'diagnostic_probe':json.loads(probe_evidence),
          'zero_spend_mode':'HARD','paid_fallback_used':False,'heavy_local':0}
     Path('osworld-061-specialist-swarm.json').write_text(json.dumps(out,indent=2),encoding='utf-8')
     print(json.dumps({k:out[k] for k in ('status','candidate_sha','robots_total','valid_reviews','root_cause_votes','vetoes')}))
