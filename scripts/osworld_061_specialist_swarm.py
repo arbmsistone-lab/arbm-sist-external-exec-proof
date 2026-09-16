@@ -39,7 +39,8 @@ root_cause_class, causal_chain, definitive_fix, regression_risks,
 required_proofs, confidence, veto. verdict is PASS_FIX, REJECT_FIX, or
 INSUFFICIENT. confidence must be numeric 0..1 and veto must be boolean.
 Never invent evidence, never weaken the official evaluator, and never propose
-paid fallback."""
+paid fallback.
+STRICT SCHEMA: role must exactly equal the assigned ROLE. root_cause_class must be exactly one of AGENT_LOGIC, EVIDENCE_PROVENANCE, IMAGE_QUALITY, GUI_STATE, EVALUATOR, INFRASTRUCTURE, PROVIDER_CAPACITY, UNKNOWN. causal_chain, regression_risks, and required_proofs must always be JSON arrays, even for one item. Do not use prose labels or synonyms for enum fields."""
 
 def _function_source(path, name, limit):
     text=Path(path).read_text(encoding='utf-8',errors='replace')
@@ -81,6 +82,23 @@ def valid_verdict(value, role):
     confidence=value.get('confidence')
     return isinstance(confidence,(int,float)) and not isinstance(confidence,bool) and 0<=confidence<=1
 
+def canonicalize_shape(value):
+    if not isinstance(value,dict): return value
+    out=dict(value)
+    for key in ('causal_chain','regression_risks','required_proofs'):
+        if isinstance(out.get(key),str): out[key]=[out[key]]
+        elif out.get(key) is None: out[key]=[]
+    return out
+
+def _repair_messages(name, raw):
+    prompt=(f'Re-emit the SAME substantive judgment as strict JSON. role must be exactly {name}. '
+            'verdict must be PASS_FIX, REJECT_FIX, or INSUFFICIENT. root_cause_class must be exactly one of '
+            'AGENT_LOGIC, EVIDENCE_PROVENANCE, IMAGE_QUALITY, GUI_STATE, EVALUATOR, INFRASTRUCTURE, '
+            'PROVIDER_CAPACITY, UNKNOWN. causal_chain, regression_risks, required_proofs must be arrays. '
+            'confidence 0..1; veto boolean. Preserve the original conclusion and veto meaning; do not add evidence.\nORIGINAL REVIEW:\n'+str(raw)[-2200:])
+    return [{'role':'system','content':'You are a schema repairer. Change format only, never substance.'},
+            {'role':'user','content':prompt}]
+
 def _text_messages(system,evidence):
     user=('HISTORICAL INCIDENT EVIDENCE. Decide whether the CURRENT candidate '
           'source excerpts resolve your specialty-specific causal gap.\n'+evidence)
@@ -104,10 +122,19 @@ def run_robot(index, name, brief, evidence, contract, image):
             result=ask(LOCAL_VLM_ROUTE,_vlm_messages(system,evidence,image),180)
         attempts.extend(result.get('attempts') or [])
         raw_outputs.append({'provider':label,'raw':str(result.get('raw') or '')[-1200:]})
-        verdict=result.get('verdict')
+        verdict=canonicalize_shape(result.get('verdict'))
         if valid_verdict(verdict,name):
             return {'role':name,'specialty':brief,'provider':label,
                     'verdict':verdict,'attempts':attempts,'raw_outputs':raw_outputs}
+        raw=str(result.get('raw') or '')
+        if raw and label in ('openrouter','groq'):
+            repaired=ask(FREE_ROUTE if label=='openrouter' else GROQ_FREE_ROUTE,_repair_messages(name,raw),100)
+            attempts.extend(repaired.get('attempts') or [])
+            raw_outputs.append({'provider':label+'-schema-repair','raw':str(repaired.get('raw') or '')[-1200:]})
+            verdict=canonicalize_shape(repaired.get('verdict'))
+            if valid_verdict(verdict,name):
+                return {'role':name,'specialty':brief,'provider':label+'-schema-repair',
+                        'verdict':verdict,'attempts':attempts,'raw_outputs':raw_outputs}
     return {'role':name,'specialty':brief,'provider':None,'verdict':None,
             'attempts':attempts,'raw_outputs':raw_outputs}
 

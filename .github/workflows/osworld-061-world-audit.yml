@@ -48,9 +48,19 @@ jobs:
       - name: Run 500 deterministic adversarial perspectives
         run: python scripts/osworld_061_champion_audit.py
       - name: Run 10-robot specialist world audit
+        id: swarm
+        continue-on-error: true
         run: python scripts/osworld_061_specialist_swarm.py incident-evidence
       - name: Run 20 final 3D audits
+        id: audit3d
+        if: always()
+        continue-on-error: true
         run: python scripts/osworld_061_3d_audit.py incident-evidence
+      - name: Enforce supreme audit verdict
+        if: always()
+        run: |
+          test "${{ steps.swarm.outcome }}" = success
+          test "${{ steps.audit3d.outcome }}" = success
       - name: Preserve world-audit evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
