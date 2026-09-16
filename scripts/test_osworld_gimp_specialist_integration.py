@@ -47,7 +47,8 @@ class GimpSpecialistIntegrationTests(unittest.TestCase):
         obs = frame('[IMG_7318_original] (imported)-1.0 - GIMP')
         first = shim.try_gimp_specialist(self.body(), obs, obs)
         self.assertIn("pyautogui.press('/')", first)
-        self.assertTrue(shim.STATE['gimp_specialist']['colorize_open_requested'])
+        self.assertEqual(shim.STATE['gimp_specialist']['pending_phase'],'open-colorize')
+        self.assertNotIn('colorize_open_requested',shim.STATE['gimp_specialist'])
         history_len = len(shim.STATE['history'])
         self.assertEqual(shim.try_gimp_specialist(self.body(), obs, obs), 'WAIT')
         self.assertEqual(len(shim.STATE['history']), history_len)
@@ -75,7 +76,12 @@ class GimpSpecialistIntegrationTests(unittest.TestCase):
                'check-box\tOriginal intensity\tOriginal intensity\tx\tx\t(650,650)\t(140,20)')
         result = shim.try_gimp_specialist(self.body(), obs, obs)
         self.assertIn('pyautogui.click', result)
+        self.assertEqual(shim.STATE['gimp_specialist']['pending_phase'],'enable-subcolors')
+        self.assertNotIn('use_subcolors_enabled',shim.STATE['gimp_specialist'])
+        shim.VERIFIER.last_result={'progress':True}
+        second=shim.try_gimp_specialist(self.body(),obs,obs)
         self.assertTrue(shim.STATE['gimp_specialist']['use_subcolors_enabled'])
+        self.assertIn('pyautogui',second)
         self.assertIsNone(shim.MILESTONES.pending)
 
     def test_owned_specialist_holds_unknown_intermediate_state(self):
@@ -90,6 +96,16 @@ class GimpSpecialistIntegrationTests(unittest.TestCase):
         for _ in range(6):
             self.assertEqual(shim.try_gimp_specialist(self.body(), obs, obs), 'WAIT')
         self.assertEqual(shim.STATE['gimp_specialist']['uncertain_turns'], 6)
+
+    def test_finish_without_output_chooser_proof_is_rejected(self):
+        shim.STATE['gimp_specialist']={'sample_loaded':True,'owned':True,
+            'colorize_closed':True,'export_confirmed':True}
+        obs=frame('[IMG_7318_original] (imported)-1.0 - GIMP')
+        action={'action':'finish','command':'','plan':'done','summary':'done','confidence':1.0,
+                'verification':'premature'}
+        from unittest.mock import patch
+        with patch.object(shim,'next_recovery_action',return_value=action), patch.object(shim,'ground_action',return_value=action), patch.object(shim,'apply_live_policy',return_value={'kind':shim.DecisionKind.FINISH_CANDIDATE.value}):
+            self.assertEqual(shim.try_gimp_specialist(self.body(),obs,obs),'WAIT')
 
     def test_owned_loop_rejection_never_falls_through(self):
         shim.STATE['gimp_specialist']={'sample_loaded':True,'owned':True}
@@ -106,7 +122,7 @@ class GimpSpecialistIntegrationTests(unittest.TestCase):
 
     def test_specialist_finish_ignores_stale_global_milestone_stall(self):
         shim.STATE['gimp_specialist']={'sample_loaded':True,'owned':True,
-            'colorize_closed':True,'export_confirmed':True}
+            'colorize_closed':True,'export_confirmed':True,'output_verify_open':True}
         obs=(frame('[IMG_7318_original] (imported)-1.0 - GIMP') + '\n'
              'label\tIMG_7318_original.jpg (454.6 MB)\tIMG_7318_original.jpg (454.6 MB)')
         action={'action':'finish','command':'','plan':'done','summary':'done','confidence':1.0,

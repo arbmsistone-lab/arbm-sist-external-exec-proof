@@ -14,6 +14,7 @@ gate=text('scripts/osworld_v32_gate.py')
 workflow=text('.github/workflows/osworld-v32-official-18.yml')
 test_style=text('scripts/test_osworld_gimp_style_transfer.py')
 test_integ=text('scripts/test_osworld_gimp_specialist_integration.py')
+cal=text('scripts/osworld_061_calibrated_grade.py')
 phases=[x[0] for x in CONTROL_SEQUENCE]
 expected=['enable-subcolors','disable-original-intensity','disable-hold-intensity','sample-colors','apply-colorize','close-colorize']
 core=[
@@ -37,6 +38,12 @@ core=[
  ('C18_ownership_regression_test', 'test_owned_specialist_never_falls_through_after_repeated_uncertainty' in test_integ),
  ('C19_official_gate_unchanged_semantics', 'OFFICIAL_SCORE_GATE' in gate and 'OFFICIAL_RESULT_COUNT_OR_ID' in gate),
  ('C20_champion_audit_wired', 'osworld_061_champion_audit.py' in workflow),
+ ('C21_task061_calibrator_isolated', "task.get('reference_original')=='IMG_7328_original.jpg'" in cal and "os.environ.get('TASK_ID') not in (None, '', '061')" in shim),
+ ('C22_reference_holdout_gate', 'idx%5!=0' in cal and 'rmse>20' in cal),
+ ('C23_specialist_action_canonical', "'status':'ACTION_ISSUED'" in shim and 'reference-pair-calibrated' in shim and 'gimp-style-specialist' in shim),
+ ('C24_generic_output_postcondition', "state['output_name']" in style and "state.get('output_name')" in shim),
+ ('C25_preexisting_output_failclosed', 'ARBM061_OUTPUT_PREEXISTED' in cal and 'GRADE061_' in shim),
+ ('C26_output_hash_and_bytes', 'hashlib.sha256(raw).hexdigest()' in cal and 'len(raw)>1024' in cal),
 ]
 
 DOMAINS=['state-ownership','accessibility','dialog-sequence','processing','export-provenance','visual-quality-path','zero-spend','evaluator-integrity','recovery','workflow-tests']
@@ -61,5 +68,6 @@ out={'status':'PASS' if not failed_core and all(x['pass'] for x in construction)
      'core_checks':len(core),'core_failed':failed_core,
      'construction_lenses':len(construction),'construction_passed':sum(x['pass'] for x in construction),
      'final_master_lenses':len(final),'final_master_passed':sum(x['pass'] for x in final)}
+Path('osworld-061-champion-audit.json').write_text(json.dumps(out,indent=2)+'\n',encoding='utf-8')
 print(json.dumps(out,indent=2))
 if out['status']!='PASS': raise SystemExit(1)

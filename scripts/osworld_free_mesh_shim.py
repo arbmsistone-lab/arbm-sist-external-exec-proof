@@ -12,6 +12,7 @@ from osworld_local_vlm import LOCAL_VLM_ROUTE
 from osworld_recovery import recovery_policy, rejects_visual_navigation_loop, semantic_terminal
 from osworld_elite_controller import EliteController
 from osworld_gimp_style_transfer import next_recovery_action
+from osworld_061_calibrated_grade import next_calibrated_action, DONE as CAL_DONE
 
 UPSTREAM = 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5'
 EXPECTED_PIPELINE = 'arbm-osworld-v32-isolated'
@@ -207,9 +208,93 @@ def request_mesh(body):
                 'provider_attempts':gateway_attempts+router_attempts,
                 'mandatory_cost_usd':0,'paid_fallback_used':False}
 
+def try_061_calibrated(body, obs, focused_obs):
+    """Run the task-061 reference-calibrated route inside the remote guest."""
+    state=STATE.setdefault('grade061',{})
+    if os.environ.get('TASK_ID') not in (None, '', '061'):
+        return None
+    candidate=next_calibrated_action(body.get('instruction',''),body.get('active_application','unknown'),focused_obs,state)
+    if not candidate:
+        if state.get('hard_fail'):
+            return terminal('GRADE061_'+str(state['hard_fail']))
+        if state.get('owned') and not state.get('terminal_failed'):
+            log_event({'status':'GRADE061_OWNERSHIP_HOLD','run_waits':state.get('run_waits',0),
+                       'reference_rmse':state.get('reference_rmse')})
+            return 'WAIT'
+        return None
+    if candidate.get('action')=='finish':
+        proof=CAL_DONE.search(str(focused_obs or '')) or CAL_DONE.search(str(obs or ''))
+        if proof and state.get('reference_rmse',999)<=20:
+            STATE['phase']='done'
+            log_event({'status':'GRADE061_VERIFIED_FINISH','proof':proof.group(0),
+                       'reference_rmse':state.get('reference_rmse')})
+            return 'DONE'
+        log_event({'status':'GRADE061_FINISH_REJECTED','action':candidate}); return 'WAIT'
+    try:
+        action=ground_action(candidate,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
+        decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
+    except ValueError as exc:
+        log_event({'status':'GRADE061_POLICY_REJECTED','reason':str(exc),'action':candidate})
+        return 'WAIT' if state.get('owned') else None
+    if decision.get('kind')!=DecisionKind.EXEC.value or action.get('action')!='exec':
+        return 'WAIT' if state.get('owned') else None
+    command=action['command']
+    elite_action=ELITE.before_action(command,action.get('target'))
+    if not elite_action['allow']:
+        log_event({'status':'GRADE061_TABU_REJECTED','command':command,'reason':elite_action['reason']}); return 'WAIT'
+    STATE['plan']=str(action.get('plan') or STATE['plan'])[:1400]
+    STATE['previous']=command; STATE['executed']+=1; STATE['wait_responses']=0; STATE['provider_waits']=0
+    STATE['history'].append({'command':command,'expected':action.get('expected_change',''),'source':'061-calibrated'})
+    STATE['history']=STATE['history'][-12:]
+    VERIFIER.issued(command)
+    log_event({'status':'GRADE061_ACTION_ISSUED','command':command,'phase':action.get('specialist_phase')})
+    log_event({'status':'ACTION_ISSUED','command':command,'source':'reference-pair-calibrated'})
+    return '```python\n'+command+'\n```'
+
+def _ack_gimp_pending(state, obs):
+    phase=state.get('pending_phase')
+    if not phase: return 'NONE'
+    low=str(obs or '').casefold(); progress=bool(VERIFIER.last_result.get('progress'))
+    dialog=all(x in low for x in ('get sample colors','apply','close'))
+    ok=False
+    if phase=='open-colorize': ok=dialog
+    elif phase in ('enable-subcolors','disable-original-intensity','disable-hold-intensity'):
+        ok=dialog
+    elif phase=='sample-colors': ok=dialog and (progress or 'cancel' in low)
+    elif phase=='apply-colorize': ok=('cancel' in low) or (dialog and progress)
+    elif phase=='close-colorize': ok=not dialog and 'gimp' in low
+    elif phase in ('export-open','export-name-focus'): ok='export image' in low
+    elif phase=='export-name': ok=bool(state.get('output_name')) and str(state['output_name']).casefold() in low
+    elif phase=='export-submit': ok='export image as jpeg' in low
+    elif phase=='export-confirm': ok='export image as jpeg' not in low and 'gimp' in low
+    elif phase=='verify-output-open': ok=bool(state.get('output_name')) and str(state['output_name']).casefold() in low and 'open' in low
+    elif phase=='export-original-overwrite-cancel': ok='already exists' not in low
+    if not ok:
+        state['pending_waits']=state.get('pending_waits',0)+1
+        limit=12 if phase in ('sample-colors','apply-colorize','close-colorize','export-confirm') else 4
+        return 'WAIT' if state['pending_waits']<=limit else 'FAIL'
+    flags={'open-colorize':'colorize_open_requested','enable-subcolors':'use_subcolors_enabled',
+           'disable-original-intensity':'original_intensity_disabled','disable-hold-intensity':'hold_intensity_disabled',
+           'sample-colors':'sample_colors_requested','apply-colorize':'colorize_applied','close-colorize':'colorize_closed',
+           'export-open':'export_open_requested','export-name-focus':'export_name_requested','export-name':'export_name_typed',
+           'export-submit':'export_submitted','export-confirm':'export_confirmed','verify-output-open':'output_verify_open'}
+    if phase in flags: state[flags[phase]]=True
+    if phase=='sample-colors' and 'cancel' in low: state['sample_colors_processing']=True
+    if phase=='apply-colorize' and 'cancel' in low: state['colorize_processing']=True
+    if phase=='export-original-overwrite-cancel':
+        for k in ('export_name_requested','export_name_typed','export_submitted','export_confirmed','output_verify_open'): state[k]=False
+    state.pop('pending_phase',None); state['pending_waits']=0
+    log_event({'status':'GIMP_SPECIALIST_PHASE_ACK','phase':phase,'progress':progress})
+    return 'ACK'
+
 def try_gimp_specialist(body, obs, focused_obs):
     """Issue one generic GIMP specialist action through the normal safety gates."""
     specialist_state=STATE.setdefault('gimp_specialist',{})
+    ack=_ack_gimp_pending(specialist_state,focused_obs)
+    if ack=='WAIT':
+        log_event({'status':'GIMP_SPECIALIST_PENDING_HOLD','phase':specialist_state.get('pending_phase')}); return 'WAIT'
+    if ack=='FAIL':
+        return terminal('GIMP_SPECIALIST_PHASE_UNVERIFIED')
     candidate=next_recovery_action(body.get('instruction',''),body.get('active_application','unknown'),focused_obs,specialist_state)
     if not candidate:
         if specialist_state.get('colorize_processing'):
@@ -236,7 +321,7 @@ def try_gimp_specialist(body, obs, focused_obs):
             return 'WAIT'
         return None
     if action.get('action')=='finish':
-        specialist_complete=(specialist_state.get('colorize_closed') and specialist_state.get('export_confirmed'))
+        specialist_complete=(specialist_state.get('colorize_closed') and specialist_state.get('export_confirmed') and specialist_state.get('output_verify_open'))
         if decision.get('kind')==DecisionKind.FINISH_CANDIDATE.value and specialist_complete and VERIFIER.can_finish(action,obs):
             STATE['phase']='done';log_event({'status':'GIMP_SPECIALIST_VERIFIED_FINISH','action':action});return 'DONE'
         log_event({'status':'GIMP_SPECIALIST_FINISH_REJECTED','action':action});return 'WAIT'
@@ -263,26 +348,16 @@ def try_gimp_specialist(body, obs, focused_obs):
     STATE['history']=STATE['history'][-12:]
     specialist_state['owned']=True;specialist_state['uncertain_turns']=0
     phase=action.get('specialist_phase')
-    if phase=='open-colorize':specialist_state['colorize_open_requested']=True
-    elif phase=='enable-subcolors':specialist_state['use_subcolors_enabled']=True
-    elif phase=='disable-hold-intensity':specialist_state['hold_intensity_disabled']=True
-    elif phase=='disable-original-intensity':specialist_state['original_intensity_disabled']=True
-    elif phase=='sample-colors':specialist_state['sample_colors_requested']=True
-    elif phase=='apply-colorize':specialist_state['colorize_applied']=True
-    elif phase=='close-colorize':specialist_state['colorize_close_requested']=True
-    elif phase=='export-open':specialist_state['export_open_requested']=True
-    elif phase=='export-name-focus':specialist_state['export_name_requested']=True
-    elif phase=='export-name':specialist_state['export_name_typed']=True
-    elif phase=='export-submit':specialist_state['export_submitted']=True
-    elif phase=='export-confirm':specialist_state['export_confirm_requested']=True
-    elif phase=='export-original-overwrite-cancel':
-        specialist_state['export_name_requested']=False
-        specialist_state['export_name_typed']=False
-        specialist_state['export_submitted']=False
-        specialist_state['export_confirmed']=False
+    tracked={'open-colorize','enable-subcolors','disable-hold-intensity','disable-original-intensity',
+             'sample-colors','apply-colorize','close-colorize','export-open','export-name-focus',
+             'export-name','export-submit','export-confirm','verify-output-open','export-original-overwrite-cancel'}
+    if phase in tracked:
+        specialist_state['pending_phase']=phase
+        specialist_state['pending_waits']=0
     VERIFIER.issued(command)
     if isinstance(action.get('checkpoint'),dict):MILESTONES.expect(action,obs)
     log_event({'status':'GIMP_SPECIALIST_ACTION_ISSUED','command':command,'checkpoint':action.get('checkpoint')})
+    log_event({'status':'ACTION_ISSUED','command':command,'source':'gimp-style-specialist'})
     return '```python\n'+command+'\n```'
 def call_mesh(messages):
     if STATE.get('step',0)==0 and not STATE.get('terminal'):
@@ -346,6 +421,8 @@ def call_mesh(messages):
     if recovery['provider_hint']:body['provider_hint']=recovery['provider_hint']
     visual_recovery=visual_reference_recovery(body['instruction'],body.get('active_application','unknown'),MILESTONES.stalled)
     if visual_recovery:body['recovery_strategy']=visual_recovery
+    calibrated_result=try_061_calibrated(body,obs,focused_obs)
+    if calibrated_result:return calibrated_result
     specialist_result=try_gimp_specialist(body,obs,focused_obs)
     if specialist_result:return specialist_result
     try:body,metrics=pack_payload(body)

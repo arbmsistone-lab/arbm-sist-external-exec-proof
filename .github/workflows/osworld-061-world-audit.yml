@@ -1,0 +1,57 @@
+name: OSWorld 061 world audit
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Failed official focal run to audit
+        required: true
+        default: '35042215104'
+      artifact_name:
+        description: Official shard evidence artifact
+        required: true
+        default: 'osworld-v32-official18-B'
+permissions:
+  actions: read
+  contents: read
+jobs:
+  world-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      ZERO_SPEND_MODE: HARD
+      ARBM_ENABLE_LOCAL_VLM: '1'
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Download official focal evidence
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: ${{ inputs.artifact_name }}
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+          path: incident-evidence
+      - name: Install pinned FREE audit runtime
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = HARD
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
+          python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
+      - name: Run 500-senior deterministic adversarial perspectives
+        run: python scripts/osworld_061_champion_audit.py
+      - name: Run 10-robot specialist world audit
+        run: python scripts/osworld_061_specialist_swarm.py incident-evidence
+      - name: Run 20 final 3D audits
+        run: python scripts/osworld_061_3d_audit.py incident-evidence
+      - name: Preserve world-audit evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: osworld-061-world-audit
+          path: |
+            osworld-061-champion-audit.json
+            osworld-061-specialist-swarm.json
+            osworld-061-final-3d-audit.json
+          if-no-files-found: warn
+          retention-days: 90

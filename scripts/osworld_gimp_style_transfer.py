@@ -113,6 +113,7 @@ def next_recovery_action(instruction, active_application, observation, state):
     obs = str(observation or '')
     sample = task['reference_edited']
     target = task['target_original']
+    state['output_name'] = task['output']
 
     # Embedded-profile prompts are foreground modals. Keep the supplied profile;
     # verify the document surface becomes visible again after dismissal.
@@ -147,9 +148,7 @@ def next_recovery_action(instruction, active_application, observation, state):
         state['colorize_open_observed'] = True
         state['colorize_open_waits'] = 0
         if state.get('colorize_close_requested'):
-            state['colorize_closing'] = True
             return None
-        state['colorize_closing'] = False
         if not state.get('use_subcolors_enabled'):
             return _champion_phase(obs, 'enable-subcolors',
                                    'Enable mixed subcolors for a fuller reference color transfer.', 'Sample Colorize')
@@ -205,9 +204,14 @@ def next_recovery_action(instruction, active_application, observation, state):
             if not target_active:
                 return None
             state['export_confirmed'] = True
-            return {'action':'finish','command':'','plan':'Finish after the JPEG modal disappears and the edited target is active.',
-                    'summary':'Edited target export completed by the specialist.','confidence':1.0,
-                    'verification':target+' active after JPEG export confirmation'}
+            if not state.get('output_verify_open'):
+                return _action("pyautogui.hotkey('ctrl','o')", 'Open the GIMP chooser to prove the exported output exists.',
+                               task['output'], checkpoint=False, phase='verify-output-open')
+            if _has(obs, task['output'], 'table-cell') and _has(obs, 'Open', 'push-button'):
+                return {'action':'finish','command':'','plan':'Finish only after the exported file is visible in the chooser.',
+                        'summary':'Edited target exported and visibly proven by the agent.','confidence':1.0,
+                        'verification':task['output']+' visible in chooser'}
+            return None
         if target.casefold() in low and 'already exists' in low and _has(obs, 'Cancel', 'push-button'):
             return _click('Cancel', 'push-button',
                           'Abort any attempt to overwrite the original target image.',
@@ -233,6 +237,13 @@ def next_recovery_action(instruction, active_application, observation, state):
                            'Confirm JPEG export options in the active modal.', task['output'],
                            {'source':'screenshot','label':'Export Image as JPEG / Export'},
                            checkpoint=False, phase='export-confirm')
+        if state.get('export_confirmed') and not state.get('output_verify_open'):
+            return _action("pyautogui.hotkey('ctrl','o')", 'Open the GIMP chooser to prove the exported output exists.',
+                           task['output'], checkpoint=False, phase='verify-output-open')
+        if state.get('output_verify_open') and _has(obs, task['output'], 'table-cell') and _has(obs, 'Open', 'push-button'):
+            return {'action':'finish','command':'','plan':'Finish only after the exported file is visible in the chooser.',
+                    'summary':'Edited target exported and visibly proven by the agent.','confidence':1.0,
+                    'verification':task['output']+' visible in chooser'}
         return None
 
     # The active edited-reference layer is enough when GIMP omits a frame node.

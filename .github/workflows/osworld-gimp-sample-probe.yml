@@ -5,6 +5,8 @@ on:
     paths:
       - .github/workflows/osworld-gimp-sample-probe.yml
       - scripts/osworld_gimp_sample_probe.py
+      - scripts/osworld_061_calibrated_grade.py
+      - scripts/osworld_061_calibrated_probe.py
 permissions:
   contents: read
 concurrency:
@@ -96,6 +98,27 @@ jobs:
           test -s gimp-sample-probe/IMG_7318_edited.jpg
           test -s gimp-sample-probe/exported-output.sha256
           test -s gimp-sample-probe/probe-run.log
+      - name: Probe calibrated champion without evaluator
+        run: |
+          set -euo pipefail
+          mkdir -p calibrated-probe
+          (cd osworld && PYTHONPATH="$GITHUB_WORKSPACE/scripts:$PWD" uv run python ../scripts/osworld_061_calibrated_probe.py "$QCOW_PATH" "$GITHUB_WORKSPACE/calibrated-probe") 2>&1 | tee calibrated-probe/probe-run.log
+          test "$(sha256sum "$QCOW_PATH" | cut -d' ' -f1)" = "$(cat qcow-base.sha256)"
+          python - <<'PY'
+          import json
+          p=json.load(open('calibrated-probe/calibrated-probe-result.json'))
+          assert p['status']=='CALIBRATED_EXPORT_PROVEN' and float(p['reference_rmse'])<=20,p
+          assert int(p['output_bytes'])>1024 and len(p['output_sha256'])==64,p
+          print('CALIBRATED_061_EXPORT_PROVEN')
+          PY
+      - name: Preserve calibrated diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: osworld-061-calibrated-probe
+          path: calibrated-probe
+          if-no-files-found: error
+          retention-days: 90
       - name: Preserve diagnostic evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

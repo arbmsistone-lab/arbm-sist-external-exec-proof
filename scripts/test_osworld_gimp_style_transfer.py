@@ -212,9 +212,15 @@ class GimpStyleTransferTests(unittest.TestCase):
         busy=target+'\npush-button\tCancel\tCancel\tx\tx\t(1632,1048)\t(74,29)'
         self.assertIsNone(next_recovery_action(TASK, APP, busy, state))
         self.assertTrue(state['export_processing'])
-        done=next_recovery_action(TASK, APP, target, state)
-        self.assertEqual(done['action'],'finish')
+        verify=next_recovery_action(TASK, APP, target, state)
+        self.assertEqual(verify['action'],'exec')
+        self.assertEqual(verify['specialist_phase'],'verify-output-open')
         self.assertTrue(state['export_confirmed'])
+        state['output_verify_open']=True
+        chooser=(target+'\ntable-cell\tIMG_7318_edited.jpg\tIMG_7318_edited.jpg\tx\tx\t(200,200)\t(300,30)\n'
+                 'push-button\tOpen\tOpen\tx\tx\t(976,704)\t(85,33)')
+        done=next_recovery_action(TASK, APP, chooser, state)
+        self.assertEqual(done['action'],'finish')
 
 
 if __name__ == '__main__':
