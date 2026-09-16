@@ -6,12 +6,53 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from osworld_gimp_style_transfer import next_recovery_action
+from osworld_control import ground_action
 
 # Candidate-trigger marker: validate the post-Apply remap-wait fix on this exact candidate SHA.
 TARGET = 'IMG_7318_original.jpg'
 SAMPLE = 'IMG_7328_edited.jpg'
 OUTPUT = 'IMG_7318_edited.jpg'
 
+
+
+TASK_INSTRUCTION = ("I have seen an example of how IMG_7328_original.jpg was processed to produce "
+                    "IMG_7328_edited.jpg by applying certain edits and styles in color grading. "
+                    "Apply the same style/edits to IMG_7318_original.jpg. Save the result as "
+                    "IMG_7318_edited.jpg in ~/Pictures.")
+
+
+def tabular_accessibility(tree):
+    rows=[]
+    for c in controls(tree):
+        rows.append(f"{c['role']}\t{c['name']}\tx\tx\tx\t({c['x']}, {c['y']})\t({c['w']}, {c['h']})")
+    return '\n'.join(rows)
+
+
+def resolve_import_profile_with_specialist(env, obs, evidence, state):
+    tree=str((obs or {}).get('accessibility_tree') or '')
+    low=tree.casefold()
+    if 'import image from a color profile' not in low:
+        return obs, False
+    tab=tabular_accessibility(tree)
+    candidate=next_recovery_action(TASK_INSTRUCTION, 'GNU Image Manipulation Program', tab, state)
+    if not candidate:
+        raise RuntimeError('PROFILE_MODAL_SPECIALIST_NO_ACTION')
+    grounded=ground_action(candidate, 'GNU Image Manipulation Program', tab, [])
+    target=grounded.get('target') or {}
+    if target.get('source')!='accessibility' or target.get('label')!='Convert' or target.get('role')!='push-button':
+        raise RuntimeError('PROFILE_MODAL_SPECIALIST_WRONG_TARGET')
+    command=grounded.get('command') or ''
+    before=file_sha(evidence/'profile-before.a11y.txt') if (evidence/'profile-before.a11y.txt').is_file() else None
+    obs=step(env, command, 2)
+    after_tree=str((obs or {}).get('accessibility_tree') or '')
+    proof={'status':'PROFILE_CONVERT_SPECIALIST_PROVEN','target':target,'command':command,
+           'modal_before':True,'modal_after':'import image from a color profile' in after_tree.casefold(),
+           'attempts':1,'zero_spend_mode':os.environ.get('ZERO_SPEND_MODE'),'heavy_local':0}
+    (evidence/'profile-convert-proof.json').write_text(json.dumps(proof,sort_keys=True),encoding='utf-8')
+    if proof['modal_after']:
+        raise RuntimeError('PROFILE_MODAL_STILL_VISIBLE_AFTER_SPECIALIST')
+    return obs, True
 
 def file_sha(path):
     with open(path, 'rb') as f:
@@ -160,6 +201,9 @@ def wait_for_target(env, obs, evidence, prefix, limit=45):
     location_attempted = False
     for i in range(limit):
         tree = save_obs(evidence, f'{prefix}-{i:02d}', obs)
+        obs, handled = resolve_import_profile_with_specialist(env, obs, evidence, {})
+        if handled:
+            continue
         if profile_modal(tree):
             obs = click(env, obs, 'Keep', 'push-button', 2)
             continue
@@ -197,6 +241,9 @@ def open_sample_reference(env, obs, evidence, limit=20):
     location_attempted = False
     for i in range(limit):
         tree = save_obs(evidence, f'20-open-stage-{i:02d}', obs)
+        obs, handled = resolve_import_profile_with_specialist(env, obs, evidence, {})
+        if handled:
+            continue
         if profile_modal(tree):
             obs = click(env, obs, 'Keep', 'push-button', 2)
             continue

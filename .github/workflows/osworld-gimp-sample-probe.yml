@@ -96,8 +96,15 @@ jobs:
           assert int(p.get('output_bytes') or 0)>1024,p
           assert len(str(p.get('output_sha256') or ''))==64,p
           assert p['zero_spend_mode']=='HARD' and p['heavy_local']==0,p
+          proof=json.load(open('gimp-sample-probe/profile-convert-proof.json'))
+          assert proof['status']=='PROFILE_CONVERT_SPECIALIST_PROVEN',proof
+          assert proof['target']=={'source':'accessibility','label':'Convert','role':'push-button'},proof
+          assert proof['modal_before'] is True and proof['modal_after'] is False,proof
+          assert proof['attempts']==1 and proof['zero_spend_mode']=='HARD' and proof['heavy_local']==0,proof
           print('GIMP_STYLE_EXPORT_PROVEN')
+          print('PROFILE_CONVERT_SPECIALIST_PROVEN')
           PY
+          test -s gimp-sample-probe/profile-convert-proof.json
           test -s gimp-sample-probe/IMG_7318_edited.jpg
           test -s gimp-sample-probe/exported-output.sha256
           test -s gimp-sample-probe/probe-run.log
