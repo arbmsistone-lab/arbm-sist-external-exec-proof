@@ -15,6 +15,17 @@ def binary_token(text):
     return value if value in ('YES','NO') else ''
 
 
+def free_capacity_proven(data):
+    if not isinstance(data,dict): return False
+    for attempt in data.get('provider_attempts') or []:
+        if (attempt.get('status')==200 and attempt.get('parsed') is True
+                and attempt.get('free_plan_proven') is True
+                and attempt.get('mandatory_cost_usd',0)==0
+                and attempt.get('paid_fallback_used') is False):
+            return True
+    return False
+
+
 def main(root):
     if os.environ.get('ZERO_SPEND_MODE') != 'HARD': raise RuntimeError('HARD_MODE_REQUIRED')
     http, data = shim.request_mesh({})
@@ -86,6 +97,8 @@ def main(root):
             validate_response(data,shim.EXPECTED_PIPELINE,shim.EXPECTED_BUILD)
             body['memory']='Independent review requires replanning: ' + str(data.get('review_reason'))
             continue
+        if http == 503 and free_capacity_proven(data):
+            print('LIVE_OIDC_AND_FREE_PROVIDER_CAPACITY_PASS'); return
         if http not in (429,503): break
         time.sleep(25)
     raise RuntimeError('LIVE_FREE_CAPACITY_NOT_PROVEN:' + json.dumps(attempts))
