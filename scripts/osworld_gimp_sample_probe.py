@@ -275,6 +275,9 @@ def export_alert_name(tree):
 
 
 def prove_export_via_gui(env, obs, evidence):
+    obs=click(env,obs,'Use subcolors','check-box',1); save_obs(evidence,'46-subcolors-enabled',obs)
+    obs=click(env,obs,'Hold intensity','check-box',1); save_obs(evidence,'47-hold-intensity-disabled',obs)
+    obs=click(env,obs,'Original intensity','check-box',1); save_obs(evidence,'48-original-intensity-disabled',obs)
     obs=click(env,obs,'Get Sample Colors','push-button',2); save_obs(evidence,'50-sample-colors-loaded',obs)
     obs=click(env,obs,'Apply','push-button',2); save_obs(evidence,'60-colorize-applied',obs)
     obs=click(env,obs,'Close','push-button',2); save_obs(evidence,'70-colorize-closed',obs)

@@ -243,7 +243,11 @@ def try_gimp_specialist(body, obs, focused_obs):
     STATE['history']=STATE['history'][-12:]
     specialist_state['owned']=True;specialist_state['uncertain_turns']=0
     phase=action.get('specialist_phase')
-    if phase=='sample-colors':specialist_state['sample_colors_requested']=True
+    if phase=='open-colorize':specialist_state['colorize_open_requested']=True
+    elif phase=='enable-subcolors':specialist_state['use_subcolors_enabled']=True
+    elif phase=='disable-hold-intensity':specialist_state['hold_intensity_disabled']=True
+    elif phase=='disable-original-intensity':specialist_state['original_intensity_disabled']=True
+    elif phase=='sample-colors':specialist_state['sample_colors_requested']=True
     elif phase=='apply-colorize':specialist_state['colorize_applied']=True
     elif phase=='close-colorize':specialist_state['colorize_closed']=True
     elif phase=='export-open':specialist_state['export_open_requested']=True

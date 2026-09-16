@@ -126,8 +126,25 @@ def next_recovery_action(instruction, active_application, observation, state):
         return _action("pyautogui.hotkey('ctrl', 'o')",
                        'Open another image in GIMP.', 'Open Image', checkpoint=False, phase='open-chooser')
 
-    dialog_open = _has(obs, 'Sample Colorize', 'dialog')
+    dialog_open = all(_has(obs, label, 'push-button') for label in
+                      ('Get Sample Colors', 'Apply', 'Close'))
     if dialog_open:
+        state['colorize_open_observed'] = True
+        state['colorize_open_waits'] = 0
+        if state.get('colorize_closed'):
+            return None
+        if not state.get('use_subcolors_enabled'):
+            return _click('Use subcolors', 'check-box',
+                          'Enable mixed subcolors for a fuller reference color transfer.',
+                          'Sample Colorize', checkpoint=False, phase='enable-subcolors')
+        if not state.get('hold_intensity_disabled'):
+            return _click('Hold intensity', 'check-box',
+                          'Allow the reference grading to change destination average intensity.',
+                          'Sample Colorize', checkpoint=False, phase='disable-hold-intensity')
+        if not state.get('original_intensity_disabled'):
+            return _click('Original intensity', 'check-box',
+                          'Allow transferred grading to alter original destination intensity.',
+                          'Sample Colorize', checkpoint=False, phase='disable-original-intensity')
         if not state.get('sample_colors_requested'):
             return _click('Get Sample Colors', 'push-button',
                           'Load the visible edited reference colors into Sample Colorize.',
@@ -185,9 +202,13 @@ def next_recovery_action(instruction, active_application, observation, state):
 
     # Keep action-search query + Enter in one GUI turn. The official run
     # proved that an observation boundary here can make GIMP lose search focus.
-    if 'sample colorize' not in obs.casefold():
+    if state.get('colorize_open_requested') and not state.get('colorize_open_observed'):
+        state['colorize_open_waits'] = state.get('colorize_open_waits', 0) + 1
+        if state['colorize_open_waits'] <= 2:
+            return None
+        state['colorize_open_requested'] = False
+    if not state.get('colorize_open_requested'):
         return _action("pyautogui.press('/'); pyautogui.sleep(0.6); pyautogui.write('Sample Colorize', interval=0.04); pyautogui.sleep(1.0); pyautogui.press('enter')",
                        'Search for and open Sample Colorize atomically.', 'Get Sample Colors',
                        phase='open-colorize')
-    if not dialog_open:
-        return None
+    return None

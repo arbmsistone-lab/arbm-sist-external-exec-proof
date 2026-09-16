@@ -43,6 +43,15 @@ class GimpSpecialistIntegrationTests(unittest.TestCase):
         self.assertIsNotNone(shim.MILESTONES.pending)
         self.assertEqual(shim.MILESTONES.pending['predicate']['visible_text'], 'Get Sample Colors')
 
+    def test_atomic_open_owns_and_waits_for_delayed_dialog_tree(self):
+        obs = frame('[IMG_7318_original] (imported)-1.0 - GIMP')
+        first = shim.try_gimp_specialist(self.body(), obs, obs)
+        self.assertIn("pyautogui.press('/')", first)
+        self.assertTrue(shim.STATE['gimp_specialist']['colorize_open_requested'])
+        history_len = len(shim.STATE['history'])
+        self.assertEqual(shim.try_gimp_specialist(self.body(), obs, obs), 'WAIT')
+        self.assertEqual(len(shim.STATE['history']), history_len)
+
     def test_wrong_app_does_not_activate_specialist(self):
         obs = frame('[IMG_7318_original] (imported)-1.0 - GIMP')
         self.assertIsNone(shim.try_gimp_specialist(self.body('Files'), obs, obs))
@@ -58,13 +67,15 @@ class GimpSpecialistIntegrationTests(unittest.TestCase):
 
     def test_dialog_internal_action_has_no_false_semantic_pending(self):
         shim.STATE['gimp_specialist'] = {'sample_loaded': True, 'owned': True}
-        obs = ('dialog\tSample Colorize\tSample Colorize\tx\tx\t(200,200)\t(800,600)\n'
-               'push-button\tGet Sample Colors\tGet Sample Colors\tx\tx\t(300,700)\t(120,30)\n'
+        obs = ('push-button\tGet Sample Colors\tGet Sample Colors\tx\tx\t(300,700)\t(120,30)\n'
                'push-button\tApply\tApply\tx\tx\t(600,700)\t(90,30)\n'
-               'push-button\tClose\tClose\tx\tx\t(700,700)\t(90,30)')
+               'push-button\tClose\tClose\tx\tx\t(700,700)\t(90,30)\n'
+               'check-box\tUse subcolors\tUse subcolors\tx\tx\t(900,650)\t(120,20)\n'
+               'check-box\tHold intensity\tHold intensity\tx\tx\t(500,650)\t(120,20)\n'
+               'check-box\tOriginal intensity\tOriginal intensity\tx\tx\t(650,650)\t(140,20)')
         result = shim.try_gimp_specialist(self.body(), obs, obs)
         self.assertIn('pyautogui.click', result)
-        self.assertTrue(shim.STATE['gimp_specialist']['sample_colors_requested'])
+        self.assertTrue(shim.STATE['gimp_specialist']['use_subcolors_enabled'])
         self.assertIsNone(shim.MILESTONES.pending)
 
     def test_owned_specialist_holds_unknown_intermediate_state(self):

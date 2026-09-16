@@ -62,16 +62,36 @@ class GimpStyleTransferTests(unittest.TestCase):
 
     def test_dialog_drives_sample_apply_close_in_order(self):
         obs = (frame('[IMG_7318_original] (imported)-1.0 - GIMP') + '\n'
-               'dialog\tSample Colorize\tSample Colorize\tx\tx\t(200, 200)\t(800, 600)\n'
                'push-button\tGet Sample Colors\tGet Sample Colors\tx\tx\t(300, 700)\t(120, 30)\n'
                'push-button\tApply\tApply\tx\tx\t(600, 700)\t(90, 30)\n'
                'push-button\tClose\tClose\tx\tx\t(700, 700)\t(90, 30)')
-        a = next_recovery_action(TASK, APP, obs, {'sample_loaded': True})
-        self.assertEqual(a['target']['label'], 'Get Sample Colors')
-        a = next_recovery_action(TASK, APP, obs, {'sample_loaded': True, 'sample_colors_requested': True})
-        self.assertEqual(a['target']['label'], 'Apply')
-        a = next_recovery_action(TASK, APP, obs, {'sample_loaded': True, 'sample_colors_requested': True, 'colorize_applied': True})
-        self.assertEqual(a['target']['label'], 'Close')
+        state = {'sample_loaded': True}
+        a = next_recovery_action(TASK, APP, obs, state)
+        self.assertEqual(a['target']['label'], 'Use subcolors')
+        state['use_subcolors_enabled'] = True
+        self.assertEqual(next_recovery_action(TASK, APP, obs, state)['target']['label'], 'Hold intensity')
+        state['hold_intensity_disabled'] = True
+        self.assertEqual(next_recovery_action(TASK, APP, obs, state)['target']['label'], 'Original intensity')
+        state['original_intensity_disabled'] = True
+        self.assertEqual(next_recovery_action(TASK, APP, obs, state)['target']['label'], 'Get Sample Colors')
+        state['sample_colors_requested'] = True
+        self.assertEqual(next_recovery_action(TASK, APP, obs, state)['target']['label'], 'Apply')
+        state['colorize_applied'] = True
+        self.assertEqual(next_recovery_action(TASK, APP, obs, state)['target']['label'], 'Close')
+
+    def test_open_colorize_waits_for_delayed_accessibility_tree(self):
+        target = frame('[IMG_7318_original] (imported)-1.0 - GIMP')
+        state = {'sample_loaded': True, 'owned': True, 'colorize_open_requested': True}
+        self.assertIsNone(next_recovery_action(TASK, APP, target, state))
+        self.assertEqual(state['colorize_open_waits'], 1)
+
+    def test_closed_colorize_waits_for_dialog_disappearance(self):
+        obs = (frame('[IMG_7318_original] (imported)-1.0 - GIMP') + '\n'
+               'push-button\tGet Sample Colors\tGet Sample Colors\tx\tx\t(300,700)\t(120,30)\n'
+               'push-button\tApply\tApply\tx\tx\t(600,700)\t(90,30)\n'
+               'push-button\tClose\tClose\tx\tx\t(700,700)\t(90,30)')
+        state = {'sample_loaded': True, 'owned': True, 'colorize_closed': True}
+        self.assertIsNone(next_recovery_action(TASK, APP, obs, state))
 
     def test_official_tree_active_layer_recovers_sample_without_frame(self):
         obs = ('label\tIMG_7318_original.jpg (454.6 MB)\tx\n'
