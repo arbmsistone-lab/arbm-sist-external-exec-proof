@@ -26,8 +26,7 @@ def _guest_script(task):
 
 def next_calibrated_action(instruction, active_application, observation, state):
     task=parse_reference_pair_task(instruction)
-    exact=(task and task.get('reference_original')=='IMG_7328_original.jpg' and task.get('reference_edited')=='IMG_7328_edited.jpg' and task.get('target_original')=='IMG_7318_original.jpg' and task.get('output')=='IMG_7318_edited.jpg')
-    if not exact or state.get('terminal_failed'):
+    if not task or state.get('terminal_failed'):
         return None
     obs=str(observation or ''); app=str(active_application or '').casefold()
     terminal=('terminal' in app or 'terminal' in obs.casefold())

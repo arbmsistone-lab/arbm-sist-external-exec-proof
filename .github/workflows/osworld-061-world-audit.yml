@@ -1,5 +1,12 @@
 name: OSWorld 061 world audit
 on:
+  push:
+    branches: [chatgpt/arbm-agent-elite-v2-20260914]
+    paths:
+      - .github/workflows/osworld-061-world-audit.yml
+      - scripts/osworld_061_*.py
+      - scripts/osworld_free_mesh_shim.py
+      - scripts/osworld_gimp_style_transfer.py
   workflow_dispatch:
     inputs:
       run_id:
@@ -27,8 +34,8 @@ jobs:
       - name: Download official focal evidence
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
-          name: ${{ inputs.artifact_name }}
-          run-id: ${{ inputs.run_id }}
+          name: ${{ github.event_name == 'workflow_dispatch' && inputs.artifact_name || 'osworld-v32-official18-B' }}
+          run-id: ${{ github.event_name == 'workflow_dispatch' && inputs.run_id || '35042215104' }}
           github-token: ${{ github.token }}
           path: incident-evidence
       - name: Install pinned FREE audit runtime

@@ -9,8 +9,9 @@ class Calibrated061Tests(unittest.TestCase):
     def test_reference_pair_admitted(self):
         a=next_calibrated_action(TASK,'GNU Image Manipulation Program','',{})
         self.assertEqual(a['specialist_phase'],'061-terminal-visible')
-    def test_generic_reference_pair_rejected_fail_closed(self):
-        self.assertIsNone(next_calibrated_action(GENERIC,'Files','',{}))
+    def test_generic_reference_pair_admitted(self):
+        a=next_calibrated_action(GENERIC,'Files','',{})
+        self.assertEqual(a['specialist_phase'],'061-terminal-visible')
     def test_unrelated_pair_not_admitted(self):
         self.assertIsNone(next_calibrated_action('Edit a.jpg into b.jpg','GIMP','',{}))
     def test_unsafe_marker_falls_back(self):

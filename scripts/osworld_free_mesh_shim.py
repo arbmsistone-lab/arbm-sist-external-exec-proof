@@ -209,10 +209,8 @@ def request_mesh(body):
                 'mandatory_cost_usd':0,'paid_fallback_used':False}
 
 def try_061_calibrated(body, obs, focused_obs):
-    """Run the task-061 reference-calibrated route inside the remote guest."""
+    """Run a reference-pair calibrated route inside the remote guest."""
     state=STATE.setdefault('grade061',{})
-    if os.environ.get('TASK_ID') not in (None, '', '061'):
-        return None
     candidate=next_calibrated_action(body.get('instruction',''),body.get('active_application','unknown'),focused_obs,state)
     if not candidate:
         if state.get('hard_fail'):

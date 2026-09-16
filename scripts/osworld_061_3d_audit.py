@@ -19,7 +19,7 @@ first_fallback=min([i for i in (incident.find('After darktable export'),incident
 agent_proof=incident.find('found_edited_photo=1')
 prior_provenance_failed=(not incident) or agent_proof<0 or agent_proof>first_fallback
 cases=[
-('D01_exact_task_isolation', "task.get('reference_original')=='IMG_7328_original.jpg'" in cal, "task.get('reference_edited')=='IMG_7328_edited.jpg'" in cal, "task.get('output')=='IMG_7318_edited.jpg'" in cal),
+('D01_generic_reference_task', 'parse_reference_pair_task(instruction)' in cal and 'if not task' in cal, 'reference_original' in cal and 'reference_edited' in cal, 'target_original' in cal and 'output' in cal),
 ('D02_reference_pair', 'reference_original' in cal and 'reference_edited' in cal, 'ARBM061_REF_RMSE' in cal, 'target_original' in cal),
 ('D03_holdout_validation', 'idx%5!=0' in cal, 'va=~tr' in cal, 'rmse>20' in cal),
 ('D04_full_score_threshold', 'rmse>20' in cal, "'pass': score == 1.0" in gate, 'OFFICIAL_SCORE_GATE' in gate),
