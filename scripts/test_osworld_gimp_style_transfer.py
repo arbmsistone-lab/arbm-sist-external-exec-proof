@@ -109,7 +109,7 @@ class GimpStyleTransferTests(unittest.TestCase):
                'push-button\tGet Sample Colors\tGet Sample Colors\tx\tx\t(300,700)\t(120,30)\n'
                'push-button\tApply\tApply\tx\tx\t(600,700)\t(90,30)\n'
                'push-button\tClose\tClose\tx\tx\t(700,700)\t(90,30)')
-        state = {'sample_loaded': True, 'owned': True, 'colorize_closed': True}
+        state = {'sample_loaded': True, 'owned': True, 'colorize_close_requested': True}
         self.assertIsNone(next_recovery_action(TASK, APP, obs, state))
 
     def test_official_tree_active_layer_recovers_sample_without_frame(self):
@@ -176,6 +176,45 @@ class GimpStyleTransferTests(unittest.TestCase):
         self.assertEqual(a['specialist_phase'], 'disable-original-intensity')
         self.assertEqual(a['command'], "pyautogui.hotkey('alt', 'n')")
         self.assertNotIn('target', a)
+
+    def test_sample_colors_processing_holds_before_apply(self):
+        obs = (frame('[IMG_7318_original] (imported)-1.0 - GIMP') + '\n'
+               'push-button\tGet Sample Colors\tGet Sample Colors\tx\tx\t(921,722)\t(148,33)\n'
+               'push-button\tApply\tApply\tx\tx\t(1229,722)\t(148,33)\n'
+               'push-button\tClose\tClose\tx\tx\t(1075,722)\t(148,33)\n'
+               'push-button\tCancel\tCancel\tx\tx\t(1632,1048)\t(74,29)')
+        state = {'sample_loaded':True,'owned':True,'use_subcolors_enabled':True,
+                 'original_intensity_disabled':True,'hold_intensity_disabled':True,
+                 'sample_colors_requested':True}
+        self.assertIsNone(next_recovery_action(TASK, APP, obs, state))
+        self.assertTrue(state['sample_colors_processing'])
+
+    def test_close_is_observed_before_export_opens(self):
+        dialog = (frame('[IMG_7318_original] (imported)-1.0 - GIMP') + '\n'
+                  'push-button\tGet Sample Colors\tGet Sample Colors\tx\n'
+                  'push-button\tApply\tApply\tx\n'
+                  'push-button\tClose\tClose\tx')
+        state={'sample_loaded':True,'owned':True,'colorize_close_requested':True}
+        self.assertIsNone(next_recovery_action(TASK, APP, dialog, state))
+        target=frame('[IMG_7318_original] (imported)-1.0 - GIMP')
+        a=next_recovery_action(TASK, APP, target, state)
+        self.assertTrue(state['colorize_closed'])
+        self.assertEqual(a['specialist_phase'],'export-open')
+
+    def test_export_confirm_waits_for_modal_and_processing_then_finishes(self):
+        target=frame('[IMG_7318_original] (imported)-1.0 - GIMP')
+        state={'sample_loaded':True,'owned':True,'colorize_closed':True,
+               'export_open_requested':True,'export_name_requested':True,
+               'export_name_typed':True,'export_submitted':True,
+               'export_confirm_requested':True}
+        jpeg=target+'\ndialog\tExport Image as JPEG\tExport Image as JPEG\tx'
+        self.assertIsNone(next_recovery_action(TASK, APP, jpeg, state))
+        busy=target+'\npush-button\tCancel\tCancel\tx\tx\t(1632,1048)\t(74,29)'
+        self.assertIsNone(next_recovery_action(TASK, APP, busy, state))
+        self.assertTrue(state['export_processing'])
+        done=next_recovery_action(TASK, APP, target, state)
+        self.assertEqual(done['action'],'finish')
+        self.assertTrue(state['export_confirmed'])
 
 
 if __name__ == '__main__':

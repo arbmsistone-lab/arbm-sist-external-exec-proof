@@ -66,7 +66,7 @@ def audit_task(root, task, sha):
             if event.get('mandatory_cost_usd') != 0 or event.get('paid_fallback_used') is not False: raise ValueError('ZERO_SPEND_UNPROVEN')
             for attempt in event.get('provider_attempts', []):
                 if attempt.get('status') == 200 and not (attempt.get('free_plan_proven') is True or attempt.get('zero_spend_confirmed') is True): raise ValueError('FREE_PROVIDER_UNPROVEN')
-        issued |= event.get('status') == 'ACTION_ISSUED'
+        issued |= event.get('status') in ('ACTION_ISSUED', 'GIMP_SPECIALIST_ACTION_ISSUED')
     if not issued: raise ValueError('NO_REAL_AGENT_ACTION')
     judges=audit_judgements(root,task,sha)
     return {'task_id': task, 'score': score, 'pass': score == 1.0,

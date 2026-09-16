@@ -91,5 +91,11 @@ class OfficialGateTests(unittest.TestCase):
         self.assertEqual(out['official_tasks'],1)
         with self.assertRaisesRegex(ValueError,'TASK_SET'): aggregate(focal,'test-sha')
 
+    def test_specialist_action_counts_as_real_agent_action(self):
+        d=self.change('shim.jsonl',json.dumps({'commit':'test-sha','task_id':'061',
+            'status':'GIMP_SPECIALIST_ACTION_ISSUED'}))
+        row=audit_task(d,'061','test-sha')
+        self.assertEqual(row['score'],1.0)
+
 
 if __name__ == '__main__': unittest.main()

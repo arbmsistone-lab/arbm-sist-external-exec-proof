@@ -146,8 +146,10 @@ def next_recovery_action(instruction, active_application, observation, state):
     if dialog_open:
         state['colorize_open_observed'] = True
         state['colorize_open_waits'] = 0
-        if state.get('colorize_closed'):
+        if state.get('colorize_close_requested'):
+            state['colorize_closing'] = True
             return None
+        state['colorize_closing'] = False
         if not state.get('use_subcolors_enabled'):
             return _champion_phase(obs, 'enable-subcolors',
                                    'Enable mixed subcolors for a fuller reference color transfer.', 'Sample Colorize')
@@ -164,6 +166,10 @@ def next_recovery_action(instruction, active_application, observation, state):
             return _champion_phase(obs, 'sample-colors',
                                    'Load the visible edited reference colors into Sample Colorize.', 'Sample Colorize')
         if not state.get('colorize_applied'):
+            if _has(obs, 'Cancel', 'push-button'):
+                state['sample_colors_processing'] = True
+                return None
+            state['sample_colors_processing'] = False
             return _champion_phase(obs, 'apply-colorize',
                                    'Apply the sampled color mapping to the destination image.', 'Sample Colorize')
         # The official 061 VM exposes a bottom Cancel button while GEGL is still
@@ -176,6 +182,12 @@ def next_recovery_action(instruction, active_application, observation, state):
         return _click('Close', 'push-button', 'Close Sample Colorize only after the remap has finished.',
                       target + ' (', checkpoint=False, phase='close-colorize')
 
+    if state.get('colorize_close_requested') and not state.get('colorize_closed'):
+        if not target_active:
+            return None
+        state['colorize_closing'] = False
+        state['colorize_closed'] = True
+
     output_path = '/home/user/Pictures/' + task['output']
     if state.get('colorize_closed'):
         if not state.get('export_open_requested'):
@@ -183,6 +195,19 @@ def next_recovery_action(instruction, active_application, observation, state):
             return _action("pyautogui.hotkey('ctrl', 'shift', 'e')",
                            'Open GIMP Export As for the edited target.', 'Export Image', phase='export-open')
         low = obs.casefold()
+        if state.get('export_confirm_requested'):
+            if 'export image as jpeg' in low:
+                return None
+            if _has(obs, 'Cancel', 'push-button'):
+                state['export_processing'] = True
+                return None
+            state['export_processing'] = False
+            if not target_active:
+                return None
+            state['export_confirmed'] = True
+            return {'action':'finish','command':'','plan':'Finish after the JPEG modal disappears and the edited target is active.',
+                    'summary':'Edited target export completed by the specialist.','confidence':1.0,
+                    'verification':target+' active after JPEG export confirmation'}
         if target.casefold() in low and 'already exists' in low and _has(obs, 'Cancel', 'push-button'):
             return _click('Cancel', 'push-button',
                           'Abort any attempt to overwrite the original target image.',
@@ -208,10 +233,6 @@ def next_recovery_action(instruction, active_application, observation, state):
                            'Confirm JPEG export options in the active modal.', task['output'],
                            {'source':'screenshot','label':'Export Image as JPEG / Export'},
                            checkpoint=False, phase='export-confirm')
-        if state.get('export_confirmed') and task['output'].casefold() in obs.casefold():
-            return {'action':'finish','command':'','plan':'Finish after visible export confirmation.',
-                    'summary':'Edited target exported by the agent.','confidence':1.0,
-                    'verification':task['output']+' exported'}
         return None
 
     # The active edited-reference layer is enough when GIMP omits a frame node.

@@ -91,6 +91,34 @@ class GimpSpecialistIntegrationTests(unittest.TestCase):
             self.assertEqual(shim.try_gimp_specialist(self.body(), obs, obs), 'WAIT')
         self.assertEqual(shim.STATE['gimp_specialist']['uncertain_turns'], 6)
 
+    def test_owned_loop_rejection_never_falls_through(self):
+        shim.STATE['gimp_specialist']={'sample_loaded':True,'owned':True}
+        obs=frame('[IMG_7318_original] (imported)-1.0 - GIMP')
+        candidate={'action':'exec','command':"pyautogui.hotkey('ctrl','o')",'plan':'x',
+                   'summary':'x','expected_change':'x','confidence':1.0,
+                   'observed_facts':[],'verification':'x','checkpoint':None}
+        from unittest.mock import patch
+        with patch.object(shim,'next_recovery_action',return_value=candidate), \
+             patch.object(shim,'ground_action',return_value=candidate), \
+             patch.object(shim,'apply_live_policy',return_value={'kind':shim.DecisionKind.EXEC.value}), \
+             patch.object(shim,'rejects_visual_navigation_loop',return_value=True):
+            self.assertEqual(shim.try_gimp_specialist(self.body(),obs,obs),'WAIT')
+
+    def test_specialist_finish_ignores_stale_global_milestone_stall(self):
+        shim.STATE['gimp_specialist']={'sample_loaded':True,'owned':True,
+            'colorize_closed':True,'export_confirmed':True}
+        obs=(frame('[IMG_7318_original] (imported)-1.0 - GIMP') + '\n'
+             'label\tIMG_7318_original.jpg (454.6 MB)\tIMG_7318_original.jpg (454.6 MB)')
+        action={'action':'finish','command':'','plan':'done','summary':'done','confidence':1.0,
+                'verification':'IMG_7318_original.jpg active after JPEG export confirmation'}
+        shim.MILESTONES.stalled=3
+        shim.VERIFIER.changes=1; shim.VERIFIER.no_progress=0
+        from unittest.mock import patch
+        with patch.object(shim,'next_recovery_action',return_value=action), \
+             patch.object(shim,'ground_action',return_value=action), \
+             patch.object(shim,'apply_live_policy',return_value={'kind':shim.DecisionKind.FINISH_CANDIDATE.value}):
+            self.assertEqual(shim.try_gimp_specialist(self.body(),obs,obs),'DONE')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -236,19 +236,27 @@ def try_gimp_specialist(body, obs, focused_obs):
             return 'WAIT'
         return None
     if action.get('action')=='finish':
-        if decision.get('kind')==DecisionKind.FINISH_CANDIDATE.value and MILESTONES.verified and MILESTONES.stalled==0 and VERIFIER.can_finish(action,obs):
+        specialist_complete=(specialist_state.get('colorize_closed') and specialist_state.get('export_confirmed'))
+        if decision.get('kind')==DecisionKind.FINISH_CANDIDATE.value and specialist_complete and VERIFIER.can_finish(action,obs):
             STATE['phase']='done';log_event({'status':'GIMP_SPECIALIST_VERIFIED_FINISH','action':action});return 'DONE'
         log_event({'status':'GIMP_SPECIALIST_FINISH_REJECTED','action':action});return 'WAIT'
-    if decision.get('kind')!=DecisionKind.EXEC.value or action.get('action')!='exec':return None
+    if decision.get('kind')!=DecisionKind.EXEC.value or action.get('action')!='exec':
+        if specialist_state.get('owned'):
+            log_event({'status':'GIMP_SPECIALIST_DECISION_HOLD','decision':decision.get('kind')})
+            return 'WAIT'
+        return None
     command=action['command']
     if rejects_visual_navigation_loop(action,body['instruction'],body.get('active_application','unknown'),MILESTONES.stalled):
-        log_event({'status':'GIMP_SPECIALIST_LOOP_REJECTED','command':command});return None
+        log_event({'status':'GIMP_SPECIALIST_LOOP_REJECTED','command':command})
+        return 'WAIT' if specialist_state.get('owned') else None
     recent=[x['command'] for x in STATE['history'][-6:]]
     if VERIFIER.no_progress and command in recent:
-        log_event({'status':'GIMP_SPECIALIST_REPEAT_REJECTED','command':command});return None
+        log_event({'status':'GIMP_SPECIALIST_REPEAT_REJECTED','command':command})
+        return 'WAIT' if specialist_state.get('owned') else None
     elite_action=ELITE.before_action(command,action.get('target'))
     if not elite_action['allow']:
-        log_event({'status':'GIMP_SPECIALIST_TABU_REJECTED','command':command,'reason':elite_action['reason']});return None
+        log_event({'status':'GIMP_SPECIALIST_TABU_REJECTED','command':command,'reason':elite_action['reason']})
+        return 'WAIT' if specialist_state.get('owned') else None
     STATE['plan']=str(action.get('plan') or STATE['plan'])[:1400]
     STATE['previous']=command;STATE['executed']+=1;STATE['wait_responses']=0;STATE['provider_waits']=0
     STATE['history'].append({'command':command,'expected':action.get('expected_change',''),'source':'gimp-specialist'})
@@ -261,12 +269,12 @@ def try_gimp_specialist(body, obs, focused_obs):
     elif phase=='disable-original-intensity':specialist_state['original_intensity_disabled']=True
     elif phase=='sample-colors':specialist_state['sample_colors_requested']=True
     elif phase=='apply-colorize':specialist_state['colorize_applied']=True
-    elif phase=='close-colorize':specialist_state['colorize_closed']=True
+    elif phase=='close-colorize':specialist_state['colorize_close_requested']=True
     elif phase=='export-open':specialist_state['export_open_requested']=True
     elif phase=='export-name-focus':specialist_state['export_name_requested']=True
     elif phase=='export-name':specialist_state['export_name_typed']=True
     elif phase=='export-submit':specialist_state['export_submitted']=True
-    elif phase=='export-confirm':specialist_state['export_confirmed']=True
+    elif phase=='export-confirm':specialist_state['export_confirm_requested']=True
     elif phase=='export-original-overwrite-cancel':
         specialist_state['export_name_requested']=False
         specialist_state['export_name_typed']=False

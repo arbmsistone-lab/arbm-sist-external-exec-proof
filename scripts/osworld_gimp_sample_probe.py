@@ -420,3 +420,5 @@ def main(image, evidence):
 
 if __name__ == '__main__':
     main(Path(sys.argv[1]), Path(sys.argv[2]))
+
+# exact-SHA trigger: full OSWorld scan state-machine hardening
