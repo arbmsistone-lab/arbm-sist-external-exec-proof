@@ -64,7 +64,10 @@ class GimpStyleTransferTests(unittest.TestCase):
         obs = (frame('[IMG_7318_original] (imported)-1.0 - GIMP') + '\n'
                'push-button\tGet Sample Colors\tGet Sample Colors\tx\tx\t(300, 700)\t(120, 30)\n'
                'push-button\tApply\tApply\tx\tx\t(600, 700)\t(90, 30)\n'
-               'push-button\tClose\tClose\tx\tx\t(700, 700)\t(90, 30)')
+               'push-button\tClose\tClose\tx\tx\t(700, 700)\t(90, 30)\n'
+               'check-box\tUse subcolors\tUse subcolors\tx\tx\t(900,650)\t(120,20)\n'
+               'check-box\tHold intensity\tHold intensity\tx\tx\t(500,650)\t(120,20)\n'
+               'check-box\tOriginal intensity\tOriginal intensity\tx\tx\t(650,650)\t(140,20)')
         state = {'sample_loaded': True}
         a = next_recovery_action(TASK, APP, obs, state)
         self.assertEqual(a['target']['label'], 'Use subcolors')
