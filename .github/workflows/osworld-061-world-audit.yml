@@ -45,7 +45,7 @@ jobs:
           test "$RUNNER_ENVIRONMENT" = github-hosted
           python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
           python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
-      - name: Run 500-senior deterministic adversarial perspectives
+      - name: Run 500 deterministic adversarial perspectives
         run: python scripts/osworld_061_champion_audit.py
       - name: Run 10-robot specialist world audit
         run: python scripts/osworld_061_specialist_swarm.py incident-evidence

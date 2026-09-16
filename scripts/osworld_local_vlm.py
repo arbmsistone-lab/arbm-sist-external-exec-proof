@@ -62,20 +62,27 @@ def parse_action_object(output):
     raise ValueError('LOCAL_ACTION_REQUIRED')
 
 
-def _parts(messages):
-    texts=[]; images=[]
+def _model_messages(messages):
+    normalized=[]; images=[]
     for message in messages or []:
-        content=message.get('content') if isinstance(message,dict) else None
-        if isinstance(content,str):
-            texts.append(content); continue
-        for item in content or []:
-            if not isinstance(item,dict): continue
-            if item.get('type')=='text': texts.append(str(item.get('text') or ''))
-            if item.get('type')=='image_url':
-                image=item.get('image_url') or {}
-                url=image.get('url','') if isinstance(image,dict) else ''
-                if url.startswith('data:image/') and ',' in url: images.append(url.split(',',1)[1])
-    return '\n'.join(texts),images
+        if not isinstance(message,dict): raise ValueError('LOCAL_MESSAGE_OBJECT_REQUIRED')
+        role=str(message.get('role') or '')
+        if role not in ('system','user','assistant'): raise ValueError('LOCAL_MESSAGE_ROLE_UNSUPPORTED')
+        content=message.get('content'); items=[]
+        if isinstance(content,str): items.append({'type':'text','text':content})
+        elif isinstance(content,list):
+            for item in content:
+                if not isinstance(item,dict): raise ValueError('LOCAL_MESSAGE_PART_UNSUPPORTED')
+                kind=item.get('type')
+                if kind=='text': items.append({'type':'text','text':str(item.get('text') or '')})
+                elif kind=='image_url':
+                    image=item.get('image_url') or {}; url=image.get('url','') if isinstance(image,dict) else ''
+                    if not (url.startswith('data:image/') and ',' in url): raise ValueError('LOCAL_INLINE_IMAGE_REQUIRED')
+                    images.append(url.split(',',1)[1]); items.append({'type':'image'})
+                else: raise ValueError('LOCAL_MESSAGE_PART_UNSUPPORTED')
+        else: raise ValueError('LOCAL_MESSAGE_CONTENT_UNSUPPORTED')
+        normalized.append({'role':role,'content':items})
+    return normalized,images
 
 
 def action_prompt(body):
@@ -104,10 +111,11 @@ def default_infer(text, image_b64, max_tokens):
         model.eval()
         default_infer.runtime=(processor,model)
     processor,model=default_infer.runtime
-    image=Image.open(io.BytesIO(base64.b64decode(image_b64))).convert('RGB')
-    messages=[{'role':'user','content':[{'type':'image'},{'type':'text','text':text}]}]
+    encoded=image_b64 if isinstance(image_b64,list) else [image_b64]
+    images=[Image.open(io.BytesIO(base64.b64decode(item))).convert('RGB') for item in encoded]
+    messages=text if isinstance(text,list) else [{'role':'user','content':[{'type':'image'},{'type':'text','text':text}]}]
     rendered=processor.apply_chat_template(messages,add_generation_prompt=True)
-    inputs=processor(text=rendered,images=[image],return_tensors='pt')
+    inputs=processor(text=rendered,images=images,return_tensors='pt')
     with torch.inference_mode():
         generated=model.generate(**inputs,max_new_tokens=max(1,min(int(max_tokens),192)),do_sample=False)
     prompt_tokens=inputs['input_ids'].shape[1]
@@ -127,18 +135,22 @@ class LocalVLMRoute:
             return None,[{**base,'status':'hard_mode_required'}]
         if os.environ.get('ARBM_ENABLE_LOCAL_VLM')!='1':
             return None,[{**base,'status':'disabled'}]
-        if raw_messages is not None:
-            text,images=_parts(raw_messages)
-        else:
-            url=body.get('screenshot_data_url','')
-            text=action_prompt(body); images=[url.split(',',1)[1]] if url.startswith('data:image/') and ',' in url else []
+        try:
+            if raw_messages is not None:
+                text,images=_model_messages(raw_messages)
+            else:
+                url=body.get('screenshot_data_url','')
+                text=action_prompt(body); images=[url.split(',',1)[1]] if url.startswith('data:image/') and ',' in url else []
+        except ValueError as exc:
+            return None,[{**base,'status':'local_model_error','error_type':'ValueError','contract_error':str(exc)}]
         if not images:
             return None,[{**base,'status':'image_required'}]
         started=self.clock()
         try:
             # 96 tokens is ample for a bounded pyautogui action and keeps the
             # CPU fallback from consuming the task deadline after a quota hit.
-            output=self.infer(text,images[-1],raw_tokens if raw_messages is not None else 96)
+            image_arg=images if raw_messages is not None else images[-1]
+            output=self.infer(text,image_arg,raw_tokens if raw_messages is not None else 96)
             if self.clock()-started>budget:
                 return None,[{**base,'status':'budget_exceeded'}]
             if raw_messages is not None:

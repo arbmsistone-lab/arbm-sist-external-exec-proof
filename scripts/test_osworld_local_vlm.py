@@ -34,6 +34,28 @@ class LocalVLMTests(unittest.TestCase):
         self.assertEqual(result['provider'],'local-cloud-vlm')
         self.assertTrue(attempts[-1]['zero_spend_confirmed'])
 
+    def test_raw_messages_preserve_roles_order_and_all_images(self):
+        seen=[]; png2=base64.b64encode(b'fixture-two').decode()
+        raw=[{'role':'system','content':'Judge exactly.'},{'role':'user','content':[{'type':'text','text':'First'},{'type':'image_url','image_url':{'url':'data:image/png;base64,'+PNG}},{'type':'text','text':'Second'},{'type':'image_url','image_url':{'url':'data:image/png;base64,'+png2}}]}]
+        result,attempts=LocalVLMRoute(lambda messages,images,tokens: seen.append((messages,images,tokens)) or 'NO').call({},raw_messages=raw,raw_tokens=11)
+        self.assertEqual(result['text'],'NO'); self.assertEqual(attempts[-1]['status'],200)
+        messages,images,tokens=seen[0]
+        self.assertEqual([m['role'] for m in messages],['system','user'])
+        self.assertEqual([x['type'] for x in messages[1]['content']],['text','image','text','image'])
+        self.assertEqual(images,[PNG,png2]); self.assertEqual(tokens,11)
+
+    def test_raw_remote_image_fails_closed(self):
+        called=[]; raw=[{'role':'user','content':[{'type':'image_url','image_url':{'url':'https://example.invalid/a.png'}}]}]
+        result,attempts=LocalVLMRoute(lambda *args: called.append(args) or 'NO').call({},raw_messages=raw)
+        self.assertIsNone(result); self.assertFalse(called)
+        self.assertEqual(attempts[-1]['contract_error'],'LOCAL_INLINE_IMAGE_REQUIRED')
+
+    def test_desktop_mode_keeps_single_image_contract(self):
+        seen=[]; route=LocalVLMRoute(lambda text,image,tokens: seen.append((text,image,tokens)) or "pyautogui.press('enter')")
+        result,_=route.call(BODY)
+        self.assertEqual(result['action']['command'],"pyautogui.press('enter')")
+        self.assertIsInstance(seen[0][0],str); self.assertIsInstance(seen[0][1],str)
+
     def test_disabled_never_runs_model(self):
         with patch.dict(os.environ,{'ARBM_ENABLE_LOCAL_VLM':'0'}):
             result,attempts=LocalVLMRoute(lambda *x: (_ for _ in ()).throw(Exception())).call(BODY)

@@ -7,6 +7,7 @@ on:
       - scripts/osworld_gimp_sample_probe.py
       - scripts/osworld_061_calibrated_grade.py
       - scripts/osworld_061_calibrated_probe.py
+      - scripts/osworld_local_vlm.py
 permissions:
   contents: read
 concurrency:
