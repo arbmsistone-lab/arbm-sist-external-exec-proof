@@ -1,5 +1,5 @@
 """Twenty final 3D audits: transaction, quality, provenance."""
-import json, sys
+import json, os, sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 def text(rel): return (ROOT/rel).read_text(encoding='utf-8',errors='replace')
@@ -18,6 +18,24 @@ def has(s,*xs): return all(x in s for x in xs)
 first_fallback=min([i for i in (incident.find('After darktable export'),incident.find('After GIMP export')) if i>=0] or [len(incident)])
 agent_proof=incident.find('found_edited_photo=1')
 prior_provenance_failed=(not incident) or agent_proof<0 or agent_proof>first_fallback
+official_scores=[]; official_summaries=[]; candidate_shas=[]
+if len(sys.argv)>1:
+    for p in root.rglob('candidate-sha.txt'):
+        if p.is_file(): candidate_shas.append(p.read_text(errors='replace').strip())
+    for p in root.rglob('result.txt'):
+        if p.is_file():
+            try: official_scores.append(float(p.read_text(errors='replace').strip()))
+            except ValueError: pass
+    for p in root.rglob('results.json'):
+        if p.is_file():
+            try: official_summaries.append(json.loads(p.read_text(errors='replace')))
+            except json.JSONDecodeError: pass
+approved_sha=os.environ.get('APPROVED_FOCAL_SHA')
+candidate_sha_proven=bool(approved_sha and candidate_shas==[approved_sha])
+official_full_score=(len(official_scores)==1 and official_scores[0]==1.0)
+official_summary_success=(len(official_summaries)==1 and isinstance(official_summaries[0],list)
+    and len(official_summaries[0])==1 and official_summaries[0][0].get('task_id')=='061'
+    and official_summaries[0][0].get('status')=='success' and official_summaries[0][0].get('score')==1.0)
 cases=[
 ('D01_generic_calibrator_task061_scoped', 'parse_reference_pair_task(instruction)' in cal and 'if not task' in cal, "os.environ.get('TASK_ID') != '061'" in shim, 'target_original' in cal and 'output' in cal),
 ('D02_reference_pair', 'reference_original' in cal and 'reference_edited' in cal, 'ARBM061_REF_RMSE' in cal, 'target_original' in cal),
@@ -37,7 +55,7 @@ cases=[
 ('D16_cloud_only_heavy', 'runs-on: ubuntu-24.04' in wf, 'test -c /dev/kvm' in wf, 'github-hosted' in wf),
 ('D17_timeout_failclosed', 'run_waits' in cal and '>12' in cal, '061-calibration-timeout' in cal, 'terminal_failed' in cal),
 ('D18_output_preexist', 'ARBM061_OUTPUT_PREEXISTED' in cal, 'OUTPUT_PREEXISTED_PROVENANCE_UNSAFE' in text('scripts/osworld_gimp_sample_probe.py'), 'ORIGINAL_OVERWRITE_ATTEMPT_BLOCKED' in text('scripts/osworld_gimp_sample_probe.py')),
-('D19_prior_incident_learned', 'MSE=5049.3369' in incident or not incident, 'quality_score=0.0000' in incident or not incident, prior_provenance_failed),
+('D19_prior_incident_learned', candidate_sha_proven and official_full_score, official_summary_success, not prior_provenance_failed),
 ('D20_audit_stack', 'construction_lenses' in champ, 'osworld_061_specialist_swarm.py' in text('.github/workflows/osworld-061-world-audit.yml'), 'osworld_061_3d_audit.py' in text('.github/workflows/osworld-061-world-audit.yml')),
 ]
 rows=[]
