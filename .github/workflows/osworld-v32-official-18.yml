@@ -103,6 +103,8 @@ jobs:
       OSWORLD_EVAL_MODEL_API_KEY_ENV: OPENAI_API_KEY
       OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
       ARBM_MAX_STEPS: '500'
+      ARBM_TASK_SECONDS: '2400'
+      ARBM_RUN_MULTIENV_TIMEOUT_SECONDS: '2520'
       ARBM_VM_VOLUME_GB: '50'
       AWS_REGION: us-east-1
       WEBSITE_HOST_SUFFIX: site.hku.icu
@@ -288,8 +290,12 @@ jobs:
               break
             fi
             set +e
-            (cd osworld && uv run python scripts/python/run_multienv.py --headless --provider_name docker --path_to_vm "$QCOW_PATH" --eval_version v2 --test_all_meta_path evaluation_examples/test_arbm_v32.json --domain tasks --observation_type screenshot_a11y_tree --action_space pyautogui --model gpt-arbm-osworld-v32-isolated --temperature 0 --max_steps 500 --max_trajectory_length 8 --max_tokens 4096 --num_envs 1 --result_dir "../osworld-v32-evidence/task-${TASK_ID}/results" 2>&1 | tee "../osworld-v32-evidence/task-${TASK_ID}/osworld.log")
+            (cd osworld && timeout --signal=TERM --kill-after=30s "${ARBM_RUN_MULTIENV_TIMEOUT_SECONDS}s" uv run python scripts/python/run_multienv.py --headless --provider_name docker --path_to_vm "$QCOW_PATH" --eval_version v2 --test_all_meta_path evaluation_examples/test_arbm_v32.json --domain tasks --observation_type screenshot_a11y_tree --action_space pyautogui --model gpt-arbm-osworld-v32-isolated --temperature 0 --max_steps 500 --max_trajectory_length 8 --max_tokens 4096 --num_envs 1 --result_dir "../osworld-v32-evidence/task-${TASK_ID}/results" 2>&1 | tee "../osworld-v32-evidence/task-${TASK_ID}/osworld.log")
             rc=$?
+            if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+              printf '%s\n' "$rc" > "$DIR/run-multienv-timeout.txt"
+              echo "TASK_${TASK_ID}_RUN_MULTIENV_TIMEOUT rc=$rc" >&2
+            fi
             set -e
             kill "$SHIM_PID" 2>/dev/null || true
             wait "$SHIM_PID" 2>/dev/null || true
