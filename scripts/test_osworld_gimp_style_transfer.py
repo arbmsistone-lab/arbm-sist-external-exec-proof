@@ -79,6 +79,22 @@ class GimpStyleTransferTests(unittest.TestCase):
         state['colorize_applied'] = True
         self.assertEqual(next_recovery_action(TASK, APP, obs, state)['target']['label'], 'Close')
 
+    def test_colorize_processing_cancel_is_never_clicked(self):
+        obs = (frame('[IMG_7318_original] (imported)-1.0 - GIMP') + '\n'
+               'push-button\tGet Sample Colors\tGet Sample Colors\tx\tx\t(300,700)\t(120,30)\n'
+               'push-button\tApply\tApply\tx\tx\t(600,700)\t(90,30)\n'
+               'push-button\tClose\tClose\tx\tx\t(700,700)\t(90,30)\n'
+               'push-button\tCancel\tCancel\tx\tx\t(1632,1048)\t(74,29)')
+        state = {'sample_loaded': True, 'owned': True, 'use_subcolors_enabled': True,
+                 'hold_intensity_disabled': True, 'original_intensity_disabled': True,
+                 'sample_colors_requested': True, 'colorize_applied': True}
+        self.assertIsNone(next_recovery_action(TASK, APP, obs, state))
+        self.assertTrue(state['colorize_processing'])
+        settled = obs.replace('push-button\tCancel\tCancel\tx\tx\t(1632,1048)\t(74,29)', '')
+        action = next_recovery_action(TASK, APP, settled, state)
+        self.assertFalse(state['colorize_processing'])
+        self.assertEqual(action['target']['label'], 'Close')
+
     def test_open_colorize_waits_for_delayed_accessibility_tree(self):
         target = frame('[IMG_7318_original] (imported)-1.0 - GIMP')
         state = {'sample_loaded': True, 'owned': True, 'colorize_open_requested': True}

@@ -212,6 +212,10 @@ def try_gimp_specialist(body, obs, focused_obs):
     specialist_state=STATE.setdefault('gimp_specialist',{})
     candidate=next_recovery_action(body.get('instruction',''),body.get('active_application','unknown'),focused_obs,specialist_state)
     if not candidate:
+        if specialist_state.get('colorize_processing'):
+            specialist_state['uncertain_turns']=0
+            log_event({'status':'GIMP_SPECIALIST_COLORIZE_PROCESSING_HOLD'})
+            return 'WAIT'
         if specialist_state.get('owned'):
             specialist_state['uncertain_turns']=specialist_state.get('uncertain_turns',0)+1
             log_event({'status':'GIMP_SPECIALIST_HOLD','uncertain_turns':specialist_state['uncertain_turns']})

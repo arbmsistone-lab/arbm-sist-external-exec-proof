@@ -153,7 +153,14 @@ def next_recovery_action(instruction, active_application, observation, state):
             return _click('Apply', 'push-button',
                           'Apply the sampled color mapping to the destination image.',
                           'Sample Colorize', checkpoint=False, phase='apply-colorize')
-        return _click('Close', 'push-button', 'Close Sample Colorize after applying the mapping.',
+        # The official 061 VM exposes a bottom Cancel button while GEGL is still
+        # remapping colors. Handing control to the generic agent here caused it
+        # to click that Cancel button and abort the actual transformation.
+        if _has(obs, 'Cancel', 'push-button'):
+            state['colorize_processing'] = True
+            return None
+        state['colorize_processing'] = False
+        return _click('Close', 'push-button', 'Close Sample Colorize only after the remap has finished.',
                       target + ' (', checkpoint=False, phase='close-colorize')
 
     output_path = '/home/user/Pictures/' + task['output']
