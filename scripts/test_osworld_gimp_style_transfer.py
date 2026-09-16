@@ -223,5 +223,31 @@ class GimpStyleTransferTests(unittest.TestCase):
         self.assertEqual(done['action'],'finish')
 
 
+    def test_profile_import_modal_clicks_convert_via_accessibility_target(self):
+        obs = ("dialog\tImport Image from a Color Profile\tImport Image from a Color Profile\tx\tx\t(800,300)\t(600,400)\n"
+               "label\tIMG_7318_original.jpg\tIMG_7318_original.jpg\tx\n"
+               "push-button\tConvert\tConvert\tx\tx\t(1180,650)\t(100,34)")
+        state = {'sample_loaded': True, 'owned': True}
+        a = next_recovery_action(TASK, APP, obs, state)
+        self.assertEqual(a['target'], {'source':'accessibility','label':'Convert','role':'push-button'})
+        self.assertEqual(a['command'], 'pyautogui.click(0, 0)')
+        self.assertEqual(a['specialist_phase'], 'convert-profile')
+        self.assertFalse(state['profile_modal_error'])
+
+    def test_profile_import_modal_missing_convert_fails_closed_after_three_observations(self):
+        obs = "dialog\tImport Image from a Color Profile\tImport Image from a Color Profile\tx\tx\t(800,300)\t(600,400)"
+        state = {'sample_loaded': True, 'owned': True}
+        self.assertIsNone(next_recovery_action(TASK, APP, obs, state))
+        self.assertFalse(state['profile_modal_error'])
+        self.assertIsNone(next_recovery_action(TASK, APP, obs, state))
+        self.assertFalse(state['profile_modal_error'])
+        self.assertIsNone(next_recovery_action(TASK, APP, obs, state))
+        self.assertTrue(state['profile_modal_error'])
+        clear = frame('[IMG_7318_original] (imported)-1.0 - GIMP')
+        next_recovery_action(TASK, APP, clear, state)
+        self.assertFalse(state['profile_modal_error'])
+        self.assertEqual(state['profile_modal_missing_convert_waits'], 0)
+
+
 if __name__ == '__main__':
     unittest.main()

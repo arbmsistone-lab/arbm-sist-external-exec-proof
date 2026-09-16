@@ -258,6 +258,7 @@ def _ack_gimp_pending(state, obs):
     dialog=all(x in low for x in ('get sample colors','apply','close'))
     ok=False
     if phase=='open-colorize': ok=dialog
+    elif phase=='convert-profile': ok='import image from a color profile' not in low and 'gimp' in low
     elif phase in ('enable-subcolors','disable-original-intensity','disable-hold-intensity'):
         ok=dialog
     elif phase=='sample-colors': ok=dialog and (progress or 'cancel' in low)
@@ -297,6 +298,10 @@ def try_gimp_specialist(body, obs, focused_obs):
         return terminal('GIMP_SPECIALIST_PHASE_UNVERIFIED')
     candidate=next_recovery_action(body.get('instruction',''),body.get('active_application','unknown'),focused_obs,specialist_state)
     if not candidate:
+        if specialist_state.get('profile_modal_error'):
+            log_event({'status':'GIMP_PROFILE_CONVERT_CONTROL_UNRESOLVED',
+                       'waits':specialist_state.get('profile_modal_missing_convert_waits',0)})
+            return terminal('GIMP_PROFILE_CONVERT_CONTROL_UNRESOLVED')
         if specialist_state.get('colorize_processing'):
             specialist_state['uncertain_turns']=0
             log_event({'status':'GIMP_SPECIALIST_COLORIZE_PROCESSING_HOLD'})
@@ -348,7 +353,7 @@ def try_gimp_specialist(body, obs, focused_obs):
     STATE['history']=STATE['history'][-12:]
     specialist_state['owned']=True;specialist_state['uncertain_turns']=0
     phase=action.get('specialist_phase')
-    tracked={'open-colorize','enable-subcolors','disable-hold-intensity','disable-original-intensity',
+    tracked={'open-colorize','convert-profile','enable-subcolors','disable-hold-intensity','disable-original-intensity',
              'sample-colors','apply-colorize','close-colorize','export-open','export-name-focus',
              'export-name','export-submit','export-confirm','verify-output-open','export-original-overwrite-cancel'}
     if phase in tracked:

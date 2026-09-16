@@ -115,6 +115,24 @@ def next_recovery_action(instruction, active_application, observation, state):
     target = task['target_original']
     state['output_name'] = task['output']
 
+    # GIMP may stop on the explicit profile-conversion modal before exposing the
+    # image surface. Resolve only the semantically named Convert button through
+    # the existing accessibility target contract; never fall through to VLM.
+    profile_modal = 'import image from a color profile' in obs.casefold()
+    if profile_modal:
+        profile_image = sample if sample.casefold() in obs.casefold() else target
+        if _has(obs, 'Convert', 'push-button'):
+            state['profile_modal_missing_convert_waits'] = 0
+            state['profile_modal_error'] = False
+            return _click('Convert', 'push-button', 'Convert the imported image to the working color profile.',
+                          profile_image + ' (', checkpoint=False, phase='convert-profile')
+        waits = state.get('profile_modal_missing_convert_waits', 0) + 1
+        state['profile_modal_missing_convert_waits'] = waits
+        state['profile_modal_error'] = waits >= 3
+        return None
+    state['profile_modal_missing_convert_waits'] = 0
+    state['profile_modal_error'] = False
+
     # Embedded-profile prompts are foreground modals. Keep the supplied profile;
     # verify the document surface becomes visible again after dismissal.
     if _has(obs, 'Keep', 'push-button') and 'embedded color profile' in obs.casefold():

@@ -150,5 +150,26 @@ class GimpSpecialistIntegrationTests(unittest.TestCase):
 
 
 
+    def test_profile_convert_is_compiled_and_owned_before_generic_provider(self):
+        shim.STATE['gimp_specialist'] = {'sample_loaded': True, 'owned': True}
+        obs = ("dialog\tImport Image from a Color Profile\tImport Image from a Color Profile\tx\tx\t(800,300)\t(600,400)\n"
+               "label\tIMG_7318_original.jpg\tIMG_7318_original.jpg\tx\n"
+               "push-button\tConvert\tConvert\tx\tx\t(1180,650)\t(100,34)")
+        result = shim.try_gimp_specialist(self.body(), obs, obs)
+        self.assertIn('pyautogui.click(1230, 667)', result)
+        self.assertEqual(shim.STATE['history'][-1]['source'], 'gimp-specialist')
+        self.assertEqual(shim.STATE['gimp_specialist']['pending_phase'], 'convert-profile')
+        self.assertTrue(shim.STATE['gimp_specialist']['owned'])
+
+    def test_missing_convert_control_terminates_fail_closed(self):
+        shim.STATE['gimp_specialist'] = {'sample_loaded': True, 'owned': True}
+        obs = "dialog\tImport Image from a Color Profile\tImport Image from a Color Profile\tx\tx\t(800,300)\t(600,400)"
+        self.assertEqual(shim.try_gimp_specialist(self.body(), obs, obs), 'WAIT')
+        self.assertEqual(shim.try_gimp_specialist(self.body(), obs, obs), 'WAIT')
+        third = shim.try_gimp_specialist(self.body(), obs, obs)
+        self.assertNotEqual(third, 'WAIT')
+        self.assertTrue(shim.STATE['gimp_specialist']['profile_modal_error'])
+
+
 if __name__ == '__main__':
     unittest.main()
