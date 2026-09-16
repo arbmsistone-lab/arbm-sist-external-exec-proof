@@ -16,6 +16,9 @@ on:
       coordinate_grid:
         type: boolean
         default: false
+      square_observation:
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -33,6 +36,7 @@ jobs:
       ZERO_SPEND: 'true'
       HEAVY_LOCAL: '0'
       ARBM_G3_COORDINATE_GRID: ${{ inputs.coordinate_grid && '1' || '0' }}
+      ARBM_G3_SQUARE_OBSERVATION: ${{ inputs.square_observation && '1' || '0' }}
     steps:
       - name: Checkout G3 tooling
         uses: actions/checkout@v4

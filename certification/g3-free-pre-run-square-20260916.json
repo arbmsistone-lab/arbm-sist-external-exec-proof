@@ -1,0 +1,25 @@
+{
+  "base_sha": "0d661f3f58d9b02f28a89f9a6e8d9a7880a1df77",
+  "branch": "g3-free-cert-recovery-20260915",
+  "observed_at_utc": "2026-09-16T00:06:46.210503+00:00",
+  "A": "PASS: 57 tests, compile, lint, scoped diff; round-trip landscape/portrait/drag/scroll coordinate mapping; padding clicks rejected; OCR and history share model frame",
+  "B": "PASS: only agent screenshot preprocessing and telemetry changed; original screenshots retained; task/evaluator/assets/VM/pins and PAID/production unchanged; probe targets and thresholds unchanged",
+  "C": "PASS_FOR_ONE_GATED_GROQ_RUN: live owner console still Free $0; fresh receipt and key association required at runtime; per-call reported cost stays null when absent; independent contractual zero; 429 has no retry",
+  "provider": "groq",
+  "requested_model": "qwen/qwen3.8-27b",
+  "coordinate_grid": true,
+  "square_observation": true,
+  "max_model_image_side": 1280,
+  "ZERO_SPEND": true,
+  "HEAVY_LOCAL": 0,
+  "hypothesis": "A square visual frame removes width-vs-height coordinate normalization ambiguity. The same synthetic probe must pass after inverse projection into its unchanged original coordinates; otherwise no VM.",
+  "previous_run": 34912794562,
+  "previous_official_score": null,
+  "files_sha256_lf": {
+    "certification/g3-openrouter-free-adapter.py": "6ac96edc3691c250dfa576acbae07602be1b341b6c5ff65cc0eaf4fb606c08e8",
+    "tests/test_g3_free_agent.py": "a5e5f369c1a30f260d51c2dd475d1188544ebc3301de5f310dac6118f0b4318a",
+    ".github/workflows/osworld-g3-free-smoke-v1.yml": "b92c5b70b82524caafde264d3a34f78565c10633fe6695c92cca3a7dfe1ba450"
+  },
+  "tests_receipt_sha256": "8ad43855007ea40fdc304a6562a3837f2e0398f103ea149b95d58792c14eb70d",
+  "live_state": "NOT_YET_RETESTED"
+}

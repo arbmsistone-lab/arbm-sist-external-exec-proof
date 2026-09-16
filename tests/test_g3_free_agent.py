@@ -341,6 +341,76 @@ class FreeAgentTests(unittest.TestCase):
             self.predict()
         self.assertEqual(self.agent._model_screenshot, self.obs['screenshot'])
 
+    def test_square_padding_and_inverse_projection_preserve_original_gui_points(self):
+        original = self.obs['screenshot']
+        square, frame = agent_module.square_observation(original)
+        self.assertEqual(Image.open(io.BytesIO(square)).size, (1280, 1280))
+        self.assertEqual(frame['original_width'], 1920)
+        self.assertEqual(frame['original_height'], 1080)
+        self.assertEqual(self.obs['screenshot'], original)
+        for params in ({'x': 500, 'y': 500}, {'x': 250, 'y': 750},
+                       {'start_x': 50, 'start_y': 250, 'end_x': 950, 'end_y': 750}):
+            model = agent_module.project_parameters(params, frame, to_original=False)
+            returned = agent_module.project_parameters(model, frame, to_original=True)
+            for key in params:
+                self.assertLessEqual(abs(params[key] - returned[key]), 1)
+
+    def test_square_maps_synthetic_probe_to_original_unchanged_target(self):
+        image = io.BytesIO()
+        Image.new('RGB', (400, 240), 'white').save(image, format='PNG')
+        self.obs = {'screenshot': image.getvalue()}
+        self.responses = [response([payload(x=650, y=450)])]
+        with patch.dict(os.environ, {'ARBM_G3_SQUARE_OBSERVATION': '1'}):
+            text, commands = self.predict()
+        self.assertEqual(json.loads(text)['parameters'], {'x': 650, 'y': 417})
+        self.assertEqual(commands, ['pyautogui.click(x=260, y=100)'])
+        terminal = json.loads(self.log.read_text().splitlines()[-1])
+        self.assertEqual(terminal['model_action_before_projection']['parameters']['y'], 450)
+
+    def test_square_rejects_actions_in_padding_without_dispatch(self):
+        self.responses = [response([payload(x=500, y=10)])] * 3
+        with patch.dict(os.environ, {'ARBM_G3_SQUARE_OBSERVATION': '1'}):
+            with self.assertRaisesRegex(RuntimeError, 'STRUCTURAL_RETRY_EXHAUSTED'):
+                self.predict()
+        self.assertEqual(len(self.agent._history), 0)
+        self.assertIn('COORDINATE_IN_PADDING', self.log.read_text())
+
+    def test_square_ocr_and_history_share_model_frame(self):
+        ocr = {'state': 'DERIVED_FROM_SCREENSHOT', 'labels': [{'text': 'Button', 'x': 500, 'y': 250}]}
+        with patch.dict(os.environ, {'ARBM_G3_SQUARE_OBSERVATION': '1'}):
+            with patch.object(agent_module, 'screenshot_ocr', return_value=ocr):
+                self.agent._screen(self.obs['screenshot'])
+            self.agent._history.append({'action': 'click', 'parameters': {'x': 500, 'y': 250},
+                                        'target': 'Button', 'expected_change': 'Selected', 'signature': 'original'})
+            messages = self.agent._messages_for(self.obs['screenshot'], None)
+        summary = json.loads(messages[1]['content'][0]['text'])
+        self.assertEqual(summary['screen_pixels'], [1280, 1280])
+        label = summary['visible_text_from_same_screenshot']['labels'][0]
+        action = summary['recent_actions_issued_verify_effect'][0]
+        self.assertEqual(label['y'], action['parameters']['y'])
+        self.assertNotEqual(label['y'], 250)
+        self.assertEqual(self.agent._context['ocr']['labels'][0]['y'], 250)
+
+    def test_square_portrait_and_non_positional_actions(self):
+        image = io.BytesIO()
+        Image.new('RGB', (240, 400), 'white').save(image, format='PNG')
+        _, frame = agent_module.square_observation(image.getvalue())
+        self.assertEqual(frame['left'], 80)
+        self.assertEqual(frame['top'], 0)
+        self.assertEqual(agent_module.project_parameters({'x': 450, 'y': 650}, frame, to_original=True),
+                         {'x': 417, 'y': 650})
+        for params in ({}, {'text': 'ordinary text'}, {'keys': ['ctrl', 's']}):
+            self.assertEqual(agent_module.project_parameters(params, frame, to_original=True), params)
+
+    def test_groq_quota_numeric_cause_is_preserved_without_error_body(self):
+        error = RuntimeError('unused')
+        error.status_code = 429
+        error.body = {'error': {'message': 'Rate limit reached for model in organization private-id on tokens per minute (TPM): Limit 8000, Used 4000, Requested 5000.'}}
+        details = agent_module.provider_error_details(error)
+        self.assertEqual(details['quota_scope'], 'TOKENS_PER_MINUTE')
+        self.assertEqual(details['quota_values'], {'limit': 8000, 'used': 4000, 'requested': 5000})
+        self.assertNotIn('private-id', json.dumps(details))
+
 
 if __name__ == '__main__':
     unittest.main()

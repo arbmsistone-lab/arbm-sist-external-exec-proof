@@ -178,8 +178,13 @@ def provider_error_details(error):
     scope = ('FREE_REQUESTS_PER_DAY' if 'per-day' in message or 'per day' in message else
              'FREE_REQUESTS_PER_MINUTE' if 'per-minute' in message or 'per minute' in message else
              'UNSPECIFIED')
+    unit = re.search(r'\b(tokens|requests) per (minute|day)\b', message)
+    if unit:
+        scope = unit[1].upper() + '_PER_' + unit[2].upper()
+    quota_values = {name: int(value) for name, value in
+                    re.findall(r'\b(limit|used|requested)\s*[:=]?\s*(\d{1,12})\b', message)}
     return {'http_status': getattr(error, 'status_code', None), 'quota_headers': safe,
-            'quota_scope': scope, 'provider_retry_attempts': 0}
+            'quota_scope': scope, 'quota_values': quota_values, 'provider_retry_attempts': 0}
 
 
 def screenshot_ocr(screenshot, width, height):
@@ -236,6 +241,49 @@ def coordinate_grid(screenshot):
     result = io.BytesIO()
     Image.alpha_composite(original, overlay).convert('RGB').save(result, format='PNG')
     return result.getvalue()
+
+
+def square_observation(screenshot):
+    """One square frame, no crop, bounded image size; original remains authoritative."""
+    original = Image.open(io.BytesIO(screenshot)).convert('RGB')
+    width, height = original.size
+    side = max(width, height)
+    left, top = (side - width) // 2, (side - height) // 2
+    canvas = Image.new('RGB', (side, side), (242, 242, 242))
+    canvas.paste(original, (left, top))
+    model_side = min(side, 1280)
+    if side != model_side:
+        canvas = canvas.resize((model_side, model_side), Image.Resampling.LANCZOS)
+    output = io.BytesIO()
+    canvas.save(output, format='PNG')
+    frame = {'kind': 'square_letterbox_v1', 'side': side, 'left': left, 'top': top,
+             'model_side': model_side, 'uniform_scale': model_side / side,
+             'original_width': width, 'original_height': height,
+             'valid_x': [1000 * left / side, 1000 * (left + width) / side],
+             'valid_y': [1000 * top / side, 1000 * (top + height) / side]}
+    return output.getvalue(), frame
+
+
+def project_parameters(params, frame, *, to_original):
+    """Apply the same inverse/forward map to click, scroll, move and drag points."""
+    if frame is None:
+        return dict(params)
+    result = dict(params)
+    for key, value in params.items():
+        if key not in COORDS:
+            continue
+        axis = 'x' if key.endswith('x') else 'y'
+        offset = frame['left' if axis == 'x' else 'top']
+        length = frame['original_width' if axis == 'x' else 'original_height']
+        if to_original:
+            low, high = frame['valid_' + axis]
+            if not low <= value <= high:
+                raise StructuralError('COORDINATE_IN_PADDING')
+            mapped = (value * frame['side'] / 1000 - offset) * 1000 / length
+        else:
+            mapped = (value * length / 1000 + offset) * 1000 / frame['side']
+        result[key] = round(mapped)
+    return result
 
 
 class ArbmG3Agent:
@@ -327,12 +375,17 @@ class ArbmG3Agent:
         self._context['ocr'] = self._ocr
         enabled = os.environ.get('ARBM_G3_COORDINATE_GRID') == '1'
         started = time.monotonic()
-        self._model_screenshot = coordinate_grid(screenshot) if enabled else screenshot
+        self._visual_frame = None
+        model_image = screenshot
+        if os.environ.get('ARBM_G3_SQUARE_OBSERVATION') == '1':
+            model_image, self._visual_frame = square_observation(screenshot)
+        self._model_screenshot = coordinate_grid(model_image) if enabled else model_image
         self._context['coordinate_reference'] = {
             'kind': 'normalized_grid_100_v1' if enabled else 'original_screenshot',
             'derived_from_original_only': True,
             'model_image_sha256': hashlib.sha256(self._model_screenshot).hexdigest(),
             'original_dimensions_preserved': [self._width, self._height],
+            'visual_frame': self._visual_frame,
             'latency_ms': round((time.monotonic() - started) * 1000, 3)}
 
     def _messages_for(self, screenshot, correction):
@@ -342,6 +395,22 @@ class ArbmG3Agent:
                    'unchanged_steps': self._same_screen_steps,
                    'screen_pixels': [self._width, self._height], 'correction': correction}
         summary['visible_text_from_same_screenshot'] = self._ocr
+        if self._visual_frame is not None:
+            frame = self._visual_frame
+            summary['screen_pixels'] = [frame['model_side'], frame['model_side']]
+            summary['visual_coordinate_contract'] = {
+                'frame': 'entire square image; both axes normalized 0..1000',
+                'valid_desktop_x': frame['valid_x'], 'valid_desktop_y': frame['valid_y'],
+                'instruction': 'Gray margins are padding, never GUI targets. Use coordinates in this square image. Do not remove the margins or convert to the original desktop yourself.'}
+            summary['visible_text_from_same_screenshot'] = {
+                **self._ocr, 'labels': [{**label, **project_parameters(
+                    {k: label[k] for k in ('x', 'y')}, frame, to_original=False)}
+                    for label in self._ocr.get('labels', [])]}
+            summary['recent_actions_issued_verify_effect'] = [
+                {**{k: value[k] for k in ('action', 'target', 'expected_change')},
+                 'parameters': {k: v[:240] if k == 'text' else v for k, v in
+                                project_parameters(value['parameters'], frame, to_original=False).items()}}
+                for value in self._history]
         if self._context['coordinate_reference']['kind'] == 'normalized_grid_100_v1':
             summary['coordinate_ruler'] = (
                 'The blue grid is an agent-added ruler, not application controls. '
@@ -457,6 +526,11 @@ class ArbmG3Agent:
         except (ValueError, TypeError):
             raise StructuralError('TOOL_JSON_INVALID') from None
         name, params = validate_action(payload)
+        if self._visual_frame is not None:
+            self._context['model_action_before_projection'] = payload
+            params = project_parameters(params, self._visual_frame, to_original=True)
+            payload = {**payload, 'parameters': params}
+            validate_action(payload)
         signature = json.dumps([name, params], sort_keys=True)
         pair = (self._screen_fingerprint, signature)
         if name not in ('done', 'infeasible') and (pair in self._seen or
