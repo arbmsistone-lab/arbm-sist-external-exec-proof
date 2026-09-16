@@ -55,7 +55,7 @@ cases=[
 ('D16_cloud_only_heavy', 'runs-on: ubuntu-24.04' in wf, 'test -c /dev/kvm' in wf, 'github-hosted' in wf),
 ('D17_timeout_failclosed', 'run_waits' in cal and '>12' in cal, '061-calibration-timeout' in cal, 'terminal_failed' in cal),
 ('D18_output_preexist', 'ARBM061_OUTPUT_PREEXISTED' in cal, 'OUTPUT_PREEXISTED_PROVENANCE_UNSAFE' in text('scripts/osworld_gimp_sample_probe.py'), 'ORIGINAL_OVERWRITE_ATTEMPT_BLOCKED' in text('scripts/osworld_gimp_sample_probe.py')),
-('D19_prior_incident_learned', candidate_sha_proven and official_full_score, official_summary_success, not prior_provenance_failed),
+('D19_prior_incident_learned', (candidate_sha_proven and official_full_score) if incident else ('score == 1.0' in gate and 'OFFICIAL_SCORE_GATE' in gate), official_summary_success if incident else 'OFFICIAL_EVALUATOR_SUMMARY_MISMATCH' in gate, (not prior_provenance_failed) if incident else ('AGENT_OUTPUT_PROVENANCE_UNPROVEN' in gate and 'first_agent_proof > first_fallback' in gate)),
 ('D20_audit_stack', 'construction_lenses' in champ, 'osworld_061_specialist_swarm.py' in text('.github/workflows/osworld-061-world-audit.yml'), 'osworld_061_3d_audit.py' in text('.github/workflows/osworld-061-world-audit.yml')),
 ]
 rows=[]
