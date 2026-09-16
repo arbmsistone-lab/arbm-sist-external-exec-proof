@@ -1,8 +1,11 @@
 """Fail-closed GUI recovery for reference-pair color/style transfer in GIMP."""
+import base64
 import re
 from osworld_061_champion import LABELS, ROLES, ACCELERATORS, accelerator_command
 
 _IMAGE = re.compile(r'([A-Za-z0-9_.-]+\.(?:jpg|jpeg|png|webp))', re.I)
+_PROVENANCE_SUCCESS = re.compile(r'ARBM061_GIMP_EXPORT_PROVENANCE_SUCCESS\s+size=(\d+)\s+mtime_ns=(\d+)\s+sha256=([0-9a-f]{64})', re.I)
+_PROVENANCE_FAILURE = re.compile(r'ARBM061_GIMP_EXPORT_PROVENANCE_FAIL\s+([A-Z0-9_]+)', re.I)
 
 
 def parse_reference_pair_task(instruction):
@@ -113,6 +116,24 @@ def _dialog_button(obs, dialog_name, button_name):
                 return x+w//2,y+h//2
     return None
 
+def _baseline_script(task):
+    output_path = '/home/user/Pictures/' + task['output']
+    return f"""import json, os, time\np={output_path!r}\nnow=time.time_ns()\nexists=os.path.exists(p)\nsize=0\nmtime_ns=0\nif exists:\n st=os.stat(p); size=st.st_size; mtime_ns=st.st_mtime_ns\nbase={{'captured_ns':now,'exists':bool(exists),'size':int(size),'mtime_ns':int(mtime_ns)}}\nopen('/tmp/arbm061-export-baseline.json','w',encoding='utf-8').write(json.dumps(base,sort_keys=True))\nprint(f'ARBM061_EXPORT_BASELINE_READY exists={{int(exists)}} size={{size}} mtime_ns={{mtime_ns}} captured_ns={{now}}',flush=True)\n"""
+
+
+def _verify_script(task):
+    output_path = '/home/user/Pictures/' + task['output']
+    return f"""import hashlib, json, os, time\np={output_path!r}\nbase_path='/tmp/arbm061-export-baseline.json'\nif not os.path.exists(base_path):\n print('ARBM061_GIMP_EXPORT_PROVENANCE_FAIL BASELINE_MISSING',flush=True); raise SystemExit(7)\nbase=json.load(open(base_path,encoding='utf-8'))\nfor _ in range(5):\n if os.path.exists(p):\n  st=os.stat(p)\n  fresh=(not base.get('exists')) or st.st_mtime_ns>int(base.get('mtime_ns') or 0)\n  after_capture=st.st_mtime_ns>=int(base.get('captured_ns') or 0)\n  if st.st_size>1024 and fresh and after_capture:\n   raw=open(p,'rb').read(); sha=hashlib.sha256(raw).hexdigest()\n   print(f'ARBM061_GIMP_EXPORT_PROVENANCE_SUCCESS size={{st.st_size}} mtime_ns={{st.st_mtime_ns}} sha256={{sha}}',flush=True)\n   raise SystemExit(0)\n time.sleep(1)\nprint('ARBM061_GIMP_EXPORT_PROVENANCE_FAIL PHYSICAL_FILE_UNPROVEN',flush=True)\nraise SystemExit(8)\n"""
+
+
+def _terminal_script_action(script, plan, visible_text, phase):
+    payload = base64.b64encode(script.encode('utf-8')).decode('ascii')
+    shell = "python3 -c \"import base64;exec(base64.b64decode('" + payload + "'))\""
+    command = ("pyautogui.hotkey('ctrl','alt','t'); pyautogui.sleep(1.0); "
+               "pyautogui.write(%r, interval=0.001); pyautogui.press('enter')") % shell
+    return _action(command, plan, visible_text, checkpoint=False, phase=phase)
+
+
 def next_recovery_action(instruction, active_application, observation, state):
     """Return one grounded GUI action, or None when evidence is insufficient."""
     task = parse_reference_pair_task(instruction)
@@ -123,6 +144,21 @@ def next_recovery_action(instruction, active_application, observation, state):
     sample = task['reference_edited']
     target = task['target_original']
     state['output_name'] = task['output']
+    state.setdefault('strict_provenance_v3', True)
+    failed = _PROVENANCE_FAILURE.search(obs)
+    if failed:
+        state['export_provenance_error'] = failed.group(1).upper()
+        return None
+    proven = _PROVENANCE_SUCCESS.search(obs)
+    if proven:
+        state['output_physical_provenance'] = True
+        state['output_provenance_size'] = int(proven.group(1))
+        state['output_provenance_mtime_ns'] = int(proven.group(2))
+        state['output_provenance_sha256'] = proven.group(3).lower()
+        return {'action':'finish','command':'',
+                'plan':'Finish only after physical post-export provenance is proven inside the guest.',
+                'summary':'Edited target exported by GIMP and physically provenance-verified.',
+                'confidence':1.0,'verification':proven.group(0)}
 
     # GIMP may stop on the explicit profile-conversion modal before exposing the
     # image surface. Resolve only the semantically named Convert button through
@@ -216,6 +252,19 @@ def next_recovery_action(instruction, active_application, observation, state):
 
     output_path = '/home/user/Pictures/' + task['output']
     if state.get('colorize_closed'):
+        if not state.get('export_baseline_captured'):
+            return _terminal_script_action(_baseline_script(task),
+                'Capture the physical pre-export baseline before GIMP writes the output.',
+                'ARBM061_EXPORT_BASELINE_READY', 'export-baseline')
+        if not state.get('export_baseline_returned'):
+            if 'arbm061_export_baseline_ready' in obs.casefold() or 'terminal' in app:
+                return _action("pyautogui.hotkey('alt','f4'); pyautogui.sleep(1.0)",
+                               'Return from the provenance baseline terminal to the edited GIMP document.',
+                               target + ' (', checkpoint=False, phase='export-baseline-return')
+            if target_active:
+                state['export_baseline_returned'] = True
+            else:
+                return None
         if not state.get('export_open_requested'):
             if not target_active: return None
             return _action("pyautogui.hotkey('ctrl', 'shift', 'e')",
@@ -235,15 +284,16 @@ def next_recovery_action(instruction, active_application, observation, state):
                 return _action("pyautogui.hotkey('ctrl','o')", 'Open the GIMP chooser to prove the exported output exists.',
                                task['output'], checkpoint=False, phase='verify-output-open')
             if _has(obs, task['output'], 'table-cell') and _has(obs, 'Open', 'push-button'):
-                return {'action':'finish','command':'','plan':'Finish only after the exported file is visible in the chooser.',
-                        'summary':'Edited target exported and visibly proven by the agent.','confidence':1.0,
-                        'verification':task['output']+' visible in chooser'}
+                return _terminal_script_action(_verify_script(task),
+                    'Validate the physical exported file against the pre-export baseline, size, mtime and SHA-256 gates.',
+                    'ARBM061_GIMP_EXPORT_PROVENANCE_SUCCESS', 'verify-output-physical')
             return None
         if target.casefold() in low and 'already exists' in low and _has(obs, 'Cancel', 'push-button'):
             return _click('Cancel', 'push-button',
                           'Abort any attempt to overwrite the original target image.',
                           'Export Image', checkpoint=False, phase='export-original-overwrite-cancel')
         if task['output'].casefold() in low and 'already exists' in low:
+            state['export_provenance_error'] = 'OUTPUT_PREEXISTED_BEFORE_EXPORT'
             return None
         if 'export image' in low and not state.get('export_name_requested'):
             return _action("pyautogui.hotkey('alt', 'n')",
@@ -268,9 +318,9 @@ def next_recovery_action(instruction, active_application, observation, state):
             return _action("pyautogui.hotkey('ctrl','o')", 'Open the GIMP chooser to prove the exported output exists.',
                            task['output'], checkpoint=False, phase='verify-output-open')
         if state.get('output_verify_open') and _has(obs, task['output'], 'table-cell') and _has(obs, 'Open', 'push-button'):
-            return {'action':'finish','command':'','plan':'Finish only after the exported file is visible in the chooser.',
-                    'summary':'Edited target exported and visibly proven by the agent.','confidence':1.0,
-                    'verification':task['output']+' visible in chooser'}
+            return _terminal_script_action(_verify_script(task),
+                'Validate the physical exported file against the pre-export baseline, size, mtime and SHA-256 gates.',
+                'ARBM061_GIMP_EXPORT_PROVENANCE_SUCCESS', 'verify-output-physical')
         return None
 
     # The active edited-reference layer is enough when GIMP omits a frame node.

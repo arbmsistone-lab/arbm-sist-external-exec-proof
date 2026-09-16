@@ -122,6 +122,10 @@ class GimpStyleTransferTests(unittest.TestCase):
     def test_export_sequence_stays_inside_specialist(self):
         target = frame('[IMG_7318_original] (imported)-1.0 - GIMP')
         state = {'sample_loaded': True, 'owned': True, 'colorize_closed': True}
+        baseline = next_recovery_action(TASK, APP, target, state)
+        self.assertEqual(baseline['specialist_phase'], 'export-baseline')
+        state['export_baseline_captured'] = True
+        state['export_baseline_returned'] = True
         a = next_recovery_action(TASK, APP, target, state)
         self.assertEqual(a['specialist_phase'], 'export-open')
         dialog = target + '\ndialog\tExport Image\tExport Image\tx\npush-button\tExport\tExport\tx'
@@ -145,6 +149,7 @@ class GimpStyleTransferTests(unittest.TestCase):
                'push-button\tExport\tExport\tx\tx\t(1209, 915)\t(85, 33)\n'
                'push-button\tExport\tExport\tx\tx\t(1551, 1030)\t(85, 33)')
         state = {'sample_loaded': True, 'owned': True, 'colorize_closed': True,
+                 'export_baseline_captured': True, 'export_baseline_returned': True,
                  'export_open_requested': True, 'export_name_requested': True,
                  'export_name_typed': True, 'export_submitted': True}
         a = next_recovery_action(TASK, APP, obs, state)
@@ -158,6 +163,7 @@ class GimpStyleTransferTests(unittest.TestCase):
                'label\tA file named "IMG_7318_original.jpg" already exists. Do you want to replace it?\tx\n'
                'push-button\tCancel\tCancel\tx')
         state = {'sample_loaded': True, 'owned': True, 'colorize_closed': True,
+                 'export_baseline_captured': True, 'export_baseline_returned': True,
                  'export_open_requested': True, 'export_name_requested': True,
                  'export_name_typed': True, 'export_submitted': True}
         a = next_recovery_action(TASK, APP, obs, state)
@@ -199,11 +205,12 @@ class GimpStyleTransferTests(unittest.TestCase):
         target=frame('[IMG_7318_original] (imported)-1.0 - GIMP')
         a=next_recovery_action(TASK, APP, target, state)
         self.assertTrue(state['colorize_closed'])
-        self.assertEqual(a['specialist_phase'],'export-open')
+        self.assertEqual(a['specialist_phase'],'export-baseline')
 
     def test_export_confirm_waits_for_modal_and_processing_then_finishes(self):
         target=frame('[IMG_7318_original] (imported)-1.0 - GIMP')
         state={'sample_loaded':True,'owned':True,'colorize_closed':True,
+               'export_baseline_captured':True,'export_baseline_returned':True,
                'export_open_requested':True,'export_name_requested':True,
                'export_name_typed':True,'export_submitted':True,
                'export_confirm_requested':True}
@@ -219,8 +226,27 @@ class GimpStyleTransferTests(unittest.TestCase):
         state['output_verify_open']=True
         chooser=(target+'\ntable-cell\tIMG_7318_edited.jpg\tIMG_7318_edited.jpg\tx\tx\t(200,200)\t(300,30)\n'
                  'push-button\tOpen\tOpen\tx\tx\t(976,704)\t(85,33)')
-        done=next_recovery_action(TASK, APP, chooser, state)
+        verify_physical=next_recovery_action(TASK, APP, chooser, state)
+        self.assertEqual(verify_physical['action'],'exec')
+        self.assertEqual(verify_physical['specialist_phase'],'verify-output-physical')
+        proven=('ARBM061_GIMP_EXPORT_PROVENANCE_SUCCESS size=4096 mtime_ns=999999999999999999 '
+                'sha256=' + 'a'*64)
+        done=next_recovery_action(TASK, APP, proven, state)
         self.assertEqual(done['action'],'finish')
+        self.assertTrue(state['output_physical_provenance'])
+        self.assertEqual(state['output_provenance_sha256'],'a'*64)
+
+
+    def test_physical_provenance_failure_never_emits_finish(self):
+        state={'sample_loaded':True,'owned':True,'colorize_closed':True,
+               'export_baseline_captured':True,'export_baseline_returned':True,
+               'export_open_requested':True,'export_name_requested':True,
+               'export_name_typed':True,'export_submitted':True,
+               'export_confirm_requested':True,'export_confirmed':True,
+               'output_verify_open':True}
+        failed='ARBM061_GIMP_EXPORT_PROVENANCE_FAIL PHYSICAL_FILE_UNPROVEN'
+        self.assertIsNone(next_recovery_action(TASK, APP, failed, state))
+        self.assertEqual(state['export_provenance_error'],'PHYSICAL_FILE_UNPROVEN')
 
 
     def test_profile_import_modal_clicks_convert_via_accessibility_target(self):

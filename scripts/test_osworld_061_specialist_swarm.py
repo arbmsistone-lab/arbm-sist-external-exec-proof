@@ -1,4 +1,4 @@
-import pathlib,sys,unittest
+﻿import pathlib,sys,unittest
 sys.path.insert(0,str(pathlib.Path(__file__).parent))
 import osworld_061_specialist_swarm as swarm
 
@@ -28,8 +28,7 @@ class SpecialistSwarmTests(unittest.TestCase):
         self.assertIn('specialist_result=try_gimp_specialist',contract)
         self.assertIn("if state.get('owned') and not state.get('terminal_failed')",contract)
         self.assertIn('Close Sample Colorize only after the remap has finished.',contract)
-        self.assertIn('Open the GIMP chooser to prove the exported output exists.',contract)
-        self.assertIn('Finish only after the exported file is visible in the chooser.',contract)
+        self.assertIn('ARBM061_GIMP_EXPORT_PROVENANCE_SUCCESS',contract)
 
     def test_local_evidence_prioritizes_current_probe(self):
         merged=swarm._local_evidence('OLD_INCIDENT','CURRENT_PROBE')

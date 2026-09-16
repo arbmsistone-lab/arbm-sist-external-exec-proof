@@ -1,4 +1,4 @@
-"""Ten-role FREE specialist audit for the historical OSWorld task-061 incident.
+﻿"""Ten-role FREE specialist audit for the historical OSWorld task-061 incident.
 
 The audit compares historical failure evidence with compact source excerpts from
 the current candidate. It is advisory evidence and never changes the official
@@ -74,7 +74,8 @@ def current_contract():
       _source_window('scripts/osworld_free_mesh_shim.py','specialist_complete=',900,550),
       _source_window('scripts/osworld_gimp_style_transfer.py','def next_recovery_action',0,260),
       _source_window('scripts/osworld_gimp_style_transfer.py','The official 061 VM exposes a bottom Cancel button',420,800),
-      _source_window('scripts/osworld_gimp_style_transfer.py','Export Image as JPEG / Export',700,720),
+      _source_window('scripts/osworld_gimp_style_transfer.py','ARBM061_GIMP_EXPORT_PROVENANCE_SUCCESS',350,750),
+      _source_window('scripts/osworld_gimp_style_transfer.py','Export Image as JPEG / Export',80,220),
     ]
     contract='\n\n'.join(x for x in parts if x)
     if len(contract)>9500:

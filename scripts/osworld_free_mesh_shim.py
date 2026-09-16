@@ -269,16 +269,20 @@ def _ack_gimp_pending(state, obs):
     elif phase=='export-submit': ok='export image as jpeg' in low
     elif phase=='export-confirm': ok='export image as jpeg' not in low and 'gimp' in low
     elif phase=='verify-output-open': ok=bool(state.get('output_name')) and str(state['output_name']).casefold() in low and 'open' in low
+    elif phase=='export-baseline': ok='arbm061_export_baseline_ready' in low
+    elif phase=='export-baseline-return': ok='gimp' in low and 'terminal' not in low
+    elif phase=='verify-output-physical': ok=('arbm061_gimp_export_provenance_success' in low or 'arbm061_gimp_export_provenance_fail' in low)
     elif phase=='export-original-overwrite-cancel': ok='already exists' not in low
     if not ok:
         state['pending_waits']=state.get('pending_waits',0)+1
-        limit=12 if phase in ('sample-colors','apply-colorize','close-colorize','export-confirm') else 4
+        limit=12 if phase in ('sample-colors','apply-colorize','close-colorize','export-confirm','verify-output-physical') else 4
         return 'WAIT' if state['pending_waits']<=limit else 'FAIL'
     flags={'open-colorize':'colorize_open_requested','enable-subcolors':'use_subcolors_enabled',
            'disable-original-intensity':'original_intensity_disabled','disable-hold-intensity':'hold_intensity_disabled',
            'sample-colors':'sample_colors_requested','apply-colorize':'colorize_applied','close-colorize':'colorize_closed',
            'export-open':'export_open_requested','export-name-focus':'export_name_requested','export-name':'export_name_typed',
-           'export-submit':'export_submitted','export-confirm':'export_confirmed','verify-output-open':'output_verify_open'}
+           'export-submit':'export_submitted','export-confirm':'export_confirmed','verify-output-open':'output_verify_open',
+           'export-baseline':'export_baseline_captured','export-baseline-return':'export_baseline_returned'}
     if phase in flags: state[flags[phase]]=True
     if phase=='sample-colors' and 'cancel' in low: state['sample_colors_processing']=True
     if phase=='apply-colorize' and 'cancel' in low: state['colorize_processing']=True
@@ -298,6 +302,9 @@ def try_gimp_specialist(body, obs, focused_obs):
         return terminal('GIMP_SPECIALIST_PHASE_UNVERIFIED')
     candidate=next_recovery_action(body.get('instruction',''),body.get('active_application','unknown'),focused_obs,specialist_state)
     if not candidate:
+        if specialist_state.get('export_provenance_error'):
+            log_event({'status':'GIMP_OUTPUT_PROVENANCE_UNPROVEN','reason':specialist_state.get('export_provenance_error')})
+            return terminal('AGENT_OUTPUT_PROVENANCE_UNPROVEN')
         if specialist_state.get('profile_modal_error'):
             log_event({'status':'GIMP_PROFILE_CONVERT_CONTROL_UNRESOLVED',
                        'waits':specialist_state.get('profile_modal_missing_convert_waits',0)})
@@ -326,7 +333,7 @@ def try_gimp_specialist(body, obs, focused_obs):
             return 'WAIT'
         return None
     if action.get('action')=='finish':
-        specialist_complete=(specialist_state.get('colorize_closed') and specialist_state.get('export_confirmed') and specialist_state.get('output_verify_open'))
+        specialist_complete=(specialist_state.get('colorize_closed') and specialist_state.get('export_confirmed') and specialist_state.get('output_verify_open') and specialist_state.get('output_physical_provenance') and bool(specialist_state.get('output_provenance_sha256')))
         if decision.get('kind')==DecisionKind.FINISH_CANDIDATE.value and specialist_complete and VERIFIER.can_finish(action,obs):
             STATE['phase']='done';log_event({'status':'GIMP_SPECIALIST_VERIFIED_FINISH','action':action});return 'DONE'
         log_event({'status':'GIMP_SPECIALIST_FINISH_REJECTED','action':action});return 'WAIT'
@@ -355,7 +362,8 @@ def try_gimp_specialist(body, obs, focused_obs):
     phase=action.get('specialist_phase')
     tracked={'open-colorize','convert-profile','enable-subcolors','disable-hold-intensity','disable-original-intensity',
              'sample-colors','apply-colorize','close-colorize','export-open','export-name-focus',
-             'export-name','export-submit','export-confirm','verify-output-open','export-original-overwrite-cancel'}
+             'export-name','export-submit','export-confirm','verify-output-open','export-baseline',
+             'export-baseline-return','verify-output-physical','export-original-overwrite-cancel'}
     if phase in tracked:
         specialist_state['pending_phase']=phase
         specialist_state['pending_waits']=0

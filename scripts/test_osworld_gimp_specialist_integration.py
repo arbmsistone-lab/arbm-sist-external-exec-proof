@@ -122,7 +122,8 @@ class GimpSpecialistIntegrationTests(unittest.TestCase):
 
     def test_specialist_finish_ignores_stale_global_milestone_stall(self):
         shim.STATE['gimp_specialist']={'sample_loaded':True,'owned':True,
-            'colorize_closed':True,'export_confirmed':True,'output_verify_open':True}
+            'colorize_closed':True,'export_confirmed':True,'output_verify_open':True,
+            'output_physical_provenance':True,'output_provenance_sha256':'a'*64}
         obs=(frame('[IMG_7318_original] (imported)-1.0 - GIMP') + '\n'
              'label\tIMG_7318_original.jpg (454.6 MB)\tIMG_7318_original.jpg (454.6 MB)')
         action={'action':'finish','command':'','plan':'done','summary':'done','confidence':1.0,
