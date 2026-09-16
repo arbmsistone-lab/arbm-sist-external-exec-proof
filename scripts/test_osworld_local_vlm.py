@@ -2,7 +2,7 @@ import base64
 import os
 import unittest
 from unittest.mock import patch
-from osworld_local_vlm import LocalVLMRoute, parse_action_object, MODEL_REVISION
+from osworld_local_vlm import LocalVLMRoute, parse_action_object, MODEL_REVISION, _smol_chat_messages
 
 PNG=base64.b64encode(b'fixture').decode()
 BODY={'instruction':'Dismiss visible menu','screenshot_data_url':'data:image/png;base64,'+PNG}
@@ -20,6 +20,14 @@ class LocalGroundingGateTests(unittest.TestCase):
         self.assertEqual(action['target']['label'],'Convert')
 
 class LocalVLMTests(unittest.TestCase):
+    def test_smol_template_folds_system_into_user_without_dropping_image(self):
+        messages=[{'role':'system','content':[{'type':'text','text':'Return exactly YES or NO.'}]},
+                  {'role':'user','content':[{'type':'text','text':'Is this a desktop?'},{'type':'image'}]}]
+        folded=_smol_chat_messages(messages)
+        self.assertEqual([m['role'] for m in folded],['user'])
+        self.assertIn('Return exactly YES or NO.',folded[0]['content'][0]['text'])
+        self.assertEqual([x['type'] for x in folded[0]['content'][1:]],['text','image'])
+
     def test_model_revision_is_immutable_commit(self):
         self.assertRegex(MODEL_REVISION,r'^[0-9a-f]{40}$')
 

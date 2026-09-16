@@ -101,6 +101,26 @@ def action_prompt(body):
             'PREVIOUS ACTION:\n' + str(body.get('previous_command') or ''))
 
 
+def _smol_chat_messages(messages):
+    """Fold system text into the first user turn for SmolVLM chat templates."""
+    if not isinstance(messages,list): return messages
+    system=[]; out=[]
+    for message in messages:
+        content=[dict(x) for x in message.get('content',[])]
+        if message.get('role')=='system':
+            system.extend(str(x.get('text') or '') for x in content if x.get('type')=='text')
+            continue
+        out.append({'role':message.get('role'),'content':content})
+    if system:
+        prefix={'type':'text','text':'SYSTEM INSTRUCTIONS:\n'+'\n'.join(system)+'\nFollow these instructions exactly.\n'}
+        for message in out:
+            if message.get('role')=='user':
+                message['content']=[prefix]+message['content']; break
+        else:
+            out.insert(0,{'role':'user','content':[prefix]})
+    return out
+
+
 def default_infer(text, image_b64, max_tokens):
     import torch
     from PIL import Image
@@ -113,7 +133,7 @@ def default_infer(text, image_b64, max_tokens):
     processor,model=default_infer.runtime
     encoded=image_b64 if isinstance(image_b64,list) else [image_b64]
     images=[Image.open(io.BytesIO(base64.b64decode(item))).convert('RGB') for item in encoded]
-    messages=text if isinstance(text,list) else [{'role':'user','content':[{'type':'image'},{'type':'text','text':text}]}]
+    messages=_smol_chat_messages(text) if isinstance(text,list) else [{'role':'user','content':[{'type':'image'},{'type':'text','text':text}]}]
     rendered=processor.apply_chat_template(messages,add_generation_prompt=True)
     inputs=processor(text=rendered,images=images,return_tensors='pt')
     with torch.inference_mode():
