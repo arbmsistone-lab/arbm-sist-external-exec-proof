@@ -17,13 +17,19 @@ def comb(old,probe):
     return 'APPROVED OFFICIAL FOCAL EVIDENCE (validated):\n'+OFFICIAL+'\nCURRENT PARITY-BOUND DIAGNOSTIC EVIDENCE:\n'+probe+'\nHISTORICAL FAILED-SHA EVIDENCE (context only):\n'+old
 def txt(system,evidence,probe=''): return [{'role':'system','content':system},{'role':'user','content':comb(evidence,probe)}]
 def vlm(system,evidence,image,probe=''): return [{'role':'system','content':system},{'role':'user','content':[{'type':'text','text':comb(evidence,probe)},{'type':'image_url','image_url':{'url':image}}]}]
-def loc(evidence,probe=''): return comb(evidence,probe)
+def loc(evidence,probe=''):
+    historical=str(evidence or '')[-3000:]
+    compact=('APPROVED OFFICIAL FOCAL EVIDENCE (validated):\n'+OFFICIAL+
+             '\nCURRENT PARITY-BOUND DIAGNOSTIC EVIDENCE:\n'+str(probe or '')[-3500:]+
+             '\nHISTORICAL FAILED-SHA EVIDENCE (tail context only):\n'+historical)
+    return compact[-7500:]
 def binary(name,brief,evidence,contract,image,probe=''):
-    # A one-token VLM YES/NO is not an authoritative specialist verdict.  The
+    # A one-token VLM YES/NO is not an authoritative specialist verdict. The
     # structured reviewers below must identify a concrete causal gap if they veto.
     return None,[]
 def main(root):
     global OFFICIAL; root=Path(root); OFFICIAL=load_official(root)
+    os.environ['ARBM_POST_FOCAL_COMPACT_LOCAL']='1'
     s.BASE_SYSTEM=s.BASE_SYSTEM.replace('This is a pre-focal source audit: runtime proof belongs in required_proofs;\nabsence of runtime proof alone is not a source-level veto.','This is a post-focal audit. Validated approved official focal evidence is supplied. Do not request proof already present there; veto only for a concrete remaining causal gap or regression. A REJECT_FIX verdict must name that concrete gap in causal_chain; otherwise return PASS_FIX or INSUFFICIENT without veto.')
     s._text_messages=txt; s._vlm_messages=vlm; s._local_evidence=loc; s._local_binary_review=binary
     s.main(root)
