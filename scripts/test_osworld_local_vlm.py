@@ -1,6 +1,7 @@
 import base64
 import os
 import unittest
+from osworld_control import canonical_target_proof, ground_action
 from unittest.mock import patch
 from osworld_local_vlm import LocalVLMRoute, parse_action_object, MODEL_REVISION, _smol_chat_messages, _binary_contract, _recent_tabu_counts, _selector_penalty, _action_fingerprint, _foreground_observation, _selector_candidates
 
@@ -63,6 +64,32 @@ class LocalGroundingGateTests(unittest.TestCase):
     def test_unsafe_output_is_rejected_before_repair(self):
         with self.assertRaisesRegex(ValueError,'LOCAL_UNSAFE_OUTPUT_REJECTED'):
             parse_action_object("Use __import__('os').system('id')",OBS)
+
+class CanonicalGroundingTests(unittest.TestCase):
+    def _action(self):
+        target={
+            'source':'accessibility-canonical','label':'H2 Rebaseline Directive',
+            'role':'section','x':100,'y':200,'w':300,'h':40,'cx':250,'cy':220,
+            'foreground_sha256':'a'*64,
+        }
+        target['proof_sha256']=canonical_target_proof(target)
+        return {'action':'exec','command':'pyautogui.click(250, 220)','target':target}
+
+    def test_valid_canonical_target_bypasses_secondary_resolution(self):
+        action=ground_action(self._action(),'Google Chrome','unrelated focused obs',[],allow_canonical=True)
+        self.assertEqual(action['command'],'pyautogui.click(250, 220)')
+        self.assertEqual(action['target']['source'],'accessibility-canonical')
+
+    def test_canonical_target_rejected_without_local_trust(self):
+        with self.assertRaisesRegex(ValueError,'CANONICAL_TARGET_UNTRUSTED'):
+            ground_action(self._action(),'Google Chrome','',[],allow_canonical=False)
+
+    def test_tampered_canonical_target_fails_closed(self):
+        action=self._action()
+        action['target']['cx']=251
+        with self.assertRaisesRegex(ValueError,'CANONICAL_TARGET_PROOF_INVALID'):
+            ground_action(action,'Google Chrome','',[],allow_canonical=True)
+
 
 class ForegroundMaskTests(unittest.TestCase):
     def test_dominant_document_root_excludes_stale_prefix_nodes(self):
