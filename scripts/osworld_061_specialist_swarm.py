@@ -219,7 +219,9 @@ def _local_binary_review(name, brief, evidence, contract, image, probe_evidence=
 def run_robot(index, name, brief, evidence, contract, image, probe_evidence=''):
     system=role_prompt(name,brief,contract)
     attempts=[]; raw_outputs=[]
-    for label in ('openrouter','groq','qwen_local','smollm_local','local_vlm'):
+    compact_post_focal=os.environ.get('ARBM_POST_FOCAL_COMPACT_LOCAL')=='1'
+    labels=('openrouter','groq','qwen_local') if compact_post_focal else ('openrouter','groq','qwen_local','smollm_local','local_vlm')
+    for label in labels:
         if label=='openrouter': result=ask(FREE_ROUTE,_text_messages(system,evidence,probe_evidence),140)
         elif label=='groq': result=ask(GROQ_FREE_ROUTE,_text_messages(system,evidence,probe_evidence),120)
         elif label=='qwen_local':
@@ -227,11 +229,10 @@ def run_robot(index, name, brief, evidence, contract, image, probe_evidence=''):
             attempts.extend(binary_attempts)
             if valid_verdict(verdict,name):
                 return {'role':name,'specialty':brief,'provider':'local_binary_vlm','verdict':verdict,'attempts':attempts,'raw_outputs':raw_outputs}
-            result=local_text_review('qwen_local',system,_local_evidence(evidence,probe_evidence),max_new_tokens=320)
-        elif label=='smollm_local': result=local_text_review('smollm_local',system,_local_evidence(evidence,probe_evidence),max_new_tokens=320)
+            result=local_text_review('qwen_local',system,_local_evidence(evidence,probe_evidence),max_new_tokens=160)
+        elif label=='smollm_local': result=local_text_review('smollm_local',system,_local_evidence(evidence,probe_evidence),max_new_tokens=160)
         else:
             if not image: continue
-            # Never keep a text LLM resident while materializing the heavier VLM.
             clear_local_text_cache()
             result=ask(LOCAL_VLM_ROUTE,_vlm_messages(system,evidence,image,probe_evidence),180)
         attempts.extend(result.get('attempts') or [])
