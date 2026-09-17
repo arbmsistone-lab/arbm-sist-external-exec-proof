@@ -9,6 +9,7 @@ style=text('scripts/osworld_gimp_style_transfer.py')
 gate=text('scripts/osworld_v32_gate.py')
 wf=text('.github/workflows/osworld-v32-official-18.yml')
 champ=text('scripts/osworld_061_champion_audit.py')
+world_wf=text('.github/workflows/osworld-061-world-audit.yml')
 incident=''
 if len(sys.argv)>1:
     root=Path(sys.argv[1])
@@ -56,7 +57,7 @@ cases=[
 ('D17_timeout_failclosed', 'run_waits' in cal and '>12' in cal, '061-calibration-timeout' in cal, 'terminal_failed' in cal),
 ('D18_output_preexist', 'ARBM061_OUTPUT_PREEXISTED' in cal, 'OUTPUT_PREEXISTED_PROVENANCE_UNSAFE' in text('scripts/osworld_gimp_sample_probe.py'), 'ORIGINAL_OVERWRITE_ATTEMPT_BLOCKED' in text('scripts/osworld_gimp_sample_probe.py')),
 ('D19_prior_incident_learned', (candidate_sha_proven and official_full_score) if incident else ('score == 1.0' in gate and 'OFFICIAL_SCORE_GATE' in gate), official_summary_success if incident else 'OFFICIAL_EVALUATOR_SUMMARY_MISMATCH' in gate, (not prior_provenance_failed) if incident else ('AGENT_OUTPUT_PROVENANCE_UNPROVEN' in gate and 'first_agent_proof > first_fallback' in gate)),
-('D20_audit_stack', 'construction_lenses' in champ, 'osworld_061_specialist_swarm.py' in text('.github/workflows/osworld-061-world-audit.yml'), 'osworld_061_3d_audit.py' in text('.github/workflows/osworld-061-world-audit.yml')),
+('D20_audit_stack', 'construction_lenses' in champ, 'osworld_061_evidence_aware_swarm.py' in world_wf, 'osworld_061_3d_audit.py' in world_wf),
 ]
 rows=[]
 for name,t,q,p in cases:
