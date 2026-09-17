@@ -9,6 +9,7 @@ on:
       - scripts/patch_shim_mesh.py
       - scripts/osworld_free_mesh_shim.py
       - scripts/osworld_local_vlm.py
+      - scripts/requirements-osworld.txt
       - .github/workflows/arbm-shim-mesh-isolated-cert.yml
   workflow_dispatch:
 
@@ -29,6 +30,9 @@ jobs:
       ARBM_VALIDATION_SPEND_MODE: zero
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Install pinned shim runtime requirements
+        run: python3 -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
 
       - name: Apply exact mesh patch
         run: make patch-shim-mesh
