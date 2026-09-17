@@ -1,0 +1,9 @@
+[build]
+  publish = "netlify/arbm-control-fallback"
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "no-store"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "no-referrer"
