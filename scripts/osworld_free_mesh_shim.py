@@ -458,6 +458,7 @@ def call_mesh(messages):
     except ValueError as exc:return terminal(str(exc))
     OBS_DIR.mkdir(parents=True,exist_ok=True); evidence_path=OBS_DIR/('step_%04d.json'%STATE['step']); evidence_path.write_text(json.dumps({'request':body,'payload':metrics},ensure_ascii=False),encoding='utf-8')
     policy_rejections=0; provider_capacity_cycles=0; local_contract_cycles=0; local_transient_cycles=0
+    body.setdefault('request_tabu',[])
     for attempt in range(3):
         if time.monotonic()-STARTED>=MAX_TASK_SECONDS-170:return terminal('TASK_DEADLINE')
         HEALTH['pending_since']=time.time(); metrics['after_bytes']=len(json.dumps(body,ensure_ascii=False).encode()); http,data=request_mesh(body); HEALTH['pending_since']=None
@@ -486,7 +487,21 @@ def call_mesh(messages):
             try:
                 action=ground_action(data.get('action'),body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[])); decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
             except ValueError as exc:
-                policy_rejections+=1; body['memory']=(body['memory']+'\nPOLICY REJECTED: '+str(exc)+'. Replan within deterministic v32 state constraints. This is a local action-contract rejection, not provider-capacity evidence.')[-4500:]; body['provider_hint']='openrouter' if str(data.get('provider') or '').startswith('groq') else 'text'; log_event({'status':'LOCAL_POLICY_REJECTED','reason':str(exc),'attempt':attempt+1}); continue
+                policy_rejections+=1
+                rejected_action=data.get('action') if isinstance(data.get('action'),dict) else {}
+                body['request_tabu'].append({
+                    'action':rejected_action.get('action') or 'exec',
+                    'command':str(rejected_action.get('command') or ''),
+                    'target':rejected_action.get('target') if isinstance(rejected_action.get('target'),dict) else {},
+                    'weight':2,
+                    'reason':str(exc)[:120],
+                    'attempt':attempt+1,
+                })
+                body['request_tabu']=body['request_tabu'][-12:]
+                body['memory']=(body['memory']+'\nPOLICY REJECTED: '+str(exc)+'. Replan within deterministic v32 state constraints. This is a local action-contract rejection, not provider-capacity evidence.')[-4500:]
+                body['provider_hint']='openrouter' if str(data.get('provider') or '').startswith('groq') else 'text'
+                log_event({'status':'LOCAL_POLICY_REJECTED','reason':str(exc),'attempt':attempt+1,'request_tabu':body['request_tabu'][-4:]})
+                continue
             decision_kind=decision['kind']
             if decision_kind==DecisionKind.NOOP_VERIFIED.value:
                 log_event({'status':'NOOP_VERIFIED','checkpoint':action.get('checkpoint')}); STATE['wait_responses']+=1; ELITE.note_wait(); return 'WAIT'
@@ -507,10 +522,21 @@ def call_mesh(messages):
                     body['memory']=(body['memory']+'\nVISUAL_NAVIGATION_LOOP_REJECTED: Ctrl+O was already used without a verified visual milestone. Use the visible dialog deliberately or make a target-image edit instead. Do not repeat it.')[-4500:]; body.pop('provider_hint',None); log_event({'status':'VISUAL_NAVIGATION_LOOP_REJECTED','command':command}); continue
                 recent=[x['command'] for x in STATE['history'][-6:]]
                 if VERIFIER.no_progress and command in recent:
-                    body['memory']=(body['memory']+'\nNO EFFECT: rejected repeated action '+command+'. Change GUI strategy or target.')[-4500:]; body['provider_hint']='openrouter' if str(data.get('provider') or '').startswith('groq') else 'text'; route='groq-multimodal-free' if str(data.get('provider') or '').startswith('groq') else 'openrouter-multimodal-free'; STATE['cooldowns'][route+':'+str(data.get('model'))]=int((time.time()+90)*1000); continue
+                    body['request_tabu'].append({'action':'exec','command':command,'target':action.get('target') if isinstance(action.get('target'),dict) else {},'weight':3,'reason':'repeated-no-progress','attempt':attempt+1})
+                    body['request_tabu']=body['request_tabu'][-12:]
+                    body['memory']=(body['memory']+'\nNO EFFECT: rejected repeated action '+command+'. Change GUI strategy or target.')[-4500:]
+                    body['provider_hint']='openrouter' if str(data.get('provider') or '').startswith('groq') else 'text'
+                    route='groq-multimodal-free' if str(data.get('provider') or '').startswith('groq') else 'openrouter-multimodal-free'
+                    STATE['cooldowns'][route+':'+str(data.get('model'))]=int((time.time()+90)*1000)
+                    log_event({'status':'INTRA_REQUEST_TABU','reason':'repeated-no-progress','command':command,'attempt':attempt+1})
+                    continue
                 elite_action=ELITE.before_action(command,action.get('target'))
                 if not elite_action['allow']:
-                    body['memory']=(body['memory']+'\nELITE TABU: action rejected because it previously produced no verified progress. Replan from the current screenshot with a genuinely different control/path.')[-4500:]; log_event({'status':'ELITE_TABU_REJECTED','command':command,'reason':elite_action['reason']}); continue
+                    body['request_tabu'].append({'action':'exec','command':command,'target':action.get('target') if isinstance(action.get('target'),dict) else {},'weight':3,'reason':'elite-tabu','attempt':attempt+1})
+                    body['request_tabu']=body['request_tabu'][-12:]
+                    body['memory']=(body['memory']+'\nELITE TABU: action rejected because it previously produced no verified progress. Replan from the current screenshot with a genuinely different control/path.')[-4500:]
+                    log_event({'status':'ELITE_TABU_REJECTED','command':command,'reason':elite_action['reason'],'request_tabu':body['request_tabu'][-4:]})
+                    continue
                 STATE['previous']=command;STATE['executed']+=1;STATE['wait_responses']=0;STATE['provider_waits']=0; STATE['history'].append({'command':command,'expected':action.get('expected_change','')}); STATE['history']=STATE['history'][-12:]; VERIFIER.issued(command); MILESTONES.expect(action,obs); log_event({'status':'ACTION_ISSUED','command':command}); return '```python\n'+command+'\n```'
             break
         if http==413: body['observation']=body['observation'][:4000];body['memory']=body['memory'][-1500:]
