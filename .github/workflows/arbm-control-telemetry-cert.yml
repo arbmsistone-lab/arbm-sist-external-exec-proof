@@ -1,6 +1,9 @@
 name: ARBM CONTROL Telemetry External Certification
 
 on:
+  push:
+    branches:
+      - feat/arbm-control-telemetry-cert-20260917
   workflow_dispatch:
 
 permissions:
