@@ -3,7 +3,9 @@
 This module is deliberately additive. It preserves the exact 10-role quorum and
 fail-closed acceptance rules while avoiding heavyweight local model startup when
 the already-admitted FREE remote routes can produce all ten valid reviews. The
-existing evidence-aware swarm remains the authoritative full-failover path.
+existing evidence-aware swarm remains the authoritative full-failover path for
+provider/schema incompleteness only. A substantive valid veto or UNKNOWN result
+is never erased by fallback.
 """
 import copy
 import json
@@ -18,6 +20,13 @@ import osworld_061_evidence_aware_swarm as evidence_aware
 import osworld_061_specialist_swarm as swarm
 from osworld_groq_free import GROQ_FREE_ROUTE, GroqFreeRoute
 from osworld_openrouter_free import FREE_ROUTE, FreeRoute
+
+
+def _github_output(name, value):
+    path = os.environ.get('GITHUB_OUTPUT')
+    if path:
+        with open(path, 'a', encoding='utf-8') as handle:
+            handle.write(f'{name}={value}\n')
 
 
 def _bind_validated_official_evidence(root):
@@ -54,23 +63,38 @@ def _clone_groq_route(source):
     return route
 
 
-def _bounded_workers():
+def _bounded_int(name, default, minimum, maximum):
     try:
-        requested = int(os.environ.get('ARBM_SWARM_REMOTE_WORKERS', '3'))
+        value = int(os.environ.get(name, str(default)))
     except ValueError:
-        requested = 3
-    return max(1, min(4, requested))
+        value = default
+    return max(minimum, min(maximum, value))
+
+
+def _bounded_workers():
+    return _bounded_int('ARBM_SWARM_REMOTE_WORKERS', 3, 1, 4)
+
+
+def _budgets():
+    """Keep the fast lane fast; the full failover owns long recovery budgets."""
+    return (
+        _bounded_int('ARBM_SWARM_OPENROUTER_BUDGET_S', 45, 10, 90),
+        _bounded_int('ARBM_SWARM_GROQ_BUDGET_S', 30, 10, 60),
+        _bounded_int('ARBM_SWARM_REPAIR_BUDGET_S', 20, 5, 45),
+    )
 
 
 def _remote_robot(index, name, brief, evidence, contract, image, probe_evidence,
                   free_route, groq_route):
     """Run one specialist through FREE remote routes only, preserving schema repair."""
+    del index, image
     system = swarm.role_prompt(name, brief, contract)
     attempts = []
     raw_outputs = []
+    openrouter_budget, groq_budget, repair_budget = _budgets()
     for label, route, budget in (
-        ('openrouter', free_route, 140),
-        ('groq', groq_route, 120),
+        ('openrouter', free_route, openrouter_budget),
+        ('groq', groq_route, groq_budget),
     ):
         result = swarm.ask(route, swarm._text_messages(system, evidence, probe_evidence), budget)
         attempts.extend(result.get('attempts') or [])
@@ -81,7 +105,7 @@ def _remote_robot(index, name, brief, evidence, contract, image, probe_evidence,
                     'verdict': verdict, 'attempts': attempts, 'raw_outputs': raw_outputs}
         raw = str(result.get('raw') or '')
         if raw:
-            repaired = swarm.ask(route, swarm._repair_messages(name, raw), 100)
+            repaired = swarm.ask(route, swarm._repair_messages(name, raw), repair_budget)
             attempts.extend(repaired.get('attempts') or [])
             raw_outputs.append({'provider': label + '-schema-repair',
                                 'raw': str(repaired.get('raw') or '')[-1200:]})
@@ -133,7 +157,24 @@ def _run_remote_robots(evidence, contract, image, probe_evidence):
     return [by_index[index] for index in range(len(swarm.ROLES))]
 
 
+def _classification(robots):
+    valid = [r for r in robots if swarm.valid_verdict(r.get('verdict'), r['role'])]
+    vetoes = [r['role'] for r in valid
+              if r['verdict']['veto'] or r['verdict']['verdict'] != 'PASS_FIX']
+    classes = Counter(r['verdict']['root_cause_class'] for r in valid)
+    unknown_roles = [r['role'] for r in valid if r['verdict']['root_cause_class'] == 'UNKNOWN']
+    required = {name for name, _ in swarm.ROLES}
+    covered = {r['role'] for r in valid}
+    accepted = (len(valid) == 10 and covered == required and not vetoes and not unknown_roles)
+    substantive_blockers = sorted(set(vetoes + unknown_roles))
+    fallback_eligible = (not accepted and not substantive_blockers)
+    return valid, vetoes, classes, unknown_roles, covered, accepted, fallback_eligible
+
+
 def main(root):
+    # Default to operational fallback eligibility. If a valid substantive veto
+    # is observed below, a later GITHUB_OUTPUT record flips this to zero.
+    _github_output('fallback_eligible', '1')
     if os.environ.get('ZERO_SPEND_MODE') != 'HARD':
         raise RuntimeError('ZERO_SPEND_HARD_REQUIRED')
     started = time.monotonic()
@@ -153,14 +194,11 @@ def main(root):
         raise RuntimeError('CURRENT_DIAGNOSTIC_PROBE_EVIDENCE_REQUIRED')
 
     robots = _run_remote_robots(evidence, contract, image, probe_evidence)
-    valid = [r for r in robots if swarm.valid_verdict(r.get('verdict'), r['role'])]
-    vetoes = [r['role'] for r in valid
-              if r['verdict']['veto'] or r['verdict']['verdict'] != 'PASS_FIX']
-    classes = Counter(r['verdict']['root_cause_class'] for r in valid)
-    required = {name for name, _ in swarm.ROLES}
-    covered = {r['role'] for r in valid}
-    accepted = (len(valid) == 10 and covered == required and not vetoes
-                and classes.get('UNKNOWN', 0) == 0)
+    valid, vetoes, classes, unknown_roles, covered, accepted, fallback_eligible = _classification(robots)
+    _github_output('fallback_eligible', '1' if fallback_eligible else '0')
+    _github_output('substantive_blocked', '1' if (vetoes or unknown_roles) else '0')
+    _github_output('valid_reviews', str(len(valid)))
+
     out = {
         'status': 'SWARM_ACCEPTED' if accepted else 'SWARM_BLOCKED',
         'candidate_sha': os.environ.get('GITHUB_SHA'),
@@ -170,13 +208,17 @@ def main(root):
         'covered_roles': sorted(covered),
         'root_cause_votes': dict(classes),
         'vetoes': vetoes,
+        'unknown_roles': unknown_roles,
         'reviews': robots,
         'diagnostic_probe': json.loads(probe_evidence),
         'execution': {
             'mode': 'remote_fast_path',
             'remote_workers': _bounded_workers(),
+            'provider_budgets_seconds': {
+                'openrouter': _budgets()[0], 'groq': _budgets()[1], 'repair': _budgets()[2]},
             'elapsed_seconds': round(time.monotonic() - started, 3),
-            'full_failover_required': not accepted,
+            'full_failover_required': fallback_eligible,
+            'substantive_blocked': bool(vetoes or unknown_roles),
         },
         'zero_spend_mode': 'HARD',
         'paid_fallback_used': False,
@@ -186,7 +228,7 @@ def main(root):
         json.dumps(out, indent=2), encoding='utf-8')
     print(json.dumps({k: out[k] for k in (
         'status', 'candidate_sha', 'robots_total', 'valid_reviews',
-        'root_cause_votes', 'vetoes', 'execution')}))
+        'root_cause_votes', 'vetoes', 'unknown_roles', 'execution')}))
     if not accepted:
         raise RuntimeError('SPECIALIST_REMOTE_FAST_PATH_BLOCKED')
 
