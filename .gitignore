@@ -1,3 +1,67 @@
+# Python / runtime
 __pycache__/
 *.pyc
 *.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.kdbx
+*.asc
+*.gpg
+*.age
+*.credentials
+credentials.json
+service-account*.json
+*_service_account.json
+secrets.json
+secrets.yaml
+secrets.yml
+
+# Cloud / IaC local credentials and state
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraformrc
+terraform.rc
+.aws/
+.gcp/
+.azure/
+
+# SSH / TLS / auth artifacts
+id_rsa
+id_ed25519
+known_hosts
+*.crt
+*.csr
+*.der
+*.ovpn
+.netrc
+.npmrc
+.pypirc
+
+# Local evidence that can contain transient identifiers
+*.log
+*.trace
+*.har
+coverage/
+htmlcov/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
