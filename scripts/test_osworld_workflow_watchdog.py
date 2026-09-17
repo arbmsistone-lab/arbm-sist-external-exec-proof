@@ -38,6 +38,7 @@ class WorkflowWatchdogTests(unittest.TestCase):
     def test_world_audit_fast_path_is_bounded_and_zero_spend(self):
         self.assertIn('ZERO_SPEND_MODE: HARD', self.audit)
         self.assertIn("ARBM_LOCAL_TEXT_CACHE_MODELS: '1'", self.audit)
+        self.assertIn("ARBM_LOCAL_TEXT_PROMPT_TOKENS: '2048'", self.audit)
         self.assertIn("ARBM_SWARM_REMOTE_WORKERS: '3'", self.audit)
         self.assertIn("ARBM_SWARM_OPENROUTER_BUDGET_S: '45'", self.audit)
         self.assertIn("ARBM_SWARM_GROQ_BUDGET_S: '30'", self.audit)
@@ -45,7 +46,7 @@ class WorkflowWatchdogTests(unittest.TestCase):
         self.assertIn('timeout --signal=TERM --kill-after=10s 360s python scripts/osworld_061_performance_swarm.py incident-evidence', self.audit)
 
     def test_installations_refuse_source_builds(self):
-        self.assertGreaterEqual(self.audit.count('--only-binary=:all:'), 2)
+        self.assertGreaterEqual(self.audit.count('--only-binary=:all:'), 3)
 
     def test_deterministic_audits_have_process_deadlines(self):
         self.assertIn('timeout --signal=TERM --kill-after=10s 60s python scripts/osworld_061_champion_audit.py', self.audit)
@@ -62,16 +63,17 @@ class WorkflowWatchdogTests(unittest.TestCase):
         self.assertIn("steps.heavy_preflight.outputs.capacity_ok == '1'", install)
         self.assertIn("steps.heavy_preflight.outputs.install_required == '1'", install)
 
-    def test_heavy_runtime_is_pinned_verified_and_bounded(self):
+    def test_heavy_runtime_is_cpu_only_pinned_verified_and_bounded(self):
         marker = '- name: Install heavyweight local audit fallback'
         start = self.audit.index(marker)
-        block = self.audit[start:start+1500]
+        block = self.audit[start:start+1800]
+        self.assertIn('https://download.pytorch.org/whl/cpu', block)
         self.assertIn("'torch==2.7.1'", block)
         self.assertIn("'transformers==4.52.4'", block)
         self.assertIn("'safetensors==0.8.0'", block)
-        self.assertIn('timeout --signal=TERM --kill-after=20s 240s', block)
+        self.assertIn('timeout --signal=TERM --kill-after=20s 180s', block)
         self.assertIn('- name: Verify heavyweight local audit runtime', block)
-        self.assertIn("required={'torch':'2.7.1','transformers':'4.52.4','safetensors':'0.8.0'}", block)
+        self.assertIn("required={'torch':'2.7.1+cpu','transformers':'4.52.4','safetensors':'0.8.0'}", block)
         self.assertIn('assert actual==required', block)
 
     def test_full_swarm_remains_bounded_fail_closed_fallback(self):
@@ -79,7 +81,7 @@ class WorkflowWatchdogTests(unittest.TestCase):
         start = self.audit.index(marker)
         block = self.audit[start:start+900]
         self.assertIn("steps.swarm_fast.outputs.fallback_eligible == '1'", block)
-        self.assertIn('timeout --signal=TERM --kill-after=20s 900s python scripts/osworld_061_evidence_aware_swarm.py incident-evidence', block)
+        self.assertIn('timeout --signal=TERM --kill-after=20s 600s python scripts/osworld_061_evidence_aware_swarm.py incident-evidence', block)
         self.assertIn('osworld_061_lane_receipt.py full', block)
 
     def test_fast_and_full_lanes_emit_forensic_receipts(self):
