@@ -2,6 +2,13 @@ name: ARBM TOP3 Materialize Shim Patch
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - chatgpt/arbm-top3-consolidated-20260917
+    paths:
+      - Makefile
+      - scripts/patch_shim_mesh_top3.py
+      - .github/workflows/arbm-top3-materialize-shim.yml
 
 permissions:
   contents: write
