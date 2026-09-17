@@ -49,7 +49,7 @@ class EvidenceBundleTests(unittest.TestCase):
         source = pathlib.Path(bundle.__file__).read_text(encoding='utf-8')
         self.assertIn("audit3d.get('passed') != 60", source)
         self.assertIn("champion.get('status') != 'PASS'", source)
-        self.assertIn("if fast_outcome != 'success' and full_outcome != 'success'", source)
+        self.assertIn("if fast_outcome != 'success' and replay_outcome != 'success' and full_outcome != 'success'", source)
         self.assertIn("'paid_fallback_used': False", source)
         self.assertIn("'heavy_local': 0", source)
 
