@@ -12,4 +12,6 @@ This document records the minimum administrative protection policy required befo
 - Do not weaken any repository-level ruleset or existing protection.
 - Do not change the repository default branch or visibility as part of this protection change.
 
-The current ChatGPT GitHub managed connection does not expose administrative branch-protection writes. Protection must therefore be applied through an authenticated GitHub administrative surface or a connector with repository administration permission, then re-read and verified before the branch is marked protected.
+Administrative closure is fail-closed: do not mark the branch protected until GitHub itself re-reports the branch or applicable ruleset as enforcing the requested policy.
+
+Current tool constraint: the managed GitHub connection available in this chat does not expose administrative branch-protection writes. The first browser automation attempt was rejected before session creation because strict-agent mode is not enabled for the account. This is a tooling/permission blocker, not evidence that protection was applied.
