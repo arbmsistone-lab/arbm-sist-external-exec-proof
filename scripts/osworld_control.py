@@ -323,7 +323,9 @@ class Verifier:
                 self.changes += 1
             else:
                 self.no_progress += 1
-        self.last_result = {'progress':bool(progress),'tree_changed':tree_changed,'visual_changed':visual_changed,
+        reason='progress_verified' if progress else ('action_no_progress' if self.pending else 'observation_only')
+        self.last_result = {'progress':bool(progress),'reason':reason,
+                            'tree_changed':tree_changed,'visual_changed':visual_changed,
                             'novel_tree':novel,'new_visible_lines':new_visible,
                             'no_progress':self.no_progress,'recovery_level':self.recovery_level,
                             'before_tree_sha256':self.last_tree,'after_tree_sha256':sig}
