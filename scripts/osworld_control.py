@@ -114,14 +114,14 @@ def tree_signature(text):
 
 def _parse_accessibility_controls(observation):
     controls=[]
-    interactive={'push-button','button','menu','menu-item','check-box','radio-button','combo-box','entry','link','toggle-button','spin-button','slider','tab','table-cell'}
+    interactive={'push-button','button','menu','menu-item','check-box','radio-button','combo-box','entry','link','toggle-button','spin-button','slider','tab','table-cell','section'}
     for line in str(observation or '').splitlines():
         cols=line.split('\t')
         if len(cols)<7 or cols[0] not in interactive: continue
         xy=re.findall(r'-?\d+',cols[-2]); wh=re.findall(r'\d+',cols[-1])
         if len(xy)!=2 or len(wh)!=2: continue
         x,y=map(int,xy); w,h=map(int,wh)
-        name=cols[1].replace('\u200b','').strip()
+        name=(cols[1] or cols[2]).replace('\u200b','').strip()
         if not name or w<=0 or h<=0: continue
         controls.append({'role':cols[0],'name':name,'x':x,'y':y,'w':w,'h':h,
                          'cx':x+w//2,'cy':y+h//2})
