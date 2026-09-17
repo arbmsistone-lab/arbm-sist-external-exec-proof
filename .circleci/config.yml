@@ -26,6 +26,18 @@ jobs:
           command: |
             test -n "$CIRCLE_OIDC_TOKEN_V2"
             ARBM_OIDC="$CIRCLE_OIDC_TOKEN_V2" ARBM_RUN_ROOT="$PWD/.arbm-run" node scripts/sovereign-continuity-worker.mjs
+  arbm_control_resilience_worker:
+    docker:
+      - image: cimg/node:24.8
+    resource_class: small
+    steps:
+      - checkout
+      - run:
+          name: Validate ARBM CONTROL interruption resilience mission
+          command: |
+            set -euo pipefail
+            test -n "$CIRCLE_OIDC_TOKEN_V2"
+            node scripts/arbm-control-resilience-worker.mjs
 workflows:
   sovereign_oidc_heartbeat:
     triggers:
@@ -39,6 +51,12 @@ workflows:
   sovereign_continuity_worker:
     jobs:
       - sovereign_continuity_worker:
+          filters:
+            branches:
+              only: assist/circleci-sovereign-oidc-20260909
+  arbm_control_resilience:
+    jobs:
+      - arbm_control_resilience_worker:
           filters:
             branches:
               only: assist/circleci-sovereign-oidc-20260909
