@@ -1,52 +1,47 @@
-# ARBM SIST Control Ownership Matrix - DRAFT
+# ARBM SIST Control Ownership Matrix
 
-Status: DRAFT - OWNERS NOT YET FORMALLY APPOINTED
-Prepared: 2026-09-17
+Status: INITIAL ASSIGNMENT EFFECTIVE
+Effective date: 2026-09-17
+Executive accountable owner: Airton Renan Alves Moreira Bitu — Owner / Executive Management
 
-This matrix defines roles, not named individuals. Formal appointment and acceptance of responsibility are required before this becomes operating evidence.
+This is the initial operating assignment for a small-organization structure. Multiple roles may be held by the owner during readiness, but independence-sensitive activities remain separately assigned or explicitly pending.
 
-| Control area | Accountable role | Responsible role | Evidence owner | Review cadence | Status |
+| Control area | Accountable | Responsible | Evidence owner | Review cadence | State |
 |---|---|---|---|---|---|
-| Integrated management system | Executive Management | Management System Lead | Management System Lead | Quarterly | TO_ASSIGN |
-| Quality objectives / QMS | Executive Management | Quality Lead | Quality Lead | Quarterly | TO_ASSIGN |
-| Information security / ISMS | Executive Management | Security Lead | Security Lead | Monthly / quarterly | TO_ASSIGN |
-| AI governance / AIMS | Executive Management | AI Governance Lead | AI Governance Lead | Monthly / material change | TO_ASSIGN |
-| Privacy / PIMS | Executive Management | Privacy Lead | Privacy Lead | Quarterly / material change | TO_ASSIGN |
-| IT service management | Executive Management | Service Management Lead | Service Management Lead | Monthly | TO_ASSIGN |
-| Software/product quality | Product Management | Engineering / QA Lead | QA Lead | Per release / quarterly | TO_ASSIGN |
-| Secure SDLC | Engineering Management | Engineering Lead | Engineering Lead | Per release | TO_ASSIGN |
-| Change / release management | Engineering Management | Release Owner | Release Owner | Per change/release | TO_ASSIGN |
-| Benchmark integrity | Engineering Management | Benchmark Integrity Owner | Benchmark Integrity Owner | Per benchmark run | TO_ASSIGN |
-| Provenance / evidence custody | Executive Management | Evidence Custodian | Evidence Custodian | Per evidence event / monthly | TO_ASSIGN |
-| Risk management | Executive Management | Risk Coordinator | Risk Coordinator | Monthly / quarterly | TO_ASSIGN |
-| Incident response | Executive Management | Incident Commander | Incident Coordinator | Per incident / quarterly review | TO_ASSIGN |
-| Business continuity / disaster recovery | Executive Management | Continuity Lead | Continuity Lead | Semiannual / annual exercise | TO_ASSIGN |
-| Access management | Security Lead | Access Administrator | Security Lead | Monthly / quarterly review | TO_ASSIGN |
-| Secrets / credentials | Security Lead | Platform Owner | Security Lead | Monthly / rotation event | TO_ASSIGN |
-| Supplier/provider governance | Executive Management | Supplier Owner | Supplier Owner | Onboarding / annual / material change | TO_ASSIGN |
-| Vulnerability/dependency management | Security Lead | Engineering Lead | Security Lead | Per release / monthly | TO_ASSIGN |
-| Logging / monitoring | Service Management Lead | Platform Owner | Platform Owner | Continuous / monthly review | TO_ASSIGN |
-| Data retention / deletion | Privacy Lead | Data/Platform Owner | Privacy Lead | Quarterly | TO_ASSIGN |
-| Internal audit | Executive Management | Independent Internal Auditor | Internal Audit Lead | At least annual / before external certification | TO_ASSIGN |
-| Management review | Executive Management | Management System Lead | Management System Lead | At least annual / before certification as needed | TO_ASSIGN |
-| Corrective action / CAPA | Executive Management | Relevant Process Owner | Quality Lead | Per finding | TO_ASSIGN |
-| External certification liaison | Executive Management | Certification Coordinator | Certification Coordinator | As needed | TO_ASSIGN |
+| Integrated management system | Owner / Executive Management | Owner / Executive Management | Owner / Executive Management | Quarterly | ACTIVE |
+| Quality objectives / QMS | Owner / Executive Management | Owner / Executive Management | Owner / Executive Management | Quarterly | ACTIVE |
+| Information security / ISMS | Owner / Executive Management | Owner / Executive Management | Owner / Executive Management | Monthly / quarterly | ACTIVE |
+| AI governance / AIMS | Owner / Executive Management | Owner / Executive Management | Owner / Executive Management | Monthly / material change | ACTIVE |
+| Privacy / PIMS | Owner / Executive Management | Owner / Executive Management | Owner / Executive Management | Quarterly / material change | ACTIVE |
+| IT service management | Owner / Executive Management | Owner / Executive Management | Owner / Executive Management | Monthly | ACTIVE |
+| Software/product quality | Owner / Executive Management | Owner / Executive Management | Owner / Executive Management | Per release / quarterly | ACTIVE |
+| Secure SDLC | Owner / Executive Management | Owner / Executive Management | Owner / Executive Management | Per release | ACTIVE |
+| Change / release management | Owner / Executive Management | Owner / Executive Management | Owner / Executive Management | Per change/release | ACTIVE |
+| Benchmark integrity | Owner / Executive Management | Owner / Executive Management | Evidence Custodian role | Per benchmark run | ACTIVE_WITH_INDEPENDENCE_GATE |
+| Provenance / evidence custody | Owner / Executive Management | Evidence Custodian role | Evidence Custodian role | Per evidence event / monthly | ACTIVE |
+| Risk management | Owner / Executive Management | Owner / Executive Management | Owner / Executive Management | Monthly / quarterly | ACTIVE |
+| Incident response | Owner / Executive Management | Owner / Executive Management | Owner / Executive Management | Per incident / quarterly | ACTIVE |
+| Business continuity / disaster recovery | Owner / Executive Management | Owner / Executive Management | Owner / Executive Management | Semiannual / annual exercise | ACTIVE |
+| Access management | Owner / Executive Management | Owner / Executive Management | Owner / Executive Management | Monthly / quarterly | ACTIVE |
+| Secrets / credentials | Owner / Executive Management | Owner / Executive Management | Owner / Executive Management | Monthly / rotation event | ACTIVE |
+| Supplier/provider governance | Owner / Executive Management | Owner / Executive Management | Owner / Executive Management | Onboarding / annual / material change | ACTIVE |
+| Vulnerability/dependency management | Owner / Executive Management | Owner / Executive Management | Owner / Executive Management | Per release / monthly | ACTIVE |
+| Logging / monitoring | Owner / Executive Management | Owner / Executive Management | Owner / Executive Management | Continuous / monthly review | ACTIVE |
+| Data retention / deletion | Owner / Executive Management | Owner / Executive Management | Owner / Executive Management | Quarterly | ACTIVE |
+| Internal audit | Owner / Executive Management | Independent Internal Auditor | Independent Internal Auditor | At least annual / pre-certification | INDEPENDENT_PERSON_REQUIRED |
+| Management review | Owner / Executive Management | Owner / Executive Management | Owner / Executive Management | At least annual / as needed | ACTIVE |
+| Corrective action / CAPA | Owner / Executive Management | Relevant Process Owner | Owner / Executive Management | Per finding | ACTIVE |
+| External certification liaison | Owner / Executive Management | Owner / Executive Management | Owner / Executive Management | As needed | ACTIVE |
 
-## Segregation principles
+## Independence rules
 
-- The person reviewing benchmark/evaluator integrity should not approve a change that alters evaluator semantics without independent review.
-- Internal auditors should not audit their own work where independence can reasonably be achieved.
-- High-impact AI and security risk acceptance should be approved by the accountable management role, not only by the implementer.
-- Evidence custody must preserve source/run/SHA/hash references and distinguish raw evidence from interpretation.
+- No benchmark/evaluator semantic change may be both implemented and independently accepted by the same role where an external or independent reviewer is available.
+- Internal audit must not be self-certified. A separate competent reviewer must perform the independent audit before it is used as certification evidence.
+- High-impact risk acceptance remains an Executive Management decision.
+- External certification bodies, CPA firms, CMMI appraisal teams and OSWorld maintainers remain independent third parties; internal role assignment cannot substitute for their verdicts.
 
-## Formalization gate
+## Small-organization control
 
-Before Stage 1 or equivalent external readiness review:
+Because ARBM SIST currently operates with concentrated management responsibility, segregation is implemented by evidence gating: actions requiring independence remain `PENDING_INDEPENDENT_REVIEW` until a separate reviewer or external body completes the review.
 
-1. formally appoint each applicable role;
-2. record acceptance of responsibility;
-3. define deputies/coverage for critical roles;
-4. verify conflicts of interest and segregation needs;
-5. retain dated approval evidence.
-
-`CONTROL_OWNERSHIP_STATUS = DRAFT_TO_ASSIGN`
+`CONTROL_OWNERSHIP_STATUS = INITIAL_ASSIGNMENT_EFFECTIVE`
