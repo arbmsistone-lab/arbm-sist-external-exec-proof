@@ -93,30 +93,30 @@ jobs:
           test "$RUNNER_ENVIRONMENT" = github-hosted
           test "$STALE_EVIDENCE_PURGED" = 1
           test "$APPROVED_FOCAL_EVIDENCE_BOUND" = 1
-          python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
+          timeout --signal=TERM --kill-after=10s 120s python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
       - name: Run 500 deterministic adversarial perspectives
-        run: python scripts/osworld_061_champion_audit.py
+        run: timeout --signal=TERM --kill-after=10s 60s python scripts/osworld_061_champion_audit.py
       - name: Run 10-robot specialist remote fast path
         id: swarm_fast
         continue-on-error: true
-        run: python scripts/osworld_061_performance_swarm.py incident-evidence
+        run: timeout --signal=TERM --kill-after=10s 360s python scripts/osworld_061_performance_swarm.py incident-evidence
       - name: Install heavyweight local audit fallback
         if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1'
         run: |
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = HARD
           test "$RUNNER_ENVIRONMENT" = github-hosted
-          python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
+          timeout --signal=TERM --kill-after=20s 240s python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
       - name: Run full specialist failover
         id: swarm_full
         if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1'
         continue-on-error: true
-        run: python scripts/osworld_061_evidence_aware_swarm.py incident-evidence
+        run: timeout --signal=TERM --kill-after=20s 900s python scripts/osworld_061_evidence_aware_swarm.py incident-evidence
       - name: Run 20 final 3D audits
         id: audit3d
         if: always()
         continue-on-error: true
-        run: python scripts/osworld_061_3d_audit.py incident-evidence
+        run: timeout --signal=TERM --kill-after=10s 60s python scripts/osworld_061_3d_audit.py incident-evidence
       - name: Enforce supreme audit verdict
         if: always()
         shell: bash
