@@ -43,8 +43,16 @@ def _token_limit(value):
     try:
         value = int(value)
     except (TypeError, ValueError):
-        value = 320
-    return max(16, min(512, value))
+        value = 160
+    return max(16, min(192, value))
+
+
+def _prompt_token_limit():
+    try:
+        value = int(os.environ.get('ARBM_LOCAL_TEXT_PROMPT_TOKENS', '2048'))
+    except ValueError:
+        value = 2048
+    return max(512, min(3072, value))
 
 
 def clear_runtime_cache():
@@ -81,7 +89,7 @@ def _runtime(name):
     return tokenizer, model, False, load_seconds
 
 
-def review(name, system, evidence, max_new_tokens=320):
+def review(name, system, evidence, max_new_tokens=160):
     import torch
 
     model_id, revision = MODELS.get(name, (None, None))
@@ -94,11 +102,13 @@ def review(name, system, evidence, max_new_tokens=320):
     ]
     rendered = tokenizer.apply_chat_template(
         messages, tokenize=False, add_generation_prompt=True)
-    inputs = tokenizer(rendered, return_tensors='pt', truncation=True, max_length=4096)
+    prompt_limit = _prompt_token_limit()
+    inputs = tokenizer(rendered, return_tensors='pt', truncation=True, max_length=prompt_limit)
     started = time.monotonic()
     with torch.inference_mode():
         generated = model.generate(
-            **inputs, max_new_tokens=_token_limit(max_new_tokens), do_sample=False)
+            **inputs, max_new_tokens=_token_limit(max_new_tokens), do_sample=False,
+            use_cache=True)
     inference_seconds = time.monotonic() - started
     prompt_tokens = inputs['input_ids'].shape[1]
     text = tokenizer.decode(
@@ -112,6 +122,8 @@ def review(name, system, evidence, max_new_tokens=320):
         'paid_fallback_used': False,
         'compute_scope': 'github-public-cloud-runner',
         'prompt_tokens': int(prompt_tokens),
+        'prompt_token_limit': prompt_limit,
+        'max_new_tokens': _token_limit(max_new_tokens),
         'parsed': isinstance(verdict, dict),
         'runtime_cache_limit': _cache_limit(),
         'runtime_cache_hit': cache_hit,
