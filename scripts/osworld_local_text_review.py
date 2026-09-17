@@ -89,6 +89,55 @@ def _runtime(name):
     return tokenizer, model, False, load_seconds
 
 
+def _clip_tokens(tokenizer, text, limit):
+    """Keep both causal setup and latest evidence without cutting mid-prompt blindly."""
+    text = str(text or '')
+    ids = tokenizer.encode(text, add_special_tokens=False)
+    if len(ids) <= limit:
+        return text
+    head = max(1, limit // 2)
+    tail = max(1, limit - head)
+    first = tokenizer.decode(ids[:head], skip_special_tokens=True)
+    last = tokenizer.decode(ids[-tail:], skip_special_tokens=True)
+    return first + '\n...[TOKEN-BOUNDED MIDDLE OMITTED]...\n' + last
+
+
+def _post_focal_messages(tokenizer, system, evidence):
+    role_match = re.search(r'(?m)^ROLE=([A-Za-z0-9_]+)\s*$', str(system or ''))
+    if not role_match:
+        return None, ''
+    role = role_match.group(1)
+    marker = 'CURRENT CANDIDATE CONTRACT (source excerpts):\n'
+    before, sep, contract = str(system).partition(marker)
+    if not sep:
+        contract = ''
+    specialty_match = re.search(r'(?m)^SPECIALTY=(.+)$', before)
+    specialty = specialty_match.group(1).strip() if specialty_match else role
+    contract = _clip_tokens(tokenizer, contract, 760)
+    evidence = _clip_tokens(tokenizer, evidence, 620)
+    system_short = (
+        'You are a fail-closed OSWorld specialist. Judge only supplied evidence. '
+        'Do not invent facts, weaken the evaluator, or propose paid fallback. '
+        f'Assigned role: {role}. Specialty: {specialty}.')
+    final = (
+        'DECIDE NOW. Return one JSON object only. Do not continue or quote source code. '
+        f'role must be exactly {role}. verdict must be PASS_FIX, REJECT_FIX, or INSUFFICIENT. '
+        'root_cause_class must be AGENT_LOGIC, EVIDENCE_PROVENANCE, IMAGE_QUALITY, GUI_STATE, '
+        'EVALUATOR, INFRASTRUCTURE, PROVIDER_CAPACITY, or UNKNOWN. '
+        'causal_chain, regression_risks, and required_proofs must be JSON arrays with at most one short item each. '
+        'definitive_fix must be a short string. confidence must be 0..1. veto must be true or false. '
+        'Choose the verdict from evidence; PASS is not required.')
+    user = (
+        'CURRENT CANDIDATE CONTRACT:\n' + contract +
+        '\n\nAPPROVED/DIAGNOSTIC/HISTORICAL EVIDENCE:\n' + evidence +
+        '\n\n' + final)
+    prefix = '{"role":"' + role + '","verdict":"'
+    return [
+        {'role': 'system', 'content': system_short},
+        {'role': 'user', 'content': user},
+    ], prefix
+
+
 def review(name, system, evidence, max_new_tokens=160):
     import torch
 
@@ -96,23 +145,38 @@ def review(name, system, evidence, max_new_tokens=160):
     if model_id is None:
         raise ValueError('LOCAL_TEXT_MODEL_NOT_ALLOWLISTED')
     tokenizer, model, cache_hit, load_seconds = _runtime(name)
-    messages = [
-        {'role': 'system', 'content': system},
-        {'role': 'user', 'content': 'INCIDENT EVIDENCE\n' + evidence},
-    ]
+    post_focal = os.environ.get('ARBM_POST_FOCAL_COMPACT_LOCAL') == '1'
+    prefix = ''
+    if post_focal:
+        messages, prefix = _post_focal_messages(tokenizer, system, evidence)
+    else:
+        messages = None
+    if not messages:
+        messages = [
+            {'role': 'system', 'content': system},
+            {'role': 'user', 'content': 'INCIDENT EVIDENCE\n' + evidence},
+        ]
+        prefix = ''
     rendered = tokenizer.apply_chat_template(
-        messages, tokenize=False, add_generation_prompt=True)
+        messages, tokenize=False, add_generation_prompt=True) + prefix
     prompt_limit = _prompt_token_limit()
-    inputs = tokenizer(rendered, return_tensors='pt', truncation=True, max_length=prompt_limit)
+    old_side = getattr(tokenizer, 'truncation_side', 'right')
+    tokenizer.truncation_side = 'left' if post_focal else 'right'
+    try:
+        inputs = tokenizer(rendered, return_tensors='pt', truncation=True, max_length=prompt_limit)
+    finally:
+        tokenizer.truncation_side = old_side
+    generation_limit = _token_limit(192 if post_focal else max_new_tokens)
     started = time.monotonic()
     with torch.inference_mode():
         generated = model.generate(
-            **inputs, max_new_tokens=_token_limit(max_new_tokens), do_sample=False,
+            **inputs, max_new_tokens=generation_limit, do_sample=False,
             use_cache=True)
     inference_seconds = time.monotonic() - started
     prompt_tokens = inputs['input_ids'].shape[1]
-    text = tokenizer.decode(
+    completion = tokenizer.decode(
         generated[0, prompt_tokens:], skip_special_tokens=True).strip()
+    text = (prefix + completion).strip() if prefix else completion
     verdict = parse_json(text)
     meta = {
         'route': name,
@@ -123,7 +187,9 @@ def review(name, system, evidence, max_new_tokens=160):
         'compute_scope': 'github-public-cloud-runner',
         'prompt_tokens': int(prompt_tokens),
         'prompt_token_limit': prompt_limit,
-        'max_new_tokens': _token_limit(max_new_tokens),
+        'max_new_tokens': generation_limit,
+        'post_focal_compact_prompt': post_focal,
+        'json_prefix_used': bool(prefix),
         'parsed': isinstance(verdict, dict),
         'runtime_cache_limit': _cache_limit(),
         'runtime_cache_hit': cache_hit,
