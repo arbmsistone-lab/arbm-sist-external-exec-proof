@@ -1,0 +1,150 @@
+name: WebArena Verified local Qwen zero-spend smoke
+on:
+  push:
+    branches: [cert/global-external-closure-20260917]
+    paths:
+      - '.github/workflows/webarena-local-qwen-smoke.yml'
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      ZERO_SPEND_MODE: HARD
+      WEB_ARENA_COMMIT: 6473f72db5dcefc97b5725b59e734504edc28a21
+      LLAMA_TAG: b10964
+      LLAMA_BIN_SHA256: 9abf88aea48a55d0f80edb1ee20220b186848cca0b4e919d71518cfd7ca67443
+      QWEN_REPO: Qwen/Qwen3-4B-GGUF
+      QWEN_REV: bc640142c66e1fdd12af0bd68f40445458f3869b
+      QWEN_FILE: Qwen3-4B-Q4_K_M.gguf
+      QWEN_SHA256: 7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Prove remote zero-spend runner
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = HARD
+          mkdir -p evidence/local-qwen
+          printf 'remote_only=true\nzero_spend=HARD\nrunner=%s\nsha=%s\n' "$RUNNER_NAME" "$GITHUB_SHA" | tee evidence/local-qwen/runner.txt
+      - name: Checkout pinned WebArena Verified
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --no-checkout https://github.com/ServiceNow/webarena-verified.git webarena
+          git -C webarena fetch --depth=1 origin "$WEB_ARENA_COMMIT"
+          git -C webarena checkout --detach "$WEB_ARENA_COMMIT"
+          test "$(git -C webarena rev-parse HEAD)" = "$WEB_ARENA_COMMIT"
+          python -m pip install --disable-pip-version-check -q -e ./webarena 'openai>=1.50,<3' 'playwright>=1.52,<2' 'huggingface_hub>=0.35,<2' hf_xet
+          python -m playwright install chromium
+      - name: Install pinned llama.cpp binary
+        run: |
+          set -euo pipefail
+          curl -fL "https://github.com/ggml-org/llama.cpp/releases/download/${LLAMA_TAG}/llama-${LLAMA_TAG}-bin-ubuntu-x64.tar.gz" -o llama.tar.gz
+          echo "$LLAMA_BIN_SHA256  llama.tar.gz" | sha256sum -c -
+          mkdir llama-bin
+          tar -xzf llama.tar.gz -C llama-bin
+          find llama-bin -type f -name llama-server -perm -111 -print | tee evidence/local-qwen/llama-server-path.txt
+          test -s evidence/local-qwen/llama-server-path.txt
+      - name: Download pinned Qwen model
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          from huggingface_hub import hf_hub_download
+          p=hf_hub_download(repo_id=os.environ['QWEN_REPO'],filename=os.environ['QWEN_FILE'],revision=os.environ['QWEN_REV'],local_dir='model')
+          print(p)
+          PY
+          echo "$QWEN_SHA256  model/$QWEN_FILE" | sha256sum -c -
+      - name: Start pinned local Qwen server
+        run: |
+          set -euo pipefail
+          SERVER=$(head -1 evidence/local-qwen/llama-server-path.txt)
+          "$SERVER" -m "model/$QWEN_FILE" --alias qwen3-4b-local -c 16384 -t 4 --host 127.0.0.1 --port 8080 --jinja > evidence/local-qwen/llama-server.log 2>&1 &
+          echo $! > llama-server.pid
+          for i in $(seq 1 120); do curl -fsS http://127.0.0.1:8080/health > evidence/local-qwen/health.json && break || sleep 1; done
+          curl -fsS http://127.0.0.1:8080/health | tee evidence/local-qwen/health-final.json
+          curl -fsS http://127.0.0.1:8080/v1/models | tee evidence/local-qwen/models.json
+          printf 'model_repo=%s\nmodel_revision=%s\nmodel_sha256=%s\nllama_tag=%s\nllama_archive_sha256=%s\n' "$QWEN_REPO" "$QWEN_REV" "$QWEN_SHA256" "$LLAMA_TAG" "$LLAMA_BIN_SHA256" > evidence/local-qwen/identity.txt
+      - name: Probe local inference without external provider
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from openai import OpenAI
+          c=OpenAI(base_url='http://127.0.0.1:8080/v1',api_key='local')
+          r=c.chat.completions.create(model='qwen3-4b-local',messages=[{'role':'user','content':'/no_think Reply with exactly OK'}],max_tokens=24,temperature=0)
+          out={'model':r.model,'content':r.choices[0].message.content,'external_inference_calls':0,'mandatory_cost_usd':0,'paid_fallback_used':False}
+          print(json.dumps(out)); open('evidence/local-qwen/probe.json','w').write(json.dumps(out,indent=2))
+          assert 'OK' in (r.choices[0].message.content or '')
+          PY
+      - name: Start pinned official shopping admin environment
+        run: |
+          set -euo pipefail
+          DIGEST='sha256:d0531dd27ed98d0c459ff9e88118bf2ed8b660b0ed99c38837db46c065a5be13'
+          docker pull "am1n3e/webarena-verified-shopping_admin@${DIGEST}"
+          docker tag "am1n3e/webarena-verified-shopping_admin@${DIGEST}" webarena-shopping-admin:pinned
+          docker run -d --name webarena-shopping-admin -p 7780:80 -p 7781:8877 -e MAGENTO_BASE_URL=http://localhost:7780 webarena-shopping-admin:pinned
+          for i in $(seq 1 90); do curl -fsS http://localhost:7781/status > evidence/local-qwen/env-status.json && break || sleep 2; done
+          test -s evidence/local-qwen/env-status.json
+          curl -fsS -X POST http://localhost:7781/init > evidence/local-qwen/env-init.json
+          for i in $(seq 1 60); do curl -fsSI -H 'X-M2-Admin-Auto-Login: admin:admin1234' http://localhost:7780/admin >/dev/null && break || sleep 2; done
+          curl -fsSI -H 'X-M2-Admin-Auto-Login: admin:admin1234' http://localhost:7780/admin >/dev/null
+      - name: Materialize official task 108
+        run: |
+          set -euo pipefail
+          cat > webarena-config.json <<'JSON'
+          {"environments":{"__SHOPPING_ADMIN__":{"urls":["http://localhost:7780"],"active_url_idx":0,"use_header_login":true,"credentials":{"username":"admin","password":"admin1234"}},"__GITLAB__":{"urls":[]},"__REDDIT__":{"urls":[]},"__SHOPPING__":{"urls":[]},"__WIKIPEDIA__":{"urls":[]},"__MAP__":{"urls":[]}}}
+          JSON
+          webarena-verified agent-input-get --task-ids 108 --config webarena-config.json --output webarena-task.json
+          python - <<'PY'
+          import json
+          x=json.load(open('webarena-task.json')); assert len(x)==1 and x[0]['task_id']==108 and x[0]['sites']==['shopping_admin']
+          print(json.dumps({'task_id':108,'sites':x[0]['sites'],'intent':x[0]['intent']}))
+          PY
+      - name: Execute local Qwen browser agent
+        env:
+          ARBM_LOCAL_MODEL: qwen3-4b-local
+          ARBM_LOCAL_MODEL_SHA256: ${{ env.QWEN_SHA256 }}
+        run: |
+          set -euo pipefail
+          unset OPENAI_API_KEY OPENROUTER_API_KEY GROQ_G3_FREE_CERT_KEY HF_TOKEN || true
+          python certification/webarena_local_qwen_agent.py --tasks webarena-task.json --task-id 108 --output webarena-output --max-steps 24
+          test -s webarena-output/108/agent_response.json
+          test -s webarena-output/108/network.har
+          python - <<'PY'
+          import json
+          t=json.load(open('webarena-output/108/arbm_trace.json')); assert t['zero_spend'] and t['external_inference_calls']==0 and t['mandatory_cost_usd']==0 and not t['paid_fallback_used']
+          print(json.dumps({'actions':len(t['actions']),'local_calls':t['local_inference_calls'],'external_calls':0,'zero_spend':True}))
+          PY
+      - name: Run official deterministic evaluator
+        run: |
+          set -euo pipefail
+          webarena-verified eval-tasks --task-ids 108 --output-dir webarena-output --config webarena-config.json
+          python - <<'PY'
+          import json
+          r=json.load(open('webarena-output/108/eval_result.json'))
+          print(json.dumps({'task_id':r['task_id'],'status':r['status'],'score':r['score'],'checksum':r.get('webarena_verified_evaluator_checksum')}))
+          assert r['status']=='success' and float(r['score'])==1.0
+          PY
+      - name: Freeze immutable evidence
+        if: always()
+        run: |
+          mkdir -p evidence/webarena-local
+          cp -a webarena-output webarena-config.json webarena-task.json evidence/webarena-local/ 2>/dev/null || true
+          cp -a evidence/local-qwen evidence/webarena-local/runtime 2>/dev/null || true
+          printf '%s\n' "$WEB_ARENA_COMMIT" > evidence/webarena-local/upstream-commit.txt
+          git -C webarena diff --exit-code || exit 1
+          find evidence/webarena-local -type f -print0 | sort -z | xargs -0 sha256sum > evidence/webarena-local/SHA256SUMS.txt
+      - name: Upload immutable WebArena local-Qwen evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: webarena-verified-local-qwen-smoke
+          path: evidence/webarena-local
+          if-no-files-found: error
+          retention-days: 90
+      - name: Cleanup remote runtime
+        if: always()
+        run: |
+          docker rm -f webarena-shopping-admin >/dev/null 2>&1 || true
+          if [ -f llama-server.pid ]; then kill "$(cat llama-server.pid)" >/dev/null 2>&1 || true; fi
