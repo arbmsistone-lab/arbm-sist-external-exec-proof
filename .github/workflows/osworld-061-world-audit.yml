@@ -51,6 +51,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf incident-evidence current-probe-evidence
+          rm -f osworld-061-*-lane-receipt.json osworld-061-evidence-bundle.json osworld-061-evidence-bundle.sha256
           mkdir -p incident-evidence current-probe-evidence
           echo "STALE_EVIDENCE_PURGED=1" >> "$GITHUB_ENV"
       - name: Download official focal evidence
@@ -104,8 +105,16 @@ jobs:
         run: timeout --signal=TERM --kill-after=10s 60s python scripts/osworld_061_champion_audit.py
       - name: Run 10-robot specialist remote fast path
         id: swarm_fast
+        shell: bash
         continue-on-error: true
-        run: timeout --signal=TERM --kill-after=10s 360s python scripts/osworld_061_performance_swarm.py incident-evidence
+        run: |
+          set +e
+          started=$(date +%s)
+          timeout --signal=TERM --kill-after=10s 360s python scripts/osworld_061_performance_swarm.py incident-evidence
+          rc=$?
+          finished=$(date +%s)
+          python scripts/osworld_061_lane_receipt.py fast "$rc" "$started" "$finished"
+          exit "$rc"
       - name: Preflight heavyweight local audit fallback
         id: heavy_preflight
         if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1'
@@ -130,13 +139,29 @@ jobs:
       - name: Run full specialist failover
         id: swarm_full
         if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1'
+        shell: bash
         continue-on-error: true
-        run: timeout --signal=TERM --kill-after=20s 900s python scripts/osworld_061_evidence_aware_swarm.py incident-evidence
+        run: |
+          set +e
+          started=$(date +%s)
+          timeout --signal=TERM --kill-after=20s 900s python scripts/osworld_061_evidence_aware_swarm.py incident-evidence
+          rc=$?
+          finished=$(date +%s)
+          python scripts/osworld_061_lane_receipt.py full "$rc" "$started" "$finished"
+          exit "$rc"
       - name: Run 20 final 3D audits
         id: audit3d
         if: always()
         continue-on-error: true
         run: timeout --signal=TERM --kill-after=10s 60s python scripts/osworld_061_3d_audit.py incident-evidence
+      - name: Build verified evidence bundle
+        id: evidence_bundle
+        if: always()
+        env:
+          FAST_OUTCOME: ${{ steps.swarm_fast.outcome }}
+          FULL_OUTCOME: ${{ steps.swarm_full.outcome }}
+          AUDIT3D_OUTCOME: ${{ steps.audit3d.outcome }}
+        run: timeout --signal=TERM --kill-after=10s 60s python scripts/osworld_061_evidence_bundle.py
       - name: Enforce supreme audit verdict
         if: always()
         shell: bash
@@ -151,6 +176,10 @@ jobs:
             exit 1
           fi
           test "${{ steps.audit3d.outcome }}" = success
+          test "${{ steps.evidence_bundle.outcome }}" = success
+          test -s osworld-061-evidence-bundle.json
+          test -s osworld-061-evidence-bundle.sha256
+          sha256sum -c osworld-061-evidence-bundle.sha256
       - name: Preserve world-audit evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -158,14 +187,14 @@ jobs:
           name: osworld-061-world-audit
           path: |
             osworld-061-champion-audit.json
+            osworld-061-fast-lane-receipt.json
+            osworld-061-full-lane-receipt.json
             osworld-061-specialist-fast-path.json
             osworld-061-heavy-runtime-preflight.json
             osworld-061-specialist-swarm.json
             osworld-061-final-3d-audit.json
-            current-probe-evidence/calibrated/calibrated-probe-result.json
-            current-probe-evidence/gimp/probe-result.json
-            current-probe-evidence/gimp/output-absent-before-export.txt
-            current-probe-evidence/gimp/exported-output.bytes
-            current-probe-evidence/gimp/exported-output.sha256
-          if-no-files-found: warn
+            osworld-061-evidence-bundle.json
+            osworld-061-evidence-bundle.sha256
+            current-probe-evidence/
+          if-no-files-found: error
           retention-days: 90
