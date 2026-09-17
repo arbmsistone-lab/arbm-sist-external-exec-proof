@@ -1,7 +1,7 @@
 import { createDecipheriv, createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-const expectedTarget = 'cbbc10bd51e782960afefcde2771e21d729f2da3';
+const expectedTarget = '3ae75c799006a2d5d5eb435bb40d63816a7ff675';
 const envelope = JSON.parse(readFileSync('arbm-control-encrypted-snapshot.json', 'utf8'));
 if (envelope.schema !== 'arbm-control-encrypted-envelope/v1' || envelope.algorithm !== 'aes-256-gcm') throw new Error('invalid_envelope');
 const keyPath = '.arbm-executor/snapshot.key';
