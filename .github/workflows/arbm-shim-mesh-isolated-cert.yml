@@ -9,6 +9,7 @@ on:
       - scripts/patch_shim_mesh.py
       - scripts/osworld_free_mesh_shim.py
       - scripts/osworld_local_vlm.py
+      - scripts/test_osworld_failover_matrix.py
       - scripts/requirements-osworld.txt
       - .github/workflows/arbm-shim-mesh-isolated-cert.yml
   workflow_dispatch:
