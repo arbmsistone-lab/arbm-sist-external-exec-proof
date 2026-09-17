@@ -37,10 +37,16 @@ class GroqFreeTests(unittest.TestCase):
         self.assertEqual(attempts[0]['status'],429)
 
     def test_unparsed_response_is_not_promoted(self):
-        self.replies=[self.answer({'action':'exec','command':'os.system("bad")'}),
-                      self.answer({'action':'exec','command':'subprocess.run("bad")'})]
+        invalid=[
+            self.answer({'action':'exec','command':'os.system("bad")'}),
+            self.answer({'action':'exec','command':'subprocess.run("bad")'}),
+            self.answer({'action':'exec','command':'open("bad")'}),
+            self.answer({'action':'exec','command':'eval("bad")'}),
+        ]
+        self.replies=invalid[:len(MODELS)]
         result,attempts=self.route.call(BODY,'free-key')
         self.assertIsNone(result)
+        self.assertEqual(len(attempts),len(MODELS))
         self.assertFalse(any(x['zero_spend_confirmed'] for x in attempts))
 
     def test_model_scoped_403_fails_over_to_next_free_model(self):
@@ -52,10 +58,11 @@ class GroqFreeTests(unittest.TestCase):
         self.assertEqual(self.route.until,0)
 
     def test_http_200_without_free_plan_proof_is_rejected(self):
-        self.replies=[(200,{'choices':[{'message':{'content':json.dumps(ACTION)}}]},{'x-ratelimit-remaining-requests':'9'}),
-                      (429,{},{})]
+        first=(200,{'choices':[{'message':{'content':json.dumps(ACTION)}}]},{'x-ratelimit-remaining-requests':'9'})
+        self.replies=[first]+[(429,{},{}) for _ in MODELS[1:]]
         result,attempts=self.route.call(BODY,'free-key')
         self.assertIsNone(result)
+        self.assertEqual(len(attempts),len(MODELS))
         self.assertFalse(attempts[0]['free_plan_proven'])
         self.assertEqual(attempts[0]['contract_error'],'FREE_PLAN_PROOF_MISSING')
 
