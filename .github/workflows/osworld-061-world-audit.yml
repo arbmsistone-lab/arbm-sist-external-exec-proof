@@ -96,7 +96,7 @@ jobs:
       - name: Run 10-robot specialist world audit
         id: swarm
         continue-on-error: true
-        run: python scripts/osworld_061_specialist_swarm.py incident-evidence
+        run: python scripts/osworld_061_evidence_aware_swarm.py incident-evidence
       - name: Run 20 final 3D audits
         id: audit3d
         if: always()
