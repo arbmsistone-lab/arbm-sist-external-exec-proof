@@ -1,0 +1,28 @@
+name: ARBM FREE Capacity Local Fallback Certification
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      ZERO_SPEND_MODE: HARD
+      ARBM_ENABLE_LOCAL_VLM: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install bounded test dependencies
+        run: python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
+      - name: Prove Groq FREE contract remains intact
+        run: python -m unittest scripts/test_osworld_groq_free.py -v
+      - name: Prove quota-independent local fallback
+        run: python -m unittest scripts/test_osworld_groq_local_fallback.py -v
+      - name: Prove failover matrix remains fail-closed
+        run: python -m unittest scripts/test_osworld_failover_matrix.py -v
+      - name: Prove local VLM contract tests
+        run: python -m unittest scripts/test_osworld_local_vlm.py -v
+      - name: Prove ZERO_SPEND HARD
+        run: test "$ZERO_SPEND_MODE" = HARD
+      - name: Diff integrity
+        run: git diff --check HEAD^ HEAD
