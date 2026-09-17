@@ -1,0 +1,36 @@
+name: Groq FREE plan readonly proof 20260917
+on:
+  push:
+    branches: [cert/global-external-closure-20260917]
+    paths: ['.github/workflows/groq-free-plan-readonly-20260917.yml']
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Prove account is not on paid-only Batch tier without inference
+        shell: bash
+        run: |
+          set -euo pipefail
+          SEP='?'; [[ "$ACTIONS_ID_TOKEN_REQUEST_URL" == *'?'* ]] && SEP='&'
+          R=$(curl -fsS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}${SEP}audience=arbm-sist-benchmark")
+          T=$(python -c 'import json,sys;print(json.load(sys.stdin)["value"])' <<<"$R")
+          O=$(curl -fsS -X POST -H "Authorization: Bearer $T" 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-cf-ai-probe-once-20260905')
+          echo "$O" | tee groq-free-plan-proof.json
+          python - <<'PY' <<<"$O"
+          import json,sys
+          d=json.load(sys.stdin)
+          assert d.get('status')=='PASS_READONLY',d
+          assert d.get('http')==403 and d.get('error_code')=='not_available_for_plan',d
+          assert d.get('batch_access') is False and d.get('mandatory_cost_usd')==0 and d.get('paid_fallback_used') is False,d
+          PY
+      - name: Upload immutable proof
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: groq-free-plan-readonly-proof
+          path: groq-free-plan-proof.json
+          retention-days: 90
+          if-no-files-found: error
