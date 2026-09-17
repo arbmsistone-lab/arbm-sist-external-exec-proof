@@ -8,7 +8,7 @@ This log records outreach only. An outreach email, proposal request or readiness
 |---|---|---|---|
 | OSWorld maintainers | OSWorld V2.1 Verified | CONTACT_SENT | Formal request sent asking for current V2.1 Verified evaluation requirements and maintainer-side verification process. |
 | Bureau Veritas | ISO management systems | CONTACT_SENT | Requested integrated certification/readiness scope. No commercial authorization granted. |
-| DNV Business Assurance | ISO management systems | DELIVERY_RETRY_REQUIRED | Initial individual-address delivery was blocked. Use current official Business Assurance contact route/general address rather than treating the first message as delivered. |
+| DNV Business Assurance | ISO management systems | CONTACT_SENT | Initial individual-address delivery was blocked; request was resent successfully to the published general Business Assurance address `business.assurance@dnv.com`. No commercial authorization granted. |
 | BSI | ISO/IEC 42001 + integrated ISO track | CONTACT_SENT | Requested independent certification/readiness information. No commercial authorization granted. |
 | ProMove | CMMI appraisal readiness | CONTACT_SENT | Requested readiness/appraisal information. No appraisal claim exists until official appraisal is completed. |
 | A-LIGN | SOC 2 + ISO 27001/42001 | CONTACT_SENT | Requested integrated assurance/readiness information and evidence-reuse options. No engagement authorized. |
