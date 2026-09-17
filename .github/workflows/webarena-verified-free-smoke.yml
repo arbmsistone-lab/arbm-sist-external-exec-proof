@@ -1,0 +1,105 @@
+name: WebArena Verified FREE official smoke
+on:
+  push:
+    branches: [cert/global-external-closure-20260917]
+    paths:
+      - '.github/workflows/webarena-verified-free-smoke.yml'
+      - 'certification/webarena_free_agent.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      ZERO_SPEND_MODE: HARD
+      WEB_ARENA_COMMIT: 6473f72db5dcefc97b5725b59e734504edc28a21
+      ARBM_WEB_MODEL: dots-studio/dots-3-note-preview:free
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Prove FREE admission
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$OPENROUTER_API_KEY"
+          test "$ZERO_SPEND_MODE" = HARD
+          mkdir -p evidence
+          python -m pip install --disable-pip-version-check -q 'openai>=1.50,<3' 'pillow==11.3.0' 'pyyaml==6.0.2'
+          ARBM_G3_PROVIDER=openrouter OPENROUTER_API_KEY="$OPENROUTER_API_KEY" ARBM_G3_USAGE_LOG="$PWD/evidence/free-probe-usage.jsonl" python certification/g3_free_control.py probe --model "$ARBM_WEB_MODEL" --output evidence/free-capability.json
+      - name: Checkout pinned WebArena Verified
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --no-checkout https://github.com/ServiceNow/webarena-verified.git webarena
+          git -C webarena fetch --depth=1 origin "$WEB_ARENA_COMMIT"
+          git -C webarena checkout --detach "$WEB_ARENA_COMMIT"
+          test "$(git -C webarena rev-parse HEAD)" = "$WEB_ARENA_COMMIT"
+          python -m pip install --disable-pip-version-check -q -e ./webarena 'playwright>=1.52,<2'
+          python -m playwright install chromium
+      - name: Start official shopping admin environment
+        run: |
+          set -euo pipefail
+          docker pull am1n3e/webarena-verified-shopping_admin:latest
+          docker run -d --name webarena-verified-shopping_admin -p 7780:80 -p 7781:8877 -e MAGENTO_BASE_URL=http://localhost:7780 am1n3e/webarena-verified-shopping_admin:latest
+          for i in $(seq 1 90); do curl -fsS http://localhost:7781/status > env-status.json && break || sleep 2; done
+          test -s env-status.json
+          curl -fsS -X POST http://localhost:7781/init > env-init.json
+          for i in $(seq 1 60); do curl -fsSI -H 'X-M2-Admin-Auto-Login: admin:admin1234' http://localhost:7780/admin >/dev/null && break || sleep 2; done
+          curl -fsSI -H 'X-M2-Admin-Auto-Login: admin:admin1234' http://localhost:7780/admin >/dev/null
+      - name: Materialize official task 108
+        run: |
+          set -euo pipefail
+          cat > webarena-config.json <<'JSON'
+          {"environments":{"__SHOPPING_ADMIN__":{"urls":["http://localhost:7780"],"active_url_idx":0,"use_header_login":true,"credentials":{"username":"admin","password":"admin1234"}},"__GITLAB__":{"urls":[]},"__REDDIT__":{"urls":[]},"__SHOPPING__":{"urls":[]},"__WIKIPEDIA__":{"urls":[]},"__MAP__":{"urls":[]}}}
+          JSON
+          webarena-verified agent-input-get --task-ids 108 --config webarena-config.json --output webarena-task.json
+          python - <<'PY'
+          import json
+          x=json.load(open('webarena-task.json'))
+          assert len(x)==1 and x[0]['task_id']==108 and x[0]['sites']==['shopping_admin']
+          print(json.dumps({'task_id':108,'sites':x[0]['sites'],'intent':x[0]['intent']}))
+          PY
+      - name: Execute ARBM FREE browser agent
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          set -euo pipefail
+          python certification/webarena_free_agent.py --tasks webarena-task.json --task-id 108 --output webarena-output --max-steps 24
+          test -s webarena-output/108/agent_response.json
+          test -s webarena-output/108/network.har
+          python - <<'PY'
+          import json
+          t=json.load(open('webarena-output/108/arbm_trace.json'))
+          assert t['zero_spend'] is True and len(t['usage'])>0
+          print(json.dumps({'actions':len(t['actions']),'calls':len(t['usage']),'zero_spend':t['zero_spend']}))
+          PY
+      - name: Run official deterministic evaluator
+        run: |
+          set -euo pipefail
+          webarena-verified eval-tasks --task-ids 108 --output-dir webarena-output --config webarena-config.json
+          python - <<'PY'
+          import json
+          p='webarena-output/108/eval_result.json'; r=json.load(open(p))
+          print(json.dumps({'task_id':r['task_id'],'status':r['status'],'score':r['score'],'checksum':r.get('webarena_verified_evaluator_checksum')}))
+          assert r['status']=='success' and float(r['score'])==1.0
+          PY
+      - name: Freeze immutable evidence
+        if: always()
+        run: |
+          mkdir -p evidence/webarena
+          cp -a webarena-output webarena-config.json webarena-task.json env-status.json env-init.json evidence/webarena/ 2>/dev/null || true
+          printf '%s\n' "$WEB_ARENA_COMMIT" > evidence/webarena/upstream-commit.txt
+          git -C webarena diff --exit-code || exit 1
+          find evidence/webarena -type f -print0 | sort -z | xargs -0 sha256sum > evidence/webarena/SHA256SUMS.txt
+      - name: Upload WebArena smoke evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: webarena-verified-free-smoke
+          path: evidence/webarena
+          if-no-files-found: error
+          retention-days: 90
+      - name: Cleanup
+        if: always()
+        run: docker rm -f webarena-verified-shopping_admin >/dev/null 2>&1 || true
