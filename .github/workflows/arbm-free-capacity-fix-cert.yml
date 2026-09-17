@@ -1,5 +1,12 @@
 name: ARBM FREE Capacity Local Fallback Certification
 on:
+  push:
+    branches:
+      - chatgpt/arbm-free-capacity-local-fallback-20260917
+    paths:
+      - scripts/osworld_groq_free.py
+      - scripts/test_osworld_groq_local_fallback.py
+      - .github/workflows/arbm-free-capacity-fix-cert.yml
   workflow_dispatch:
 permissions:
   contents: read
