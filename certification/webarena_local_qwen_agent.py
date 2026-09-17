@@ -6,7 +6,7 @@ from playwright.async_api import async_playwright
 BASE = os.environ.get('ARBM_LOCAL_BASE_URL', 'http://127.0.0.1:8080/v1')
 MODEL = os.environ.get('ARBM_LOCAL_MODEL', 'qwen3-4b-local')
 SHA = os.environ.get('ARBM_LOCAL_MODEL_SHA256', '')
-client = OpenAI(base_url=BASE, api_key='local-zero-spend', timeout=120, max_retries=0)
+client = OpenAI(base_url=BASE, api_key='local-zero-spend', timeout=300, max_retries=0)
 SYSTEM = '''/no_think
 You are a generic web benchmark agent. Work only from the current task, URL, visible text and interactive elements supplied each turn. Never use memorized benchmark answers. Return exactly one JSON object and no prose. Allowed actions: click, fill, select, press, scroll, wait, done, fail. For click/fill/select use the integer index from current interactive_elements. Do one action per turn. Use done only when the requested result is established from the page. For retrieval tasks retrieved_data must exactly match the structure requested by the task.'''
 
@@ -26,10 +26,10 @@ def parse_json(text):
     raise RuntimeError('LOCAL_MODEL_NON_JSON:' + text[-500:])
 async def page_state(page):
     try:
-        text = (await page.locator('body').inner_text(timeout=5000))[:8000]
+        text = (await page.locator('body').inner_text(timeout=5000))[:3500]
     except Exception:
         text = ''
-    items = await page.evaluate('''() => Array.from(document.querySelectorAll('a,button,input,select,textarea,[role="button"],[role="link"]')).slice(0,140).map((e,i)=>({index:i,tag:e.tagName.toLowerCase(),text:(e.innerText||e.value||'').trim().slice(0,160),aria:(e.getAttribute('aria-label')||'').slice(0,120),placeholder:(e.getAttribute('placeholder')||'').slice(0,120),name:(e.getAttribute('name')||'').slice(0,120),type:(e.getAttribute('type')||'').slice(0,50),href:(e.getAttribute('href')||'').slice(0,180),options:e.tagName==='SELECT'?Array.from(e.options).slice(0,80).map(o=>({text:o.text,value:o.value})):undefined}))''')
+    items = await page.evaluate('''() => Array.from(document.querySelectorAll('a,button,input,select,textarea,[role="button"],[role="link"]')).slice(0,80).map((e,i)=>({index:i,tag:e.tagName.toLowerCase(),text:(e.innerText||e.value||'').trim().slice(0,160),aria:(e.getAttribute('aria-label')||'').slice(0,120),placeholder:(e.getAttribute('placeholder')||'').slice(0,120),name:(e.getAttribute('name')||'').slice(0,120),type:(e.getAttribute('type')||'').slice(0,50),href:(e.getAttribute('href')||'').slice(0,180),options:e.tagName==='SELECT'?Array.from(e.options).slice(0,80).map(o=>({text:o.text,value:o.value})):undefined}))''')
     return text, items
 
 async def apply_action(page, command):
@@ -69,9 +69,9 @@ async def main(args):
         await page.goto(task['start_urls'][0], wait_until='domcontentloaded', timeout=60000)
         for _ in range(args.max_steps):
             text, items = await page_state(page)
-            payload = {'task':task['intent'], 'url':page.url, 'visible_text':text, 'interactive_elements':items, 'recent_actions':history[-8:]}
+            payload = {'task':task['intent'], 'url':page.url, 'visible_text':text, 'interactive_elements':items, 'recent_actions':history[-4:]}
             prompt = json.dumps(payload, ensure_ascii=False) + '\nReturn JSON keys action,index,value,key,task_type,retrieved_data,reason. Use null for irrelevant values.'
-            response = client.chat.completions.create(model=MODEL, messages=[{'role':'system','content':SYSTEM},{'role':'user','content':prompt}], temperature=0.1, max_tokens=500)
+            response = client.chat.completions.create(model=MODEL, messages=[{'role':'system','content':SYSTEM},{'role':'user','content':prompt}], temperature=0.1, max_tokens=320)
             calls += 1
             command = parse_json(response.choices[0].message.content or '')
             history.append(command)
