@@ -22,7 +22,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object proof/arbm-control/worker-senior.js)" = "afe360aa643a7f21a0dd7e371de874ff121c82fb"
+          test "$(git hash-object proof/arbm-control/worker-senior.js)" = "b7800888d4db27f2308bc219c8312a15ab328218"
       - name: Syntax validation
         run: node --check proof/arbm-control/worker-senior.js
       - name: Security and governance invariants
@@ -34,8 +34,10 @@ jobs:
           grep -q "zero_spend: true" "$f"
           grep -q "fail_closed: true" "$f"
           grep -q "destructive_actions: false" "$f"
-          grep -q "'cache-control': 'no-store'" "$f"
-          ! grep -E "console.*GITHUB_TOKEN|console.*ARBM_CONTROL_TOKEN" "$f"
+          grep -q "no-store, private" "$f"
+          grep -q "ARBM_TELEMETRY_TOKEN" "$f"
+          grep -q "unauthorized" "$f"
+          ! grep -E "console.*GITHUB_TOKEN|console.*ARBM_CONTROL_TOKEN|console.*ARBM_TELEMETRY_TOKEN" "$f"
           ! grep -E "delete|force-push|reset --hard|rm -rf" "$f"
       - name: Evidence coverage invariants
         shell: bash
@@ -57,8 +59,8 @@ jobs:
           git hash-object proof/arbm-control/worker-senior.js > evidence/arbm-control-telemetry/git-blob-sha.txt
           printf '%s\n' 'source_repo=arbmsistone-lab/arbm-control' > evidence/arbm-control-telemetry/source.txt
           printf '%s\n' 'source_branch=feat/senior-private-telemetry-20260917' >> evidence/arbm-control-telemetry/source.txt
-          printf '%s\n' 'source_commit=6b547c695406481d78f1bbb44f2316350058ad35' >> evidence/arbm-control-telemetry/source.txt
-          printf '%s\n' 'source_blob=afe360aa643a7f21a0dd7e371de874ff121c82fb' >> evidence/arbm-control-telemetry/source.txt
+          printf '%s\n' 'source_commit=61d221294cf902cc393ac8136d8e4a9524249f75' >> evidence/arbm-control-telemetry/source.txt
+          printf '%s\n' 'source_blob=b7800888d4db27f2308bc219c8312a15ab328218' >> evidence/arbm-control-telemetry/source.txt
       - name: Upload certification evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
