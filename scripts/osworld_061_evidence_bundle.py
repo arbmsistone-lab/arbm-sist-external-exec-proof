@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 
+EXPORTED_OUTPUT = 'current-probe-evidence/gimp/IMG_7318_edited.jpg'
 CORE_FILES = (
     'osworld-061-champion-audit.json',
     'osworld-061-specialist-swarm.json',
@@ -13,6 +14,7 @@ CORE_FILES = (
     'current-probe-evidence/gimp/output-absent-before-export.txt',
     'current-probe-evidence/gimp/exported-output.bytes',
     'current-probe-evidence/gimp/exported-output.sha256',
+    EXPORTED_OUTPUT,
 )
 EXPECTED_ROLES = {
     'gimp_gegl_color', 'gtk_accessibility', 'osworld_executor', 'official_evaluator',
@@ -90,16 +92,32 @@ def _validate_lane_receipt(path, lane, expected_sha, expected_success):
     return data
 
 
-def _validate_export_hash():
-    payload = _required_file('current-probe-evidence/gimp/exported-output.bytes')
+def _validate_export_provenance():
+    payload = _required_file(EXPORTED_OUTPUT)
+    bytes_file = _required_file('current-probe-evidence/gimp/exported-output.bytes')
     digest_file = _required_file('current-probe-evidence/gimp/exported-output.sha256')
+    try:
+        declared_bytes = int(bytes_file.read_text(encoding='utf-8').strip())
+    except ValueError as exc:
+        raise RuntimeError('EXPORTED_OUTPUT_BYTES_FORMAT_INVALID') from exc
+    if declared_bytes != payload.stat().st_size or declared_bytes <= 1024:
+        raise RuntimeError('EXPORTED_OUTPUT_BYTES_MISMATCH')
     expected = digest_file.read_text(encoding='utf-8').strip().split()[0]
     if len(expected) != 64 or any(c not in '0123456789abcdefABCDEF' for c in expected):
         raise RuntimeError('EXPORTED_OUTPUT_HASH_FORMAT_INVALID')
     actual = _sha256(payload)
     if actual.lower() != expected.lower():
         raise RuntimeError('EXPORTED_OUTPUT_HASH_MISMATCH')
-    return actual
+    probe = _read_json('current-probe-evidence/gimp/probe-result.json')
+    if probe.get('status') != 'EXPORT_PROVEN':
+        raise RuntimeError('GIMP_EXPORT_PROVEN_REQUIRED')
+    if probe.get('output') != Path(EXPORTED_OUTPUT).name:
+        raise RuntimeError('GIMP_EXPORT_NAME_MISMATCH')
+    if probe.get('output_bytes') != declared_bytes or probe.get('output_sha256') != actual:
+        raise RuntimeError('GIMP_EXPORT_RECEIPT_MISMATCH')
+    if probe.get('zero_spend_mode') != 'HARD' or probe.get('heavy_local') != 0:
+        raise RuntimeError('GIMP_EXPORT_POLICY_MISMATCH')
+    return {'bytes': declared_bytes, 'sha256': actual}
 
 
 def _hash_tree(root):
@@ -136,7 +154,7 @@ def build():
 
     for path in CORE_FILES:
         _required_file(path)
-    export_sha256 = _validate_export_hash()
+    export_provenance = _validate_export_provenance()
 
     champion = _read_json('osworld-061-champion-audit.json')
     audit3d = _read_json('osworld-061-final-3d-audit.json')
@@ -195,7 +213,8 @@ def build():
         'diagnostic_probe_sha': os.environ.get('DIAGNOSTIC_PROBE_SHA'),
         'diagnostic_probe_run_id': os.environ.get('DIAGNOSTIC_PROBE_RUN_ID'),
         'diagnostic_execution_parity': True,
-        'exported_output_sha256': export_sha256,
+        'exported_output_bytes': export_provenance['bytes'],
+        'exported_output_sha256': export_provenance['sha256'],
         'lane_outcomes': {
             'fast': fast_outcome, 'replay': replay_outcome,
             'full': full_outcome, 'audit3d': audit3d_outcome,
