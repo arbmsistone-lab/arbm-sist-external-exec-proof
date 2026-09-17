@@ -1,0 +1,48 @@
+name: Current Integrity Tamper 10x
+on:
+  push:
+    branches: [cert/global-external-closure-20260917]
+    paths: ['.github/workflows/current-integrity-tamper-10x.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  integrity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      ZERO_SPEND_MODE: HARD
+      ARBM_EXPECTED_SHA: ${{ github.sha }}
+      ARBM_EVIDENCE_OUT: certification/evidence/current/fm30-tamper-report.json
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Prove execution policy
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = HARD
+          test -n "$ARBM_EXPECTED_SHA"
+          printf 'remote_only=true\nheavy_local=0\nzero_spend=HARD\ncandidate_sha=%s\n' "$ARBM_EXPECTED_SHA" > integrity-policy.txt
+      - name: Execute FM30 tamper detection 10x
+        run: node certification/evidence-tamper-10x.mjs
+      - name: Verify fail-closed report and freeze source hashes
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs=require('fs'); const crypto=require('crypto');
+          const p=process.env.ARBM_EVIDENCE_OUT; const r=JSON.parse(fs.readFileSync(p,'utf8'));
+          if(r.result!=='PASS'||r.tamper_attempts!==10||r.detected!==10||r.undetected!==0||r.candidate_sha!==process.env.GITHUB_SHA) throw new Error('FM30_CURRENT_PROOF_FAILED');
+          const files=['certification/evidence-pack-lib.mjs','certification/evidence-tamper-10x.mjs','certification/final-evidence-pack.mjs'];
+          const sourceHashes=Object.fromEntries(files.map(f=>[f,crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex')]));
+          fs.writeFileSync('certification/evidence/current/source-hashes.json',JSON.stringify({candidate_sha:process.env.GITHUB_SHA,sourceHashes},null,2)+'\n');
+          console.log(JSON.stringify({state:'PASS',candidate_sha:process.env.GITHUB_SHA,detected:r.detected,undetected:r.undetected,manifest:r.base_manifest_sha256}));
+          NODE
+          sha256sum certification/evidence/current/* integrity-policy.txt | tee certification/evidence/current/SHA256SUMS.txt
+      - name: Upload current integrity evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: current-integrity-tamper-10x
+          path: |
+            certification/evidence/current
+            integrity-policy.txt
+          if-no-files-found: error
+          retention-days: 90
