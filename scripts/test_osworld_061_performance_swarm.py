@@ -23,6 +23,10 @@ class PerformanceSwarmTests(unittest.TestCase):
             'veto': veto,
         }
 
+    def robot(self, role, **kwargs):
+        return {'role': role, 'specialty': role, 'provider': 'test',
+                'verdict': self.verdict(role, **kwargs), 'attempts': [], 'raw_outputs': []}
+
     def test_workers_are_strictly_bounded(self):
         with mock.patch.dict(os.environ, {'ARBM_SWARM_REMOTE_WORKERS': '99'}):
             self.assertEqual(perf._bounded_workers(), 4)
@@ -31,13 +35,20 @@ class PerformanceSwarmTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {'ARBM_SWARM_REMOTE_WORKERS': 'bad'}):
             self.assertEqual(perf._bounded_workers(), 3)
 
+    def test_provider_budgets_are_strictly_bounded(self):
+        with mock.patch.dict(os.environ, {
+            'ARBM_SWARM_OPENROUTER_BUDGET_S': '999',
+            'ARBM_SWARM_GROQ_BUDGET_S': '1',
+            'ARBM_SWARM_REPAIR_BUDGET_S': 'bad'}):
+            self.assertEqual(perf._budgets(), (90, 10, 20))
+
     def test_remote_worker_never_uses_local_provider(self):
         source = pathlib.Path(perf.__file__).read_text(encoding='utf-8')
         body = source[source.index('def _remote_robot'):source.index('def _skipped_robot')]
         self.assertNotIn('local_text_review(', body)
         self.assertNotIn('LOCAL_VLM_ROUTE.call', body)
-        self.assertIn("('openrouter', free_route, 140)", body)
-        self.assertIn("('groq', groq_route, 120)", body)
+        self.assertIn("('openrouter', free_route, openrouter_budget)", body)
+        self.assertIn("('groq', groq_route, groq_budget)", body)
 
     def test_quorum_contract_remains_ten_roles(self):
         self.assertEqual(len(swarm.ROLES), 10)
@@ -53,16 +64,43 @@ class PerformanceSwarmTests(unittest.TestCase):
         self.assertTrue(all(r['attempts'][0]['status'] == 'short_circuited_after_warmup_failure'
                             for r in robots[1:]))
 
-    def test_unknown_or_veto_cannot_be_accepted_by_contract(self):
-        good = [self.verdict(name) for name, _ in swarm.ROLES]
-        self.assertTrue(all(swarm.valid_verdict(v, v['role']) for v in good))
-        unknown = self.verdict(swarm.ROLES[0][0], root='UNKNOWN')
-        veto = self.verdict(swarm.ROLES[1][0], veto=True, verdict='REJECT_FIX')
-        self.assertTrue(swarm.valid_verdict(unknown, unknown['role']))
-        self.assertTrue(swarm.valid_verdict(veto, veto['role']))
-        classes = {v['root_cause_class'] for v in good[1:] + [unknown]}
-        self.assertIn('UNKNOWN', classes)
-        self.assertTrue(veto['veto'])
+    def test_incomplete_quorum_is_fallback_eligible(self):
+        robots = [self.robot(name) for name, _ in swarm.ROLES]
+        robots[-1]['verdict'] = None
+        valid, vetoes, classes, unknown, covered, accepted, fallback = perf._classification(robots)
+        self.assertEqual(len(valid), 9)
+        self.assertFalse(vetoes)
+        self.assertFalse(unknown)
+        self.assertFalse(accepted)
+        self.assertTrue(fallback)
+
+    def test_substantive_veto_is_never_fallback_eligible(self):
+        robots = [self.robot(name) for name, _ in swarm.ROLES]
+        robots[1] = self.robot(swarm.ROLES[1][0], veto=True, verdict='REJECT_FIX')
+        _, vetoes, _, _, _, accepted, fallback = perf._classification(robots)
+        self.assertIn(swarm.ROLES[1][0], vetoes)
+        self.assertFalse(accepted)
+        self.assertFalse(fallback)
+
+    def test_unknown_is_never_fallback_eligible(self):
+        robots = [self.robot(name) for name, _ in swarm.ROLES]
+        robots[0] = self.robot(swarm.ROLES[0][0], root='UNKNOWN')
+        _, _, classes, unknown, _, accepted, fallback = perf._classification(robots)
+        self.assertEqual(classes['UNKNOWN'], 1)
+        self.assertEqual(unknown, [swarm.ROLES[0][0]])
+        self.assertFalse(accepted)
+        self.assertFalse(fallback)
+
+    def test_clean_ten_of_ten_is_accepted_without_fallback(self):
+        robots = [self.robot(name) for name, _ in swarm.ROLES]
+        valid, vetoes, classes, unknown, covered, accepted, fallback = perf._classification(robots)
+        self.assertEqual(len(valid), 10)
+        self.assertFalse(vetoes)
+        self.assertFalse(unknown)
+        self.assertEqual(len(covered), 10)
+        self.assertEqual(classes['AGENT_LOGIC'], 10)
+        self.assertTrue(accepted)
+        self.assertFalse(fallback)
 
 
 if __name__ == '__main__':
