@@ -1,0 +1,197 @@
+name: OSWorld V2.1 runtime shard canaries
+
+on:
+  push:
+    branches:
+      - chatgpt/international-recognition-20260917
+    paths:
+      - .github/workflows/osworld-v21-runtime-shards.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: osworld-v21-runtime-shards-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  runtime-canary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - path: careerlink_web
+            host: careerlink
+          - path: calendar_web
+            host: calendar
+          - path: mailhub_web
+            host: mailhub
+          - path: reviewsphere_web
+            host: reviewsphere
+          - path: teamchat_web
+            host: teamchat
+          - path: vaultbank_web
+            host: vaultbank
+    env:
+      ZERO_SPEND_MODE: HARD
+      HEAVY_LOCAL: '0'
+      HOST_SUFFIX: 127.0.0.1.nip.io
+      CADDY_SCHEME: http://
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Enforce preparation-only policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$ZERO_SPEND_MODE" = HARD
+          test "$HEAVY_LOCAL" = 0
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('docs/international-recognition/osworld-v2.1-pins.json').read_text())
+          assert p['policy']['zero_spend_mode']=='HARD'
+          assert p['policy']['paid_fallback'] is False
+          assert p['policy']['heavy_local']==0
+          assert p['policy']['full_run_authorized'] is False
+          PY
+
+      - name: Hydrate pinned website shard
+        shell: bash
+        run: |
+          set -euo pipefail
+          EVIDENCE="$GITHUB_WORKSPACE/evidence/${{ matrix.path }}"
+          OSWEB="$GITHUB_WORKSPACE/osworld-web"
+          mkdir -p "$EVIDENCE"
+          git clone https://github.com/Task-Web/OSWorld-web.git "$OSWEB"
+          git -C "$OSWEB" checkout 60c89fe6a8ed934668619d8d26132848239eb8ee
+          git -C "$OSWEB" -c url.https://github.com/.insteadOf=git@github.com: submodule update --init "${{ matrix.path }}"
+          test "$(git -C "$OSWEB" rev-parse HEAD)" = 60c89fe6a8ed934668619d8d26132848239eb8ee
+          test -z "$(git -C "$OSWEB" status --porcelain)"
+          git -C "$OSWEB" rev-parse HEAD > "$EVIDENCE/website-sha.txt"
+          git -C "$OSWEB" rev-parse "HEAD:${{ matrix.path }}" > "$EVIDENCE/submodule-sha.txt"
+          git -C "$OSWEB" submodule status "${{ matrix.path }}" > "$EVIDENCE/submodule-status.txt"
+          printf '%s\n' \
+            'ZERO_SPEND_MODE=HARD' \
+            'HEAVY_LOCAL=0' \
+            'BENCHMARK_TASKS_STARTED=0' \
+            'FULL_RUN_AUTHORIZED=false' \
+            > "$EVIDENCE/policy-evidence.txt"
+
+      - name: Verify wildcard DNS
+        shell: bash
+        run: |
+          set -euo pipefail
+          EVIDENCE="$GITHUB_WORKSPACE/evidence/${{ matrix.path }}"
+          getent hosts "${{ matrix.host }}.${HOST_SUFFIX}" | tee "$EVIDENCE/dns-resolution.txt"
+          grep -Eq '127\.0\.0\.1' "$EVIDENCE/dns-resolution.txt"
+
+      - name: Materialize and start official shard
+        shell: bash
+        run: |
+          set -euo pipefail
+          EVIDENCE="$GITHUB_WORKSPACE/evidence/${{ matrix.path }}"
+          OSWEB="$GITHUB_WORKSPACE/osworld-web"
+          HOST_SUFFIX="$HOST_SUFFIX" CADDY_SCHEME="$CADDY_SCHEME" \
+          docker compose \
+            --project-directory "$OSWEB/${{ matrix.path }}" \
+            -f "$OSWEB/docker-compose.main.yml" \
+            -f "$OSWEB/${{ matrix.path }}/web-compose.yml" \
+            config > "$EVIDENCE/compose.yml"
+          HOST_SUFFIX="$HOST_SUFFIX" CADDY_SCHEME="$CADDY_SCHEME" \
+          docker compose \
+            --project-directory "$OSWEB/${{ matrix.path }}" \
+            -f "$OSWEB/docker-compose.main.yml" \
+            -f "$OSWEB/${{ matrix.path }}/web-compose.yml" \
+            up -d --build
+
+      - name: Verify routing and control-plane semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          EVIDENCE="$GITHUB_WORKSPACE/evidence/${{ matrix.path }}"
+          ORIGIN="http://${{ matrix.host }}.${HOST_SUFFIX}"
+          ready=0
+          for i in $(seq 1 60); do
+            if curl --noproxy '*' -fsS "$ORIGIN/" > "$EVIDENCE/root.html"; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          test "$ready" = 1
+          test -s "$EVIDENCE/root.html"
+          COOKIE="arbm-v21-${{ matrix.host }}"
+          curl --noproxy '*' -fsS -X PUT \
+            -H 'content-type: application/json' \
+            --data '{"data":{"control_plane_probe":{"left":1},"preserved_sibling":true}}' \
+            "$ORIGIN/api/state?cookie=$COOKIE" > "$EVIDENCE/state-put.json"
+          curl --noproxy '*' -fsS -X PATCH \
+            -H 'content-type: application/json' \
+            --data '{"data":{"control_plane_probe":{"right":2}}}' \
+            "$ORIGIN/api/state?cookie=$COOKIE" > "$EVIDENCE/state-patch.json"
+          curl --noproxy '*' -fsS \
+            "$ORIGIN/api/state?cookie=$COOKIE" > "$EVIDENCE/state-get.json"
+          EVIDENCE="$EVIDENCE" COOKIE="$COOKIE" node - <<'NODE'
+          const fs=require('fs');
+          const x=JSON.parse(fs.readFileSync(process.env.EVIDENCE+'/state-get.json','utf8'));
+          if(x.user_id!==process.env.COOKIE) process.exit(21);
+          if(x.state?.data?.control_plane_probe?.left!==1) process.exit(22);
+          if(x.state?.data?.control_plane_probe?.right!==2) process.exit(23);
+          if(x.state?.data?.preserved_sibling!==true) process.exit(24);
+          NODE
+          printf '%s\n' \
+            'RUNTIME_SHARD=PASS' \
+            'CADDY_ROUTING=PASS' \
+            'CONTROL_PLANE_DEEP_MERGE=PASS' \
+            'BENCHMARK_TASKS_STARTED=0' \
+            > "$EVIDENCE/verdict.txt"
+
+      - name: Capture shard provenance
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          EVIDENCE="$GITHUB_WORKSPACE/evidence/${{ matrix.path }}"
+          OSWEB="$GITHUB_WORKSPACE/osworld-web"
+          mkdir -p "$EVIDENCE"
+          docker compose \
+            --project-directory "$OSWEB/${{ matrix.path }}" \
+            -f "$OSWEB/docker-compose.main.yml" \
+            -f "$OSWEB/${{ matrix.path }}/web-compose.yml" \
+            ps > "$EVIDENCE/docker-ps.txt" 2>&1
+          docker compose \
+            --project-directory "$OSWEB/${{ matrix.path }}" \
+            -f "$OSWEB/docker-compose.main.yml" \
+            -f "$OSWEB/${{ matrix.path }}/web-compose.yml" \
+            logs --no-color > "$EVIDENCE/runtime.log" 2>&1
+          find "$EVIDENCE" -type f -maxdepth 1 -print0 | sort -z | xargs -0 sha256sum > "$EVIDENCE/evidence-sha256.txt" 2>/dev/null || true
+
+      - name: Tear down shard
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          OSWEB="$GITHUB_WORKSPACE/osworld-web"
+          HOST_SUFFIX="$HOST_SUFFIX" CADDY_SCHEME="$CADDY_SCHEME" \
+          docker compose \
+            --project-directory "$OSWEB/${{ matrix.path }}" \
+            -f "$OSWEB/docker-compose.main.yml" \
+            -f "$OSWEB/${{ matrix.path }}/web-compose.yml" \
+            down -v --remove-orphans
+
+      - name: Preserve shard evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: osworld-v21-runtime-${{ matrix.path }}
+          path: evidence/${{ matrix.path }}
+          if-no-files-found: error
+          retention-days: 30
