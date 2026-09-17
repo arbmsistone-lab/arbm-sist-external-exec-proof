@@ -19,18 +19,12 @@ def txt(system,evidence,probe=''): return [{'role':'system','content':system},{'
 def vlm(system,evidence,image,probe=''): return [{'role':'system','content':system},{'role':'user','content':[{'type':'text','text':comb(evidence,probe)},{'type':'image_url','image_url':{'url':image}}]}]
 def loc(evidence,probe=''): return comb(evidence,probe)
 def binary(name,brief,evidence,contract,image,probe=''):
-    if not image: return None,[]
-    q=f'''ROLE={name}. SPECIALTY={brief}. Fail-closed post-focal audit. Decide whether CURRENT source plus validated official focal evidence and parity-bound diagnostic evidence close the historical causal gap for this specialty. Answer exactly YES OR NO. YES only if no concrete remaining gap/regression exists. NO only for a concrete remaining gap; do not answer NO merely because runtime proof is required because that proof is supplied.\nCURRENT CONTRACT:\n{contract}\nAPPROVED OFFICIAL FOCAL EVIDENCE:\n{OFFICIAL}\nCURRENT DIAGNOSTIC PROBE:\n{probe}\nHISTORICAL INCIDENT:\n{evidence}'''
-    m=[{'role':'user','content':[{'type':'text','text':q},{'type':'image_url','image_url':{'url':image}}]}]
-    result,attempts=s.LOCAL_VLM_ROUTE.call({},budget=180,raw_messages=m,raw_tokens=8)
-    raw=str((result or {}).get('text') or '').strip().upper()
-    if raw not in ('YES','NO'): return None,attempts
-    ok=raw=='YES'
-    v={'role':name,'verdict':'PASS_FIX' if ok else 'REJECT_FIX','root_cause_class':'AGENT_LOGIC','causal_chain':['review over current source plus validated focal and parity evidence'],'definitive_fix':'current candidate accepted for this role' if ok else 'concrete specialty gap remains','regression_risks':[],'required_proofs':[] if ok else ['resolve concrete specialty gap'],'confidence':0.8,'veto':not ok}
-    return v,attempts
+    # A one-token VLM YES/NO is not an authoritative specialist verdict.  The
+    # structured reviewers below must identify a concrete causal gap if they veto.
+    return None,[]
 def main(root):
     global OFFICIAL; root=Path(root); OFFICIAL=load_official(root)
-    s.BASE_SYSTEM=s.BASE_SYSTEM.replace('This is a pre-focal source audit: runtime proof belongs in required_proofs;\nabsence of runtime proof alone is not a source-level veto.','This is a post-focal audit. Validated approved official focal evidence is supplied. Do not request proof already present there; veto only for a concrete remaining causal gap or regression.')
+    s.BASE_SYSTEM=s.BASE_SYSTEM.replace('This is a pre-focal source audit: runtime proof belongs in required_proofs;\nabsence of runtime proof alone is not a source-level veto.','This is a post-focal audit. Validated approved official focal evidence is supplied. Do not request proof already present there; veto only for a concrete remaining causal gap or regression. A REJECT_FIX verdict must name that concrete gap in causal_chain; otherwise return PASS_FIX or INSUFFICIENT without veto.')
     s._text_messages=txt; s._vlm_messages=vlm; s._local_evidence=loc; s._local_binary_review=binary
     s.main(root)
 if __name__=='__main__': main(sys.argv[1])
