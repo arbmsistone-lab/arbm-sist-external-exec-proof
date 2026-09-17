@@ -1,0 +1,77 @@
+name: BFCL v4 FREE official smoke
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      ZERO_SPEND_MODE: HARD
+      BFCL_COMMIT: 6ea57973c7a6097fd7c5915698c54c17c5b1b6c8
+      ARBM_BFCL_MODEL: nex-agi/nex-n2.5-mini:free
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Prove FREE admission
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$OPENROUTER_API_KEY"
+          test "$ZERO_SPEND_MODE" = HARD
+          mkdir -p evidence
+          ARBM_G3_USAGE_LOG="$PWD/evidence/free-probe-usage.jsonl" python certification/g3_free_control.py probe --model "$ARBM_BFCL_MODEL" --output evidence/free-capability.json
+      - name: Checkout pinned BFCL
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --no-checkout https://github.com/ShishirPatil/gorilla.git upstream
+          git -C upstream fetch --depth=1 origin "$BFCL_COMMIT"
+          git -C upstream checkout --detach "$BFCL_COMMIT"
+          test "$(git -C upstream rev-parse HEAD)" = "$BFCL_COMMIT"
+          cd upstream/berkeley-function-call-leaderboard
+          python -m pip install --disable-pip-version-check -q -e .
+      - name: Run 20 official BFCL cases and evaluator
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENAI_BASE_URL: https://openrouter.ai/api/v1
+          OPENAI_DEFAULT_HEADERS: '{"HTTP-Referer":"https://arbmone.api.br","X-Title":"ARBM SIST external certification"}'
+        run: |
+          set -euo pipefail
+          cd upstream/berkeley-function-call-leaderboard
+          export OPENAI_API_KEY="$OPENROUTER_API_KEY"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from types import SimpleNamespace
+          from bfcl_eval.constants.model_config import MODEL_CONFIG_MAPPING, ModelConfig
+          from bfcl_eval.model_handler.api_inference.openai_completion import OpenAICompletionsHandler
+          from bfcl_eval._llm_response_generation import main as generation_main
+          from bfcl_eval.eval_checker.eval_runner import main as evaluation_main
+          registry='arbm-openrouter-free'
+          MODEL_CONFIG_MAPPING[registry]=ModelConfig(model_name=os.environ['ARBM_BFCL_MODEL'],display_name='ARBM FREE BFCL',url='https://openrouter.ai/',org='ARBM',license='benchmark-only',model_handler=OpenAICompletionsHandler,input_price=None,output_price=None,is_fc_model=False,underscore_to_dot=False)
+          Path('test_case_ids_to_generate.json').write_text(json.dumps({'simple_python':[f'simple_python_{i}' for i in range(20)]},indent=2))
+          args=SimpleNamespace(model=[registry],test_category=['simple_python'],temperature=0.001,include_input_log=True,exclude_state_log=False,num_gpus=1,num_threads=1,gpu_memory_utilization=0.0,backend='vllm',skip_server_setup=False,local_model_path=None,result_dir='result',allow_overwrite=True,run_ids=True,enable_lora=False,max_lora_rank=None,lora_modules=None)
+          generation_main(args)
+          evaluation_main([registry],['simple_python'],'result','score',True)
+          PY
+      - name: Freeze BFCL evidence
+        run: |
+          set -euo pipefail
+          cd upstream/berkeley-function-call-leaderboard
+          test "$(git rev-parse HEAD)" = "$BFCL_COMMIT"
+          git diff --exit-code
+          count="$(find result/arbm-openrouter-free -type f -name '*.json' -print0 | xargs -0 cat | grep -c '"id"' || true)"
+          test "$count" -ge 20
+          find score -type f -maxdepth 4 -print
+          mkdir -p ../../evidence/bfcl
+          cp -a result score ../../evidence/bfcl/
+          printf '%s\n' "$BFCL_COMMIT" > ../../evidence/bfcl/upstream-commit.txt
+          sha256sum ../../evidence/bfcl/upstream-commit.txt > ../../evidence/bfcl/SHA256SUMS.txt
+      - name: Upload immutable BFCL smoke evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: bfcl-v4-free-smoke
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 90
