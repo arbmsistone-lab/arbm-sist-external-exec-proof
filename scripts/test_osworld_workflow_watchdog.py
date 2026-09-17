@@ -77,26 +77,49 @@ class WorkflowWatchdogTests(unittest.TestCase):
     def test_full_swarm_remains_bounded_fail_closed_fallback(self):
         marker = '- name: Run full specialist failover'
         start = self.audit.index(marker)
-        block = self.audit[start:start+700]
+        block = self.audit[start:start+900]
         self.assertIn("steps.swarm_fast.outputs.fallback_eligible == '1'", block)
         self.assertIn('timeout --signal=TERM --kill-after=20s 900s python scripts/osworld_061_evidence_aware_swarm.py incident-evidence', block)
+        self.assertIn('osworld_061_lane_receipt.py full', block)
+
+    def test_fast_and_full_lanes_emit_forensic_receipts(self):
+        fast = self.audit[self.audit.index('- name: Run 10-robot specialist remote fast path'):self.audit.index('- name: Preflight heavyweight')]
+        self.assertIn('osworld_061_lane_receipt.py fast', fast)
+        self.assertIn('started=$(date +%s)', fast)
+        self.assertIn('finished=$(date +%s)', fast)
+        self.assertIn('exit "$rc"', fast)
+
+    def test_evidence_bundle_is_required_by_supreme_verdict(self):
+        marker = '- name: Build verified evidence bundle'
+        start = self.audit.index(marker)
+        block = self.audit[start:start+1700]
+        self.assertIn('python scripts/osworld_061_evidence_bundle.py', block)
+        self.assertIn('FAST_OUTCOME: ${{ steps.swarm_fast.outcome }}', block)
+        self.assertIn('FULL_OUTCOME: ${{ steps.swarm_full.outcome }}', block)
+        self.assertIn('AUDIT3D_OUTCOME: ${{ steps.audit3d.outcome }}', block)
+        self.assertIn('steps.evidence_bundle.outcome', block)
+        self.assertIn('sha256sum -c osworld-061-evidence-bundle.sha256', block)
 
     def test_substantive_blocker_cannot_be_erased_by_fallback(self):
         marker = '- name: Enforce supreme audit verdict'
         start = self.audit.index(marker)
-        block = self.audit[start:start+900]
+        block = self.audit[start:start+1200]
         self.assertIn('steps.swarm_fast.outputs.substantive_blocked', block)
         self.assertIn('SUBSTANTIVE_SPECIALIST_BLOCKER', block)
         self.assertIn('SPECIALIST_SWARM_NOT_ACCEPTED', block)
         self.assertIn('steps.audit3d.outcome', block)
+        self.assertIn('steps.evidence_bundle.outcome', block)
 
-    def test_fast_path_and_heavy_preflight_forensics_are_preserved(self):
+    def test_forensics_upload_is_fail_closed(self):
         marker = '- name: Preserve world-audit evidence'
         block = self.audit[self.audit.index(marker):]
-        self.assertIn('osworld-061-specialist-fast-path.json', block)
-        self.assertIn('osworld-061-heavy-runtime-preflight.json', block)
-        self.assertIn('osworld-061-specialist-swarm.json', block)
-        self.assertIn('if: always()', block[:220])
+        for name in ('osworld-061-fast-lane-receipt.json', 'osworld-061-specialist-fast-path.json',
+                     'osworld-061-heavy-runtime-preflight.json', 'osworld-061-specialist-swarm.json',
+                     'osworld-061-final-3d-audit.json', 'osworld-061-evidence-bundle.json',
+                     'osworld-061-evidence-bundle.sha256', 'current-probe-evidence/'):
+            self.assertIn(name, block)
+        self.assertIn('if-no-files-found: error', block)
+        self.assertNotIn('if-no-files-found: warn', block)
 
     def test_push_scope_remains_official_branch_only(self):
         self.assertIn('branches: [chatgpt/arbm-agent-elite-v2-20260914]', self.audit)
