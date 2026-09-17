@@ -15,15 +15,23 @@ const PROBES = [
   { label: 'ARBM CONTROL', url: 'https://arbm-control.zevanory.workers.dev/health' },
 ];
 
-function responseJson(data, status = 200) {
+function responseJson(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       'content-type': 'application/json; charset=utf-8',
-      'cache-control': 'no-store',
-      'access-control-allow-origin': '*',
+      'cache-control': 'no-store, private',
+      'x-content-type-options': 'nosniff',
+      ...extraHeaders,
     },
   });
+}
+
+function telemetryAuthorized(request, env) {
+  const configured = typeof env.ARBM_TELEMETRY_TOKEN === 'string' && env.ARBM_TELEMETRY_TOKEN.length >= 32;
+  if (!configured) return false;
+  const auth = request.headers.get('Authorization') || '';
+  return auth === `Bearer ${env.ARBM_TELEMETRY_TOKEN}`;
 }
 
 async function github(env, path) {
@@ -35,9 +43,7 @@ async function github(env, path) {
       'User-Agent': 'ARBM-CONTROL-SENIOR',
     },
   });
-  if (!response.ok) {
-    throw new Error(`GitHub ${response.status}`);
-  }
+  if (!response.ok) throw new Error(`GitHub ${response.status}`);
   return response.json();
 }
 
@@ -177,7 +183,11 @@ async function buildTelemetry(env) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    if (url.pathname === '/telemetry/v1' && request.method === 'GET') {
+    if (url.pathname === '/telemetry/v1') {
+      if (request.method !== 'GET') return responseJson({ error: 'method_not_allowed' }, 405, { Allow: 'GET' });
+      if (!telemetryAuthorized(request, env)) {
+        return responseJson({ error: 'unauthorized' }, 401, { 'www-authenticate': 'Bearer realm="arbm-control-telemetry"' });
+      }
       const telemetry = await buildTelemetry(env);
       return responseJson(telemetry);
     }
