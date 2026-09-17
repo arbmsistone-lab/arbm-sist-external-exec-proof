@@ -53,10 +53,12 @@ workflows:
       - sovereign_continuity_worker:
           filters:
             branches:
-              only: assist/circleci-sovereign-oidc-20260909
+              only:
+                - assist/circleci-sovereign-oidc-20260909
+                - master
   arbm_control_resilience:
     jobs:
       - arbm_control_resilience_worker:
           filters:
             branches:
-              only: assist/circleci-sovereign-oidc-20260909
+              only: master
