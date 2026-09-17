@@ -200,6 +200,56 @@ def _repair_single_pointer_target(action, observation):
     return repaired
 
 
+def canonical_target_proof(target):
+    if not isinstance(target,dict):
+        return ''
+    payload='|'.join((
+        str(target.get('source') or ''),
+        normalized_target(target.get('role')),
+        normalized_target(target.get('label')),
+        str(int(target.get('x') or 0)),
+        str(int(target.get('y') or 0)),
+        str(int(target.get('w') or 0)),
+        str(int(target.get('h') or 0)),
+        str(int(target.get('cx') or 0)),
+        str(int(target.get('cy') or 0)),
+        str(target.get('foreground_sha256') or ''),
+    ))
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _validate_canonical_pointer(action):
+    target=action.get('target') if isinstance(action,dict) else None
+    if not isinstance(target,dict):
+        raise ValueError('CANONICAL_TARGET_REQUIRED')
+    required=('label','role','x','y','w','h','cx','cy','foreground_sha256','proof_sha256')
+    if any(target.get(key) in (None,'') for key in required):
+        raise ValueError('CANONICAL_TARGET_INCOMPLETE')
+    if str(target.get('source') or '').lower()!='accessibility-canonical':
+        raise ValueError('CANONICAL_TARGET_SOURCE_INVALID')
+    expected=canonical_target_proof(target)
+    if not expected or expected!=str(target.get('proof_sha256') or ''):
+        raise ValueError('CANONICAL_TARGET_PROOF_INVALID')
+    calls=_gui_calls(action.get('command',''))
+    if len(calls)!=1 or calls[0].func.attr not in {'click','doubleClick','rightClick'}:
+        raise ValueError('CANONICAL_POINTER_ATOMIC_REQUIRED')
+    call=calls[0]
+    try:
+        if len(call.args)>=2:
+            x=float(ast.literal_eval(call.args[0])); y=float(ast.literal_eval(call.args[1]))
+        else:
+            kwargs={kw.arg:ast.literal_eval(kw.value) for kw in call.keywords if kw.arg}
+            x=float(kwargs['x']); y=float(kwargs['y'])
+    except (ValueError,TypeError,KeyError):
+        raise ValueError('CANONICAL_POINTER_COORDINATES_INVALID')
+    cx=float(target.get('cx')); cy=float(target.get('cy'))
+    if abs(x-cx)>0.5 or abs(y-cy)>0.5:
+        raise ValueError('CANONICAL_POINTER_COORDINATES_MISMATCH')
+    if int(target.get('w') or 0)<=0 or int(target.get('h') or 0)<=0:
+        raise ValueError('CANONICAL_TARGET_GEOMETRY_INVALID')
+    return action
+
+
 def _compile_grounded_click(action, observation):
     if action.get('action')!='exec': return action
     declared=action.get('target') if isinstance(action,dict) else None
@@ -223,17 +273,29 @@ def _compile_grounded_click(action, observation):
         action['compiler_note']='Accessibility-grounded target resolved deterministically: '+target['role']+' '+target['name']
     return action
 
-def ground_action(action, active_application, observation='', verified_milestones=None):
+def ground_action(action, active_application, observation='', verified_milestones=None, allow_canonical=False):
     """Compile desktop activation and block unsafe source-context abandonment."""
     a=canonical_action(action)
+    canonical_pointer=False
     if a.get('action')=='exec' and re.search(r'pyautogui\.(?:click|doubleClick|rightClick)\s*\(',a.get('command','')):
-        a=_repair_single_pointer_target(a,observation)
         target=a.get('target')
-        if not isinstance(target,dict): raise ValueError('POINTER_TARGET_REQUIRED')
-        source=str(target.get('source') or '').lower(); label=str(target.get('label') or '').strip()
-        if source not in {'accessibility','screenshot'} or not label: raise ValueError('POINTER_TARGET_INVALID')
-        if source=='accessibility' and not str(target.get('role') or '').strip(): raise ValueError('ACCESSIBILITY_ROLE_REQUIRED')
-    a=_compile_grounded_click(a,observation)
+        source=str(target.get('source') or '').lower() if isinstance(target,dict) else ''
+        if source=='accessibility-canonical':
+            if not allow_canonical:
+                raise ValueError('CANONICAL_TARGET_UNTRUSTED')
+            a=_validate_canonical_pointer(a)
+            canonical_pointer=True
+            a=dict(a)
+            a['compiler_note']='Trusted local canonical accessibility target accepted without secondary re-resolution.'
+        else:
+            a=_repair_single_pointer_target(a,observation)
+            target=a.get('target')
+            if not isinstance(target,dict): raise ValueError('POINTER_TARGET_REQUIRED')
+            source=str(target.get('source') or '').lower(); label=str(target.get('label') or '').strip()
+            if source not in {'accessibility','screenshot'} or not label: raise ValueError('POINTER_TARGET_INVALID')
+            if source=='accessibility' and not str(target.get('role') or '').strip(): raise ValueError('ACCESSIBILITY_ROLE_REQUIRED')
+    if not canonical_pointer:
+        a=_compile_grounded_click(a,observation)
     plan=str(a.get('plan') or '').lower()
     active=str(active_application or 'unknown')
     reveal=bool(re.search(r'(?:bring|show|reveal|switch to) (?:the )?desktop\b',plan))
@@ -400,6 +462,35 @@ def foreground_context(text):
     return prefix+'\n'.join(kept),active
 
 
+def canonical_foreground_context(text):
+    """Return one deterministic foreground tree shared by selector and grounder."""
+    focused,active=foreground_context(str(text or ''))
+    lines=focused.splitlines()
+    roots=[]
+    for index,line in enumerate(lines):
+        cols=line.split('\t')
+        if len(cols)<7 or normalized_target(cols[0]) not in {'document-web','document','frame','dialog','window'}:
+            continue
+        xy=re.findall(r'-?\d+',cols[-2]); wh=re.findall(r'\d+',cols[-1])
+        if len(xy)!=2 or len(wh)!=2:
+            continue
+        x,y=map(int,xy); w,h=map(int,wh)
+        if w<=0 or h<=0:
+            continue
+        label=(cols[1] or cols[2]).replace('\u200b','').strip()
+        roots.append((w*h,index,{'role':cols[0],'label':label,'x':x,'y':y,'w':w,'h':h}))
+    if not roots:
+        canonical=focused
+        meta={'strategy':'foreground-context-no-root','root':None,'active_application':active}
+    else:
+        roots.sort(key=lambda row:(row[0],row[1]),reverse=True)
+        _,start,root=roots[0]
+        prefix=[line for line in lines[:start] if line.startswith(('ACTIVE APPLICATION','BACKGROUND DESKTOP FILES'))]
+        canonical='\n'.join(prefix+lines[start:])
+        meta={'strategy':'dominant-document-root','root':{**root,'line_index':start},'active_application':active}
+    return canonical,active,meta
+
+
 def compress_screenshot(image):
     if not image:
         return '',{}
@@ -443,9 +534,11 @@ def pack_payload(body):
     def size(x): return len(json.dumps(x,ensure_ascii=False).encode())
     before=size(body);b=dict(body)
     b['instruction']=bounded_instruction(b.get('instruction',''),7000)
-    focused,active=foreground_context(str(b.get('observation','')))
+    focused,active,canonical_meta=canonical_foreground_context(str(b.get('observation','')))
     b['active_application']=active
     b['observation']=compact_tree(focused,b['instruction'],limit=6500)
+    b['canonical_foreground_sha256']=hashlib.sha256(b['observation'].encode()).hexdigest()
+    b['canonical_foreground_meta']=canonical_meta
     b['memory']=str(b.get('memory',''))[-4500:]
     b['screenshot_data_url'],im=compress_screenshot(b.get('screenshot_data_url',''))
     b['reference_screenshot_data_url'],ref=compress_reference_screenshot(b.get('reference_screenshot_data_url',''))
