@@ -22,8 +22,16 @@ class LocalTextReviewTests(unittest.TestCase):
 
     def test_generation_token_limit_is_bounded(self):
         self.assertEqual(local_review._token_limit(1), 16)
-        self.assertEqual(local_review._token_limit(9999), 512)
-        self.assertEqual(local_review._token_limit('bad'), 320)
+        self.assertEqual(local_review._token_limit(9999), 192)
+        self.assertEqual(local_review._token_limit('bad'), 160)
+
+    def test_prompt_token_limit_is_bounded(self):
+        with mock.patch.dict(os.environ, {'ARBM_LOCAL_TEXT_PROMPT_TOKENS': '1'}):
+            self.assertEqual(local_review._prompt_token_limit(), 512)
+        with mock.patch.dict(os.environ, {'ARBM_LOCAL_TEXT_PROMPT_TOKENS': '99999'}):
+            self.assertEqual(local_review._prompt_token_limit(), 3072)
+        with mock.patch.dict(os.environ, {'ARBM_LOCAL_TEXT_PROMPT_TOKENS': 'bad'}):
+            self.assertEqual(local_review._prompt_token_limit(), 2048)
 
     def test_only_pinned_allowlisted_models_exist(self):
         self.assertEqual(set(local_review.MODELS), {'qwen_local', 'smollm_local'})
@@ -36,10 +44,11 @@ class LocalTextReviewTests(unittest.TestCase):
         local_review.clear_runtime_cache()
         self.assertEqual(len(local_review._RUNTIME_CACHE), 0)
 
-    def test_source_uses_eval_inference_mode_and_no_paid_route(self):
+    def test_source_uses_eval_inference_cache_and_no_paid_route(self):
         source = pathlib.Path(local_review.__file__).read_text(encoding='utf-8')
         self.assertIn('model.eval()', source)
         self.assertIn('torch.inference_mode()', source)
+        self.assertIn('use_cache=True', source)
         self.assertIn("'mandatory_cost_usd': 0", source)
         self.assertIn("'paid_fallback_used': False", source)
         self.assertNotIn('cuda()', source)
