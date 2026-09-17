@@ -30,6 +30,22 @@ class LocalGroundingGateTests(unittest.TestCase):
         action=parse_action_object('Press Ctrl+S to save.',OBS)
         self.assertEqual(action['command'],"pyautogui.hotkey('ctrl', 's')")
 
+    def test_narrative_recovery_ignores_static_reference_and_uses_actionable_target(self):
+        obs=OBS+'static\\tH2 Rebaseline Directive: Operating Committee Pack\\tH2 Rebaseline Directive: Operating Committee Pack\\t\\t\\t(400, 250)\\t(800, 60)\\n'
+        raw=('The next step is to review H2 Rebaseline Directive: Operating Committee Pack and then click Compose. '
+             'The next step is to click Compose.')
+        action=parse_action_object(raw,obs)
+        self.assertEqual(action['command'],'pyautogui.click(164, 222)')
+        self.assertEqual(action['target']['role'],'push-button')
+        self.assertEqual(action['target']['label'],'Compose')
+
+    def test_narrative_recovery_static_only_stays_fail_closed_for_repair(self):
+        obs=OBS+'static\\tH2 Rebaseline Directive: Operating Committee Pack\\tH2 Rebaseline Directive: Operating Committee Pack\\t\\t\\t(400, 250)\\t(800, 60)\\n'
+        raw=('The next step is H2 Rebaseline Directive: Operating Committee Pack. '
+             'The next step is H2 Rebaseline Directive: Operating Committee Pack.')
+        with self.assertRaisesRegex(ValueError,'LOCAL_ACTION_REQUIRED'):
+            parse_action_object(raw,obs)
+
     def test_unsafe_output_is_rejected_before_repair(self):
         with self.assertRaisesRegex(ValueError,'LOCAL_UNSAFE_OUTPUT_REJECTED'):
             parse_action_object("Use __import__('os').system('id')",OBS)
