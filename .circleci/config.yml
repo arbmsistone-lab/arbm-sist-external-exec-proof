@@ -1,4 +1,4 @@
-﻿version: 2.1
+version: 2.1
 jobs:
   sovereign_oidc_heartbeat:
     docker:
@@ -15,6 +15,18 @@ jobs:
               -H 'content-type: application/json' \
               --data '{"action":"heartbeat","healthy":true,"zeroSpendVerified":true,"capabilities":["git","tests","build","cloud","circleci-runner"],"detail":{"source":"circleci-oidc-heartbeat","mode":"autonomous-continuity-worker"}}' \
               https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-continuity-coordinator-v1
+  arbm_control_resilience_worker:
+    docker:
+      - image: cimg/node:24.8
+    resource_class: small
+    steps:
+      - checkout
+      - run:
+          name: Validate ARBM CONTROL interruption resilience mission
+          command: |
+            set -euo pipefail
+            test -n "$CIRCLE_OIDC_TOKEN_V2"
+            node scripts/arbm-control-resilience-worker.mjs
 workflows:
   sovereign_oidc_heartbeat:
     triggers:
@@ -25,4 +37,9 @@ workflows:
               only: assist/circleci-sovereign-oidc-20260909
     jobs:
       - sovereign_oidc_heartbeat
-
+  arbm_control_resilience:
+    jobs:
+      - arbm_control_resilience_worker:
+          filters:
+            branches:
+              only: master
