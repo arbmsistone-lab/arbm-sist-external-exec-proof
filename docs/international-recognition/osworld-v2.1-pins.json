@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "purpose": "ARBM SIST OSWorld V2.1 verified-evaluation readiness pins",
+  "technical_anchor_sha": "73772dbe40650d2e4561693db00ade48e3134ac1",
+  "upstream": {
+    "repository": "xlang-ai/OSWorld-V2",
+    "tag": "osworld-v2.1",
+    "tag_commit": "3d778a3c9a34a079316f70df023b166700445792",
+    "manifest_path": "benchmark_releases/osworld-v2.1.json",
+    "manifest_blob_sha": "6d37c6f4c6c4f6daa5077d4e4c828f68360b7e36",
+    "code_base_commit": "325ab352e2ff7410854bf8e3324c391bc60e7526"
+  },
+  "tasks": {
+    "repository": "xlangai/osworld_v2_tasks",
+    "tag": "osworld-v2.1",
+    "commit": "0a1aadad95aa79b00b3783e717d865089ab06e26",
+    "task_count": 108,
+    "hash_manifest_path": "benchmark_releases/osworld-v2.1.task_hashes.json",
+    "hash_manifest_sha256": "c54d428329be5ca72742a6becd49ee83cf739df5dea429bba182e1f3f21badfb"
+  },
+  "assets": {
+    "repository": "xlangai/osworld_v2_assets_gated",
+    "tag": "osworld-v2.1",
+    "commit": "384b3834faba5700a7b589e6cc181490c9808949"
+  },
+  "public_assets": {
+    "repository": "xlangai/osworld_v2_assets",
+    "tag": "osworld-v2.1",
+    "commit": "3a140a3df8f351b22bb5b9526846f078e738777f"
+  },
+  "website": {
+    "repository": "Task-Web/OSWorld-web",
+    "tag": "osworld-v2.1",
+    "commit": "60c89fe6a8ed934668619d8d26132848239eb8ee",
+    "deployment_mode": "self_hosted",
+    "host_suffix": null
+  },
+  "provider_images": {
+    "aws": {
+      "region": "us-east-1",
+      "resolution": "1920x1080",
+      "ami_id": "ami-01017272139e01feb"
+    },
+    "docker": {
+      "artifact_repository": "xlangai/v2-image",
+      "artifact_tag": "osworld-v2.1",
+      "artifact_revision": "6e16459a2feb5a8f1ed65babcfe7a2a6205d049d",
+      "artifact_path": "osworld-v2-ubuntu-x86.qcow2.zip",
+      "artifact_sha256": "14b08aa7ba6c023ecb91d46de8df5de32af4d1d6bd75ea925519caf9677fc8b3",
+      "runtime_image_digest": "sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9"
+    }
+  },
+  "policy": {
+    "zero_spend_mode": "HARD",
+    "paid_fallback": false,
+    "heavy_local": 0,
+    "fail_closed_provenance": true,
+    "official_evaluator_integrity_required": true,
+    "full_run_authorized": false,
+    "verified_publication_required_for_rank_claim": true
+  }
+}
