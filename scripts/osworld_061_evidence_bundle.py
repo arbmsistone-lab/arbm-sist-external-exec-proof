@@ -61,11 +61,7 @@ def _hash_tree(root):
         size = path.stat().st_size
         if size <= 0:
             raise RuntimeError(f'EMPTY_EVIDENCE_FILE:{path}')
-        rows.append({
-            'path': path.as_posix(),
-            'bytes': size,
-            'sha256': _sha256(path),
-        })
+        rows.append({'path': path.as_posix(), 'bytes': size, 'sha256': _sha256(path)})
     return rows
 
 
@@ -74,11 +70,12 @@ def build():
     if len(candidate_sha) != 40:
         raise RuntimeError('GITHUB_SHA_REQUIRED')
     fast_outcome = os.environ.get('FAST_OUTCOME', '')
+    replay_outcome = os.environ.get('REPLAY_OUTCOME', '')
     full_outcome = os.environ.get('FULL_OUTCOME', '')
     audit3d_outcome = os.environ.get('AUDIT3D_OUTCOME', '')
     if audit3d_outcome != 'success':
         raise RuntimeError('AUDIT3D_SUCCESS_REQUIRED')
-    if fast_outcome != 'success' and full_outcome != 'success':
+    if fast_outcome != 'success' and replay_outcome != 'success' and full_outcome != 'success':
         raise RuntimeError('ACCEPTED_SPECIALIST_LANE_REQUIRED')
 
     for path in CORE_FILES:
@@ -93,9 +90,18 @@ def build():
 
     specialist = _validate_specialist('osworld-061-specialist-swarm.json', candidate_sha)
     fast = None
+    replay = None
     if fast_outcome == 'success':
         _required_file('osworld-061-specialist-fast-path.json')
         fast = _validate_specialist('osworld-061-specialist-fast-path.json', candidate_sha)
+    if replay_outcome == 'success':
+        _required_file('osworld-061-specialist-replay.json')
+        replay = _validate_specialist('osworld-061-specialist-replay.json', candidate_sha)
+        validation = replay.get('revalidation') or {}
+        if replay.get('revalidated') is not True or validation.get('focal_contract_parity') is not True:
+            raise RuntimeError('SPECIALIST_REPLAY_PARITY_REQUIRED')
+        if validation.get('method') != 'immutable_quorum_replay':
+            raise RuntimeError('SPECIALIST_REPLAY_METHOD_MISMATCH')
     if full_outcome == 'success':
         _required_file('osworld-061-heavy-runtime-preflight.json')
         preflight = _read_json('osworld-061-heavy-runtime-preflight.json')
@@ -111,7 +117,8 @@ def build():
     for path in CORE_FILES:
         p = Path(path)
         core_hashes.append({'path': path, 'bytes': p.stat().st_size, 'sha256': _sha256(p)})
-    for optional in ('osworld-061-specialist-fast-path.json', 'osworld-061-heavy-runtime-preflight.json'):
+    for optional in ('osworld-061-specialist-fast-path.json', 'osworld-061-specialist-replay.json',
+                     'osworld-061-heavy-runtime-preflight.json'):
         p = Path(optional)
         if p.is_file() and p.stat().st_size > 0:
             core_hashes.append({'path': optional, 'bytes': p.stat().st_size, 'sha256': _sha256(p)})
@@ -124,16 +131,14 @@ def build():
         'diagnostic_probe_sha': os.environ.get('DIAGNOSTIC_PROBE_SHA'),
         'diagnostic_probe_run_id': os.environ.get('DIAGNOSTIC_PROBE_RUN_ID'),
         'lane_outcomes': {
-            'fast': fast_outcome,
-            'full': full_outcome,
-            'audit3d': audit3d_outcome,
+            'fast': fast_outcome, 'replay': replay_outcome,
+            'full': full_outcome, 'audit3d': audit3d_outcome,
         },
-        'zero_spend_mode': 'HARD',
-        'paid_fallback_used': False,
-        'heavy_local': 0,
+        'zero_spend_mode': 'HARD', 'paid_fallback_used': False, 'heavy_local': 0,
         'champion_status': champion.get('status'),
         'specialist_status': specialist.get('status'),
         'fast_status': fast.get('status') if fast else None,
+        'replay_status': replay.get('status') if replay else None,
         'preflight_status': preflight.get('status') if preflight else None,
         'final_3d_status': audit3d.get('status'),
         'core_files': sorted(core_hashes, key=lambda row: row['path']),
