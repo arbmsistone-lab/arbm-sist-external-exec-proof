@@ -8,7 +8,7 @@ from osworld_control import canonical_action, ground_action, Verifier, pack_payl
 from osworld_v32_policy import DecisionKind, apply_live_policy
 from osworld_openrouter_free import FREE_ROUTE, prompt as openrouter_prompt
 from osworld_groq_free import GROQ_FREE_ROUTE
-from osworld_local_vlm import LOCAL_VLM_ROUTE
+from osworld_local_vlm import LOCAL_VLM_ROUTE, warm_runtime
 from osworld_recovery import recovery_policy, rejects_visual_navigation_loop, semantic_terminal
 from osworld_elite_controller import EliteController
 from osworld_gimp_style_transfer import next_recovery_action
@@ -28,6 +28,7 @@ LOCAL_FALLBACK_CAPACITY_STATUSES = {
     'NO_ZERO_SPEND_MULTIMODAL_CAPACITY',
     'FREE_QUOTA_EXHAUSTED',
 }
+LOCAL_CONTRACT_STATUSES = {'LOCAL_ACTION_UNAVAILABLE','LOCAL_ACTION_CONTRACT_EXHAUSTED'}
 STATE = {'step':0,'previous':'','executed':0,'phase':'plan','plan':'','memory':[],
          'history':[],'facts':[],'wait_responses':0,'provider_waits':0,'cooldowns':{},'terminal':'','provider':'','model':'','visual_memory':'','visual_memory_meta':None,'gimp_specialist':{}}
 VERIFIER = Verifier()
@@ -85,7 +86,6 @@ def log_event(data):
     HEALTH['retry']=data.get('attempt',0)
     event={'timestamp':time.time(),'elapsed_seconds':round(time.monotonic()-STARTED,2),**data,'step':STATE['step'],'phase':STATE['phase'],'task_id':os.environ.get('TASK_ID'),
            'commit':os.environ.get('GITHUB_SHA'),'verifier':VERIFIER.last_result,'semantic':MILESTONES.context()}
-    # No request headers/tokens or environment values are ever logged.
     with open(LOG,'a',encoding='utf-8') as f:f.write(json.dumps(event,ensure_ascii=False,separators=(',',':'))+'\n')
 
 def heartbeat():
@@ -131,8 +131,14 @@ def request_gateway(body):
         return 503,{'status':'TRANSPORT_ERROR','error_type':type(exc).__name__}
 
 
+def _local_contract_failure(attempts):
+    local=[a for a in attempts if a.get('route')=='local-cloud-vlm']
+    if not local:return False
+    statuses={a.get('status') for a in local}
+    return bool(statuses & {'local_contract_retry','local_contract_exhausted','local_model_error'}) and not any(a.get('status')==200 for a in local)
+
+
 def request_mesh(body):
-    # Admission/authentication checks without an observation always reach OIDC.
     if not body.get('screenshot_data_url'): return request_gateway(body)
     started=time.monotonic()
     body={**body,'request_budget_ms':60000}
@@ -181,8 +187,6 @@ def request_mesh(body):
             'action':action,'provider':'openrouter-free-text','model':result.get('model'),
             'provider_attempts':router_attempts,'mandatory_cost_usd':0,'paid_fallback_used':False,'scoreable':False,
             'github_sha':os.environ.get('GITHUB_SHA'),'github_run_id':os.environ.get('GITHUB_RUN_ID')}
-    # Eager failover: every request traverses independent FREE candidates in
-    # the same cycle. A degraded local route can never capture later turns.
     if body.get('provider_hint')=='text':
         response=text_router()
         if response:return response
@@ -204,12 +208,15 @@ def request_mesh(body):
     if response:
         response[1]['provider_attempts']=gateway_attempts+router_attempts
         return response
+    all_attempts=gateway_attempts+router_attempts
+    if _local_contract_failure(all_attempts):
+        return 422,{'status':'LOCAL_ACTION_CONTRACT_EXHAUSTED','provider_attempts':all_attempts,
+                    'mandatory_cost_usd':0,'paid_fallback_used':False}
     return 503,{'status':'FREE_MESH_EXHAUSTED_CURRENT_CYCLE',
-                'provider_attempts':gateway_attempts+router_attempts,
+                'provider_attempts':all_attempts,
                 'mandatory_cost_usd':0,'paid_fallback_used':False}
 
 def try_061_calibrated(body, obs, focused_obs):
-    """Run the generic reference-pair calibrator only for official task 061."""
     if os.environ.get('TASK_ID') != '061':
         return None
     state=STATE.setdefault('grade061',{})
@@ -293,7 +300,6 @@ def _ack_gimp_pending(state, obs):
     return 'ACK'
 
 def try_gimp_specialist(body, obs, focused_obs):
-    """Issue one generic GIMP specialist action through the normal safety gates."""
     specialist_state=STATE.setdefault('gimp_specialist',{})
     ack=_ack_gimp_pending(specialist_state,focused_obs)
     if ack=='WAIT':
@@ -306,20 +312,13 @@ def try_gimp_specialist(body, obs, focused_obs):
             log_event({'status':'GIMP_OUTPUT_PROVENANCE_UNPROVEN','reason':specialist_state.get('export_provenance_error')})
             return terminal('AGENT_OUTPUT_PROVENANCE_UNPROVEN')
         if specialist_state.get('profile_modal_error'):
-            log_event({'status':'GIMP_PROFILE_CONVERT_CONTROL_UNRESOLVED',
-                       'waits':specialist_state.get('profile_modal_missing_convert_waits',0)})
+            log_event({'status':'GIMP_PROFILE_CONVERT_CONTROL_UNRESOLVED','waits':specialist_state.get('profile_modal_missing_convert_waits',0)})
             return terminal('GIMP_PROFILE_CONVERT_CONTROL_UNRESOLVED')
         if specialist_state.get('colorize_processing'):
-            specialist_state['uncertain_turns']=0
-            log_event({'status':'GIMP_SPECIALIST_COLORIZE_PROCESSING_HOLD'})
-            return 'WAIT'
+            specialist_state['uncertain_turns']=0; log_event({'status':'GIMP_SPECIALIST_COLORIZE_PROCESSING_HOLD'}); return 'WAIT'
         if specialist_state.get('owned'):
-            # Champion ownership is fail-closed: once task 061 enters the
-            # specialist transaction, an uncertain intermediate state can
-            # never fall through to a generic provider that may skip phases.
             specialist_state['uncertain_turns']=specialist_state.get('uncertain_turns',0)+1
-            log_event({'status':'GIMP_SPECIALIST_OWNERSHIP_HOLD','uncertain_turns':specialist_state['uncertain_turns']})
-            return 'WAIT'
+            log_event({'status':'GIMP_SPECIALIST_OWNERSHIP_HOLD','uncertain_turns':specialist_state['uncertain_turns']}); return 'WAIT'
         return None
     try:
         action=ground_action(candidate,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
@@ -328,9 +327,7 @@ def try_gimp_specialist(body, obs, focused_obs):
         log_event({'status':'GIMP_SPECIALIST_POLICY_REJECTED','reason':str(exc),'action':candidate})
         if specialist_state.get('owned'):
             specialist_state['policy_holds']=specialist_state.get('policy_holds',0)+1
-            log_event({'status':'GIMP_SPECIALIST_POLICY_HOLD','reason':str(exc),
-                       'policy_holds':specialist_state['policy_holds']})
-            return 'WAIT'
+            log_event({'status':'GIMP_SPECIALIST_POLICY_HOLD','reason':str(exc),'policy_holds':specialist_state['policy_holds']}); return 'WAIT'
         return None
     if action.get('action')=='finish':
         specialist_complete=(specialist_state.get('colorize_closed') and specialist_state.get('export_confirmed') and specialist_state.get('output_verify_open') and specialist_state.get('output_physical_provenance') and bool(specialist_state.get('output_provenance_sha256')))
@@ -339,98 +336,58 @@ def try_gimp_specialist(body, obs, focused_obs):
         log_event({'status':'GIMP_SPECIALIST_FINISH_REJECTED','action':action});return 'WAIT'
     if decision.get('kind')!=DecisionKind.EXEC.value or action.get('action')!='exec':
         if specialist_state.get('owned'):
-            log_event({'status':'GIMP_SPECIALIST_DECISION_HOLD','decision':decision.get('kind')})
-            return 'WAIT'
+            log_event({'status':'GIMP_SPECIALIST_DECISION_HOLD','decision':decision.get('kind')}); return 'WAIT'
         return None
     command=action['command']
     if rejects_visual_navigation_loop(action,body['instruction'],body.get('active_application','unknown'),MILESTONES.stalled):
-        log_event({'status':'GIMP_SPECIALIST_LOOP_REJECTED','command':command})
-        return 'WAIT' if specialist_state.get('owned') else None
+        log_event({'status':'GIMP_SPECIALIST_LOOP_REJECTED','command':command}); return 'WAIT' if specialist_state.get('owned') else None
     recent=[x['command'] for x in STATE['history'][-6:]]
     if VERIFIER.no_progress and command in recent:
-        log_event({'status':'GIMP_SPECIALIST_REPEAT_REJECTED','command':command})
-        return 'WAIT' if specialist_state.get('owned') else None
+        log_event({'status':'GIMP_SPECIALIST_REPEAT_REJECTED','command':command}); return 'WAIT' if specialist_state.get('owned') else None
     elite_action=ELITE.before_action(command,action.get('target'))
     if not elite_action['allow']:
-        log_event({'status':'GIMP_SPECIALIST_TABU_REJECTED','command':command,'reason':elite_action['reason']})
-        return 'WAIT' if specialist_state.get('owned') else None
+        log_event({'status':'GIMP_SPECIALIST_TABU_REJECTED','command':command,'reason':elite_action['reason']}); return 'WAIT' if specialist_state.get('owned') else None
     STATE['plan']=str(action.get('plan') or STATE['plan'])[:1400]
     STATE['previous']=command;STATE['executed']+=1;STATE['wait_responses']=0;STATE['provider_waits']=0
     STATE['history'].append({'command':command,'expected':action.get('expected_change',''),'source':'gimp-specialist'})
     STATE['history']=STATE['history'][-12:]
     specialist_state['owned']=True;specialist_state['uncertain_turns']=0
     phase=action.get('specialist_phase')
-    tracked={'open-colorize','convert-profile','enable-subcolors','disable-hold-intensity','disable-original-intensity',
-             'sample-colors','apply-colorize','close-colorize','export-open','export-name-focus',
-             'export-name','export-submit','export-confirm','verify-output-open','export-baseline',
-             'export-baseline-return','verify-output-physical','export-original-overwrite-cancel'}
+    tracked={'open-colorize','convert-profile','enable-subcolors','disable-hold-intensity','disable-original-intensity','sample-colors','apply-colorize','close-colorize','export-open','export-name-focus','export-name','export-submit','export-confirm','verify-output-open','export-baseline','export-baseline-return','verify-output-physical','export-original-overwrite-cancel'}
     if phase in tracked:
-        specialist_state['pending_phase']=phase
-        specialist_state['pending_waits']=0
+        specialist_state['pending_phase']=phase; specialist_state['pending_waits']=0
     VERIFIER.issued(command)
     if isinstance(action.get('checkpoint'),dict):MILESTONES.expect(action,obs)
     log_event({'status':'GIMP_SPECIALIST_ACTION_ISSUED','command':command,'checkpoint':action.get('checkpoint')})
     log_event({'status':'ACTION_ISSUED','command':command,'source':'gimp-style-specialist'})
     return '```python\n'+command+'\n```'
 def call_mesh(messages):
-    if STATE.get('step',0)==0 and not STATE.get('terminal'):
-        ELITE.reset()
+    if STATE.get('step',0)==0 and not STATE.get('terminal'): ELITE.reset()
     if STATE['terminal']:return 'FAIL'
     if time.monotonic()-STARTED>=MAX_TASK_SECONDS:return terminal('TASK_DEADLINE')
-    STATE['step']+=1
-    STATE.setdefault('facts',[])
-    obs,screenshot=latest_observation(messages)
-    focused_obs,active_application=foreground_context(obs)
+    STATE['step']+=1; STATE.setdefault('facts',[])
+    obs,screenshot=latest_observation(messages); focused_obs,active_application=foreground_context(obs)
     had_semantic_expectation=MILESTONES.pending is not None
-    verification=VERIFIER.observe(obs,screenshot)
-    semantic=MILESTONES.observe(obs)
-    semantic_progress=semantic.get('status')=='VERIFIED'
+    verification=VERIFIER.observe(obs,screenshot); semantic=MILESTONES.observe(obs); semantic_progress=semantic.get('status')=='VERIFIED'
     if had_semantic_expectation and verification.get('progress') and not semantic_progress:
         VERIFIER.no_progress += 1
-        VERIFIER.last_result={**VERIFIER.last_result,'progress':False,'reason':'visual_change_without_semantic_checkpoint','no_progress':VERIFIER.no_progress,'recovery_level':VERIFIER.recovery_level}
-        verification=VERIFIER.last_result
+        VERIFIER.last_result={**VERIFIER.last_result,'progress':False,'reason':'visual_change_without_semantic_checkpoint','no_progress':VERIFIER.no_progress,'recovery_level':VERIFIER.recovery_level}; verification=VERIFIER.last_result
     elite_decision=ELITE.observe(bool(semantic_progress if had_semantic_expectation else verification.get('progress')))
     if STATE['history'] and 'outcome' not in STATE['history'][-1]:
-        STATE['history'][-1]['outcome']={'progress':bool(verification.get('progress')),
-            'semantic_verified':semantic_progress,'verifier_reason':verification.get('reason'),
-            'no_progress':verification.get('no_progress'),'milestone':semantic.get('milestone')}
-    if semantic.get("status")=="VERIFIED":
-        STATE["memory"].append("OBSERVED MILESTONE: "+json.dumps(semantic["milestone"],ensure_ascii=False))
-        STATE["memory"]=STATE["memory"][-8:]
-        ELITE.checkpoint(semantic["milestone"])
-        log_event({"status":"MILESTONE_VERIFIED","milestone":semantic["milestone"],"backtrack_anchor":ELITE.recovery_anchor()})
-        if screenshot and not STATE.get('visual_memory'):
-            STATE['visual_memory']=screenshot
-            STATE['visual_memory_meta']=semantic['milestone']
-    if semantic_terminal(MILESTONES.stalled, VERIFIER.no_progress):return terminal("SEMANTIC_RECOVERY_EXHAUSTED")
+        STATE['history'][-1]['outcome']={'progress':bool(verification.get('progress')),'semantic_verified':semantic_progress,'verifier_reason':verification.get('reason'),'no_progress':verification.get('no_progress'),'milestone':semantic.get('milestone')}
+    if semantic.get('status')=='VERIFIED':
+        STATE['memory'].append('OBSERVED MILESTONE: '+json.dumps(semantic['milestone'],ensure_ascii=False)); STATE['memory']=STATE['memory'][-8:]
+        ELITE.checkpoint(semantic['milestone']); log_event({'status':'MILESTONE_VERIFIED','milestone':semantic['milestone'],'backtrack_anchor':ELITE.recovery_anchor()})
+        if screenshot and not STATE.get('visual_memory'): STATE['visual_memory']=screenshot; STATE['visual_memory_meta']=semantic['milestone']
+    if semantic_terminal(MILESTONES.stalled, VERIFIER.no_progress):return terminal('SEMANTIC_RECOVERY_EXHAUSTED')
     if VERIFIER.no_progress>=MAX_NO_PROGRESS or STATE['wait_responses']>=MAX_WAIT_RESPONSES or STATE['step']>MAX_STEPS:
         return terminal('RECOVERY_EXHAUSTED' if STATE['step']<=MAX_STEPS else 'STEP_BUDGET')
     STATE['phase']='plan' if (elite_decision['mode']=='replan' or VERIFIER.no_progress>=2 or not STATE['plan']) else 'execute'
-    body={'instruction':task_from(messages),'observation':obs,'screenshot_data_url':screenshot,
-          'previous_command':STATE['previous'],'executed_count':STATE['executed'],'active_application':active_application,
-          'memory':'\n'.join([STATE['plan']]+STATE['memory'][-5:]+[str(x) for x in STATE['history'][-4:]]),
-          'phase':STATE['phase'],'no_progress_count':VERIFIER.no_progress,'step':STATE['step'],
-          'verifier':verification,'verified_milestones':MILESTONES.context(),'recovery_strategy':RECOVERY[VERIFIER.recovery_level],
-          'route_cooldowns':STATE['cooldowns'],'expected_build':EXPECTED_BUILD,
-          'performance_mode':elite_decision['mode'],
-          'performance_reason':elite_decision['reason'],
-          'performance_metrics':ELITE.metrics(),
-          'reference_screenshot_data_url':STATE.get('visual_memory','') if STATE.get('visual_memory') and STATE.get('visual_memory')!=screenshot else '',
-          'reference_visual_meta':STATE.get('visual_memory_meta'),
-          'task_ledger':{'verified_milestones':MILESTONES.context().get('verified',[]),
-                         'verified_facts':STATE.get('facts',[])[:24],
-                         'recent_outcomes':STATE['history'][-6:],
-                         'backtrack_anchor':ELITE.recovery_anchor(),
-                         'root_instruction_sha256':hashlib.sha256(task_from(messages).encode()).hexdigest(),
-                         'provider_waits':STATE.get('provider_waits',0),
-                         'cognitive_waits':STATE.get('wait_responses',0)}}
+    body={'instruction':task_from(messages),'observation':obs,'screenshot_data_url':screenshot,'previous_command':STATE['previous'],'executed_count':STATE['executed'],'active_application':active_application,'memory':'\n'.join([STATE['plan']]+STATE['memory'][-5:]+[str(x) for x in STATE['history'][-4:]]),'phase':STATE['phase'],'no_progress_count':VERIFIER.no_progress,'step':STATE['step'],'verifier':verification,'verified_milestones':MILESTONES.context(),'recovery_strategy':RECOVERY[VERIFIER.recovery_level],'route_cooldowns':STATE['cooldowns'],'expected_build':EXPECTED_BUILD,'performance_mode':elite_decision['mode'],'performance_reason':elite_decision['reason'],'performance_metrics':ELITE.metrics(),'reference_screenshot_data_url':STATE.get('visual_memory','') if STATE.get('visual_memory') and STATE.get('visual_memory')!=screenshot else '','reference_visual_meta':STATE.get('visual_memory_meta'),'task_ledger':{'verified_milestones':MILESTONES.context().get('verified',[]),'verified_facts':STATE.get('facts',[])[:24],'recent_outcomes':STATE['history'][-6:],'backtrack_anchor':ELITE.recovery_anchor(),'root_instruction_sha256':hashlib.sha256(task_from(messages).encode()).hexdigest(),'provider_waits':STATE.get('provider_waits',0),'cognitive_waits':STATE.get('wait_responses',0)}}
     recovery=recovery_policy(body['instruction'], body.get('active_application','unknown'), MILESTONES.stalled, VERIFIER.no_progress, VERIFIER.recovery_level, STATE['provider'], STATE.get('visual_capacity_exhausted',False))
     if recovery['strategy']:body['recovery_strategy']=recovery['strategy']
     if elite_decision['mode']=='replan' and ELITE.recovery_anchor().get('last_verified_checkpoint'):
-        anchor=ELITE.recovery_anchor()['last_verified_checkpoint']
-        body['recovery_strategy']=(str(body.get('recovery_strategy') or '')+
-            '\nCHECKPOINT BACKTRACK: the last independently verified state is '+json.dumps(anchor,ensure_ascii=False)+
-            '. Treat it as known-good and do not undo verified work. From the current foreground, choose a genuinely different route toward the next unmet subgoal; the next action must name a new observable checkpoint.')[-3000:]
+        anchor=ELITE.recovery_anchor()['last_verified_checkpoint']; body['recovery_strategy']=(str(body.get('recovery_strategy') or '')+'\nCHECKPOINT BACKTRACK: the last independently verified state is '+json.dumps(anchor,ensure_ascii=False)+'. Treat it as known-good and do not undo verified work. From the current foreground, choose a genuinely different route toward the next unmet subgoal; the next action must name a new observable checkpoint.')[-3000:]
     if recovery['provider_hint']:body['provider_hint']=recovery['provider_hint']
     visual_recovery=visual_reference_recovery(body['instruction'],body.get('active_application','unknown'),MILESTONES.stalled)
     if visual_recovery:body['recovery_strategy']=visual_recovery
@@ -440,124 +397,69 @@ def call_mesh(messages):
     if specialist_result:return specialist_result
     try:body,metrics=pack_payload(body)
     except ValueError as exc:return terminal(str(exc))
-    OBS_DIR.mkdir(parents=True,exist_ok=True)
-    evidence_path=OBS_DIR/('step_%04d.json'%STATE['step'])
-    evidence_path.write_text(json.dumps({'request':body,'payload':metrics},ensure_ascii=False),encoding='utf-8')
-    policy_rejections=0
-    provider_capacity_cycles=0
+    OBS_DIR.mkdir(parents=True,exist_ok=True); evidence_path=OBS_DIR/('step_%04d.json'%STATE['step']); evidence_path.write_text(json.dumps({'request':body,'payload':metrics},ensure_ascii=False),encoding='utf-8')
+    policy_rejections=0; provider_capacity_cycles=0; local_contract_cycles=0
     for attempt in range(3):
         if time.monotonic()-STARTED>=MAX_TASK_SECONDS-170:return terminal('TASK_DEADLINE')
-        HEALTH['pending_since']=time.time()
-        metrics['after_bytes']=len(json.dumps(body,ensure_ascii=False).encode())
-        http,data=request_mesh(body)
-        HEALTH['pending_since']=None
+        HEALTH['pending_since']=time.time(); metrics['after_bytes']=len(json.dumps(body,ensure_ascii=False).encode()); http,data=request_mesh(body); HEALTH['pending_since']=None
         if not isinstance(data,dict):data={'status':'INVALID_UPSTREAM_RESPONSE'}
         track_attempts(data)
         successful=[a for a in (data.get('provider_attempts') or []) if a.get('status')==200 and a.get('latency_seconds') is not None]
         if successful: ELITE.record_latency(successful[-1].get('latency_seconds'))
-        log_event({'http':http,'attempt':attempt+1,'status':data.get('status'),'provider':data.get('provider'),
-                   'model':data.get('model'),'agent_build':data.get('agent_build'),'pipeline':data.get('pipeline'),
-                   'provider_attempts':data.get('provider_attempts',[]),'action':data.get('action'),
-                   'mandatory_cost_usd':data.get('mandatory_cost_usd'),'paid_fallback_used':data.get('paid_fallback_used'),
-                   'transition_review':data.get('transition_review'),'error':data.get('error'),
-                   'detail':str(data.get('detail') or '')[:200],'payload':metrics,'observation_file':str(evidence_path)})
+        log_event({'http':http,'attempt':attempt+1,'status':data.get('status'),'provider':data.get('provider'),'model':data.get('model'),'agent_build':data.get('agent_build'),'pipeline':data.get('pipeline'),'provider_attempts':data.get('provider_attempts',[]),'action':data.get('action'),'mandatory_cost_usd':data.get('mandatory_cost_usd'),'paid_fallback_used':data.get('paid_fallback_used'),'transition_review':data.get('transition_review'),'error':data.get('error'),'detail':str(data.get('detail') or '')[:200],'payload':metrics,'observation_file':str(evidence_path)})
         if data.get('pipeline') or http==200:
             try:validate_response(data,EXPECTED_PIPELINE,EXPECTED_BUILD)
             except ValueError as exc:return terminal(str(exc))
         if http in (401,403):return terminal('ENDPOINT_AUTH_OR_VERSION')
-        if data.get('status') in LOCAL_FALLBACK_CAPACITY_STATUSES | {'LOCAL_ACTION_UNAVAILABLE','FREE_MESH_EXHAUSTED_CURRENT_CYCLE'}:
-            provider_capacity_cycles+=1
-            # Never pin later turns to one degraded provider. Retry the whole
-            # FREE mesh inside this same OSWorld turn with a different order.
-            body['provider_hint']='text' if attempt else 'openrouter'
-            log_event({'status':'EAGER_FREE_FAILOVER','attempt':attempt+1,'reason':data.get('status')})
-            continue
+        if data.get('status') in LOCAL_FALLBACK_CAPACITY_STATUSES | {'FREE_MESH_EXHAUSTED_CURRENT_CYCLE'}:
+            provider_capacity_cycles+=1; body['provider_hint']='text' if attempt else 'openrouter'; log_event({'status':'EAGER_FREE_FAILOVER','attempt':attempt+1,'reason':data.get('status')}); continue
+        if data.get('status') in LOCAL_CONTRACT_STATUSES:
+            local_contract_cycles+=1
+            body['memory']=(body['memory']+'\nLOCAL ACTION CONTRACT REPAIR: previous local output could not be safely compiled. Use one exact visible accessibility label or a literal keyboard action. Do not treat this as provider capacity.')[-4500:]
+            body['provider_hint']='text' if attempt==0 else 'openrouter'
+            log_event({'status':'LOCAL_ACTION_CONTRACT_RETRY','attempt':attempt+1,'reason':data.get('status')}); continue
         if http==409:
             if data.get('status')!='REPLAN_REQUIRED':return terminal('ENDPOINT_CONFLICT')
-            reason=str(data.get('review_reason') or 'independent reviewer requested replanning')
-            body['memory']=(body['memory']+'\nREVIEW REPLAN REQUIRED: '+reason+'. Do not repeat the rejected action; produce a new grounded action from the current observation.')[-4500:]
-            continue
+            reason=str(data.get('review_reason') or 'independent reviewer requested replanning'); body['memory']=(body['memory']+'\nREVIEW REPLAN REQUIRED: '+reason+'. Do not repeat the rejected action; produce a new grounded action from the current observation.')[-4500:]; continue
         if http==200 and data.get('ok') is True:
             try:
-                action=ground_action(data.get('action'),body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
-                decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
+                action=ground_action(data.get('action'),body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[])); decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
             except ValueError as exc:
-                policy_rejections+=1
-                body['memory']=(body['memory']+'\nPOLICY REJECTED: '+str(exc)+'. Replan within deterministic v32 state constraints. This is a local action-contract rejection, not provider-capacity evidence.')[-4500:]
-                body['provider_hint']='openrouter' if str(data.get('provider') or '').startswith('groq') else 'text'
-                log_event({'status':'LOCAL_POLICY_REJECTED','reason':str(exc),'attempt':attempt+1})
-                continue
+                policy_rejections+=1; body['memory']=(body['memory']+'\nPOLICY REJECTED: '+str(exc)+'. Replan within deterministic v32 state constraints. This is a local action-contract rejection, not provider-capacity evidence.')[-4500:]; body['provider_hint']='openrouter' if str(data.get('provider') or '').startswith('groq') else 'text'; log_event({'status':'LOCAL_POLICY_REJECTED','reason':str(exc),'attempt':attempt+1}); continue
             decision_kind=decision['kind']
             if decision_kind==DecisionKind.NOOP_VERIFIED.value:
-                log_event({'status':'NOOP_VERIFIED','checkpoint':action.get('checkpoint')})
-                STATE['wait_responses']+=1
-                ELITE.note_wait()
-                return 'WAIT'
+                log_event({'status':'NOOP_VERIFIED','checkpoint':action.get('checkpoint')}); STATE['wait_responses']+=1; ELITE.note_wait(); return 'WAIT'
             if decision_kind==DecisionKind.HOLD_CAPACITY.value:
-                STATE['provider_waits']=STATE.get('provider_waits',0)+1
-                log_event({'status':'HOLD_CAPACITY','provider_waits':STATE['provider_waits']})
-                return 'WAIT'
+                STATE['provider_waits']=STATE.get('provider_waits',0)+1; log_event({'status':'HOLD_CAPACITY','provider_waits':STATE['provider_waits']}); return 'WAIT'
             for fact in verified_facts(action,focused_obs):
                 entry='OBSERVED SOURCE: '+json.dumps(fact,ensure_ascii=False)
                 if entry not in STATE['memory']:STATE['memory'].append(entry)
                 if fact not in STATE['facts']: STATE['facts'].append(fact)
-            STATE['facts']=STATE['facts'][-24:]
-            STATE['memory']=STATE['memory'][-12:]
-            kind=action['action']
-            STATE['provider'],STATE['model']=data.get('provider',''),data.get('model','')
-            STATE['plan']=str(action.get('plan') or STATE['plan'])[:1400]
-            # Model memory_patch often describes its intended next action as done.
-            # Only the independently observed milestone above enters durable memory.
+            STATE['facts']=STATE['facts'][-24:]; STATE['memory']=STATE['memory'][-12:]
+            kind=action['action']; STATE['provider'],STATE['model']=data.get('provider',''),data.get('model',''); STATE['plan']=str(action.get('plan') or STATE['plan'])[:1400]
             if kind=='finish':
-                if MILESTONES.verified and MILESTONES.stalled==0 and VERIFIER.can_finish(action,obs):
-                    STATE['phase']='done';log_event({'status':'VERIFIED_FINISH','action':action});return 'DONE'
-                body['memory']=(body['memory']+'\nFINISH REJECTED: no sufficient observed completion. Verify all outputs on screen.')[-4500:]
-                continue
+                if MILESTONES.verified and MILESTONES.stalled==0 and VERIFIER.can_finish(action,obs): STATE['phase']='done';log_event({'status':'VERIFIED_FINISH','action':action});return 'DONE'
+                body['memory']=(body['memory']+'\nFINISH REJECTED: no sufficient observed completion. Verify all outputs on screen.')[-4500:]; continue
             if kind=='exec':
                 command=action['command']
                 if rejects_visual_navigation_loop(action, body['instruction'], body.get('active_application','unknown'), MILESTONES.stalled):
-                    body['memory']=(body['memory']+'\nVISUAL_NAVIGATION_LOOP_REJECTED: Ctrl+O was already used without a verified visual milestone. Use the visible dialog deliberately or make a target-image edit instead. Do not repeat it.')[-4500:]
-                    body.pop('provider_hint',None)
-                    log_event({'status':'VISUAL_NAVIGATION_LOOP_REJECTED','command':command})
-                    continue
+                    body['memory']=(body['memory']+'\nVISUAL_NAVIGATION_LOOP_REJECTED: Ctrl+O was already used without a verified visual milestone. Use the visible dialog deliberately or make a target-image edit instead. Do not repeat it.')[-4500:]; body.pop('provider_hint',None); log_event({'status':'VISUAL_NAVIGATION_LOOP_REJECTED','command':command}); continue
                 recent=[x['command'] for x in STATE['history'][-6:]]
                 if VERIFIER.no_progress and command in recent:
-                    body['memory']=(body['memory']+'\nNO EFFECT: rejected repeated action '+command+'. Change GUI strategy or target.')[-4500:]
-                    body['provider_hint']='openrouter' if str(data.get('provider') or '').startswith('groq') else 'text'
-                    route='groq-multimodal-free' if str(data.get('provider') or '').startswith('groq') else 'openrouter-multimodal-free'
-                    STATE['cooldowns'][route+':'+str(data.get('model'))]=int((time.time()+90)*1000)
-                    continue
+                    body['memory']=(body['memory']+'\nNO EFFECT: rejected repeated action '+command+'. Change GUI strategy or target.')[-4500:]; body['provider_hint']='openrouter' if str(data.get('provider') or '').startswith('groq') else 'text'; route='groq-multimodal-free' if str(data.get('provider') or '').startswith('groq') else 'openrouter-multimodal-free'; STATE['cooldowns'][route+':'+str(data.get('model'))]=int((time.time()+90)*1000); continue
                 elite_action=ELITE.before_action(command,action.get('target'))
                 if not elite_action['allow']:
-                    body['memory']=(body['memory']+'\nELITE TABU: action rejected because it previously produced no verified progress. Replan from the current screenshot with a genuinely different control/path.')[-4500:]
-                    log_event({'status':'ELITE_TABU_REJECTED','command':command,'reason':elite_action['reason']})
-                    continue
-                STATE['previous']=command;STATE['executed']+=1;STATE['wait_responses']=0;STATE['provider_waits']=0
-                STATE['history'].append({'command':command,'expected':action.get('expected_change','')})
-                STATE['history']=STATE['history'][-12:]
-                VERIFIER.issued(command)
-                MILESTONES.expect(action,obs)
-                log_event({'status':'ACTION_ISSUED','command':command})
-                return '```python\n'+command+'\n```'
+                    body['memory']=(body['memory']+'\nELITE TABU: action rejected because it previously produced no verified progress. Replan from the current screenshot with a genuinely different control/path.')[-4500:]; log_event({'status':'ELITE_TABU_REJECTED','command':command,'reason':elite_action['reason']}); continue
+                STATE['previous']=command;STATE['executed']+=1;STATE['wait_responses']=0;STATE['provider_waits']=0; STATE['history'].append({'command':command,'expected':action.get('expected_change','')}); STATE['history']=STATE['history'][-12:]; VERIFIER.issued(command); MILESTONES.expect(action,obs); log_event({'status':'ACTION_ISSUED','command':command}); return '```python\n'+command+'\n```'
             break
-        if http==413:
-            # Shrink useful text once; persistent route cooldown prevents repeated provider 413s.
-            body['observation']=body['observation'][:4000];body['memory']=body['memory'][-1500:]
-        elif http==422:
-            body['memory']=(body['memory']+'\nRecover invalid action: exec/finish/wait only. Command must be a valid literal Python string.')[-4500:]
-        elif http in (429,500,502,503,504):
-            body['route_cooldowns']=STATE['cooldowns']
-            time.sleep(2+attempt)
+        if http==413: body['observation']=body['observation'][:4000];body['memory']=body['memory'][-1500:]
+        elif http==422: body['memory']=(body['memory']+'\nRecover invalid action: exec/finish/wait only. Command must be a valid literal Python string.')[-4500:]
+        elif http in (429,500,502,503,504): body['route_cooldowns']=STATE['cooldowns']; time.sleep(2+attempt)
         else:break
-    if policy_rejections and provider_capacity_cycles==0:
-        # Valid zero-cost model responses existed, but every candidate action
-        # violated the local action contract.  Preserve the true cause; never
-        # mislabel compiler/policy rejection as provider exhaustion.
+    if local_contract_cycles or policy_rejections:
         return terminal('ACTION_CONTRACT_EXHAUSTED')
     STATE['provider_waits']=STATE.get('provider_waits',0)+1
-    log_event({'status':'FREE_MESH_EXHAUSTED','provider_waits':STATE['provider_waits'],'policy_rejections':policy_rejections,'provider_capacity_cycles':provider_capacity_cycles})
-    # All configured FREE routes were attempted repeatedly inside this same
-    # OSWorld turn. Never burn benchmark steps with provider-capacity WAITs.
+    log_event({'status':'FREE_MESH_EXHAUSTED','provider_waits':STATE['provider_waits'],'policy_rejections':policy_rejections,'local_contract_cycles':local_contract_cycles,'provider_capacity_cycles':provider_capacity_cycles})
     return terminal('PROVIDER_CAPACITY_EXHAUSTED')
 
 class Handler(BaseHTTPRequestHandler):
@@ -568,24 +470,17 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200,{'status':'ok','pipeline':EXPECTED_PIPELINE,'build':EXPECTED_BUILD}) if self.path=='/health' else self.send_json(404,{})
     def do_POST(self):
         if self.path!='/v1/chat/completions':return self.send_json(404,{'error':{'code':'not_found','message':'Not found'}})
-        # Close connections after every request: rejected/truncated bodies must not
-        # be interpreted as another request on a keep-alive connection.
-        self.close_connection=True
-        self.connection.settimeout(60)
+        self.close_connection=True; self.connection.settimeout(60)
         with LOCK:
             try:
-                messages,ingress=project_messages(self.rfile,int(self.headers.get('Content-Length','0')))
-                log_event({'status':'INGRESS_PROJECTED','ingress':ingress})
-                content=call_mesh(messages)
-            except (ValueError,TimeoutError) as exc:
-                content=terminal('INPUT_REJECTED:'+str(exc)[:120])
+                messages,ingress=project_messages(self.rfile,int(self.headers.get('Content-Length','0'))); log_event({'status':'INGRESS_PROJECTED','ingress':ingress}); content=call_mesh(messages)
+            except (ValueError,TimeoutError) as exc: content=terminal('INPUT_REJECTED:'+str(exc)[:120])
             except Exception as exc:
-                # A persistent local failure terminates the agent and lets the
-                # unmodified evaluator run. It can never produce DONE or PASS.
-                log_event({'status':'SHIM_ERROR','error_type':type(exc).__name__,'reason':str(exc)[:200]})
-                content=terminal('SHIM_INTERNAL_ERROR:'+type(exc).__name__)
+                log_event({'status':'SHIM_ERROR','error_type':type(exc).__name__,'reason':str(exc)[:200]}); content=terminal('SHIM_INTERNAL_ERROR:'+type(exc).__name__)
         self.send_json(200,{'id':'arbm-osworld-v32-isolated','object':'chat.completion','created':int(time.time()),'model':'gpt-arbm-osworld-v32-isolated','choices':[{'index':0,'message':{'role':'assistant','content':content},'finish_reason':'stop'}],'usage':{'prompt_tokens':0,'completion_tokens':0,'total_tokens':0}})
 
 if __name__=='__main__':
     threading.Thread(target=heartbeat,daemon=True).start()
+    if os.environ.get('ZERO_SPEND_MODE')=='HARD' and os.environ.get('ARBM_ENABLE_LOCAL_VLM')=='1':
+        threading.Thread(target=warm_runtime,daemon=True,name='arbm-local-vlm-warmup').start()
     ThreadingHTTPServer(('127.0.0.1',8088),Handler).serve_forever()
