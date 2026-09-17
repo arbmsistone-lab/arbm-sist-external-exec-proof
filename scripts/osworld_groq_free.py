@@ -1,4 +1,4 @@
-"""Direct Groq free-plan vision route with explicit zero-spend evidence."""
+"""Direct Groq free-plan route with explicit zero-spend evidence."""
 import json
 import os
 import time
@@ -10,7 +10,15 @@ from osworld_openrouter_free import prompt
 
 BASE = 'https://api.groq.com/openai/v1'
 ROUTE = 'groq-multimodal-free'
-MODELS = ('qwen/qwen3.8-27b', 'qwen/qwen3.6-27b')
+# Current Groq FREE limits publish 1K RPD / 8K TPM for these model families.
+# Keep multiple IDs because project-level model permissions can return 403 for
+# one model while another FREE-plan model remains available.
+MODELS = (
+    'openai/gpt-oss-20b',
+    'openai/gpt-oss-120b',
+    'qwen/qwen3.6-27b',
+    'qwen/qwen3.8-27b',
+)
 
 
 class GroqFreeRoute:
@@ -91,7 +99,7 @@ class GroqFreeRoute:
                 self.until = self.clock() + 300
                 break
             if status == 403:
-                # Model/policy scoped denial: try the next FREE model.
+                # Project/model permissions are scoped; try the next FREE model.
                 continue
             if status == 429:
                 self.until = self.clock() + max(30, float(headers.get('retry-after', 60) or 60))
