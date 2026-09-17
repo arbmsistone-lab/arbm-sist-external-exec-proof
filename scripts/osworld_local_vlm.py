@@ -40,7 +40,7 @@ def _norm(value):
 
 def _accessibility_targets(observation):
     targets=[]
-    for line in str(observation or '').splitlines():
+    for index,line in enumerate(str(observation or '').splitlines()):
         parts=line.split('\t')
         if len(parts) < 5:
             continue
@@ -57,9 +57,75 @@ def _accessibility_targets(observation):
         x,y=map(int,pos.groups()); w,h=map(int,size.groups())
         if w<=0 or h<=0:
             continue
+        pid_match=re.search(r'(?i)\b(?:active_window_pid|window_pid|process_id|pid)\s*[=:]\s*(\d+)\b',line)
         targets.append({'role':role,'name':name,'text':text,'label':label,
-                        'x':x,'y':y,'w':w,'h':h,'cx':x+w//2,'cy':y+h//2})
+                        'x':x,'y':y,'w':w,'h':h,'cx':x+w//2,'cy':y+h//2,
+                        'pid':int(pid_match.group(1)) if pid_match else None,
+                        'line_index':index,'raw_line':line})
     return targets
+
+
+def _foreground_observation(body):
+    observation=str(body.get('observation') or '')
+    lines=observation.splitlines()
+    roots=[]
+    for item in _accessibility_targets(observation):
+        if _norm(item.get('role')) not in {'document-web','document','frame','dialog','window'}:
+            continue
+        area=int(item.get('w') or 0)*int(item.get('h') or 0)
+        if area<=0:
+            continue
+        roots.append((area,int(item.get('line_index') or 0),item))
+    if not roots:
+        return observation,{'strategy':'full-tree-no-root','root':None}
+    roots.sort(key=lambda row:(row[0],row[1]),reverse=True)
+    _,start,root=roots[0]
+    prefix=[]
+    for line in lines[:start]:
+        if line.startswith(('ACTIVE APPLICATION','BACKGROUND DESKTOP FILES','Given the screenshot','tag\t')):
+            prefix.append(line)
+    segment=prefix+lines[start:]
+    return '\n'.join(segment),{
+        'strategy':'dominant-document-root',
+        'root':{'role':root['role'],'label':root['label'],'x':root['x'],'y':root['y'],'w':root['w'],'h':root['h'],'line_index':start}
+    }
+
+
+def _viewport_accepts(item,body):
+    geometry=body.get('image_geometry') if isinstance(body.get('image_geometry'),dict) else {}
+    width=int(geometry.get('width') or 1920)
+    height=int(geometry.get('height') or 1080)
+    x=int(item.get('x') or 0); y=int(item.get('y') or 0)
+    w=int(item.get('w') or 0); h=int(item.get('h') or 0)
+    return not (x+w<=0 or y+h<=0 or x>=width or y>=height)
+
+
+def _pid_accepts(item,body):
+    active=body.get('active_window_pid')
+    if active in (None,''):
+        return True
+    try:
+        active=int(active)
+    except (ValueError,TypeError):
+        return True
+    pid=item.get('pid')
+    return pid is None or int(pid)==active
+
+
+def _preflight_candidate(item,body,foreground_observation):
+    role=_norm(item.get('role')); label=str(item.get('label') or '').strip()
+    if role not in _ACTIONABLE_ROLES or not label:
+        return None
+    if not _viewport_accepts(item,body) or not _pid_accepts(item,body):
+        return None
+    action={'action':'exec',
+            'command':f"pyautogui.click({item['cx']}, {item['cy']})",
+            'target':{'source':'accessibility','label':item['label'],'role':item['role']}}
+    try:
+        compiled=_compile_action(action,foreground_observation)
+    except ValueError:
+        return None
+    return compiled
 
 
 def _resolve_accessibility_target(label, observation, role=''):
@@ -328,6 +394,19 @@ def _recent_tabu_counts(body):
     if previous and no_progress:
         fp=_action_fingerprint({'action':'exec','command':previous})
         counts[fp]=max(counts.get(fp,0),no_progress)
+    request_tabu=body.get('request_tabu') if isinstance(body.get('request_tabu'),list) else []
+    for row in request_tabu[-12:]:
+        if not isinstance(row,dict):
+            continue
+        action={'action':row.get('action') or 'exec',
+                'command':str(row.get('command') or ''),
+                'target':row.get('target') if isinstance(row.get('target'),dict) else {}}
+        fp=_action_fingerprint(action)
+        if fp:
+            counts[fp]=counts.get(fp,0)+max(1,int(row.get('weight') or 1))
+        command_fp=_action_fingerprint({'action':'exec','command':str(row.get('command') or '')})
+        if command_fp:
+            counts[command_fp]=counts.get(command_fp,0)+max(1,int(row.get('weight') or 1))
     return counts
 
 
@@ -400,7 +479,7 @@ def _selector_goal(body, limit=720):
 
 
 def _selector_candidates(body, limit=18):
-    observation=str(body.get('observation') or '')
+    observation,foreground_meta=_foreground_observation(body)
     context=_norm(' '.join((
         str(body.get('instruction') or ''),
         str(body.get('memory') or ''),
@@ -409,13 +488,15 @@ def _selector_candidates(body, limit=18):
         str(body.get('active_application') or ''),
     )))
     context_terms={x for x in re.findall(r'[a-z0-9][a-z0-9_.&-]{2,}',context) if len(x)>=4}
-    seen=set(); ranked=[]
+    seen=set(); ranked=[]; rejected=0
     negative={'close','minimise','minimize','restore','reload','trash','spam','bookmark this tab'}
     role_bonus={'section':8,'link':5,'entry':4,'menu-item':3,'tab':3,'push-button':2,
                 'toggle-button':2,'combo-box':2,'list-item':2,'tree-item':2,'button':2,'menu':1}
     for item in _accessibility_targets(observation):
         role=_norm(item.get('role')); label=str(item.get('label') or '').strip()
-        if role not in _ACTIONABLE_ROLES or not label:
+        compiled=_preflight_candidate(item,body,observation)
+        if compiled is None:
+            rejected+=1
             continue
         key=(role,_norm(label),item['x'],item['y'],item['w'],item['h'])
         if key in seen:
@@ -430,18 +511,19 @@ def _selector_candidates(body, limit=18):
             score-=8
         if item['x']<75 and role in {'push-button','toggle-button'}:
             score+=1
-        ranked.append((score,len(label_norm),item))
+        ranked.append((score,len(label_norm),item,compiled))
     ranked.sort(key=lambda row:(-row[0],-row[1],row[2]['y'],row[2]['x']))
     controls=[]
-    for _,_,item in ranked[:max(1,int(limit))]:
-        action={'action':'exec',
-                'command':f"pyautogui.click({item['cx']}, {item['cy']})",
-                'target':{'source':'accessibility','label':item['label'],'role':item['role']}}
-        controls.append({'description':f"click [{item['role']}] {item['label']}",'action':action})
+    for _,_,item,compiled in ranked[:max(1,int(limit))]:
+        controls.append({'description':f"click [{item['role']}] {item['label']}",
+                         'action':compiled,
+                         'foreground_meta':foreground_meta})
     for description,action in _SELECTOR_SPECIALS:
         if len(controls)>=len(_SELECTOR_SYMBOLS):
             break
-        controls.append({'description':description,'action':dict(action)})
+        controls.append({'description':description,'action':dict(action),'foreground_meta':foreground_meta})
+    for row in controls:
+        row['preflight_rejected_count']=rejected
     return controls[:len(_SELECTOR_SYMBOLS)]
 
 
@@ -532,7 +614,7 @@ def default_select_action(body, image_b64):
         ordered_probs=torch.sort(probs,descending=True).values
         margin=float(adjusted[chosen]-max((v for s,v in adjusted.items() if s!=chosen),default=adjusted[chosen]-999.0))
         entropy=float(-(probs*torch.log(probs.clamp_min(1e-12))).sum())
-        action=_compile_action(candidates[chosen_index]['action'],body.get('observation',''))
+        action=dict(candidates[chosen_index]['action'])
         top=sorted(
             ({'symbol':s,'raw_logit':round(raw_scores[s],5),'penalty':round(penalties[s],5),
               'adjusted_logit':round(adjusted[s],5),'tabu_count':counts[s],
@@ -548,6 +630,8 @@ def default_select_action(body, image_b64):
               'selector_prompt_chars':len(prompt),'selector_input_mode':'vision+text' if image is not None else 'accessibility-text-only',
               'selector_image_width':image.width if image is not None else 0,
               'selector_image_height':image.height if image is not None else 0,
+              'selector_foreground':candidates[chosen_index].get('foreground_meta'),
+              'selector_preflight_rejected':int(candidates[chosen_index].get('preflight_rejected_count') or 0),
               **runtime_meta}
         return action,meta
     finally:
