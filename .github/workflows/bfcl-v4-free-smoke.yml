@@ -23,6 +23,7 @@ jobs:
           test -n "$OPENROUTER_API_KEY"
           test "$ZERO_SPEND_MODE" = HARD
           mkdir -p evidence
+          python -m pip install --disable-pip-version-check -q 'openai>=1.50,<3' 'pillow==11.3.0' 'pyyaml==6.0.2'
           ARBM_G3_USAGE_LOG="$PWD/evidence/free-probe-usage.jsonl" python certification/g3_free_control.py probe --model "$ARBM_BFCL_MODEL" --output evidence/free-capability.json
       - name: Checkout pinned BFCL
         run: |
