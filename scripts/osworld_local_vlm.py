@@ -187,7 +187,11 @@ def _narrative_reference_action(raw, observation):
     for item in _accessibility_targets(observation):
         label=str(item.get('label') or '').strip()
         norm=_norm(label)
-        if len(norm) < 12 or norm not in low:
+        # Narrative text can mention headings/static text, but downstream
+        # pointer policy accepts only actionable accessibility nodes.
+        if _norm(item.get('role')) not in _ACTIONABLE_ROLES:
+            continue
+        if len(norm) < 2 or norm not in low:
             continue
         candidates.append((len(norm),item))
     if not candidates:
