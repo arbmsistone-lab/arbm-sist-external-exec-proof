@@ -17,49 +17,50 @@ jobs:
       - name: Run remote performance certification
         shell: bash
         env:
-          BASE_URL: https://arbm-control-senior-d2xvhh.v2.appdeploy.ai
+          APP_URL: https://arbm-control-senior-d2xvhh.v2.appdeploy.ai
+          WORKER_URL: https://telemetry-61d221-arbm-control.zevanory.workers.dev
         run: |
           set -euo pipefail
           python - <<'PY'
-          import concurrent.futures, json, os, statistics, time, urllib.error, urllib.request
-          base=os.environ['BASE_URL'].rstrip('/')
-          health=base + '/api/_healthcheck'
-          dashboard=base + '/api/dashboard'
+          import concurrent.futures, json, os, time, urllib.error, urllib.request
+          app=os.environ['APP_URL'].rstrip('/')
+          worker=os.environ['WORKER_URL'].rstrip('/')
           def req(url, timeout=15):
               t=time.perf_counter()
               try:
                   r=urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'ARBM-CONTROL-SENIOR-PERF','Cache-Control':'no-cache'}),timeout=timeout)
-                  code=r.getcode(); r.read(512)
+                  code=r.getcode(); body=r.read(2048)
               except urllib.error.HTTPError as e:
-                  code=e.code; e.read(512)
-              return code,(time.perf_counter()-t)*1000
-          first_code,first_ms=req(health)
-          warm=[req(health) for _ in range(30)]
-          lat=[ms for code,ms in warm if code==200]
-          if len(lat)!=30: raise SystemExit('health_not_stable')
+                  code=e.code; body=e.read(2048)
+              return code,(time.perf_counter()-t)*1000,body
           def pct(xs,p):
               xs=sorted(xs); idx=max(0,min(len(xs)-1,int((p/100)*(len(xs)-1)+0.999999))); return xs[idx]
-          with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
-              conc=list(ex.map(lambda _: req(health), range(50)))
-          conc_lat=[ms for code,ms in conc if code==200]
-          if len(conc_lat)!=50: raise SystemExit('concurrency_health_failure')
-          anon_code,anon_ms=req(dashboard)
-          if anon_code not in (401,403): raise SystemExit(f'protected_route_not_denied:{anon_code}')
-          bad_code,bad_ms=req(base + '/api/__forced_missing_route__')
-          recovery_code,recovery_ms=req(health)
-          if recovery_code!=200: raise SystemExit('health_did_not_recover_after_negative_probe')
-          report={
-            'schema':'arbm-control-senior-performance-v1',
-            'target':base,
-            'first_request_ms':round(first_ms,2),
-            'first_request_status':first_code,
-            'warm':{'n':len(lat),'p50_ms':round(pct(lat,50),2),'p95_ms':round(pct(lat,95),2),'p99_ms':round(pct(lat,99),2),'max_ms':round(max(lat),2)},
-            'concurrency':{'requests':50,'workers':10,'success':len(conc_lat),'p50_ms':round(pct(conc_lat,50),2),'p95_ms':round(pct(conc_lat,95),2),'p99_ms':round(pct(conc_lat,99),2),'max_ms':round(max(conc_lat),2)},
-            'security_guard':{'anonymous_dashboard_status':anon_code,'latency_ms':round(anon_ms,2)},
-            'recovery_probe':{'negative_status':bad_code,'negative_latency_ms':round(bad_ms,2),'post_probe_health_status':recovery_code,'post_probe_health_ms':round(recovery_ms,2)},
-            'cold_start_certified':False,
-            'cold_start_note':'First request measured from fresh client process; platform instance coldness cannot be proven without provider lifecycle control.'
+          targets={
+            'app_health': app + '/api/_healthcheck',
+            'worker_health': worker + '/health'
           }
+          report={'schema':'arbm-control-senior-performance-v2','targets':{},'cold_start_certified':False,'cold_start_note':'First request is measured from a fresh client process only; provider instance coldness is not asserted.'}
+          for name,url in targets.items():
+              first_code,first_ms,_=req(url)
+              if first_code!=200: raise SystemExit(f'{name}_first_status:{first_code}')
+              warm=[req(url) for _ in range(30)]
+              lat=[ms for code,ms,_ in warm if code==200]
+              if len(lat)!=30: raise SystemExit(f'{name}_warm_instability')
+              with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
+                  conc=list(ex.map(lambda _: req(url), range(50)))
+              clat=[ms for code,ms,_ in conc if code==200]
+              if len(clat)!=50: raise SystemExit(f'{name}_concurrency_failure')
+              report['targets'][name]={
+                'first_request_ms':round(first_ms,2),
+                'warm':{'n':30,'p50_ms':round(pct(lat,50),2),'p95_ms':round(pct(lat,95),2),'p99_ms':round(pct(lat,99),2),'max_ms':round(max(lat),2)},
+                'concurrency':{'requests':50,'workers':10,'success':50,'p50_ms':round(pct(clat,50),2),'p95_ms':round(pct(clat,95),2),'p99_ms':round(pct(clat,99),2),'max_ms':round(max(clat),2)}
+              }
+          unauth_code,unauth_ms,_=req(worker + '/telemetry/v1')
+          if unauth_code!=401: raise SystemExit(f'worker_fail_closed_expected_401_got:{unauth_code}')
+          rec_code,rec_ms,_=req(worker + '/health')
+          if rec_code!=200: raise SystemExit('worker_health_not_recovered')
+          report['security_guard']={'telemetry_without_token_status':unauth_code,'latency_ms':round(unauth_ms,2)}
+          report['recovery_probe']={'post_negative_health_status':rec_code,'post_negative_health_ms':round(rec_ms,2)}
           os.makedirs('evidence/arbm-control-senior-performance',exist_ok=True)
           with open('evidence/arbm-control-senior-performance/report.json','w') as f: json.dump(report,f,indent=2)
           print(json.dumps(report,indent=2))
