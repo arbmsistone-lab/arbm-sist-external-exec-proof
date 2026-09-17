@@ -442,7 +442,7 @@ def call_mesh(messages):
     if VERIFIER.no_progress>=MAX_NO_PROGRESS or STATE['wait_responses']>=MAX_WAIT_RESPONSES or STATE['step']>MAX_STEPS:
         return terminal('RECOVERY_EXHAUSTED' if STATE['step']<=MAX_STEPS else 'STEP_BUDGET')
     STATE['phase']='plan' if (elite_decision['mode']=='replan' or VERIFIER.no_progress>=2 or not STATE['plan']) else 'execute'
-    body={'instruction':task_from(messages),'observation':obs,'screenshot_data_url':screenshot,'previous_command':STATE['previous'],'executed_count':STATE['executed'],'active_application':active_application,'memory':'\n'.join([STATE['plan']]+STATE['memory'][-5:]+[str(x) for x in STATE['history'][-4:]]),'phase':STATE['phase'],'no_progress_count':VERIFIER.no_progress,'step':STATE['step'],'verifier':verification,'verified_milestones':MILESTONES.context(),'recovery_strategy':RECOVERY[VERIFIER.recovery_level],'route_cooldowns':STATE['cooldowns'],'expected_build':EXPECTED_BUILD,'performance_mode':elite_decision['mode'],'performance_reason':elite_decision['reason'],'performance_metrics':ELITE.metrics(),'reference_screenshot_data_url':STATE.get('visual_memory','') if STATE.get('visual_memory') and STATE.get('visual_memory')!=screenshot else '','reference_visual_meta':STATE.get('visual_memory_meta'),'task_ledger':{'verified_milestones':MILESTONES.context().get('verified',[]),'verified_facts':STATE.get('facts',[])[:24],'recent_outcomes':STATE['history'][-6:],'backtrack_anchor':ELITE.recovery_anchor(),'root_instruction_sha256':hashlib.sha256(task_from(messages).encode()).hexdigest(),'provider_waits':STATE.get('provider_waits',0),'cognitive_waits':STATE.get('wait_responses',0)}}
+    body={'instruction':task_from(messages),'observation':obs,'screenshot_data_url':screenshot,'previous_command':STATE['previous'],'executed_count':STATE['executed'],'active_application':active_application,'memory':'\n'.join([STATE['plan']]+STATE['memory'][-5:]+[str(x) for x in STATE['history'][-4:]]),'phase':STATE['phase'],'no_progress_count':VERIFIER.no_progress,'step':STATE['step'],'verifier':verification,'verified_milestones':MILESTONES.context(),'recovery_strategy':RECOVERY[VERIFIER.recovery_level],'route_cooldowns':STATE['cooldowns'],'expected_build':EXPECTED_BUILD,'performance_mode':elite_decision['mode'],'performance_reason':elite_decision['reason'],'performance_metrics':ELITE.metrics(),'reference_screenshot_data_url':STATE.get('visual_memory','') if STATE.get('visual_memory') and STATE.get('visual_memory')!=screenshot else '','reference_visual_meta':STATE.get('visual_memory_meta'),'task_ledger':{'verified_milestones':MILESTONES.context().get('verified',[]),'verified_facts':STATE.get('facts',[])[:24],'recent_outcomes':STATE['history'][-6:],'backtrack_anchor':ELITE.recovery_anchor(),'root_instruction_sha256':hashlib.sha256(task_from(messages).encode()).hexdigest(),'provider_waits':STATE.get('provider_waits',0),'cognitive_waits':STATE.get('wait_responses',0),'no_progress_count':VERIFIER.no_progress,'verifier_reason':verification.get('reason')}}
     recovery=recovery_policy(body['instruction'], body.get('active_application','unknown'), MILESTONES.stalled, VERIFIER.no_progress, VERIFIER.recovery_level, STATE['provider'], STATE.get('visual_capacity_exhausted',False))
     if recovery['strategy']:body['recovery_strategy']=recovery['strategy']
     if elite_decision['mode']=='replan' and ELITE.recovery_anchor().get('last_verified_checkpoint'):
@@ -519,10 +519,16 @@ def call_mesh(messages):
         else:break
     if local_contract_cycles or policy_rejections:
         return terminal('ACTION_CONTRACT_EXHAUSTED')
+    if VERIFIER.no_progress>0 and provider_capacity_cycles==0 and local_transient_cycles==0:
+        log_event({'status':'NO_PROGRESS_EXHAUSTED','no_progress':VERIFIER.no_progress,
+                   'verifier_reason':VERIFIER.last_result.get('reason'),
+                   'local_contract_cycles':local_contract_cycles,
+                   'provider_capacity_cycles':provider_capacity_cycles})
+        return terminal('NO_PROGRESS_TIMEOUT')
     if local_transient_cycles and provider_capacity_cycles==0:
         return terminal('LOCAL_FALLBACK_TRANSIENT_EXHAUSTED')
     STATE['provider_waits']=STATE.get('provider_waits',0)+1
-    log_event({'status':'FREE_MESH_EXHAUSTED','provider_waits':STATE['provider_waits'],'policy_rejections':policy_rejections,'local_contract_cycles':local_contract_cycles,'provider_capacity_cycles':provider_capacity_cycles})
+    log_event({'status':'FREE_MESH_EXHAUSTED','provider_waits':STATE['provider_waits'],'policy_rejections':policy_rejections,'local_contract_cycles':local_contract_cycles,'provider_capacity_cycles':provider_capacity_cycles,'no_progress':VERIFIER.no_progress,'verifier_reason':VERIFIER.last_result.get('reason')})
     return terminal('PROVIDER_CAPACITY_EXHAUSTED')
 
 class Handler(BaseHTTPRequestHandler):
