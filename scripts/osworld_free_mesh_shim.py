@@ -1,5 +1,5 @@
 """OpenAI-compatible OSWorld bridge. All guest execution stays in official OSWorld."""
-import json, os, time, urllib.request, urllib.error, hashlib, threading
+import argparse, json, os, time, urllib.request, urllib.error, hashlib, threading
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from osworld_ingress import project_messages
@@ -43,6 +43,65 @@ MAX_TASK_SECONDS = int(os.environ.get('ARBM_TASK_SECONDS', '2400'))
 HEALTH = {'last_event':'initializing','last_error':'','retry':0,'pending_since':None}
 STOP = threading.Event()
 
+
+# ARBM_TOP3_MESH_SESSION_BUDGET_V1
+MESH_TOTAL_BUDGET_SECONDS=float(os.environ.get('ARBM_MESH_TOTAL_BUDGET_SECONDS','105'))
+LOCAL_VLM_RESERVE_SECONDS=float(os.environ.get('ARBM_LOCAL_VLM_RESERVE_SECONDS','25'))
+GATEWAY_TIMEOUT_CAP_SECONDS=float(os.environ.get('ARBM_GATEWAY_TIMEOUT_CAP_SECONDS','45'))
+MAX_SESSION_STORES=int(os.environ.get('ARBM_MAX_SESSION_STORES','32'))
+SESSION_STORES={}
+CURRENT_SESSION_KEY='bootstrap'
+
+
+def _fresh_state():
+    return {'step':0,'previous':'','executed':0,'phase':'plan','plan':'','memory':[],
+            'history':[],'facts':[],'wait_responses':0,'provider_waits':0,'cooldowns':{},
+            'terminal':'','provider':'','model':'','visual_memory':'','visual_memory_meta':None,
+            'gimp_specialist':{}}
+
+
+def _fresh_elite():
+    return EliteController(
+        fast_latency_s=float(os.environ.get('ARBM_ELITE_FAST_LATENCY_S','8')),
+        hard_latency_s=float(os.environ.get('ARBM_ELITE_HARD_LATENCY_S','20')),
+        max_waits=int(os.environ.get('ARBM_ELITE_MAX_WAITS','2')),
+        max_stall=int(os.environ.get('ARBM_ELITE_MAX_STALL','3')))
+
+
+def _new_session_bundle():
+    return {'state':_fresh_state(),'verifier':Verifier(),'milestones':Milestones(),
+            'elite':_fresh_elite(),'health':{'last_event':'initializing','last_error':'','retry':0,'pending_since':None},
+            'started':time.monotonic(),'last_used':time.time()}
+
+
+def _session_key(raw=''):
+    raw=str(raw or (os.environ.get('GITHUB_RUN_ID','local')+':'+os.environ.get('TASK_ID','unknown')))
+    return hashlib.sha256(raw.encode()).hexdigest()[:24]
+
+
+def activate_session(raw=''):
+    global STATE,VERIFIER,MILESTONES,ELITE,HEALTH,STARTED,CURRENT_SESSION_KEY
+    key=_session_key(raw); bundle=SESSION_STORES.get(key)
+    if bundle is None:
+        if len(SESSION_STORES)>=MAX_SESSION_STORES:
+            oldest=min(SESSION_STORES,key=lambda k:SESSION_STORES[k]['last_used']); SESSION_STORES.pop(oldest,None)
+        bundle=_new_session_bundle(); SESSION_STORES[key]=bundle
+    bundle['last_used']=time.time(); CURRENT_SESSION_KEY=key
+    STATE=bundle['state']; VERIFIER=bundle['verifier']; MILESTONES=bundle['milestones']; ELITE=bundle['elite']; HEALTH=bundle['health']; STARTED=bundle['started']
+    return key
+
+
+def mesh_remaining(started):
+    return max(0.0,MESH_TOTAL_BUDGET_SECONDS-(time.monotonic()-started))
+
+
+def mesh_external_budget(started,cap):
+    return max(2.0,min(float(cap),max(0.0,mesh_remaining(started)-LOCAL_VLM_RESERVE_SECONDS)))
+
+
+def mesh_local_budget(started,cap=80):
+    return max(2.0,min(float(cap),mesh_remaining(started)))
+
 RECOVERY = [
     'Observe foreground and choose one visible control for the next subtask.',
     'Previous action had no verified effect. Obtain fresh observation; identify the foreground window before acting.',
@@ -84,7 +143,7 @@ def log_event(data):
     HEALTH['last_event']=data.get('status','unknown')
     if data.get('reason'):HEALTH['last_error']=data['reason']
     HEALTH['retry']=data.get('attempt',0)
-    event={'timestamp':time.time(),'elapsed_seconds':round(time.monotonic()-STARTED,2),**data,'step':STATE['step'],'phase':STATE['phase'],'task_id':os.environ.get('TASK_ID'),
+    event={'timestamp':time.time(),'session_id':CURRENT_SESSION_KEY,'elapsed_seconds':round(time.monotonic()-STARTED,2),**data,'step':STATE['step'],'phase':STATE['phase'],'task_id':os.environ.get('TASK_ID'),
            'commit':os.environ.get('GITHUB_SHA'),'verifier':VERIFIER.last_result,'semantic':MILESTONES.context()}
     with open(LOG,'a',encoding='utf-8') as f:f.write(json.dumps(event,ensure_ascii=False,separators=(',',':'))+'\n')
 
@@ -118,11 +177,11 @@ def track_attempts(data):
         elif a.get('contract_error'):seconds=90
         if seconds:STATE['cooldowns'][key]=int((time.time()+seconds)*1000)
 
-def request_gateway(body):
+def request_gateway(body, timeout=75):
     raw=json.dumps(body,ensure_ascii=False).encode()
     req=urllib.request.Request(UPSTREAM,data=raw,method='POST',headers={'Authorization':'Bearer '+oidc_token(),'Content-Type':'application/json'})
     try:
-        with urllib.request.urlopen(req,timeout=75) as res:return res.status,json.loads(res.read())
+        with urllib.request.urlopen(req,timeout=max(2,min(float(timeout),75))) as res:return res.status,json.loads(res.read())
     except urllib.error.HTTPError as err:
         try:data=json.loads(err.read())
         except (json.JSONDecodeError, UnicodeDecodeError):data={'status':'INVALID_UPSTREAM_RESPONSE'}
@@ -144,7 +203,7 @@ def request_mesh(body):
     body={**body,'request_budget_ms':60000}
     router_attempts=[]
     def groq_router():
-        result, attempts=GROQ_FREE_ROUTE.call(body,budget=max(2,min(55,105-(time.monotonic()-started))))
+        result, attempts=GROQ_FREE_ROUTE.call(body,budget=mesh_external_budget(started,55))
         router_attempts.extend(attempts)
         if result:
             return 200,{'ok':True,'status':'PASS','pipeline':EXPECTED_PIPELINE,
@@ -152,7 +211,7 @@ def request_mesh(body):
                 'mandatory_cost_usd':0,'paid_fallback_used':False,'scoreable':False,
                 'github_sha':os.environ.get('GITHUB_SHA'),'github_run_id':os.environ.get('GITHUB_RUN_ID')}
     def router():
-        result, attempts=FREE_ROUTE.call(body,budget=max(2,min(55,105-(time.monotonic()-started))))
+        result, attempts=FREE_ROUTE.call(body,budget=mesh_external_budget(started,55))
         router_attempts.extend(attempts)
         if result:
             return 200,{'ok':True,'status':'PASS','pipeline':EXPECTED_PIPELINE,
@@ -160,7 +219,7 @@ def request_mesh(body):
                 'mandatory_cost_usd':0,'paid_fallback_used':False,'scoreable':False,
                 'github_sha':os.environ.get('GITHUB_SHA'),'github_run_id':os.environ.get('GITHUB_RUN_ID')}
     def local_router():
-        result, attempts=LOCAL_VLM_ROUTE.call(body,budget=max(2,min(80,105-(time.monotonic()-started))))
+        result, attempts=LOCAL_VLM_ROUTE.call(body,budget=mesh_local_budget(started,80))
         router_attempts.extend(attempts)
         if result:
             return 200,{'ok':True,'status':'PASS','pipeline':EXPECTED_PIPELINE,
@@ -171,7 +230,7 @@ def request_mesh(body):
         return 503,{'status':'NON_ZERO_SPEND_MODE_FORBIDDEN','provider_attempts':router_attempts,
                     'mandatory_cost_usd':0,'paid_fallback_used':False}
     def text_router():
-        remaining=max(2,min(45,105-(time.monotonic()-started)))
+        remaining=mesh_external_budget(started,45)
         raw=[{'role':'system','content':'Return exactly one JSON desktop action. Use only the provided accessibility tree and verified facts. Never claim visual details that are not in the tree.'},
              {'role':'user','content':openrouter_prompt({**body,'screenshot_data_url':''})}]
         result, attempts=FREE_ROUTE.call(body,budget=remaining,raw_messages=raw,raw_tokens=900)
@@ -194,8 +253,11 @@ def request_mesh(body):
     if response:return response
     response=groq_router()
     if response:return response
-    body['request_budget_ms']=max(1000,min(60000,int((105-(time.monotonic()-started))*1000)))
-    http,data=request_gateway(body)
+    # Preserve an independent quota-free path before the long remote gateway.
+    response=local_router()
+    if response:return response
+    body['request_budget_ms']=max(1000,min(60000,int(mesh_external_budget(started,60)*1000)))
+    http,data=request_gateway(body,timeout=mesh_external_budget(started,GATEWAY_TIMEOUT_CAP_SECONDS))
     if http==200 and isinstance(data,dict) and data.get('ok') is True:
         if router_attempts:data['provider_attempts']=(data.get('provider_attempts') or [])+router_attempts
         return http,data
@@ -204,15 +266,12 @@ def request_mesh(body):
     if response:
         response[1]['provider_attempts']=gateway_attempts+router_attempts
         return response
-    response=local_router()
-    if response:
-        response[1]['provider_attempts']=gateway_attempts+router_attempts
-        return response
     all_attempts=gateway_attempts+router_attempts
     if _local_contract_failure(all_attempts):
         return 422,{'status':'LOCAL_ACTION_CONTRACT_EXHAUSTED','provider_attempts':all_attempts,
                     'mandatory_cost_usd':0,'paid_fallback_used':False}
-    return 503,{'status':'FREE_MESH_EXHAUSTED_CURRENT_CYCLE',
+    local_transient=any(a.get('route')=='local-cloud-vlm' and a.get('status') in ('local_model_error','budget_exceeded') for a in all_attempts)
+    return 503,{'status':'LOCAL_TRANSIENT_FAILURE_CURRENT_CYCLE' if local_transient else 'FREE_MESH_EXHAUSTED_CURRENT_CYCLE',
                 'provider_attempts':all_attempts,
                 'mandatory_cost_usd':0,'paid_fallback_used':False}
 
@@ -398,7 +457,7 @@ def call_mesh(messages):
     try:body,metrics=pack_payload(body)
     except ValueError as exc:return terminal(str(exc))
     OBS_DIR.mkdir(parents=True,exist_ok=True); evidence_path=OBS_DIR/('step_%04d.json'%STATE['step']); evidence_path.write_text(json.dumps({'request':body,'payload':metrics},ensure_ascii=False),encoding='utf-8')
-    policy_rejections=0; provider_capacity_cycles=0; local_contract_cycles=0
+    policy_rejections=0; provider_capacity_cycles=0; local_contract_cycles=0; local_transient_cycles=0
     for attempt in range(3):
         if time.monotonic()-STARTED>=MAX_TASK_SECONDS-170:return terminal('TASK_DEADLINE')
         HEALTH['pending_since']=time.time(); metrics['after_bytes']=len(json.dumps(body,ensure_ascii=False).encode()); http,data=request_mesh(body); HEALTH['pending_since']=None
@@ -411,6 +470,8 @@ def call_mesh(messages):
             try:validate_response(data,EXPECTED_PIPELINE,EXPECTED_BUILD)
             except ValueError as exc:return terminal(str(exc))
         if http in (401,403):return terminal('ENDPOINT_AUTH_OR_VERSION')
+        if data.get('status')=='LOCAL_TRANSIENT_FAILURE_CURRENT_CYCLE':
+            local_transient_cycles+=1; body['provider_hint']='text' if attempt==0 else 'openrouter'; log_event({'status':'LOCAL_TRANSIENT_RETRY','attempt':attempt+1}); continue
         if data.get('status') in LOCAL_FALLBACK_CAPACITY_STATUSES | {'FREE_MESH_EXHAUSTED_CURRENT_CYCLE'}:
             provider_capacity_cycles+=1; body['provider_hint']='text' if attempt else 'openrouter'; log_event({'status':'EAGER_FREE_FAILOVER','attempt':attempt+1,'reason':data.get('status')}); continue
         if data.get('status') in LOCAL_CONTRACT_STATUSES:
@@ -458,6 +519,8 @@ def call_mesh(messages):
         else:break
     if local_contract_cycles or policy_rejections:
         return terminal('ACTION_CONTRACT_EXHAUSTED')
+    if local_transient_cycles and provider_capacity_cycles==0:
+        return terminal('LOCAL_FALLBACK_TRANSIENT_EXHAUSTED')
     STATE['provider_waits']=STATE.get('provider_waits',0)+1
     log_event({'status':'FREE_MESH_EXHAUSTED','provider_waits':STATE['provider_waits'],'policy_rejections':policy_rejections,'local_contract_cycles':local_contract_cycles,'provider_capacity_cycles':provider_capacity_cycles})
     return terminal('PROVIDER_CAPACITY_EXHAUSTED')
@@ -471,7 +534,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path!='/v1/chat/completions':return self.send_json(404,{'error':{'code':'not_found','message':'Not found'}})
         self.close_connection=True; self.connection.settimeout(60)
+        session_raw=self.headers.get('X-ARBM-Session-ID') or (os.environ.get('GITHUB_RUN_ID','local')+':'+os.environ.get('TASK_ID','unknown'))
         with LOCK:
+            activate_session(session_raw)
             try:
                 messages,ingress=project_messages(self.rfile,int(self.headers.get('Content-Length','0'))); log_event({'status':'INGRESS_PROJECTED','ingress':ingress}); content=call_mesh(messages)
             except (ValueError,TimeoutError) as exc: content=terminal('INPUT_REJECTED:'+str(exc)[:120])
@@ -479,8 +544,29 @@ class Handler(BaseHTTPRequestHandler):
                 log_event({'status':'SHIM_ERROR','error_type':type(exc).__name__,'reason':str(exc)[:200]}); content=terminal('SHIM_INTERNAL_ERROR:'+type(exc).__name__)
         self.send_json(200,{'id':'arbm-osworld-v32-isolated','object':'chat.completion','created':int(time.time()),'model':'gpt-arbm-osworld-v32-isolated','choices':[{'index':0,'message':{'role':'assistant','content':content},'finish_reason':'stop'}],'usage':{'prompt_tokens':0,'completion_tokens':0,'total_tokens':0}})
 
+def isolated_self_test(run_id,task,verify_budget=False,enforce_session_isolation=False):
+    result={'status':'PASS','run_id':str(run_id),'task':str(task),'zero_spend':os.environ.get('ZERO_SPEND_MODE')=='HARD'}
+    if not result['zero_spend']: raise SystemExit('ZERO_SPEND_MODE_HARD_REQUIRED')
+    if verify_budget:
+        now=time.monotonic(); aged=now-(MESH_TOTAL_BUDGET_SECONDS-LOCAL_VLM_RESERVE_SECONDS-10)
+        ef=mesh_external_budget(now,55); lf=mesh_local_budget(now,80); ea=mesh_external_budget(aged,55); la=mesh_local_budget(aged,80)
+        if ef>MESH_TOTAL_BUDGET_SECONDS-LOCAL_VLM_RESERVE_SECONDS+0.01: raise SystemExit('EXTERNAL_BUDGET_CONSUMES_LOCAL_RESERVE')
+        if la<=ea: raise SystemExit('LOCAL_RESERVE_NOT_PRESERVED')
+        result['budget']={'total_seconds':MESH_TOTAL_BUDGET_SECONDS,'local_reserve_seconds':LOCAL_VLM_RESERVE_SECONDS,'external_fresh':round(ef,3),'local_fresh':round(lf,3),'external_aged':round(ea,3),'local_aged':round(la,3)}
+    if enforce_session_isolation:
+        a=f'{run_id}:{task}:a'; b=f'{run_id}:{task}:b'; ka=activate_session(a); STATE['step']=17; STATE['memory'].append('a-proof'); kb=activate_session(b)
+        if STATE['step']!=0 or STATE['memory']: raise SystemExit('SESSION_B_INHERITED_A')
+        STATE['step']=91; STATE['memory'].append('b-proof'); activate_session(a)
+        if STATE['step']!=17 or STATE['memory']!=['a-proof']: raise SystemExit('SESSION_A_NOT_RESTORED')
+        activate_session(b)
+        if STATE['step']!=91 or STATE['memory']!=['b-proof']: raise SystemExit('SESSION_B_NOT_RESTORED')
+        result['session_isolation']={'isolated':True,'session_a':ka,'session_b':kb}
+    result['transient_failure_mapping']='LOCAL_FALLBACK_TRANSIENT_EXHAUSTED'; print(json.dumps(result,sort_keys=True)); return 0
+
+
 if __name__=='__main__':
+    parser=argparse.ArgumentParser(add_help=True); parser.add_argument('--test-isolated-run',action='store_true'); parser.add_argument('--run-id',default=os.environ.get('GITHUB_RUN_ID','local')); parser.add_argument('--task',default=os.environ.get('TASK_ID','unknown')); parser.add_argument('--verify-budget',action='store_true'); parser.add_argument('--enforce-session-isolation',action='store_true'); args=parser.parse_args()
+    if args.test_isolated_run: raise SystemExit(isolated_self_test(args.run_id,args.task,args.verify_budget,args.enforce_session_isolation))
     threading.Thread(target=heartbeat,daemon=True).start()
-    if os.environ.get('ZERO_SPEND_MODE')=='HARD' and os.environ.get('ARBM_ENABLE_LOCAL_VLM')=='1':
-        threading.Thread(target=warm_runtime,daemon=True,name='arbm-local-vlm-warmup').start()
+    if os.environ.get('ZERO_SPEND_MODE')=='HARD' and os.environ.get('ARBM_ENABLE_LOCAL_VLM')=='1': threading.Thread(target=warm_runtime,daemon=True,name='arbm-local-vlm-warmup').start()
     ThreadingHTTPServer(('127.0.0.1',8088),Handler).serve_forever()
