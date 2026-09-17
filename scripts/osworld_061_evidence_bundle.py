@@ -59,6 +59,8 @@ def _hash_tree(root):
         return rows
     for path in sorted(p for p in root.rglob('*') if p.is_file()):
         size = path.stat().st_size
+        if size <= 0:
+            raise RuntimeError(f'EVIDENCE_REQUIRED:{path.as_posix()}')
         rows.append({'path': path.as_posix(), 'bytes': size, 'sha256': _sha256(path)})
     return rows
 
