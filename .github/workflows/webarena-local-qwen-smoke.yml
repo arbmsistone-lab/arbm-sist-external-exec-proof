@@ -1,5 +1,6 @@
 name: WebArena Verified local Qwen zero-spend smoke
 on:
+  workflow_dispatch:
   push:
     branches: [cert/global-external-closure-20260917]
     paths:
@@ -59,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           SERVER=$(head -1 evidence/local-qwen/llama-server-path.txt)
-          "$SERVER" -m "model/$QWEN_FILE" --alias qwen3-4b-local -c 16384 -t 4 --host 127.0.0.1 --port 8080 --jinja > evidence/local-qwen/llama-server.log 2>&1 &
+          "$SERVER" -m "model/$QWEN_FILE" --alias qwen3-4b-local -c 8192 -t 4 --threads-batch 4 --host 127.0.0.1 --port 8080 --jinja > evidence/local-qwen/llama-server.log 2>&1 &
           echo $! > llama-server.pid
           for i in $(seq 1 120); do curl -fsS http://127.0.0.1:8080/health > evidence/local-qwen/health.json && break || sleep 1; done
           curl -fsS http://127.0.0.1:8080/health | tee evidence/local-qwen/health-final.json
