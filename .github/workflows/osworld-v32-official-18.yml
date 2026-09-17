@@ -84,7 +84,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'providers-only'
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 1
       matrix:
         shard: ${{ fromJSON(github.event.inputs.mode == 'focal-061' && '[{"id":"B","tasks":"061"}]' || '[{"id":"A","tasks":"001 019 037 055 073 091"},{"id":"B","tasks":"007 025 043 061 079 097"},{"id":"C","tasks":"013 031 049 067 085 103"}]') }}
     runs-on: ubuntu-24.04
