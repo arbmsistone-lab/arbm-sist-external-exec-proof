@@ -1,0 +1,210 @@
+name: OSWorld V2.1 runtime readiness retry
+
+on:
+  push:
+    branches:
+      - chatgpt/international-recognition-20260917
+    paths:
+      - .github/workflows/osworld-v21-runtime-readiness-retry.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: osworld-v21-runtime-readiness-retry-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  retry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - path: mailhub_web
+            host: mailhub
+          - path: vaultbank_web
+            host: vaultbank
+    env:
+      ZERO_SPEND_MODE: HARD
+      HEAVY_LOCAL: '0'
+      HOST_SUFFIX: 127.0.0.1.nip.io
+      CADDY_SCHEME: http://
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Enforce preparation-only policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$ZERO_SPEND_MODE" = HARD
+          test "$HEAVY_LOCAL" = 0
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('docs/international-recognition/osworld-v2.1-pins.json').read_text())
+          assert p['policy']['zero_spend_mode']=='HARD'
+          assert p['policy']['paid_fallback'] is False
+          assert p['policy']['heavy_local']==0
+          assert p['policy']['full_run_authorized'] is False
+          PY
+
+      - name: Hydrate pinned website retry shard
+        shell: bash
+        run: |
+          set -euo pipefail
+          EVIDENCE="$GITHUB_WORKSPACE/evidence/${{ matrix.path }}"
+          OSWEB="$GITHUB_WORKSPACE/osworld-web"
+          mkdir -p "$EVIDENCE"
+          git clone https://github.com/Task-Web/OSWorld-web.git "$OSWEB"
+          git -C "$OSWEB" checkout 60c89fe6a8ed934668619d8d26132848239eb8ee
+          git -C "$OSWEB" -c url.https://github.com/.insteadOf=git@github.com: submodule update --init "${{ matrix.path }}"
+          test "$(git -C "$OSWEB" rev-parse HEAD)" = 60c89fe6a8ed934668619d8d26132848239eb8ee
+          test -z "$(git -C "$OSWEB" status --porcelain)"
+          git -C "$OSWEB" rev-parse HEAD > "$EVIDENCE/website-sha.txt"
+          git -C "$OSWEB" rev-parse "HEAD:${{ matrix.path }}" > "$EVIDENCE/submodule-sha.txt"
+          git -C "$OSWEB" submodule status "${{ matrix.path }}" > "$EVIDENCE/submodule-status.txt"
+          printf '%s\n' \
+            'ZERO_SPEND_MODE=HARD' \
+            'HEAVY_LOCAL=0' \
+            'BENCHMARK_TASKS_STARTED=0' \
+            'FULL_RUN_AUTHORIZED=false' \
+            > "$EVIDENCE/policy-evidence.txt"
+
+      - name: Start official retry shard
+        shell: bash
+        run: |
+          set -euo pipefail
+          EVIDENCE="$GITHUB_WORKSPACE/evidence/${{ matrix.path }}"
+          OSWEB="$GITHUB_WORKSPACE/osworld-web"
+          getent hosts "${{ matrix.host }}.${HOST_SUFFIX}" | tee "$EVIDENCE/dns-resolution.txt"
+          grep -Eq '127\.0\.0\.1' "$EVIDENCE/dns-resolution.txt"
+          HOST_SUFFIX="$HOST_SUFFIX" CADDY_SCHEME="$CADDY_SCHEME" \
+          docker compose \
+            --project-directory "$OSWEB/${{ matrix.path }}" \
+            -f "$OSWEB/docker-compose.main.yml" \
+            -f "$OSWEB/${{ matrix.path }}/web-compose.yml" \
+            config > "$EVIDENCE/compose.yml"
+          HOST_SUFFIX="$HOST_SUFFIX" CADDY_SCHEME="$CADDY_SCHEME" \
+          docker compose \
+            --project-directory "$OSWEB/${{ matrix.path }}" \
+            -f "$OSWEB/docker-compose.main.yml" \
+            -f "$OSWEB/${{ matrix.path }}/web-compose.yml" \
+            up -d --build
+
+      - name: Wait for frontend and control-plane readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          EVIDENCE="$GITHUB_WORKSPACE/evidence/${{ matrix.path }}"
+          ORIGIN="http://${{ matrix.host }}.${HOST_SUFFIX}"
+          COOKIE="arbm-v21-${{ matrix.host }}-retry"
+
+          frontend_ready=0
+          for i in $(seq 1 60); do
+            if curl --noproxy '*' -fsS "$ORIGIN/" > "$EVIDENCE/root.html"; then
+              frontend_ready=1
+              printf '%s\n' "$i" > "$EVIDENCE/frontend-ready-attempt.txt"
+              break
+            fi
+            sleep 2
+          done
+          test "$frontend_ready" = 1
+          test -s "$EVIDENCE/root.html"
+
+          control_ready=0
+          for i in $(seq 1 60); do
+            if curl --noproxy '*' -fsS \
+              "$ORIGIN/api/state?cookie=$COOKIE" \
+              > "$EVIDENCE/control-plane-readiness.json"; then
+              control_ready=1
+              printf '%s\n' "$i" > "$EVIDENCE/control-plane-ready-attempt.txt"
+              break
+            fi
+            sleep 2
+          done
+          test "$control_ready" = 1
+          test -s "$EVIDENCE/control-plane-readiness.json"
+
+      - name: Verify deep-merge after control-plane readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          EVIDENCE="$GITHUB_WORKSPACE/evidence/${{ matrix.path }}"
+          ORIGIN="http://${{ matrix.host }}.${HOST_SUFFIX}"
+          COOKIE="arbm-v21-${{ matrix.host }}-retry"
+
+          curl --noproxy '*' -fsS -X PUT \
+            -H 'content-type: application/json' \
+            --data '{"data":{"control_plane_probe":{"left":1},"preserved_sibling":true}}' \
+            "$ORIGIN/api/state?cookie=$COOKIE" > "$EVIDENCE/state-put.json"
+          curl --noproxy '*' -fsS -X PATCH \
+            -H 'content-type: application/json' \
+            --data '{"data":{"control_plane_probe":{"right":2}}}' \
+            "$ORIGIN/api/state?cookie=$COOKIE" > "$EVIDENCE/state-patch.json"
+          curl --noproxy '*' -fsS \
+            "$ORIGIN/api/state?cookie=$COOKIE" > "$EVIDENCE/state-get.json"
+
+          EVIDENCE="$EVIDENCE" COOKIE="$COOKIE" node - <<'NODE'
+          const fs=require('fs');
+          const x=JSON.parse(fs.readFileSync(process.env.EVIDENCE+'/state-get.json','utf8'));
+          if(x.user_id!==process.env.COOKIE) process.exit(31);
+          if(x.state?.data?.control_plane_probe?.left!==1) process.exit(32);
+          if(x.state?.data?.control_plane_probe?.right!==2) process.exit(33);
+          if(x.state?.data?.preserved_sibling!==true) process.exit(34);
+          NODE
+
+          printf '%s\n' \
+            'RUNTIME_RETRY=PASS' \
+            'FRONTEND_READINESS=PASS' \
+            'CONTROL_PLANE_READINESS=PASS' \
+            'CONTROL_PLANE_DEEP_MERGE=PASS' \
+            'BENCHMARK_TASKS_STARTED=0' \
+            > "$EVIDENCE/verdict.txt"
+
+      - name: Capture retry provenance
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          EVIDENCE="$GITHUB_WORKSPACE/evidence/${{ matrix.path }}"
+          OSWEB="$GITHUB_WORKSPACE/osworld-web"
+          mkdir -p "$EVIDENCE"
+          docker compose \
+            --project-directory "$OSWEB/${{ matrix.path }}" \
+            -f "$OSWEB/docker-compose.main.yml" \
+            -f "$OSWEB/${{ matrix.path }}/web-compose.yml" \
+            ps > "$EVIDENCE/docker-ps.txt" 2>&1
+          docker compose \
+            --project-directory "$OSWEB/${{ matrix.path }}" \
+            -f "$OSWEB/docker-compose.main.yml" \
+            -f "$OSWEB/${{ matrix.path }}/web-compose.yml" \
+            logs --no-color > "$EVIDENCE/runtime.log" 2>&1
+          find "$EVIDENCE" -type f -maxdepth 1 -print0 | sort -z | xargs -0 sha256sum > "$EVIDENCE/evidence-sha256.txt" 2>/dev/null || true
+
+      - name: Tear down retry shard
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          OSWEB="$GITHUB_WORKSPACE/osworld-web"
+          HOST_SUFFIX="$HOST_SUFFIX" CADDY_SCHEME="$CADDY_SCHEME" \
+          docker compose \
+            --project-directory "$OSWEB/${{ matrix.path }}" \
+            -f "$OSWEB/docker-compose.main.yml" \
+            -f "$OSWEB/${{ matrix.path }}/web-compose.yml" \
+            down -v --remove-orphans
+
+      - name: Preserve retry evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: osworld-v21-runtime-retry-${{ matrix.path }}
+          path: evidence/${{ matrix.path }}
+          if-no-files-found: error
+          retention-days: 30
