@@ -13,22 +13,22 @@ jobs:
     timeout-minutes: 8
     services:
       postgres0:
-        image: postgres:17
+        image: postgres:17@sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675
         env: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: loadtest}
         ports: ['5432:5432']
         options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
       postgres1:
-        image: postgres:17
+        image: postgres:17@sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675
         env: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: loadtest}
         ports: ['5433:5432']
         options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
       postgres2:
-        image: postgres:17
+        image: postgres:17@sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675
         env: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: loadtest}
         ports: ['5434:5432']
         options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
       postgres3:
-        image: postgres:17
+        image: postgres:17@sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675
         env: {POSTGRES_PASSWORD: postgres, POSTGRES_DB: loadtest}
         ports: ['5435:5432']
         options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
