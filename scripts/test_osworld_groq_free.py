@@ -10,7 +10,10 @@ ACTION={'action':'exec','command':"pyautogui.press('esc')"}
 
 class GroqFreeTests(unittest.TestCase):
     def setUp(self):
-        self.env=patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD'});self.env.start();self.addCleanup(self.env.stop)
+        # These cases validate the pure Groq FREE contract. Local fallback has
+        # dedicated tests and is disabled here so attempt counts stay scoped to
+        # Groq models even when a parent workflow enables the local VLM.
+        self.env=patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','ARBM_ENABLE_LOCAL_VLM':'0'});self.env.start();self.addCleanup(self.env.stop)
         self.now=100;self.requests=[];self.replies=[]
         self.route=GroqFreeRoute(self.transport,lambda:self.now)
 
