@@ -4,7 +4,6 @@ import pathlib
 import sys
 import tempfile
 import unittest
-from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import osworld_061_evidence_bundle as bundle
@@ -83,19 +82,27 @@ class EvidenceBundleTests(unittest.TestCase):
             p.write_text(json.dumps(receipt))
             with self.assertRaises(RuntimeError): bundle._validate_lane_receipt(p, 'fast', 'a' * 40, False)
 
-    def test_export_hash_must_match_payload(self):
+    def test_export_provenance_binds_image_size_hash_and_probe(self):
         with tempfile.TemporaryDirectory() as d:
             root = pathlib.Path(d)
             gimp = root / 'current-probe-evidence' / 'gimp'
             gimp.mkdir(parents=True)
-            payload = gimp / 'exported-output.bytes'; payload.write_bytes(b'abc')
-            digest = gimp / 'exported-output.sha256'
-            digest.write_text('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  exported-output.bytes\n')
+            payload = gimp / 'IMG_7318_edited.jpg'; payload.write_bytes(b'a' * 2048)
+            digest = bundle.hashlib.sha256(payload.read_bytes()).hexdigest()
+            (gimp / 'exported-output.bytes').write_text('2048\n')
+            (gimp / 'exported-output.sha256').write_text(digest + '  IMG_7318_edited.jpg\n')
+            (gimp / 'probe-result.json').write_text(json.dumps({
+                'status': 'EXPORT_PROVEN', 'output': 'IMG_7318_edited.jpg',
+                'output_bytes': 2048, 'output_sha256': digest,
+                'zero_spend_mode': 'HARD', 'heavy_local': 0,
+            }))
             old = os.getcwd(); os.chdir(root)
             try:
-                self.assertEqual(bundle._validate_export_hash(), 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad')
-                digest.write_text('0' * 64 + '  exported-output.bytes\n')
-                with self.assertRaises(RuntimeError): bundle._validate_export_hash()
+                proof = bundle._validate_export_provenance()
+                self.assertEqual(proof['bytes'], 2048)
+                self.assertEqual(proof['sha256'], digest)
+                (gimp / 'exported-output.bytes').write_text('2049\n')
+                with self.assertRaises(RuntimeError): bundle._validate_export_provenance()
             finally:
                 os.chdir(old)
 
@@ -106,6 +113,7 @@ class EvidenceBundleTests(unittest.TestCase):
         self.assertIn("APPROVED_FOCAL_EVIDENCE_BIND_REQUIRED", source)
         self.assertIn("DIAGNOSTIC_EXECUTION_PARITY_REQUIRED", source)
         self.assertIn("ACCEPTED_SPECIALIST_LANE_REQUIRED", source)
+        self.assertIn("GIMP_EXPORT_RECEIPT_MISMATCH", source)
         self.assertIn("'paid_fallback_used': False", source)
         self.assertIn("'heavy_local': 0", source)
 
