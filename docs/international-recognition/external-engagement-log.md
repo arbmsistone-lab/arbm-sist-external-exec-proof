@@ -12,6 +12,8 @@ This log records outreach only. An outreach email, proposal request or readiness
 | BSI | ISO/IEC 42001 + integrated ISO track | CONTACT_SENT | Requested independent certification/readiness information. No commercial authorization granted. |
 | ProMove | CMMI appraisal readiness | CONTACT_SENT | Requested readiness/appraisal information. No appraisal claim exists until official appraisal is completed. |
 | A-LIGN | SOC 2 + ISO 27001/42001 | CONTACT_SENT | Requested integrated assurance/readiness information and evidence-reuse options. No engagement authorized. |
+| SQS | ISO/IEC 25010 product-quality audit/certification | CONTACT_SENT | Requested independent product-quality assessment/certification scope under ISO/IEC 25010:2023 and formal output/recognition details. No commercial authorization granted. |
+| Software Improvement Group (SIG) | ISO/IEC 25010 / ISO/IEC 17025 software-quality benchmark | CONTACT_SENT | Requested independent read-only software-quality assessment, market benchmarking and accredited-lab/certification-route information. No commercial authorization granted. |
 
 ## External evidence rules
 
