@@ -1,0 +1,74 @@
+name: ARBM 091 Contract Materialize
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - chatgpt/arbm-top3-consolidated-20260917
+    paths:
+      - scripts/patch_091_narrative_reference.py
+      - .github/workflows/arbm-091-contract-materialize.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: arbm-091-contract-materialize-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      ZERO_SPEND_MODE: HARD
+      ARBM_ENABLE_LOCAL_VLM: '1'
+      ARBM_VALIDATION_SPEND_MODE: zero
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Apply narrow recovery and run regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/patch_091_narrative_reference.py
+          python3 -m py_compile scripts/osworld_local_vlm.py scripts/osworld_free_mesh_shim.py scripts/patch_091_narrative_reference.py
+          python3 -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
+          python3 - <<'PY'
+          import sys
+          sys.path.insert(0,'scripts')
+          import osworld_local_vlm as m
+          raw=("The next step is to reset the H2 Rebaseline Directive: Operating Committee Pack to a disciplined H2 stabilize-and-recover plan...\n\n"
+               "The next step is to reset the H2 Rebaseline Directive: Operating Committee Pack to a disciplined H2 stabilize-and-recover plan...\n\n"
+               "The next step is to reset the H2 Rebaseline Directive: Operating Committee Pack to a disciplined H2 stabilize-and-recover plan...\n\n"
+               "The next step")
+          observation='''tag\tname\ttext\tclass\tdescription\tposition (top-left x&y)\tsize (w&h)\nstatic\tH2 Rebaseline Directive: Operating Committee Pack\tH2 Rebaseline Directive: Operating Committee Pack\t\t\t(626, 300)\t(342, 18)\nstatic\tThe July Operating Committee pack must be reset to a disciplined H2 stabilize-and-recover plan...\tThe July Operating Committee pack must be reset to a disciplined H2 stabilize-and-recover plan...\t\t\t(989, 300)\t(613, 18)\n'''
+          action=m.parse_action_object(raw,observation)
+          assert action['action']=='exec', action
+          assert action['command']=="pyautogui.click(797, 309)", action
+          assert action['target']=={'source':'accessibility','label':'H2 Rebaseline Directive: Operating Committee Pack','role':'static'}, action
+          print('EXACT_091_NARRATIVE_RECOVERY=PASS', action)
+          try:
+              m.parse_action_object('The next step is to think about the plan.\n\nThe next step is to think again.', observation)
+          except ValueError as exc:
+              assert str(exc)=='LOCAL_ACTION_REQUIRED', exc
+          else:
+              raise AssertionError('UNGROUNDED_NARRATIVE_WAS_ACCEPTED')
+          print('UNGROUNDED_NARRATIVE_FAIL_CLOSED=PASS')
+          PY
+          python3 -m unittest scripts/test_osworld_groq_free.py scripts/test_osworld_groq_local_fallback.py scripts/test_osworld_failover_matrix.py -v
+          git diff --check
+
+      - name: Commit only local VLM runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "chatgpt/arbm-top3-consolidated-20260917"
+          git add scripts/osworld_local_vlm.py
+          test "$(git diff --cached --name-only)" = "scripts/osworld_local_vlm.py"
+          git config user.name "arbm-top3-bot"
+          git config user.email "295485177+arbmsistone-lab@users.noreply.github.com"
+          git commit -m "fix: recover grounded action from repeated local VLM narrative"
+          git push origin HEAD:"$GITHUB_REF_NAME"
