@@ -1,19 +1,20 @@
-# ARBM SIST Integrated Management Policy - DRAFT
+# ARBM SIST Integrated Management Policy
 
-Status: DRAFT - NOT YET MANAGEMENT APPROVED
-Effective date: NOT YET EFFECTIVE
-Prepared: 2026-09-17
+Status: APPROVED FOR OPERATION
+Effective date: 2026-09-17
+Approved authority: Owner / Executive Management
+Approval basis: explicit management instruction in the 2026-09-17 governance session to proceed with the priority controls and operationalize the readiness program.
 Technical anchor: `73772dbe40650d2e4561693db00ade48e3134ac1`
 
-This document is a readiness draft for external review. It must not be represented as an approved policy or historical evidence until formally approved and put into operation.
+This policy is an internal management-system policy. It does not constitute an external certification, attestation, appraisal or market ranking.
 
 ## 1. Purpose
 
-ARBM SIST intends to operate an integrated management system covering quality, information security, AI governance, IT service management, privacy, software/product quality, continuity, supplier governance and evidence integrity.
+ARBM SIST operates an integrated management system covering quality, information security, AI governance, IT service management, privacy, software/product quality, continuity, supplier governance and evidence integrity.
 
 ## 2. Core commitments
 
-ARBM SIST intends to:
+ARBM SIST will:
 
 1. define measurable quality and service objectives and review them periodically;
 2. protect confidentiality, integrity and availability of information using risk-based controls;
@@ -32,7 +33,7 @@ ARBM SIST intends to:
 
 ## 3. Quality management principles
 
-The management system will maintain:
+The management system maintains:
 
 - defined customer and stakeholder requirements;
 - measurable quality objectives;
@@ -44,7 +45,7 @@ The management system will maintain:
 
 ## 4. Information security principles
 
-Security governance will include:
+Security governance includes:
 
 - risk assessment and treatment;
 - asset and information inventory;
@@ -60,7 +61,7 @@ Security governance will include:
 
 ## 5. AI governance principles
 
-AI governance will include:
+AI governance includes:
 
 - inventory of AI systems/models/providers;
 - intended-use and prohibited-use definitions;
@@ -75,7 +76,7 @@ AI governance will include:
 
 ## 6. Privacy principles
 
-Privacy governance will include:
+Privacy governance includes:
 
 - data inventory and processing purposes;
 - role classification for controller/processor responsibilities where applicable;
@@ -89,7 +90,7 @@ Privacy governance will include:
 
 ## 7. IT service management principles
 
-Service governance will include:
+Service governance includes:
 
 - service catalogue and ownership;
 - service-level objectives where applicable;
@@ -101,7 +102,7 @@ Service governance will include:
 
 ## 8. Software/product quality principles
 
-Product-quality assessment will use objective criteria aligned, where relevant, to ISO/IEC 25010 product-quality characteristics. Internal evidence must be distinguished from independent third-party assessment.
+Product-quality assessment uses objective criteria aligned, where relevant, to ISO/IEC 25010 product-quality characteristics. Internal evidence must remain distinct from independent third-party assessment.
 
 ## 9. Evidence integrity and external claims
 
@@ -113,10 +114,10 @@ The following rules are mandatory:
 - no ISO, SOC 2, CMMI, OSWorld Verified or similar external claim may be made before the corresponding independent body issues or publishes it;
 - no `Top 3 worldwide` or equivalent market-ranking claim may be published without a comparable independent benchmark or recognized external publication establishing that position.
 
-## 10. Approval requirement
+## 10. Approval and review
 
-This draft becomes effective only after explicit management approval and assignment of owners for the controls and objectives defined in the integrated management system.
+This policy is effective from 2026-09-17. It must be reviewed at least annually and after material changes to scope, regulatory obligations, major incidents, benchmark rules or external-certification requirements.
 
 Current state:
 
-`POLICY_STATUS = DRAFT_NOT_APPROVED`
+`POLICY_STATUS = APPROVED_EFFECTIVE`
