@@ -42,13 +42,13 @@ class FailoverMatrix(unittest.TestCase):
    http,data=shim.request_mesh(dict(BODY))
   self.assertEqual((http,data['provider']),(200,'local-cloud-vlm'))
 
- def test_pure_capacity_outage_reports_mesh_exhaustion_not_wait(self):
+ def test_local_budget_exhaustion_is_transient_not_provider_capacity(self):
   none=(None,attempts('free-route'))
   with patch.object(shim.FREE_ROUTE,'call',return_value=none),patch.object(shim.GROQ_FREE_ROUTE,'call',return_value=none), \
        patch.object(shim,'request_gateway',return_value=(503,{'status':'NO_ZERO_SPEND_MULTIMODAL_CAPACITY','provider_attempts':[]})), \
        patch.object(shim.LOCAL_VLM_ROUTE,'call',return_value=(None,[{'route':'local-cloud-vlm','status':'budget_exceeded'}])):
    http,data=shim.request_mesh(dict(BODY))
-  self.assertEqual(http,503);self.assertEqual(data['status'],'FREE_MESH_EXHAUSTED_CURRENT_CYCLE')
+  self.assertEqual(http,503);self.assertEqual(data['status'],'LOCAL_TRANSIENT_FAILURE_CURRENT_CYCLE')
   self.assertFalse(data['paid_fallback_used']);self.assertEqual(data['mandatory_cost_usd'],0)
 
  def test_local_contract_failure_is_not_mislabeled_as_capacity(self):
