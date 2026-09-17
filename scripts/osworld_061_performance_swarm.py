@@ -10,6 +10,7 @@ is never erased by fallback.
 import copy
 import json
 import os
+import statistics
 import sys
 import time
 from collections import Counter
@@ -30,7 +31,6 @@ def _github_output(name, value):
 
 
 def _bind_validated_official_evidence(root):
-    """Apply the same post-focal evidence binding as the full-failover wrapper."""
     evidence_aware.OFFICIAL = evidence_aware.load_official(root)
     swarm.BASE_SYSTEM = swarm.BASE_SYSTEM.replace(
         'This is a pre-focal source audit: runtime proof belongs in required_proofs;\n'
@@ -45,7 +45,6 @@ def _bind_validated_official_evidence(root):
 
 
 def _clone_free_route(source):
-    """Create an isolated warmed OpenRouter route for one concurrent reviewer."""
     route = FreeRoute(transport=source.transport, clock=source.clock)
     route.models = copy.deepcopy(source.models)
     route.catalog_until = source.catalog_until
@@ -57,7 +56,6 @@ def _clone_free_route(source):
 
 
 def _clone_groq_route(source):
-    """Create an isolated Groq route so cooldown state is never shared by threads."""
     route = GroqFreeRoute(transport=source.transport, clock=source.clock)
     route.until = source.until
     return route
@@ -76,7 +74,6 @@ def _bounded_workers():
 
 
 def _budgets():
-    """Keep the fast lane fast; the full failover owns long recovery budgets."""
     return (
         _bounded_int('ARBM_SWARM_OPENROUTER_BUDGET_S', 45, 10, 90),
         _bounded_int('ARBM_SWARM_GROQ_BUDGET_S', 30, 10, 60),
@@ -86,7 +83,6 @@ def _budgets():
 
 def _remote_robot(index, name, brief, evidence, contract, image, probe_evidence,
                   free_route, groq_route):
-    """Run one specialist through FREE remote routes only, preserving schema repair."""
     del index, image
     system = swarm.role_prompt(name, brief, contract)
     attempts = []
@@ -126,7 +122,6 @@ def _skipped_robot(name, brief):
 
 
 def _run_remote_robots(evidence, contract, image, probe_evidence):
-    """Warm one route serially, then review the remaining roles with bounded concurrency."""
     first_name, first_brief = swarm.ROLES[0]
     first = _remote_robot(0, first_name, first_brief, evidence, contract, image,
                           probe_evidence, FREE_ROUTE, GROQ_FREE_ROUTE)
@@ -171,9 +166,36 @@ def _classification(robots):
     return valid, vetoes, classes, unknown_roles, covered, accepted, fallback_eligible
 
 
+def _latency_telemetry(robots):
+    samples = []
+    by_route = {}
+    for robot in robots:
+        for attempt in robot.get('attempts') or []:
+            value = attempt.get('latency_seconds')
+            if not isinstance(value, (int, float)) or isinstance(value, bool) or value < 0:
+                continue
+            value = float(value)
+            samples.append(value)
+            route = str(attempt.get('route') or 'unknown')
+            by_route.setdefault(route, []).append(value)
+
+    def summarize(values):
+        if not values:
+            return {'count': 0, 'p50_seconds': None, 'p95_seconds': None, 'max_seconds': None}
+        ordered = sorted(values)
+        p95_index = min(len(ordered) - 1, max(0, int(round(0.95 * (len(ordered) - 1)))))
+        return {
+            'count': len(ordered),
+            'p50_seconds': round(statistics.median(ordered), 3),
+            'p95_seconds': round(ordered[p95_index], 3),
+            'max_seconds': round(ordered[-1], 3),
+        }
+
+    return {'overall': summarize(samples),
+            'by_route': {name: summarize(values) for name, values in sorted(by_route.items())}}
+
+
 def main(root):
-    # Default to operational fallback eligibility. If a valid substantive veto
-    # is observed below, a later GITHUB_OUTPUT record flips this to zero.
     _github_output('fallback_eligible', '1')
     if os.environ.get('ZERO_SPEND_MODE') != 'HARD':
         raise RuntimeError('ZERO_SPEND_HARD_REQUIRED')
@@ -219,13 +241,15 @@ def main(root):
             'elapsed_seconds': round(time.monotonic() - started, 3),
             'full_failover_required': fallback_eligible,
             'substantive_blocked': bool(vetoes or unknown_roles),
+            'latency': _latency_telemetry(robots),
         },
         'zero_spend_mode': 'HARD',
         'paid_fallback_used': False,
         'heavy_local': 0,
     }
-    Path('osworld-061-specialist-swarm.json').write_text(
-        json.dumps(out, indent=2), encoding='utf-8')
+    rendered = json.dumps(out, indent=2)
+    Path('osworld-061-specialist-fast-path.json').write_text(rendered, encoding='utf-8')
+    Path('osworld-061-specialist-swarm.json').write_text(rendered, encoding='utf-8')
     print(json.dumps({k: out[k] for k in (
         'status', 'candidate_sha', 'robots_total', 'valid_reviews',
         'root_cause_votes', 'vetoes', 'unknown_roles', 'execution')}))
