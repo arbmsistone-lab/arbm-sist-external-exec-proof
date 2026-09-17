@@ -20,6 +20,9 @@ on:
 permissions:
   actions: read
   contents: read
+concurrency:
+  group: osworld-061-world-audit-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   world-audit:
     runs-on: ubuntu-24.04
@@ -39,7 +42,9 @@ jobs:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       GROQ_API_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
       - name: Purge stale homologation evidence
         shell: bash
         run: |
