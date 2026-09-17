@@ -466,7 +466,7 @@ def call_mesh(messages):
         track_attempts(data)
         successful=[a for a in (data.get('provider_attempts') or []) if a.get('status')==200 and a.get('latency_seconds') is not None]
         if successful: ELITE.record_latency(successful[-1].get('latency_seconds'))
-        log_event({'http':http,'attempt':attempt+1,'status':data.get('status'),'provider':data.get('provider'),'model':data.get('model'),'agent_build':data.get('agent_build'),'pipeline':data.get('pipeline'),'provider_attempts':data.get('provider_attempts',[]),'action':data.get('action'),'mandatory_cost_usd':data.get('mandatory_cost_usd'),'paid_fallback_used':data.get('paid_fallback_used'),'transition_review':data.get('transition_review'),'error':data.get('error'),'detail':str(data.get('detail') or '')[:200],'payload':metrics,'observation_file':str(evidence_path)})
+        log_event({'http':http,'attempt':attempt+1,'status':data.get('status'),'provider':data.get('provider'),'model':data.get('model'),'agent_build':data.get('agent_build'),'pipeline':data.get('pipeline'),'provider_attempts':data.get('provider_attempts',[]),'action':data.get('action'),'mandatory_cost_usd':data.get('mandatory_cost_usd'),'paid_fallback_used':data.get('paid_fallback_used'),'transition_review':data.get('transition_review'),'error':data.get('error'),'detail':str(data.get('detail') or '')[:200],'payload':metrics,'observation_file':str(evidence_path),'canonical_foreground_sha256':body.get('canonical_foreground_sha256')})
         if data.get('pipeline') or http==200:
             try:validate_response(data,EXPECTED_PIPELINE,EXPECTED_BUILD)
             except ValueError as exc:return terminal(str(exc))
@@ -485,7 +485,9 @@ def call_mesh(messages):
             reason=str(data.get('review_reason') or 'independent reviewer requested replanning'); body['memory']=(body['memory']+'\nREVIEW REPLAN REQUIRED: '+reason+'. Do not repeat the rejected action; produce a new grounded action from the current observation.')[-4500:]; continue
         if http==200 and data.get('ok') is True:
             try:
-                action=ground_action(data.get('action'),body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[])); decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
+                allow_canonical=(str(data.get('provider') or '')=='local-cloud-vlm')
+                action=ground_action(data.get('action'),body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]),allow_canonical=allow_canonical)
+                decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
             except ValueError as exc:
                 policy_rejections+=1
                 rejected_action=data.get('action') if isinstance(data.get('action'),dict) else {}
