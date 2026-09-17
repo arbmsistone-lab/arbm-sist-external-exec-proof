@@ -27,6 +27,7 @@ jobs:
     env:
       ZERO_SPEND_MODE: HARD
       ARBM_ENABLE_LOCAL_VLM: '1'
+      ARBM_SWARM_REMOTE_WORKERS: '3'
       APPROVED_FOCAL_RUN_ID: '35148173044'
       APPROVED_FOCAL_SHA: '71146c8239467af9efbe11572f40a433bd4009d6'
       APPROVED_EVIDENCE_MANIFEST_SHA256: 'e67e3fa9680bc8fa46a76e16251ed2fbfc07b04518bb6c6e6c090256e3e535e9'
@@ -82,7 +83,7 @@ jobs:
           git fetch --no-tags --depth=1 origin "$DIAGNOSTIC_PROBE_SHA"
           git diff --exit-code "$DIAGNOSTIC_PROBE_SHA" HEAD -- scripts/osworld_free_mesh_shim.py scripts/osworld_061_calibrated_grade.py scripts/osworld_gimp_style_transfer.py
           echo "DIAGNOSTIC_EXECUTION_PARITY=1" >> "$GITHUB_ENV"
-      - name: Install pinned FREE audit runtime
+      - name: Install lightweight pinned audit runtime
         run: |
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = HARD
@@ -90,11 +91,22 @@ jobs:
           test "$STALE_EVIDENCE_PURGED" = 1
           test "$APPROVED_FOCAL_EVIDENCE_BOUND" = 1
           python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
-          python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
       - name: Run 500 deterministic adversarial perspectives
         run: python scripts/osworld_061_champion_audit.py
-      - name: Run 10-robot specialist world audit
-        id: swarm
+      - name: Run 10-robot specialist remote fast path
+        id: swarm_fast
+        continue-on-error: true
+        run: python scripts/osworld_061_performance_swarm.py incident-evidence
+      - name: Install heavyweight local audit fallback
+        if: steps.swarm_fast.outcome != 'success'
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = HARD
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
+      - name: Run full specialist failover
+        id: swarm_full
+        if: steps.swarm_fast.outcome != 'success'
         continue-on-error: true
         run: python scripts/osworld_061_evidence_aware_swarm.py incident-evidence
       - name: Run 20 final 3D audits
@@ -104,8 +116,13 @@ jobs:
         run: python scripts/osworld_061_3d_audit.py incident-evidence
       - name: Enforce supreme audit verdict
         if: always()
+        shell: bash
         run: |
-          test "${{ steps.swarm.outcome }}" = success
+          set -euo pipefail
+          if [ "${{ steps.swarm_fast.outcome }}" != success ] && [ "${{ steps.swarm_full.outcome }}" != success ]; then
+            echo 'SPECIALIST_SWARM_NOT_ACCEPTED'
+            exit 1
+          fi
           test "${{ steps.audit3d.outcome }}" = success
       - name: Preserve world-audit evidence
         if: always()
