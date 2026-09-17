@@ -30,12 +30,15 @@ Scale:
 | R16 | Logs/evidence expire before external audit | Evidence retention | 3 | 4 | 12 | GitHub artifacts have explicit retention windows | PARTIAL | TREAT: retention schedule and preservation of critical evidence/hashes before expiry |
 | R17 | Product-quality claim is based only on internal tests | Product quality | 4 | 4 | 16 | Internal deterministic audits are extensive | PARTIAL | TREAT_PRIORITY: independent ISO/IEC 25010 assessment/benchmark; SQS/SIG outreach active |
 | R18 | Management-system documents exist but controls are not operating | Certification | 4 | 5 | 20 | Operating-evidence register started 2026-09-17 | TREATMENT_STARTED | TREAT_PRIORITY: accumulate real operating evidence; independent audit after sufficient period |
-| R19 | Full OSWorld V2.1 run starts before release/website/provider readiness | Benchmark execution | 3 | 5 | 15 | `full_run_authorized=false`; V2.1 pins documented | CONTROL_DESIGN_FOUND | TREAT_PRIORITY: full run remains blocked until readiness gates pass and explicit authorization is recorded |
+| R19 | Full OSWorld V2.1 run starts before release/website/provider readiness | Benchmark execution | 3 | 5 | 15 | `full_run_authorized=false`; V2.1 pins documented; self-host canary run `35225428524` passed with zero benchmark tasks | TREATMENT_STARTED | TREAT_PRIORITY: expand runtime readiness; full run remains blocked until all readiness gates pass and explicit authorization is recorded |
 | R20 | Upstream OSWorld limitation is incorrectly attributed to ARBM SIST | Benchmark interpretation | 2 | 4 | 8 | Upstream limitations recorded separately | CONTROL_DESIGN_FOUND | TREAT: preserve upstream release limitations in all external reports |
+| R21 | Official OSWorld V2.1 website dependencies contain known vulnerabilities | Benchmark environment / supply chain | 3 | 4 | 12 | Official `dinogame_web` canary build reported 24 npm audit findings: 2 low, 7 moderate, 13 high, 2 critical | OPEN_UPSTREAM_RISK | TREAT: keep benchmark website ephemeral/isolated, inject no ARBM secrets, do not patch official source unilaterally, track upstream remediation and document exposure before maintainer verification |
 
 ## Priority treatment set approved 2026-09-17
 
 Priority treatment is ACTIVE for R18, R09, R14, R06, R07, R13, R17 and R19.
+
+R21 is additionally classified as an upstream benchmark-environment security risk. It must not be hidden, but it must also not be “fixed” by modifying official benchmark source in a way that breaks evaluator comparability.
 
 No risk is marked `ACCEPTED` or given a residual score at this stage. Residual risk requires evidence of control operation and owner review.
 
