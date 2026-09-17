@@ -7,6 +7,7 @@ import urllib.request
 
 from osworld_control import canonical_action
 from osworld_openrouter_free import prompt
+from osworld_local_vlm import LOCAL_VLM_ROUTE
 
 BASE = 'https://api.groq.com/openai/v1'
 ROUTE = 'groq-multimodal-free'
@@ -50,13 +51,34 @@ class GroqFreeRoute:
                 'paid_fallback_used':False, **fields})
         if os.environ.get('ZERO_SPEND_MODE') != 'HARD':
             event(status='hard_mode_required'); return None, attempts
+
+        # Reserve useful wall-clock budget for the quota-independent CPU VLM.
+        # This fallback is permitted only for normal GUI action generation in
+        # ZERO_SPEND HARD mode; evaluator/reviewer raw-message calls remain
+        # unchanged. The local route keeps the same canonical action boundary.
+        local_enabled = raw_messages is None and os.environ.get('ARBM_ENABLE_LOCAL_VLM') == '1'
+        total_budget = max(2.0, float(budget))
+        local_budget = min(35.0, max(2.0, total_budget * 0.65)) if local_enabled else 0.0
+        remote_budget = max(2.0, total_budget - local_budget) if local_enabled else total_budget
+
+        def local_fallback():
+            if not local_enabled:
+                return None
+            result, local_attempts = LOCAL_VLM_ROUTE.call(body, budget=local_budget)
+            attempts.extend(local_attempts)
+            return result
+
         if not key:
-            event(status='not_configured'); return None, attempts
+            event(status='not_configured')
+            local = local_fallback()
+            return (local, attempts) if local else (None, attempts)
         if self.clock() < self.until:
-            event(status='provider_cooldown'); return None, attempts
+            event(status='provider_cooldown')
+            local = local_fallback()
+            return (local, attempts) if local else (None, attempts)
         if raw_messages is None and not body.get('screenshot_data_url', '').startswith('data:image/'):
             event(status='image_required'); return None, attempts
-        deadline = self.clock() + budget
+        deadline = self.clock() + remote_budget
         for model in MODELS:
             remaining = deadline - self.clock()
             if remaining < 2: break
@@ -103,7 +125,9 @@ class GroqFreeRoute:
                 continue
             if status == 429:
                 self.until = self.clock() + max(30, float(headers.get('retry-after', 60) or 60))
-        return None, attempts
+
+        local = local_fallback()
+        return (local, attempts) if local else (None, attempts)
 
 
 GROQ_FREE_ROUTE = GroqFreeRoute()
