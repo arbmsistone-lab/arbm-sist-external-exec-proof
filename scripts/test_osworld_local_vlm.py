@@ -30,6 +30,20 @@ class LocalGroundingGateTests(unittest.TestCase):
         action=parse_action_object('Press Ctrl+S to save.',OBS)
         self.assertEqual(action['command'],"pyautogui.hotkey('ctrl', 's')")
 
+    def test_selector_candidates_include_visible_section_text(self):
+        obs=OBS+'section\\t\\tH2 Rebaseline Directive: Operating Committee Pack\\t\\t\\t(626, 299)\\t(976, 20)\\n'
+        from osworld_local_vlm import _selector_candidates
+        items=_selector_candidates({'instruction':'Read the COO H2 Rebaseline Directive email','observation':obs,'active_application':'WPS Presentation'})
+        matches=[x for x in items if x['action'].get('target',{}).get('label')=='H2 Rebaseline Directive: Operating Committee Pack']
+        self.assertEqual(len(matches),1)
+        self.assertEqual(matches[0]['action']['target']['role'],'section')
+
+    def test_selector_candidates_are_bounded(self):
+        from osworld_local_vlm import _selector_candidates, _SELECTOR_SYMBOLS
+        obs='\\n'.join(f'push-button\\tButton {i}\\tButton {i}\\t\\t\\t({i*10}, 10)\\t(8, 8)' for i in range(80))
+        items=_selector_candidates({'instruction':'choose button','observation':obs})
+        self.assertLessEqual(len(items),len(_SELECTOR_SYMBOLS))
+
     def test_narrative_recovery_ignores_static_reference_and_uses_actionable_target(self):
         obs=OBS+'static\\tH2 Rebaseline Directive: Operating Committee Pack\\tH2 Rebaseline Directive: Operating Committee Pack\\t\\t\\t(400, 250)\\t(800, 60)\\n'
         raw=('The next step is to review H2 Rebaseline Directive: Operating Committee Pack and then click Compose. '
