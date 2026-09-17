@@ -1,0 +1,75 @@
+name: ARBM Shim Mesh Isolated Certification
+
+on:
+  push:
+    branches:
+      - chatgpt/arbm-shim-mesh-budget-session-20260917
+    paths:
+      - Makefile
+      - scripts/patch_shim_mesh.py
+      - scripts/osworld_free_mesh_shim.py
+      - scripts/osworld_local_vlm.py
+      - .github/workflows/arbm-shim-mesh-isolated-cert.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arbm-shim-mesh-isolated-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  isolated:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      ZERO_SPEND_MODE: HARD
+      ARBM_ENABLE_LOCAL_VLM: '1'
+      ARBM_VALIDATION_SPEND_MODE: zero
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Apply exact mesh patch
+        run: make patch-shim-mesh
+
+      - name: Compile patched runtime
+        run: python3 -m py_compile scripts/osworld_free_mesh_shim.py scripts/osworld_local_vlm.py scripts/patch_shim_mesh.py
+
+      - name: Execute requested isolated command
+        run: |
+          python3 scripts/osworld_free_mesh_shim.py \
+            --test-isolated-run \
+            --run-id 35265789297 \
+            --task 091 \
+            --verify-budget \
+            --enforce-session-isolation | tee shim-mesh-isolated.json
+          grep -F '"status": "PASS"' shim-mesh-isolated.json
+          grep -F '"isolated": true' shim-mesh-isolated.json
+          grep -F '"zero_spend": true' shim-mesh-isolated.json
+
+      - name: Prove patch idempotency
+        run: |
+          sha256sum scripts/osworld_free_mesh_shim.py scripts/osworld_local_vlm.py > before.sha256
+          make patch-shim-mesh
+          sha256sum scripts/osworld_free_mesh_shim.py scripts/osworld_local_vlm.py > after.sha256
+          diff -u before.sha256 after.sha256
+
+      - name: Run focused regression tests
+        run: |
+          python3 -m unittest \
+            scripts/test_osworld_groq_free.py \
+            scripts/test_osworld_groq_local_fallback.py \
+            scripts/test_osworld_failover_matrix.py -v
+
+      - name: Preserve evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: arbm-shim-mesh-isolated-35265789297-091
+          path: |
+            shim-mesh-isolated.json
+            before.sha256
+            after.sha256
+          if-no-files-found: warn
+          retention-days: 30
