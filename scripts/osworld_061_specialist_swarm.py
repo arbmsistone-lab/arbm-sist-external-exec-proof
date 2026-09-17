@@ -14,7 +14,7 @@ from osworld_incident_consensus import load_evidence, evidence_image, ask
 from osworld_openrouter_free import FREE_ROUTE
 from osworld_groq_free import GROQ_FREE_ROUTE
 from osworld_local_vlm import LOCAL_VLM_ROUTE
-from osworld_local_text_review import review as local_text_review
+from osworld_local_text_review import review as local_text_review, clear_runtime_cache as clear_local_text_cache
 
 ROLES = [
  ('gimp_gegl_color','GIMP/GEGL color-transfer sequencing and color fidelity.'),
@@ -62,9 +62,6 @@ def _source_window(path, needle, before=700, after=1000):
     return text[max(0,pos-before):min(len(text),pos+len(needle)+after)]
 
 def current_contract():
-    # Stay comfortably below the local FREE reviewers' 4096-token budget.
-    # These are exact source windows, ordered by the causal questions raised by
-    # the prior audit: calibrated ownership -> dispatcher -> GIMP transaction.
     parts=[
       _source_window('scripts/osworld_061_calibrated_grade.py','print(f"ARBM061_DONE',300,240),
       _source_window('scripts/osworld_061_calibrated_grade.py','def next_calibrated_action',0,1300),
@@ -234,6 +231,8 @@ def run_robot(index, name, brief, evidence, contract, image, probe_evidence=''):
         elif label=='smollm_local': result=local_text_review('smollm_local',system,_local_evidence(evidence,probe_evidence),max_new_tokens=320)
         else:
             if not image: continue
+            # Never keep a text LLM resident while materializing the heavier VLM.
+            clear_local_text_cache()
             result=ask(LOCAL_VLM_ROUTE,_vlm_messages(system,evidence,image,probe_evidence),180)
         attempts.extend(result.get('attempts') or [])
         raw_outputs.append({'provider':label,'raw':str(result.get('raw') or '')[-1200:]})
@@ -261,8 +260,11 @@ def main(root: Path):
     image=evidence_image(root)
     probe_evidence=load_probe_evidence(Path(os.environ.get('CURRENT_PROBE_EVIDENCE','current-probe-evidence')))
     if not probe_evidence: raise RuntimeError('CURRENT_DIAGNOSTIC_PROBE_EVIDENCE_REQUIRED')
-    robots=[run_robot(i,name,brief,evidence,contract,image,probe_evidence)
-            for i,(name,brief) in enumerate(ROLES)]
+    try:
+        robots=[run_robot(i,name,brief,evidence,contract,image,probe_evidence)
+                for i,(name,brief) in enumerate(ROLES)]
+    finally:
+        clear_local_text_cache()
     valid=[r for r in robots if valid_verdict(r.get('verdict'),r['role'])]
     vetoes=[r['role'] for r in valid if r['verdict']['veto'] or r['verdict']['verdict']!='PASS_FIX']
     classes=Counter(r['verdict']['root_cause_class'] for r in valid)
