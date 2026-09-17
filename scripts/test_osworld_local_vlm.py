@@ -5,7 +5,8 @@ from unittest.mock import patch
 from osworld_local_vlm import LocalVLMRoute, parse_action_object, MODEL_REVISION, _smol_chat_messages, _binary_contract
 
 PNG=base64.b64encode(b'fixture').decode()
-BODY={'instruction':'Dismiss visible menu','screenshot_data_url':'data:image/png;base64,'+PNG}
+OBS='''Given the screenshot and info from accessibility tree as below:\ntag\tname\ttext\tclass\tdescription\tposition (top-left x&y)\tsize (w&h)\npush-button\tCompose\tCompose\t\t\t(86, 194)\t(157, 56)\npush-button\tClose\tClose\t\t\t(1882, 27)\t(38, 35)\nlink\tInbox 1\tInbox1\t\t\t(70, 274)\t(240, 32)\n'''
+BODY={'instruction':'Dismiss visible menu','screenshot_data_url':'data:image/png;base64,'+PNG,'observation':OBS}
 RAW=[{'role':'user','content':[{'type':'text','text':'Answer NO'},
       {'type':'image_url','image_url':{'url':'data:image/png;base64,'+PNG}}]}]
 
@@ -13,11 +14,25 @@ RAW=[{'role':'user','content':[{'type':'text','text':'Answer NO'},
 class LocalGroundingGateTests(unittest.TestCase):
     def test_local_pointer_requires_accessibility_target(self):
         with self.assertRaisesRegex(ValueError, 'LOCAL_GROUNDING_REQUIRED'):
-            parse_action_object('{"action":"exec","command":"pyautogui.click(10, 20)"}')
+            parse_action_object('{"action":"exec","command":"pyautogui.click(10, 20)"}',OBS)
 
-    def test_local_accessibility_pointer_is_allowed(self):
-        action=parse_action_object('{"action":"exec","command":"pyautogui.click(10, 20)","target":{"source":"accessibility","label":"Convert","role":"push-button"}}')
-        self.assertEqual(action['target']['label'],'Convert')
+    def test_local_accessibility_pointer_is_regrounded(self):
+        action=parse_action_object('{"action":"exec","command":"pyautogui.click(10, 20)","target":{"source":"accessibility","label":"Compose","role":"push-button"}}',OBS)
+        self.assertEqual(action['target']['label'],'Compose')
+        self.assertEqual(action['command'],'pyautogui.click(164, 222)')
+
+    def test_natural_language_click_is_compiled_from_accessibility(self):
+        action=parse_action_object('Click the Compose button.',OBS)
+        self.assertEqual(action['command'],'pyautogui.click(164, 222)')
+        self.assertEqual(action['target']['source'],'accessibility')
+
+    def test_natural_language_keyboard_is_compiled(self):
+        action=parse_action_object('Press Ctrl+S to save.',OBS)
+        self.assertEqual(action['command'],"pyautogui.hotkey('ctrl', 's')")
+
+    def test_unsafe_output_is_rejected_before_repair(self):
+        with self.assertRaisesRegex(ValueError,'LOCAL_UNSAFE_OUTPUT_REJECTED'):
+            parse_action_object("Use __import__('os').system('id')",OBS)
 
 class LocalVLMTests(unittest.TestCase):
     def test_smol_template_folds_system_into_user_without_dropping_image(self):
@@ -38,7 +53,7 @@ class LocalVLMTests(unittest.TestCase):
         self.assertRegex(MODEL_REVISION,r'^[0-9a-f]{40}$')
 
     def setUp(self):
-        self.env=patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','ARBM_ENABLE_LOCAL_VLM':'1'})
+        self.env=patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','ARBM_ENABLE_LOCAL_VLM':'1','ARBM_LOCAL_VLM_REPAIRS':'2'})
         self.env.start();self.addCleanup(self.env.stop)
 
     def test_binary_raw_messages(self):
@@ -84,25 +99,37 @@ class LocalVLMTests(unittest.TestCase):
             "```python\nimport pyautogui\npyautogui.press('enter')\n```",
             "pyautogui.press('enter')",
             '{"command":"pyautogui.press(\'enter\')"}',
+            'Press Enter now.',
         ):
             with self.subTest(output=output):
                 result,attempts=LocalVLMRoute(lambda *args:output).call(BODY)
                 self.assertEqual(result['action']['command'],"pyautogui.press('enter')")
                 self.assertEqual(attempts[-1]['status'],200)
-        for output,error in (
-            ("```python\n__import__('os').system('id')\n```",'LOCAL_ACTION_REQUIRED'),
-            ('{"action":"exec","command":','LOCAL_ACTION_REQUIRED'),
-        ):
-            with self.subTest(output=output):
-                result,attempts=LocalVLMRoute(lambda *args:output).call(BODY)
-                self.assertIsNone(result)
-                self.assertEqual(attempts[-1]['status'],'local_model_error')
-                self.assertEqual(attempts[-1]['contract_error'],error)
+        result,attempts=LocalVLMRoute(lambda *args:"__import__('os').system('id')").call(BODY)
+        self.assertIsNone(result)
+        self.assertEqual(attempts[-1]['contract_error'],'LOCAL_UNSAFE_OUTPUT_REJECTED')
+
+    def test_contract_failure_gets_bounded_repair(self):
+        outputs=iter(['I cannot format this action.','Press Enter.'])
+        route=LocalVLMRoute(lambda *args:next(outputs))
+        result,attempts=route.call(BODY,budget=100)
+        self.assertEqual(result['action']['command'],"pyautogui.press('enter')")
+        self.assertTrue(any(a.get('status')=='local_contract_retry' for a in attempts))
+        self.assertEqual(attempts[-1]['status'],200)
+        self.assertEqual(attempts[-1]['repair_index'],1)
+
+    def test_pointer_repair_can_ground_visible_label(self):
+        outputs=iter(['I should click something.','Click Compose.'])
+        route=LocalVLMRoute(lambda *args:next(outputs))
+        result,attempts=route.call(BODY,budget=100)
+        self.assertEqual(result['action']['command'],'pyautogui.click(164, 222)')
+        self.assertEqual(result['action']['target']['label'],'Compose')
+        self.assertEqual(attempts[-1]['status'],200)
 
     def test_local_action_budget_and_compact_prompt(self):
         seen=[]
         route=LocalVLMRoute(lambda text,image,tokens: seen.append((text,tokens)) or "pyautogui.press('enter')")
-        result,_=route.call({**BODY,'observation':'x'*9000,'active_application':'GIMP'})
+        result,_=route.call({**BODY,'observation':OBS+'\n'+'x'*9000,'active_application':'GIMP'})
         self.assertEqual(result['action']['command'],"pyautogui.press('enter')")
         self.assertEqual(seen[0][1],96)
         self.assertLess(len(seen[0][0]),6000)
