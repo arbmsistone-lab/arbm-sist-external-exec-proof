@@ -28,6 +28,9 @@ jobs:
       ZERO_SPEND_MODE: HARD
       ARBM_ENABLE_LOCAL_VLM: '1'
       ARBM_SWARM_REMOTE_WORKERS: '3'
+      ARBM_SWARM_OPENROUTER_BUDGET_S: '45'
+      ARBM_SWARM_GROQ_BUDGET_S: '30'
+      ARBM_SWARM_REPAIR_BUDGET_S: '20'
       APPROVED_FOCAL_RUN_ID: '35148173044'
       APPROVED_FOCAL_SHA: '71146c8239467af9efbe11572f40a433bd4009d6'
       APPROVED_EVIDENCE_MANIFEST_SHA256: 'e67e3fa9680bc8fa46a76e16251ed2fbfc07b04518bb6c6e6c090256e3e535e9'
@@ -98,7 +101,7 @@ jobs:
         continue-on-error: true
         run: python scripts/osworld_061_performance_swarm.py incident-evidence
       - name: Install heavyweight local audit fallback
-        if: steps.swarm_fast.outcome != 'success'
+        if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1'
         run: |
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = HARD
@@ -106,7 +109,7 @@ jobs:
           python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
       - name: Run full specialist failover
         id: swarm_full
-        if: steps.swarm_fast.outcome != 'success'
+        if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1'
         continue-on-error: true
         run: python scripts/osworld_061_evidence_aware_swarm.py incident-evidence
       - name: Run 20 final 3D audits
@@ -119,6 +122,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [ "${{ steps.swarm_fast.outputs.substantive_blocked }}" = 1 ]; then
+            echo 'SUBSTANTIVE_SPECIALIST_BLOCKER'
+            exit 1
+          fi
           if [ "${{ steps.swarm_fast.outcome }}" != success ] && [ "${{ steps.swarm_full.outcome }}" != success ]; then
             echo 'SPECIALIST_SWARM_NOT_ACCEPTED'
             exit 1
