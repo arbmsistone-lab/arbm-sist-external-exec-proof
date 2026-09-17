@@ -41,6 +41,9 @@ jobs:
       APPROVED_EVIDENCE_MANIFEST_SHA256: 'e67e3fa9680bc8fa46a76e16251ed2fbfc07b04518bb6c6e6c090256e3e535e9'
       DIAGNOSTIC_PROBE_RUN_ID: '35145804545'
       DIAGNOSTIC_PROBE_SHA: '71146c8239467af9efbe11572f40a433bd4009d6'
+      TRUSTED_SWARM_RUN_ID: '35205586391'
+      TRUSTED_SWARM_SOURCE_SHA: '73772dbe40650d2e4561693db00ade48e3134ac1'
+      TRUSTED_SWARM_JSON_SHA256: 'd2b5f67bf46771c968e4f58437f90d22d7636b4db31ab3b2422eff6bfe9f07f7'
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       GROQ_API_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
     steps:
@@ -51,8 +54,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf incident-evidence current-probe-evidence
-          rm -f osworld-061-*-lane-receipt.json osworld-061-evidence-bundle.json osworld-061-evidence-bundle.sha256
+          rm -rf incident-evidence current-probe-evidence trusted-world-audit
+          rm -f osworld-061-*-lane-receipt.json osworld-061-specialist-replay.json osworld-061-evidence-bundle.json osworld-061-evidence-bundle.sha256
           mkdir -p incident-evidence current-probe-evidence
           echo "STALE_EVIDENCE_PURGED=1" >> "$GITHUB_ENV"
       - name: Download official focal evidence
@@ -116,12 +119,32 @@ jobs:
           finished=$(date +%s)
           python scripts/osworld_061_lane_receipt.py fast "$rc" "$started" "$finished"
           exit "$rc"
+      - name: Download trusted accepted specialist quorum
+        if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1'
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: osworld-061-world-audit
+          run-id: ${{ env.TRUSTED_SWARM_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: trusted-world-audit
+      - name: Revalidate immutable accepted specialist quorum
+        id: swarm_replay
+        if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1'
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          test "$(sha256sum trusted-world-audit/osworld-061-specialist-swarm.json | cut -d' ' -f1)" = "$TRUSTED_SWARM_JSON_SHA256"
+          git fetch --no-tags --depth=1 origin "$TRUSTED_SWARM_SOURCE_SHA"
+          git diff --exit-code "$TRUSTED_SWARM_SOURCE_SHA" HEAD -- scripts/osworld_free_mesh_shim.py scripts/osworld_061_calibrated_grade.py scripts/osworld_gimp_style_transfer.py
+          export TRUSTED_SWARM_FOCAL_PARITY=1
+          timeout --signal=TERM --kill-after=10s 30s python scripts/osworld_061_trusted_replay.py trusted-world-audit/osworld-061-specialist-swarm.json
       - name: Preflight heavyweight local audit fallback
         id: heavy_preflight
-        if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1'
+        if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1' && steps.swarm_replay.outcome != 'success'
         run: timeout --signal=TERM --kill-after=10s 30s python scripts/osworld_061_heavy_runtime_preflight.py
       - name: Install heavyweight local audit fallback
-        if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1' && steps.heavy_preflight.outputs.capacity_ok == '1' && steps.heavy_preflight.outputs.install_required == '1'
+        if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1' && steps.swarm_replay.outcome != 'success' && steps.heavy_preflight.outputs.capacity_ok == '1' && steps.heavy_preflight.outputs.install_required == '1'
         run: |
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = HARD
@@ -129,7 +152,7 @@ jobs:
           timeout --signal=TERM --kill-after=20s 180s python -m pip install --disable-pip-version-check -q --only-binary=:all: --index-url https://download.pytorch.org/whl/cpu 'torch==2.7.1'
           timeout --signal=TERM --kill-after=10s 120s python -m pip install --disable-pip-version-check -q --only-binary=:all: 'transformers==4.52.4' 'safetensors==0.8.0'
       - name: Verify heavyweight local audit runtime
-        if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1'
+        if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1' && steps.swarm_replay.outcome != 'success'
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -140,7 +163,7 @@ jobs:
           PY
       - name: Run full specialist failover
         id: swarm_full
-        if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1'
+        if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1' && steps.swarm_replay.outcome != 'success'
         shell: bash
         continue-on-error: true
         run: |
@@ -161,6 +184,7 @@ jobs:
         if: always()
         env:
           FAST_OUTCOME: ${{ steps.swarm_fast.outcome }}
+          REPLAY_OUTCOME: ${{ steps.swarm_replay.outcome }}
           FULL_OUTCOME: ${{ steps.swarm_full.outcome }}
           AUDIT3D_OUTCOME: ${{ steps.audit3d.outcome }}
         run: timeout --signal=TERM --kill-after=10s 60s python scripts/osworld_061_evidence_bundle.py
@@ -173,7 +197,7 @@ jobs:
             echo 'SUBSTANTIVE_SPECIALIST_BLOCKER'
             exit 1
           fi
-          if [ "${{ steps.swarm_fast.outcome }}" != success ] && [ "${{ steps.swarm_full.outcome }}" != success ]; then
+          if [ "${{ steps.swarm_fast.outcome }}" != success ] && [ "${{ steps.swarm_replay.outcome }}" != success ] && [ "${{ steps.swarm_full.outcome }}" != success ]; then
             echo 'SPECIALIST_SWARM_NOT_ACCEPTED'
             exit 1
           fi
@@ -192,6 +216,7 @@ jobs:
             osworld-061-fast-lane-receipt.json
             osworld-061-full-lane-receipt.json
             osworld-061-specialist-fast-path.json
+            osworld-061-specialist-replay.json
             osworld-061-heavy-runtime-preflight.json
             osworld-061-specialist-swarm.json
             osworld-061-final-3d-audit.json
