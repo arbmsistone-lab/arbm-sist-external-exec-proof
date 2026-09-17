@@ -2,7 +2,7 @@ import base64
 import os
 import unittest
 from unittest.mock import patch
-from osworld_local_vlm import LocalVLMRoute, parse_action_object, MODEL_REVISION, _smol_chat_messages, _binary_contract
+from osworld_local_vlm import LocalVLMRoute, parse_action_object, MODEL_REVISION, _smol_chat_messages, _binary_contract, _recent_tabu_counts, _selector_penalty, _action_fingerprint
 
 PNG=base64.b64encode(b'fixture').decode()
 OBS='''Given the screenshot and info from accessibility tree as below:\ntag\tname\ttext\tclass\tdescription\tposition (top-left x&y)\tsize (w&h)\npush-button\tCompose\tCompose\t\t\t(86, 194)\t(157, 56)\npush-button\tClose\tClose\t\t\t(1882, 27)\t(38, 35)\nlink\tInbox 1\tInbox1\t\t\t(70, 274)\t(240, 32)\n'''
@@ -63,6 +63,31 @@ class LocalGroundingGateTests(unittest.TestCase):
     def test_unsafe_output_is_rejected_before_repair(self):
         with self.assertRaisesRegex(ValueError,'LOCAL_UNSAFE_OUTPUT_REJECTED'):
             parse_action_object("Use __import__('os').system('id')",OBS)
+
+class SelectorStatefulTests(unittest.TestCase):
+    def test_recent_failed_action_receives_tabu_penalty(self):
+        action={'action':'exec','command':'pyautogui.click(1114, 309)',
+                'target':{'source':'accessibility','label':'H2 Rebaseline Directive: Operating Committee Pack','role':'section'}}
+        body={'previous_command':'pyautogui.click(1114, 309)','no_progress_count':2,
+              'task_ledger':{'recent_outcomes':[
+                  {'command':'pyautogui.click(1114, 309)',
+                   'outcome':{'progress':False,'semantic_verified':False}}
+              ]}}
+        counts=_recent_tabu_counts(body)
+        candidate={'action':action}
+        penalty,count=_selector_penalty(candidate,counts)
+        self.assertGreaterEqual(count,2)
+        self.assertGreater(penalty,0)
+
+    def test_progressed_action_is_not_added_by_history(self):
+        body={'no_progress_count':0,'task_ledger':{'recent_outcomes':[
+            {'command':'pyautogui.click(1114, 309)',
+             'outcome':{'progress':True,'semantic_verified':True}}
+        ]}}
+        counts=_recent_tabu_counts(body)
+        fp=_action_fingerprint({'action':'exec','command':'pyautogui.click(1114, 309)'})
+        self.assertEqual(counts.get(fp,0),0)
+
 
 class LocalVLMTests(unittest.TestCase):
     def test_smol_template_folds_system_into_user_without_dropping_image(self):
