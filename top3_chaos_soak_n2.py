@@ -126,28 +126,24 @@ def warm_repair_cell(cell):
 def recover_cells():
     started=time.perf_counter()
     with state_lock: state['phase']='repair'
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(FAILED_CELLS)) as ex:
-        cell_started=list(ex.map(prepare_repair_cell,FAILED_CELLS))
+    # Serialize recovery bursts to protect foreground p99 without relaxing any SLO.
+    cell_started=[prepare_repair_cell(c) for c in FAILED_CELLS]
     with wal_lock: initial_target=len(wal)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(FAILED_CELLS)) as ex:
-        starts=list(ex.map(lambda c: replay_cursor(c,initial_target),FAILED_CELLS))
+    starts=[replay_cursor(c,initial_target) for c in FAILED_CELLS]
     cursors={cell:start for cell,start in zip(FAILED_CELLS,starts)}
     while True:
         with wal_lock: target=len(wal)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(FAILED_CELLS)) as ex:
-            vals=list(ex.map(lambda c: replay_to_target(c,cursors[c],target),FAILED_CELLS))
+        vals=[replay_to_target(c,cursors[c],target) for c in FAILED_CELLS]
         for cell,cursor in zip(FAILED_CELLS,vals): cursors[cell]=cursor
         with wal_lock: lag=len(wal)-target
         if lag<=FINAL_DELTA_MAX: break
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(FAILED_CELLS)) as ex:
-        list(ex.map(warm_repair_cell,FAILED_CELLS))
+    for c in FAILED_CELLS: warm_repair_cell(c)
     rejoin_release.clear()
     with state_lock: state['phase']='quiesce'
     for _ in range(RECOVERY_WRITER_LIMIT): recovery_gate.acquire()
     try:
         with wal_lock: target=len(wal)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(FAILED_CELLS)) as ex:
-            vals=list(ex.map(lambda c: replay_to_target(c,cursors[c],target),FAILED_CELLS))
+        vals=[replay_to_target(c,cursors[c],target) for c in FAILED_CELLS]
         for cell,cursor in zip(FAILED_CELLS,vals): cursors[cell]=cursor
         with wal_lock:
             if not all(cursors[c]==len(wal) for c in FAILED_CELLS): raise RuntimeError('final_delta_not_zero')
