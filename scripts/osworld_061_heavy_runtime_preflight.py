@@ -1,4 +1,4 @@
-"""Fail-closed capacity and version preflight for the 061 local fallback runtime."""
+"""Fail-closed capacity and version preflight for the 061 cloud fallback runtime."""
 import importlib.metadata
 import json
 import os
@@ -6,7 +6,7 @@ import shutil
 from pathlib import Path
 
 REQUIRED = {
-    'torch': '2.7.1',
+    'torch': '2.7.1+cpu',
     'transformers': '4.52.4',
     'safetensors': '0.8.0',
 }
@@ -61,6 +61,7 @@ def evaluate(workspace='.'):
         'minimum_available_memory_bytes': MIN_AVAILABLE_MEMORY_BYTES,
         'minimum_free_disk_bytes': MIN_FREE_DISK_BYTES,
         'capacity_ok': capacity_ok,
+        'runtime_flavor': 'cpu_only',
         'required_versions': REQUIRED,
         'installed_versions': installed,
         'exact_runtime_present': exact,
