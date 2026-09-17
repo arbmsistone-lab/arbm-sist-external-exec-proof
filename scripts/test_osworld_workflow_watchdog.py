@@ -19,11 +19,21 @@ class WorkflowWatchdogTests(unittest.TestCase):
         self.assertIn('if: always()', self.text[upload:upload+180])
 
     def test_world_audit_permissions_are_read_only(self):
-        permissions = self.audit[self.audit.index('permissions:'):self.audit.index('jobs:')]
+        permissions = self.audit[self.audit.index('permissions:'):self.audit.index('concurrency:')]
         self.assertIn('actions: read', permissions)
         self.assertIn('contents: read', permissions)
         for forbidden in ('write', 'id-token:', 'packages:', 'pull-requests:', 'issues:'):
             self.assertNotIn(forbidden, permissions)
+
+    def test_world_audit_serializes_same_ref_without_killing_valid_run(self):
+        block = self.audit[self.audit.index('concurrency:'):self.audit.index('jobs:')]
+        self.assertIn('group: osworld-061-world-audit-${{ github.ref }}', block)
+        self.assertIn('cancel-in-progress: false', block)
+
+    def test_checkout_does_not_persist_credentials(self):
+        self.assertIn('actions/checkout@11d5960a326750d5838078e36cf38b85af677262', self.audit)
+        checkout = self.audit[self.audit.index('actions/checkout@'):self.audit.index('- name: Purge stale')]
+        self.assertIn('persist-credentials: false', checkout)
 
     def test_world_audit_fast_path_is_bounded_and_zero_spend(self):
         self.assertIn('ZERO_SPEND_MODE: HARD', self.audit)
