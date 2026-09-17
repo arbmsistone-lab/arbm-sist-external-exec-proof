@@ -1,0 +1,17 @@
+name: OSWorld v32 concurrency takeover
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: osworld-v32-official-18
+  cancel-in-progress: true
+jobs:
+  takeover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Confirm takeover only
+        run: |
+          set -euo pipefail
+          echo 'OSWORLD_V32_STALE_CONCURRENCY_TAKEOVER_OK'
