@@ -1,0 +1,208 @@
+name: OSWorld V2.1 full 22-site control-plane gate
+
+on:
+  push:
+    branches:
+      - chatgpt/international-recognition-20260917
+    paths:
+      - .github/workflows/osworld-v21-control-plane-22.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: osworld-v21-control-plane-22-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  site:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - path: awsconsole_web
+            host: awsconsole
+          - path: budgetwise_web
+            host: budgetwise
+          - path: calendar_web
+            host: calendar
+          - path: careerlink_web
+            host: careerlink
+          - path: cloudcrm_web
+            host: cloudcrm
+          - path: dinogame_web
+            host: dinogame
+          - path: eventix_web
+            host: eventix
+          - path: expenseflow_web
+            host: expenseflow
+          - path: formcraft_web
+            host: formcraft
+          - path: glbviewer_web
+            host: glbviewer
+          - path: insurance_claim_web
+            host: insurance-claim
+          - path: mailhub_web
+            host: mailhub
+          - path: overleaf_collab_web
+            host: overleaf-collab
+          - path: reviewsphere_web
+            host: reviewsphere
+          - path: slidepuzzle_web
+            host: slidepuzzle
+          - path: streamview_web
+            host: streamview
+          - path: teamchat_web
+            host: teamchat
+          - path: travelhub_ad_web
+            host: travelhubpro
+          - path: trippza_web
+            host: trippza
+          - path: vaultbank_web
+            host: vaultbank
+          - path: visaapplication_web
+            host: visaapplication
+          - path: wandb_web
+            host: wandb
+    env:
+      ZERO_SPEND_MODE: HARD
+      HEAVY_LOCAL: '0'
+      HOST_SUFFIX: 127.0.0.1.nip.io
+      CADDY_SCHEME: http://
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Enforce preparation-only policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$ZERO_SPEND_MODE" = HARD
+          test "$HEAVY_LOCAL" = 0
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('docs/international-recognition/osworld-v2.1-pins.json').read_text())
+          assert p['policy']['zero_spend_mode']=='HARD'
+          assert p['policy']['paid_fallback'] is False
+          assert p['policy']['heavy_local']==0
+          assert p['policy']['full_run_authorized'] is False
+          PY
+
+      - name: Hydrate exact official runtime site
+        shell: bash
+        run: |
+          set -euo pipefail
+          EVIDENCE="$GITHUB_WORKSPACE/evidence/${{ matrix.path }}"
+          OSWEB="$GITHUB_WORKSPACE/osworld-web"
+          mkdir -p "$EVIDENCE"
+          git clone https://github.com/Task-Web/OSWorld-web.git "$OSWEB"
+          git -C "$OSWEB" checkout 60c89fe6a8ed934668619d8d26132848239eb8ee
+          git -C "$OSWEB" -c url.https://github.com/.insteadOf=git@github.com: submodule update --init "${{ matrix.path }}"
+          test "$(git -C "$OSWEB" rev-parse HEAD)" = 60c89fe6a8ed934668619d8d26132848239eb8ee
+          test "$(git -C "$OSWEB" rev-parse HEAD:scripts/verify-control-plane.mjs)" = 240a0d0f172e5bf59f492f6db54485f2011288ea
+          test -z "$(git -C "$OSWEB" status --porcelain)"
+          git -C "$OSWEB" rev-parse HEAD > "$EVIDENCE/website-sha.txt"
+          git -C "$OSWEB" rev-parse "HEAD:${{ matrix.path }}" > "$EVIDENCE/submodule-sha.txt"
+          git -C "$OSWEB" submodule status "${{ matrix.path }}" > "$EVIDENCE/submodule-status.txt"
+          printf '%s\n' \
+            'ZERO_SPEND_MODE=HARD' \
+            'HEAVY_LOCAL=0' \
+            'BENCHMARK_TASKS_STARTED=0' \
+            'FULL_RUN_AUTHORIZED=false' \
+            'UPSTREAM_CONTROL_PLANE_BLOB=240a0d0f172e5bf59f492f6db54485f2011288ea' \
+            > "$EVIDENCE/policy-evidence.txt"
+
+      - name: Verify wildcard DNS and compose
+        shell: bash
+        run: |
+          set -euo pipefail
+          EVIDENCE="$GITHUB_WORKSPACE/evidence/${{ matrix.path }}"
+          OSWEB="$GITHUB_WORKSPACE/osworld-web"
+          getent hosts "${{ matrix.host }}.${HOST_SUFFIX}" | tee "$EVIDENCE/dns-resolution.txt"
+          grep -Eq '127\.0\.0\.1' "$EVIDENCE/dns-resolution.txt"
+          HOST_SUFFIX="$HOST_SUFFIX" CADDY_SCHEME="$CADDY_SCHEME" \
+          docker compose \
+            --project-directory "$OSWEB/${{ matrix.path }}" \
+            -f "$OSWEB/docker-compose.main.yml" \
+            -f "$OSWEB/${{ matrix.path }}/web-compose.yml" \
+            config > "$EVIDENCE/compose.yml"
+          test -s "$EVIDENCE/compose.yml"
+
+      - name: Start exact official site runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          OSWEB="$GITHUB_WORKSPACE/osworld-web"
+          HOST_SUFFIX="$HOST_SUFFIX" CADDY_SCHEME="$CADDY_SCHEME" \
+          docker compose \
+            --project-directory "$OSWEB/${{ matrix.path }}" \
+            -f "$OSWEB/docker-compose.main.yml" \
+            -f "$OSWEB/${{ matrix.path }}/web-compose.yml" \
+            up -d --build
+
+      - name: Run upstream-equivalent control-plane contract
+        shell: bash
+        env:
+          OSWORLD_SITE: ${{ matrix.path }}
+          OSWORLD_HOST: ${{ matrix.host }}
+          OSWORLD_HOST_SUFFIX: ${{ env.HOST_SUFFIX }}
+          OSWORLD_SCHEME: http
+          EVIDENCE_DIR: ${{ github.workspace }}/evidence/${{ matrix.path }}
+        run: |
+          set -euo pipefail
+          node scripts/osworld_v21_control_plane_site_check.mjs \
+            | tee "$EVIDENCE_DIR/check.log"
+          grep -Fq "PASS $OSWORLD_SITE" "$EVIDENCE_DIR/check.log"
+          grep -Fq '"status": "PASS"' "$EVIDENCE_DIR/verdict.json"
+
+      - name: Capture site provenance
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          EVIDENCE="$GITHUB_WORKSPACE/evidence/${{ matrix.path }}"
+          OSWEB="$GITHUB_WORKSPACE/osworld-web"
+          mkdir -p "$EVIDENCE"
+          docker compose \
+            --project-directory "$OSWEB/${{ matrix.path }}" \
+            -f "$OSWEB/docker-compose.main.yml" \
+            -f "$OSWEB/${{ matrix.path }}/web-compose.yml" \
+            ps > "$EVIDENCE/docker-ps.txt" 2>&1
+          docker compose \
+            --project-directory "$OSWEB/${{ matrix.path }}" \
+            -f "$OSWEB/docker-compose.main.yml" \
+            -f "$OSWEB/${{ matrix.path }}/web-compose.yml" \
+            logs --no-color > "$EVIDENCE/runtime.log" 2>&1
+          docker image inspect lucaslorentz/caddy-docker-proxy:2.8-alpine \
+            --format '{{json .RepoDigests}}' > "$EVIDENCE/caddy-image-digests.json" 2>&1
+          find "$EVIDENCE" -type f -maxdepth 1 -print0 | sort -z | xargs -0 sha256sum > "$EVIDENCE/evidence-sha256.txt" 2>/dev/null || true
+
+      - name: Tear down exact site
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          OSWEB="$GITHUB_WORKSPACE/osworld-web"
+          HOST_SUFFIX="$HOST_SUFFIX" CADDY_SCHEME="$CADDY_SCHEME" \
+          docker compose \
+            --project-directory "$OSWEB/${{ matrix.path }}" \
+            -f "$OSWEB/docker-compose.main.yml" \
+            -f "$OSWEB/${{ matrix.path }}/web-compose.yml" \
+            down -v --remove-orphans
+
+      - name: Preserve site evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: osworld-v21-control-plane-${{ matrix.path }}
+          path: evidence/${{ matrix.path }}
+          if-no-files-found: error
+          retention-days: 30
