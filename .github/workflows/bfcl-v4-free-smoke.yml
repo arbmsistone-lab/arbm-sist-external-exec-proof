@@ -1,5 +1,7 @@
 name: BFCL v4 FREE official smoke
 on:
+  push:
+    branches: [cert/global-external-closure-20260917]
   workflow_dispatch:
 permissions:
   contents: read
