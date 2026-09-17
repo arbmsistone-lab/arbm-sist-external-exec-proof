@@ -1,4 +1,4 @@
-﻿import pathlib,sys,unittest
+import pathlib,sys,unittest
 sys.path.insert(0,str(pathlib.Path(__file__).parent))
 import osworld_061_specialist_swarm as swarm
 
@@ -42,6 +42,16 @@ class SpecialistSwarmTests(unittest.TestCase):
         self.assertNotIn(evidence,messages[0]['content'])
         self.assertEqual(messages[1]['content'].count(evidence),1)
 
+    def test_local_text_cache_is_released_before_heavier_vlm(self):
+        source=pathlib.Path(swarm.__file__).read_text(encoding='utf-8')
+        marker="result=ask(LOCAL_VLM_ROUTE,_vlm_messages(system,evidence,image,probe_evidence),180)"
+        pos=source.index(marker)
+        window=source[max(0,pos-220):pos]
+        self.assertIn('clear_local_text_cache()',window)
+        main=source[source.index('def main(root: Path):'):]
+        self.assertIn('finally:',main)
+        self.assertIn('clear_local_text_cache()',main)
+
     def test_probe_evidence_is_grounded_and_non_official(self):
         import json,tempfile,os,hashlib
         with tempfile.TemporaryDirectory() as d:
@@ -74,7 +84,6 @@ class SpecialistSwarmTests(unittest.TestCase):
             self.assertIn('4.535',evidence)
             self.assertIn('diagnostic only, no evaluator/score',evidence)
             self.assertIn('stage_snapshots_present',evidence)
-
 
 
 if __name__=='__main__': unittest.main()
