@@ -2,7 +2,7 @@ import base64
 import os
 import unittest
 from unittest.mock import patch
-from osworld_local_vlm import LocalVLMRoute, parse_action_object, MODEL_REVISION, _smol_chat_messages, _binary_contract, _recent_tabu_counts, _selector_penalty, _action_fingerprint
+from osworld_local_vlm import LocalVLMRoute, parse_action_object, MODEL_REVISION, _smol_chat_messages, _binary_contract, _recent_tabu_counts, _selector_penalty, _action_fingerprint, _foreground_observation, _selector_candidates
 
 PNG=base64.b64encode(b'fixture').decode()
 OBS='''Given the screenshot and info from accessibility tree as below:\ntag\tname\ttext\tclass\tdescription\tposition (top-left x&y)\tsize (w&h)\npush-button\tCompose\tCompose\t\t\t(86, 194)\t(157, 56)\npush-button\tClose\tClose\t\t\t(1882, 27)\t(38, 35)\nlink\tInbox 1\tInbox1\t\t\t(70, 274)\t(240, 32)\n'''
@@ -63,6 +63,36 @@ class LocalGroundingGateTests(unittest.TestCase):
     def test_unsafe_output_is_rejected_before_repair(self):
         with self.assertRaisesRegex(ValueError,'LOCAL_UNSAFE_OUTPUT_REJECTED'):
             parse_action_object("Use __import__('os').system('id')",OBS)
+
+class ForegroundMaskTests(unittest.TestCase):
+    def test_dominant_document_root_excludes_stale_prefix_nodes(self):
+        obs=('ACTIVE APPLICATION (Ubuntu panel): unknown\n'
+             'section\tOld Mail\tOld Mail\t\t\t(600, 300)\t(900, 20)\n'
+             'document-web\tSettings - Visual Studio Code\t\t\t\t(70, 89)\t(1850, 991)\n'
+             'tree-item\tWindow Title\t\t\t\t(747, 381)\t(1000, 117)\n')
+        filtered,meta=_foreground_observation({'observation':obs})
+        self.assertIn('Settings - Visual Studio Code',filtered)
+        self.assertIn('Window Title',filtered)
+        self.assertNotIn('Old Mail',filtered)
+        self.assertEqual(meta['strategy'],'dominant-document-root')
+
+    def test_unresolvable_background_candidate_is_removed_before_selector(self):
+        obs=('ACTIVE APPLICATION (Ubuntu panel): unknown\n'
+             'section\tStale target\tStale target\t\t\t(100, 100)\t(200, 30)\n'
+             'document-web\tSettings - Visual Studio Code\t\t\t\t(70, 89)\t(1850, 991)\n'
+             'tree-item\tWindow Title\tWindow Title\t\t\t(747, 381)\t(1000, 117)\n')
+        items=_selector_candidates({'instruction':'change Window Title','observation':obs,'image_geometry':{'width':1920,'height':1080}})
+        labels=[x.get('action',{}).get('target',{}).get('label') for x in items]
+        self.assertNotIn('Stale target',labels)
+        self.assertIn('Window Title',labels)
+
+    def test_intra_request_tabu_contributes_penalty(self):
+        body={'request_tabu':[{'action':'exec','command':'pyautogui.click(10, 20)','weight':3}],
+              'task_ledger':{'recent_outcomes':[]},'no_progress_count':0}
+        counts=_recent_tabu_counts(body)
+        fp=_action_fingerprint({'action':'exec','command':'pyautogui.click(10, 20)'})
+        self.assertGreaterEqual(counts.get(fp,0),3)
+
 
 class SelectorStatefulTests(unittest.TestCase):
     def test_recent_failed_action_receives_tabu_penalty(self):
