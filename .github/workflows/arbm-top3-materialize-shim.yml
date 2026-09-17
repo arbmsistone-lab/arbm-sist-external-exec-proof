@@ -8,6 +8,8 @@ on:
     paths:
       - Makefile
       - scripts/patch_shim_mesh_top3.py
+      - scripts/patch_shim_mesh_top3_v2.py
+      - scripts/test_osworld_failover_matrix.py
       - .github/workflows/arbm-top3-materialize-shim.yml
 
 permissions:
@@ -34,7 +36,7 @@ jobs:
         run: |
           set -euo pipefail
           make patch-shim-mesh
-          python3 -m py_compile scripts/osworld_free_mesh_shim.py scripts/osworld_local_vlm.py scripts/patch_shim_mesh_top3.py
+          python3 -m py_compile scripts/osworld_free_mesh_shim.py scripts/osworld_local_vlm.py scripts/patch_shim_mesh_top3.py scripts/patch_shim_mesh_top3_v2.py
           python3 -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
           python3 scripts/osworld_free_mesh_shim.py --test-isolated-run --run-id 35265789297 --task 091 --verify-budget --enforce-session-isolation
           python3 -m unittest scripts/test_osworld_groq_free.py scripts/test_osworld_groq_local_fallback.py scripts/test_osworld_failover_matrix.py -v
