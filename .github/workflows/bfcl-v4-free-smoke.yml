@@ -34,6 +34,7 @@ jobs:
           test "$(git -C upstream rev-parse HEAD)" = "$BFCL_COMMIT"
           cd upstream/berkeley-function-call-leaderboard
           python -m pip install --disable-pip-version-check -q -e .
+          python -m pip install --disable-pip-version-check -q soundfile
       - name: Run 20 official BFCL cases and evaluator
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
