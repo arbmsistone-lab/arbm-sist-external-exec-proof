@@ -18,6 +18,13 @@ class WorkflowWatchdogTests(unittest.TestCase):
         upload = self.text.index('- name: Upload shard evidence')
         self.assertIn('if: always()', self.text[upload:upload+180])
 
+    def test_world_audit_permissions_are_read_only(self):
+        permissions = self.audit[self.audit.index('permissions:'):self.audit.index('jobs:')]
+        self.assertIn('actions: read', permissions)
+        self.assertIn('contents: read', permissions)
+        for forbidden in ('write', 'id-token:', 'packages:', 'pull-requests:', 'issues:'):
+            self.assertNotIn(forbidden, permissions)
+
     def test_world_audit_fast_path_is_bounded_and_zero_spend(self):
         self.assertIn('ZERO_SPEND_MODE: HARD', self.audit)
         self.assertIn("ARBM_SWARM_REMOTE_WORKERS: '3'", self.audit)
@@ -55,6 +62,13 @@ class WorkflowWatchdogTests(unittest.TestCase):
         self.assertIn('SUBSTANTIVE_SPECIALIST_BLOCKER', block)
         self.assertIn('SPECIALIST_SWARM_NOT_ACCEPTED', block)
         self.assertIn('steps.audit3d.outcome', block)
+
+    def test_fast_path_forensics_are_preserved_even_if_fallback_overwrites_swarm(self):
+        marker = '- name: Preserve world-audit evidence'
+        block = self.audit[self.audit.index(marker):]
+        self.assertIn('osworld-061-specialist-fast-path.json', block)
+        self.assertIn('osworld-061-specialist-swarm.json', block)
+        self.assertIn('if: always()', block[:220])
 
     def test_push_scope_remains_official_branch_only(self):
         self.assertIn('branches: [chatgpt/arbm-agent-elite-v2-20260914]', self.audit)
