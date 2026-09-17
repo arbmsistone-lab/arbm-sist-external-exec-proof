@@ -10,7 +10,7 @@ import re
 import threading
 import time
 
-from osworld_control import canonical_action
+from osworld_control import canonical_action, canonical_target_proof
 
 ROUTE = 'local-cloud-vlm'
 MODEL = 'HuggingFaceTB/SmolVLM-256M-Instruct'
@@ -67,6 +67,9 @@ def _accessibility_targets(observation):
 
 def _foreground_observation(body):
     observation=str(body.get('observation') or '')
+    meta=body.get('canonical_foreground_meta') if isinstance(body.get('canonical_foreground_meta'),dict) else None
+    if meta:
+        return observation,meta
     lines=observation.splitlines()
     roots=[]
     for item in _accessibility_targets(observation):
@@ -125,7 +128,15 @@ def _preflight_candidate(item,body,foreground_observation):
         compiled=_compile_action(action,foreground_observation)
     except ValueError:
         return None
-    return compiled
+    target={
+        'source':'accessibility-canonical',
+        'label':item['label'],'role':item['role'],
+        'x':int(item['x']),'y':int(item['y']),'w':int(item['w']),'h':int(item['h']),
+        'cx':int(item['cx']),'cy':int(item['cy']),
+        'foreground_sha256':str(body.get('canonical_foreground_sha256') or hashlib.sha256(foreground_observation.encode()).hexdigest()),
+    }
+    target['proof_sha256']=canonical_target_proof(target)
+    return {**compiled,'target':target,'canonical_foreground':True}
 
 
 def _resolve_accessibility_target(label, observation, role=''):
@@ -632,6 +643,8 @@ def default_select_action(body, image_b64):
               'selector_image_height':image.height if image is not None else 0,
               'selector_foreground':candidates[chosen_index].get('foreground_meta'),
               'selector_preflight_rejected':int(candidates[chosen_index].get('preflight_rejected_count') or 0),
+              'canonical_foreground_sha256':str(body.get('canonical_foreground_sha256') or ''),
+              'canonical_target_proof_sha256':str(action.get('target',{}).get('proof_sha256') or '') if isinstance(action.get('target'),dict) else '',
               **runtime_meta}
         return action,meta
     finally:
