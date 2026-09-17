@@ -31,6 +31,7 @@ jobs:
       ZERO_SPEND_MODE: HARD
       ARBM_ENABLE_LOCAL_VLM: '1'
       ARBM_LOCAL_TEXT_CACHE_MODELS: '1'
+      ARBM_LOCAL_TEXT_PROMPT_TOKENS: '2048'
       ARBM_SWARM_REMOTE_WORKERS: '3'
       ARBM_SWARM_OPENROUTER_BUDGET_S: '45'
       ARBM_SWARM_GROQ_BUDGET_S: '30'
@@ -125,14 +126,15 @@ jobs:
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = HARD
           test "$RUNNER_ENVIRONMENT" = github-hosted
-          timeout --signal=TERM --kill-after=20s 240s python -m pip install --disable-pip-version-check -q --only-binary=:all: 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
+          timeout --signal=TERM --kill-after=20s 180s python -m pip install --disable-pip-version-check -q --only-binary=:all: --index-url https://download.pytorch.org/whl/cpu 'torch==2.7.1'
+          timeout --signal=TERM --kill-after=10s 120s python -m pip install --disable-pip-version-check -q --only-binary=:all: 'transformers==4.52.4' 'safetensors==0.8.0'
       - name: Verify heavyweight local audit runtime
         if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1'
         run: |
           set -euo pipefail
           python - <<'PY'
           import importlib.metadata
-          required={'torch':'2.7.1','transformers':'4.52.4','safetensors':'0.8.0'}
+          required={'torch':'2.7.1+cpu','transformers':'4.52.4','safetensors':'0.8.0'}
           actual={name:importlib.metadata.version(name) for name in required}
           assert actual==required, (actual, required)
           PY
@@ -144,7 +146,7 @@ jobs:
         run: |
           set +e
           started=$(date +%s)
-          timeout --signal=TERM --kill-after=20s 900s python scripts/osworld_061_evidence_aware_swarm.py incident-evidence
+          timeout --signal=TERM --kill-after=20s 600s python scripts/osworld_061_evidence_aware_swarm.py incident-evidence
           rc=$?
           finished=$(date +%s)
           python scripts/osworld_061_lane_receipt.py full "$rc" "$started" "$finished"
