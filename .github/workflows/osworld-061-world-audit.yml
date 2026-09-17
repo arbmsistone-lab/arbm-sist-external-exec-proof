@@ -138,6 +138,7 @@ jobs:
           name: osworld-061-world-audit
           path: |
             osworld-061-champion-audit.json
+            osworld-061-specialist-fast-path.json
             osworld-061-specialist-swarm.json
             osworld-061-final-3d-audit.json
             current-probe-evidence/calibrated/calibrated-probe-result.json
