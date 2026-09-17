@@ -18,7 +18,7 @@ jobs:
         shell: bash
         env:
           APP_URL: https://arbm-control-senior-d2xvhh.v2.appdeploy.ai
-          WORKER_URL: https://telemetry-61d221-arbm-control.zevanory.workers.dev
+          WORKER_URL: https://arbm-control.zevanory.workers.dev
         run: |
           set -euo pipefail
           python - <<'PY'
