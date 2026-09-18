@@ -38,6 +38,12 @@ def _norm(value):
     return re.sub(r'\s+', ' ', str(value or '').strip().strip('"\'')).casefold()
 
 
+def _is_wps_family_active(value):
+    active=_norm(value)
+    return (active.startswith('wps presentation') or active.startswith('wps 2019')
+            or active.startswith('wps office') or active=='wpp')
+
+
 def _accessibility_targets(observation):
     targets=[]
     for index,line in enumerate(str(observation or '').splitlines()):
@@ -124,8 +130,8 @@ def _foreground_scope_accepts(item,body):
     belong to Ubuntu's top panel or left dock while WPS Presentation is the
     observed foreground application.
     """
-    active=_norm(body.get('active_application'))
-    if not active.startswith('wps presentation'):
+    active=body.get('active_application')
+    if not _is_wps_family_active(active):
         return True
     role=_norm(item.get('role'))
     x=int(item.get('x') or 0); y=int(item.get('y') or 0)
