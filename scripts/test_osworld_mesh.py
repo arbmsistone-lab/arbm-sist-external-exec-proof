@@ -173,108 +173,55 @@ class MeshTests(unittest.TestCase):
         'The COO has asked you to rebaseline the H2 Operating Committee pack. '
         'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
         'Reforecast_Model_H2.xlsx is the source of truth.')
-  transient={'schema':1,'stable':True,'window':{
+  system={'schema':1,'stable':True,'window':{
    'id':50331694,'pid':2689,'title':'System Check',
    'owner_title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Office',
    'wm_class':'wpp wpp','bbox':[120,112,699,327]}}
   deck={'schema':1,'stable':True,'window':{
    'id':50331680,'pid':2689,'title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Office',
-   'owner_title':'','wm_class':'wpp wpp','bbox':[70,27,1850,1053]}}
-  deck_obs=('text\tOperating Committee\tOperating Committee\t\t\t(500, 180)\t(600, 60)\n'
-            'text\tGrowth Plan Draft\tGrowth Plan Draft\t\t\t(700, 300)\t(100, 40)')
+   'owner_title':'','wm_class':'wpsoffice wpsoffice','bbox':[70,27,1850,1053]}}
+  replace={'schema':1,'stable':True,'window':{
+   'id':62914597,'pid':2689,'title':'Replace',
+   'owner_title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Office',
+   'wm_class':'wpp wpp','bbox':[420,240,900,520]}}
+  result={'schema':1,'stable':True,'window':{
+   'id':62914598,'pid':2689,'title':'Presentation',
+   'owner_title':'Replace','wm_class':'wpp wpp','bbox':[600,400,700,220]}}
   with patch.dict(os.environ,{'TASK_ID':'091','ZERO_SPEND_MODE':'HARD'},clear=False):
    state={}
-   tab=shim.next_091_specialist_action(task,'WPS 2019','',state,transient)
-   enter=shim.next_091_specialist_action(task,'WPS 2019','',state,transient)
-   self.assertEqual(tab['command'],"pyautogui.press('tab')")
-   self.assertEqual(enter['command'],"pyautogui.press('enter')")
-   self.assertNotIn("alt', 'tab",tab['command']+enter['command'])
-   self.assertNotIn("alt', 'f4",tab['command']+enter['command'])
-   self.assertFalse(state.get('anchored'))
-
-   anchor=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck)
-   self.assertEqual(anchor['command'],"pyautogui.hotkey('ctrl', 'home')")
-   self.assertEqual(state.get('mode'),'DECK_ACTIVE')
-
-   required={'$40.9M','$2.8M','104%','71%','17 mo','206','3',
-             'Renewal saves','Pricing discipline','Migration delay','Support credits',
-             'International Pilot stop','Partner stabilization','Platform','Reliability',
-             'Protected hiring','Freeze','Vendor SLA breach','Data migration cutover failure',
-             'Reliability Hardening','Data Migration','H2 Stabilize-and-Recover Roadmap',
-             'Protect Reliability Hardening capacity','Sequence Data Migration cutover',
-             'Freeze non-critical hiring','Incident runbook rollout','Cutover rehearsal complete',
-             'Recovery review with OpCom'}
-   finals={row[4] for row in shim.TASK091_SPATIAL_TEXT_EDITS}
-   self.assertTrue(required.issubset(finals))
-   self.assertIn((2,558,364,'$42.8M','$40.9M'),shim.TASK091_SPATIAL_TEXT_EDITS)
-   self.assertIn((3,843,404,'$42.8M','$40.9M'),shim.TASK091_SPATIAL_TEXT_EDITS)
-
-   # First edit is a two-phase transaction and index cannot advance early.
-   select=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck)
-   self.assertEqual(select['target']['source'],'accessibility')
-   self.assertIn('doubleClick(750, 320',select['command'])
-   self.assertEqual(state['spatial_index'],0)
-   self.assertEqual(state['pending_edit']['stage'],'select-issued')
-
-   edit=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck)
-   self.assertIn("hotkey('ctrl', 'a')",edit['command'])
-   self.assertEqual(state['spatial_index'],0)
-   self.assertEqual(state['pending_edit']['stage'],'edit-issued')
-
-   commit_obs=('text\tOperating Committee\tOperating Committee\t\t\t(500, 180)\t(600, 60)\n'
-               'text\tH2 Operating Committee Pack Stabilize-and-Recover Rebaseline\t'
-               'H2 Operating Committee Pack Stabilize-and-Recover Rebaseline\t\t\t(700, 300)\t(220, 40)')
-   commit=shim.next_091_specialist_action(task,'WPS Presentation',commit_obs,state,deck)
-   self.assertEqual(commit['command'],"pyautogui.press('esc')")
-   self.assertEqual(state['spatial_index'],0)
-   self.assertEqual(state['pending_edit']['stage'],'commit-issued')
-   verified=shim.next_091_specialist_action(task,'WPS Presentation',commit_obs,state,deck)
-   self.assertEqual(verified['action'],'checkpoint')
-   self.assertEqual(verified['checkpoint'],'TASK091_FIRST_STRUCTURAL_EDIT_VERIFIED')
-   self.assertEqual(state['spatial_index'],1)
-   self.assertIsNone(state.get('pending_edit'))
-   self.assertTrue(state.get('first_structural_edit_verified'))
-
-   # No semantic old->new change remains pending, then terminates specifically.
-   stuck={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'mode':'TARGET_COMMITTED',
-          'pending_edit':{'slide':1,'old':'Growth Plan Draft',
-                          'new':'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline',
-                          'stage':'commit-issued','target':{'bbox':[700,300,100,40],'cx':750,'cy':320},
-                          'verify_attempts':0}}
-   retry=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,stuck,deck)
-   self.assertIn('sleep',retry['command'])
-   failed=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,stuck,deck)
-   self.assertEqual(failed['action'],'terminal')
-   self.assertEqual(failed['reason'],'TASK091_EDIT_NOT_VERIFIED')
-   self.assertEqual(stuck['spatial_index'],0)
-
-   # Missing and ambiguous targets never click blindly.
-   missing_obs='text\tOperating Committee\tOperating Committee\t\t\t(500, 180)\t(600, 60)'
-   missing={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
-   self.assertIn('sleep',shim.next_091_specialist_action(task,'WPS Presentation',missing_obs,missing,deck)['command'])
-   miss_terminal=shim.next_091_specialist_action(task,'WPS Presentation',missing_obs,missing,deck)
-   self.assertEqual(miss_terminal['reason'],'TASK091_TARGET_NOT_VISIBLE')
-   dup=('text\tOperating Committee\tOperating Committee\t\t\t(500, 180)\t(600, 60)\n'
-        'text\tGrowth Plan Draft\tGrowth Plan Draft\t\t\t(690, 300)\t(100, 40)\n'
-        'text\tGrowth Plan Draft\tGrowth Plan Draft\t\t\t(700, 300)\t(100, 40)')
-   ambiguous={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
-   self.assertIn('sleep',shim.next_091_specialist_action(task,'WPS Presentation',dup,ambiguous,deck)['command'])
-   amb_terminal=shim.next_091_specialist_action(task,'WPS Presentation',dup,ambiguous,deck)
-   self.assertEqual(amb_terminal['reason'],'TASK091_TARGET_AMBIGUOUS')
-
-   # A normal deck never receives transient close keys.
-   normal={}
-   normal_action=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,normal,deck)
-   self.assertNotIn("press('enter')",normal_action['command'])
-   self.assertNotIn("alt', 'f4",normal_action['command'])
-
-   # Handoff is explicit, only after no pending edit and verified text pass saved.
-   done={'owned':True,'anchored':True,'slide':13,'spatial_index':len(shim.TASK091_SPATIAL_TEXT_EDITS)}
-   save=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,done,deck)
-   self.assertIn("hotkey('ctrl', 's')",save['command'])
-   self.assertIsNone(shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,done,deck))
-   self.assertTrue(done.get('handoff'))
-   self.assertEqual(done.get('handoff_reason'),'DIRECT_TEXT_PASS_VERIFIED_CHART_FILL_REMAINS')
+   self.assertEqual(shim.next_091_specialist_action(task,'WPS 2019','',state,system)['command'],"pyautogui.press('tab')")
+   self.assertEqual(shim.next_091_specialist_action(task,'WPS 2019','',state,system)['command'],"pyautogui.press('enter')")
+   # No slide-internal AT-SPI text is required after foreground is proven.
+   opened=shim.next_091_specialist_action(task,'WPS 2019','',state,deck)
+   self.assertEqual(opened['command'],"pyautogui.hotkey('ctrl', 'h')")
+   self.assertEqual(state['replace_index'],0)
+   find=shim.next_091_specialist_action(task,'WPS 2019','',state,replace)
+   self.assertIn("Growth Plan Draft",find['command'])
+   value=shim.next_091_specialist_action(task,'WPS 2019','',state,replace)
+   self.assertIn("Stabilize-and-Recover Rebaseline",value['command'])
+   apply=shim.next_091_specialist_action(task,'WPS 2019','',state,replace)
+   self.assertEqual(apply['command'],"pyautogui.hotkey('alt', 'a')")
+   ack=shim.next_091_specialist_action(task,'WPS 2019','',state,result)
+   self.assertEqual(ack['command'],"pyautogui.press('enter')")
+   close=shim.next_091_specialist_action(task,'WPS 2019','',state,replace)
+   self.assertEqual(close['command'],"pyautogui.press('esc')")
+   self.assertEqual(state['replace_index'],1)
+   next_open=shim.next_091_specialist_action(task,'WPS 2019','',state,deck)
+   self.assertEqual(next_open['command'],"pyautogui.hotkey('ctrl', 'h')")
+   # Finishing requires all audited replacements plus a real save.
+   done={'owned':True,'replace_index':len(shim.TASK091_REPLACEMENTS),'replace_phase':'open'}
+   save=shim.next_091_specialist_action(task,'WPS 2019','',done,deck)
+   self.assertEqual(save['command'],"pyautogui.hotkey('ctrl', 's')")
+   finish=shim.next_091_specialist_action(task,'WPS 2019','',done,deck)
+   self.assertEqual(finish['action'],'finish')
+   self.assertTrue(done.get('text_pass_complete'))
+   # Workbook drift fails closed.
+   workbook={'schema':1,'stable':True,'window':{
+    'id':12582930,'pid':2576,'title':'Reforecast_Model_H2.xlsx - WPS Office',
+    'owner_title':'','wm_class':'wpsoffice wpsoffice','bbox':[70,27,1850,1053]}}
+   drift=shim.next_091_specialist_action(task,'WPS 2019','',{},workbook)
+   self.assertEqual(drift['action'],'terminal')
+   self.assertEqual(drift['reason'],'WPS_DECK_FOREGROUND_UNPROVEN')
 
  def test_task091_specialist_does_not_capture_other_tasks(self):
   with patch.dict(os.environ,{'TASK_ID':'061'},clear=False):
