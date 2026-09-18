@@ -185,16 +185,50 @@ class MeshTests(unittest.TestCase):
   with patch.dict(os.environ,{'TASK_ID':'091','ZERO_SPEND_MODE':'HARD'},clear=False):
    state={}
    tab=shim.next_091_specialist_action(task,'WPS 2019','',state,transient)
-   enter=shim.next_091_specialist_action(task,'WPS 2019','',state,transient)
+   space=shim.next_091_specialist_action(task,'WPS 2019','',state,transient)
    self.assertEqual(tab['command'],"pyautogui.press('tab')")
-   self.assertEqual(enter['command'],"pyautogui.press('enter')")
-   self.assertNotIn("alt', 'tab",tab['command']+enter['command'])
-   self.assertNotIn("alt', 'f4",tab['command']+enter['command'])
+   self.assertEqual(space['command'],"pyautogui.press('space')")
+   self.assertNotIn("alt', 'tab",tab['command']+space['command'])
+   self.assertNotIn("alt', 'f4",tab['command']+space['command'])
    self.assertFalse(state.get('anchored'))
 
+   # If Space closes the modal, ownership transitions directly to the deck.
    anchor=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck)
    self.assertEqual(anchor['command'],"pyautogui.hotkey('ctrl', 'home')")
    self.assertEqual(state.get('mode'),'DECK_ACTIVE')
+
+   # If Space does not close, only one guest-proven Close control may be clicked.
+   fallback_state={}
+   self.assertEqual(shim.next_091_specialist_action(task,'WPS 2019','',fallback_state,transient)['command'],
+                    "pyautogui.press('tab')")
+   self.assertEqual(shim.next_091_specialist_action(task,'WPS 2019','',fallback_state,transient)['command'],
+                    "pyautogui.press('space')")
+   transient_close={**transient,'controls':[{
+      'label':'Close','role':'push button','pid':2689,'application':'wps',
+      'bbox':[650,360,90,32],'showing':True,'enabled':True,'focused':True}]}
+   click=shim.next_091_specialist_action(task,'WPS 2019','',fallback_state,transient_close)
+   self.assertEqual(click['command'],'pyautogui.click(695, 376)')
+   self.assertEqual(click['target']['source'],'accessibility')
+   self.assertEqual(click['target']['label'],'Close')
+   fallback_anchor=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,fallback_state,deck)
+   self.assertEqual(fallback_anchor['command'],"pyautogui.hotkey('ctrl', 'home')")
+
+   missing_close={}
+   shim.next_091_specialist_action(task,'WPS 2019','',missing_close,transient)
+   shim.next_091_specialist_action(task,'WPS 2019','',missing_close,transient)
+   missing_terminal=shim.next_091_specialist_action(task,'WPS 2019','',missing_close,transient)
+   self.assertEqual(missing_terminal['reason'],'TASK091_TARGET_NOT_VISIBLE')
+
+   ambiguous_close={}
+   shim.next_091_specialist_action(task,'WPS 2019','',ambiguous_close,transient)
+   shim.next_091_specialist_action(task,'WPS 2019','',ambiguous_close,transient)
+   two={**transient,'controls':[
+      {'label':'Close','role':'push button','pid':2689,'application':'wps',
+       'bbox':[650,360,90,32],'showing':True,'enabled':True,'focused':True},
+      {'label':'Close','role':'push button','pid':2689,'application':'wps',
+       'bbox':[500,360,90,32],'showing':True,'enabled':True,'focused':False}]}
+   ambiguous_terminal=shim.next_091_specialist_action(task,'WPS 2019','',ambiguous_close,two)
+   self.assertEqual(ambiguous_terminal['reason'],'TASK091_TARGET_AMBIGUOUS')
 
    required={'$40.9M','$2.8M','104%','71%','17 mo','206','3',
              'Renewal saves','Pricing discipline','Migration delay','Support credits',
