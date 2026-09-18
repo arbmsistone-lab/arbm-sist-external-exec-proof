@@ -98,8 +98,11 @@ jobs:
         '
     - name: Replay exact WPS 2019 Step 2 through alias-isolated selector twice
       shell: bash
-      run: "set -euo pipefail\npython scripts/replay_091_local_contract.py /tmp/091/task-091/shim-observations/step_0002.json\
-        \ \\\n  | tee /tmp/091-local-contract-replay.json\n! grep -F "pyautogui.click(35, 884)" /tmp/091-local-contract-replay.json\n"
+      run: |
+        set -euo pipefail
+        python scripts/replay_091_local_contract.py /tmp/091/task-091/shim-observations/step_0002.json \
+          | tee /tmp/091-local-contract-replay.json
+        ! grep -F 'pyautogui.click(35, 884)' /tmp/091-local-contract-replay.json
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       if: always()
       with:
