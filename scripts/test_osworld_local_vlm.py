@@ -113,6 +113,25 @@ class ForegroundMaskTests(unittest.TestCase):
         self.assertNotIn('Stale target',labels)
         self.assertIn('Window Title',labels)
 
+    def test_wps_foreground_excludes_ubuntu_dock_candidates(self):
+        obs=('ACTIVE APPLICATION (Ubuntu panel): WPS Presentation\n'
+             'menu\tWPS Presentation\t\t\t\t(99, 0)\t(179, 27)\n'
+             'menu\tSystem\t\t\t\t(1814, 0)\t(106, 27)\n'
+             'push-button\tGoogle Chrome\t\t\t\t(0, 27)\t(70, 64)\n'
+             'push-button\tVLC media player\t\t\t\t(0, 231)\t(70, 64)\n'
+             'push-button\tWPS Presentation\t\t\t\t(0, 846)\t(70, 64)\n'
+             'push-button\tSave\t\t\t\t(120, 110)\t(60, 24)\n')
+        items=_selector_candidates({'instruction':'Continue editing the presentation',
+                                   'observation':obs,
+                                   'active_application':'WPS Presentation',
+                                   'image_geometry':{'width':1920,'height':1080}})
+        labels=[x.get('action',{}).get('target',{}).get('label') for x in items]
+        self.assertNotIn('Google Chrome',labels)
+        self.assertNotIn('VLC media player',labels)
+        self.assertNotIn('WPS Presentation',labels)
+        self.assertNotIn('System',labels)
+        self.assertIn('Save',labels)
+
     def test_intra_request_tabu_contributes_penalty(self):
         body={'request_tabu':[{'action':'exec','command':'pyautogui.click(10, 20)','weight':3}],
               'task_ledger':{'recent_outcomes':[]},'no_progress_count':0}
