@@ -319,6 +319,12 @@ def _repair_wps_modal_dismiss(action, active_application, verifier_result=None, 
         label=next((q for q in fact_quotes if normalized_target(q) in {'close','ok','cancel'}), '')
         if not label:
             return action
+        if normalized_target(label)=='ok':
+            repaired=dict(action)
+            repaired.pop('target',None)
+            repaired['command']="pyautogui.press('enter')"
+            repaired['compiler_note']='After two bounded Escape attempts, replaced the explicitly observed WPS modal OK pointer with deterministic Enter default-button activation.'
+            return repaired
         call=calls[0]
         try:
             if len(call.args)>=2:
