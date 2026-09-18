@@ -26,6 +26,48 @@ WPS_SWITCH_COMMIT = '379a7c64fad1b2776a93f578de8d2ca766473e18'
 WPS_SWITCH_TEST_COMMIT = '06c653eeb960cb75cee23026e3d179196384fe16'
 PID_FILTER_COMMIT = 'ee7f5df4d82642aa6568f482d00fccf4f70e167a'
 PID_TEST_COMMIT = '6bec66cb19ae5d4a43bb48d75ce209798a28ce60'
+SUPERSEDED_ALT_F4_COMMIT = '4a06579337a36662d38308da5de609fb2b4853e9'
+RUN35391431490_MODAL_REPLAY = {
+    'name': 'Replay run 35391431490 System Check modal regression',
+    'shell': 'bash',
+    'run': '''set -euo pipefail
+ZERO_SPEND_MODE=HARD ARBM_WPS_EVIDENCE_DIR=/tmp/091-modal/task-091 PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35391431490-modal-regression.json
+import json
+from pathlib import Path
+import osworld_free_mesh_shim as shim
+from arbm091.trace_gate import classify, postflight
+
+root=Path('/tmp/091-modal/task-091/wps-observations')
+before=json.loads((root/'0002-01-before.json').read_text())
+after_tab=json.loads((root/'0006-01-after.json').read_text())
+drift=json.loads((root/'0007-01-after.json').read_text())
+assert classify(before['window']) == 'wps-transient'
+assert before['window']['title'] == 'System Check'
+assert after_tab['window']['title'] == 'System Check'
+state={}
+task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
+      'The COO has asked you to rebaseline the H2 Operating Committee pack. '
+      'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open.')
+first=shim.next_091_specialist_action(task,'WPS 2019','',state,before)
+assert first['command'] == "pyautogui.press('tab')", first
+second=shim.next_091_specialist_action(task,'WPS 2019','',state,after_tab)
+assert second['command'] == "pyautogui.press('enter')", second
+assert "alt', 'tab" not in first['command'] + second['command']
+assert "alt', 'f4" not in first['command'] + second['command']
+try:
+    postflight(second['command'], after_tab, drift)
+except ValueError as exc:
+    assert 'WPS_TRANSIENT_CLOSE_UNPROVEN' in str(exc), exc
+else:
+    raise AssertionError('workbook drift was not rejected')
+print(json.dumps({'status':'PASS','corpus_run':'35391431490',
+                  'first':first['command'],'second':second['command'],
+                  'drift_rejected':True,'zero_spend':'HARD'},sort_keys=True))
+print('RUN35391431490_MODAL_REGRESSION=PASS')
+PY
+grep -F 'RUN35391431490_MODAL_REGRESSION=PASS' /tmp/run35391431490-modal-regression.json
+'''
+}
 ENVIRONMENT_PREFLIGHT = {
     'name': 'Verify exact 091 observer environment before heavy initialization',
     'shell': 'bash',
@@ -69,14 +111,27 @@ def verify_workflow_delta():
         'python -m pip install -r scripts/requirements-osworld.txt\n'
         'python -m pip install PyYAML==6.0.2\n')
     replay = expected['jobs']['replay']['steps']
-    replay[1]['run'] = replay[1]['run'].replace('10518571201', '10552892356').replace(
-        'step_0001.json', 'step_0002.json')
+    replay[1]['name'] = 'Download pinned 091 replay corpora'
+    replay[1]['run'] = '''set -euo pipefail
+gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10552892356/zip > /tmp/091.zip
+mkdir -p /tmp/091
+unzip -q /tmp/091.zip -d /tmp/091
+test -s /tmp/091/task-091/shim-observations/step_0002.json
+gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10567320293/zip > /tmp/091-modal.zip
+mkdir -p /tmp/091-modal
+unzip -q /tmp/091-modal.zip -d /tmp/091-modal
+test -s /tmp/091-modal/task-091/wps-observations/0002-01-before.json
+test -s /tmp/091-modal/task-091/wps-observations/0006-01-after.json
+test -s /tmp/091-modal/task-091/wps-observations/0007-01-after.json
+'''
     replay[3]['name'] = 'Replay exact WPS 2019 Step 2 through alias-isolated selector twice'
     replay[3]['run'] = (
         "set -euo pipefail\n"
         "python scripts/replay_091_local_contract.py /tmp/091/task-091/shim-observations/step_0002.json \\\n"
         "  | tee /tmp/091-local-contract-replay.json\n"
         "! grep -F 'pyautogui.click(35, 884)' /tmp/091-local-contract-replay.json\n")
+    replay.insert(4, RUN35391431490_MODAL_REPLAY)
+    replay[5]['with']['path'] = '/tmp/091-local-contract-replay.json\n/tmp/run35391431490-modal-regression.json'
     require(len(re.findall(r'(?m)^\s+TASK_ID: [\'"]091[\'"]\s*$', text)) == 1,
             'TASK091_MUST_BE_QUOTED_YAML_STRING')
     require(normalize(current) == normalize(expected), 'UNEXPECTED_WORKFLOW_SEMANTIC_DELTA')
@@ -91,11 +146,11 @@ def main():
             'CLEAN_BASELINE_ANCESTRY_MISMATCH')
     require(git('rev-list', '--count', BASE + '..' + CLEAN_BASELINE) == '3',
             'EXACTLY_THREE_BASELINE_COMMITS_REQUIRED')
-    require(git('rev-list', '--count', BASE + '..HEAD') == '46',
-            'EXACTLY_FORTY_SIX_AUDITED_COMMITS_REQUIRED')
+    require(git('rev-list', '--count', BASE + '..HEAD') == '54',
+            'EXACTLY_FIFTY_FOUR_AUDITED_COMMITS_REQUIRED')
     require(not git('rev-list', '--merges', BASE + '..HEAD'), 'MERGE_COMMITS_FORBIDDEN')
     overlay = git('rev-list', '--reverse', CLEAN_BASELINE + '..HEAD').splitlines()
-    require(len(overlay) == 43, 'EXACTLY_FORTY_THREE_REPAIR_COMMITS_REQUIRED')
+    require(len(overlay) == 51, 'EXACTLY_FIFTY_ONE_REPAIR_COMMITS_REQUIRED')
     require(overlay[2] == PID_FILTER_COMMIT and overlay[3] == PID_TEST_COMMIT,
             'PID_REPAIR_COMMIT_IDENTITY_MISMATCH')
     require(overlay[6] == WPS_ALIAS_COMMIT and overlay[7] == WPS_ALIAS_TEST_COMMIT
@@ -103,10 +158,13 @@ def main():
             'WPS_ALIAS_REPAIR_COMMIT_IDENTITY_MISMATCH')
     expected_scopes = (VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST, VERIFIER, WORKFLOW,
                        LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, VERIFIER, WORKFLOW, VERIFIER, WORKFLOW,
-                       VERIFIER, SHIM, MESH_TEST, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, WPS_OBSERVER, TRACE_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST)
+                       VERIFIER, SHIM, MESH_TEST, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, WPS_OBSERVER, TRACE_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST,
+                       (SHIM, MESH_TEST), VERIFIER, TRACE_GATE, WPS_OBSERVER, TRACE_TEST, SHIM, MESH_TEST, WORKFLOW)
+    require(overlay[43] == SUPERSEDED_ALT_F4_COMMIT, 'SUPERSEDED_ALT_F4_COMMIT_IDENTITY_MISMATCH')
     for commit, allowed in zip(overlay, expected_scopes):
-        require(git('diff-tree', '--no-commit-id', '--name-only', '-r', commit) == allowed,
-                'REPAIR_COMMIT_SCOPE_MISMATCH:' + commit)
+        actual=set(git('diff-tree', '--no-commit-id', '--name-only', '-r', commit).splitlines())
+        wanted={allowed} if isinstance(allowed, str) else set(allowed)
+        require(actual == wanted, 'REPAIR_COMMIT_SCOPE_MISMATCH:' + commit)
     parent = CLEAN_BASELINE
     for commit in overlay:
         require(git('rev-parse', commit + '^') == parent, 'REPAIR_HISTORY_NOT_LINEAR')
@@ -135,8 +193,8 @@ def main():
     expected.update({row['path']: row['after_sha256'] for row in adjustments})
     expected.update(patch['postimage_sha256'])
     repaired = {LOCAL_VLM: WPS_ALIAS_COMMIT, LOCAL_VLM_TEST: WPS_ALIAS_TEST_COMMIT,
-                TRACE_GATE: overlay[18], TRACE_TEST: overlay[22], WPS_OBSERVER: overlay[21],
-                SHIM: overlay[41], MESH_TEST: overlay[42]}
+                TRACE_GATE: overlay[45], TRACE_TEST: overlay[47], WPS_OBSERVER: overlay[46],
+                SHIM: overlay[48], MESH_TEST: overlay[49]}
     for path, wanted in expected.items():
         if path in repaired:
             source = subprocess.check_output(['git', 'show', repaired[path] + ':' + path])
@@ -144,10 +202,12 @@ def main():
             continue
         require(hashlib.sha256(Path(path).read_bytes()).hexdigest() == wanted,
                 'TRANSPLANTED_DEPENDENCY_HASH_MISMATCH:' + path)
+    require("hotkey('alt', 'f4')" not in Path(SHIM).read_text(),
+            'SUPERSEDED_ALT_F4_REMAINS_IN_FINAL_SHIM')
     verify_workflow_delta()
     print(json.dumps({'status': 'CLEAN_HISTORY_AND_SCOPE_PASS', 'base_sha': BASE,
                       'clean_baseline_sha': CLEAN_BASELINE, 'baseline_commits': 3,
-                      'repair_commits': overlay, 'new_commits': 46, 'changed_files': len(changed),
+                      'repair_commits': overlay, 'new_commits': 54, 'changed_files': len(changed),
                       'repair_scope': [VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST,
                                        TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER], 'official_score_claimed': False}))
 
