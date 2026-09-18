@@ -33,6 +33,30 @@ class MilestoneTests(unittest.TestCase):
   self.assertGreaterEqual(result['milestone']['new_content_count'],2)
   self.assertEqual(m.stalled,0)
 
+ def test_expected_application_transition_is_partial_progress_not_verified(self):
+  m=Milestones()
+  before=screen('WPS 2019','System Check')
+  action={'checkpoint':{'name':'Workbook foreground reached','application':'WPS Spreadsheets',
+                        'visible_text':'Reforecast_Model_H2.xlsx workbook with tabs Risk_Register and Roadmap_H2'}}
+  m.expect(action,before)
+  result=m.observe(screen('WPS Spreadsheets','WPS Spreadsheets'))
+  self.assertEqual(result['status'],'PARTIAL_PROGRESS')
+  self.assertEqual(result['progress']['application'],'WPS Spreadsheets')
+  self.assertEqual(result['progress']['verification_basis'],'expected_application_transition')
+  self.assertEqual(m.verified,[])
+  self.assertEqual(m.stalled,0)
+
+ def test_wrong_application_transition_remains_unverified(self):
+  m=Milestones()
+  before=screen('WPS 2019','System Check')
+  action={'checkpoint':{'name':'Workbook foreground reached','application':'WPS Spreadsheets',
+                        'visible_text':'Reforecast_Model_H2.xlsx'}}
+  m.expect(action,before)
+  result=m.observe(screen('Google Chrome','Inbox'))
+  self.assertEqual(result['status'],'UNVERIFIED')
+  self.assertEqual(m.verified,[])
+  self.assertEqual(m.stalled,1)
+
  def test_preexisting_anchor_with_only_trivial_delta_stays_unverified(self):
   m=Milestones(); title='Quarterly Report'
   before=screen('Google Chrome',title)
