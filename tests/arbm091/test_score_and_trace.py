@@ -159,6 +159,23 @@ class ForegroundTests(unittest.TestCase):
     def test_application_switch_is_not_edit(self):
         self.assertEqual(preflight("pyautogui.hotkey('alt', 'tab')", snapshot()), 'application-switch')
 
+    def test_wps_2019_launcher_is_controlled_application_switch(self):
+        body = snapshot()
+        body['target'] = {'pid': 1136, 'label': 'WPS 2019', 'role': 'push button',
+                          'bbox': [0, 852, 70, 64], 'showing': True, 'enabled': True,
+                          'application': 'gnome-shell'}
+        body['hit_owner_id'] = 41943043
+        self.assertEqual(preflight('pyautogui.click(35, 884)', body), 'application-switch')
+
+    def test_non_wps_gnome_launcher_still_rejected(self):
+        body = snapshot()
+        body['target'] = {'pid': 1136, 'label': 'VLC media player', 'role': 'push button',
+                          'bbox': [0, 237, 70, 64], 'showing': True, 'enabled': True,
+                          'application': 'gnome-shell'}
+        body['hit_owner_id'] = 41943043
+        with self.assertRaisesRegex(ValueError, 'PID_MISMATCH'):
+            preflight('pyautogui.click(35, 269)', body)
+
     def test_wrong_deck_rejected(self):
         body = snapshot('Other.pptx - WPS Presentation', 'wpp WPS')
         with self.assertRaisesRegex(ValueError, 'UNAPPROVED'):
