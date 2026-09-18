@@ -209,21 +209,23 @@ def next_091_specialist_action(instruction, active_application, observation, sta
     low=str(observation or '').casefold()
     active=str(active_application or '').casefold()
 
-    # Never navigate or point through a startup modal. The artifact from
-    # run 35387804849 proved that one Escape can reveal a second stacked modal.
+    # The official 091 VM artifact proves two stacked WPS startup dialogs.
+    # Escape does not dismiss the System Check window there, so clear exactly
+    # two native WPS modal layers with Alt+F4 before any deck navigation.
     if not active.startswith('wps'):
         return {'action':'exec','command':"pyautogui.hotkey('alt', 'tab')",
                 'plan':'Return to the already-open WPS presentation.',
                 'specialist_phase':'return-wps'}
-    if not _task091_canvas_ready(observation):
-        escapes=int(state.get('startup_escapes') or 0)
-        if escapes>=4:
-            state['handoff_reason']='WPS_DECK_NOT_OBSERVED_AFTER_BOUNDED_MODAL_CLEAR'
-            return None
-        state['startup_escapes']=escapes+1
-        return {'action':'exec','command':"pyautogui.press('esc')",
-                'plan':'Clear one foreground WPS startup/modal layer, then re-observe before any deck navigation.',
+    startup_closes=int(state.get('startup_alt_f4') or 0)
+    if startup_closes < 2:
+        state['startup_alt_f4']=startup_closes+1
+        return {'action':'exec','command':"pyautogui.hotkey('alt', 'f4')",
+                'plan':f'Dismiss bounded WPS startup modal layer {startup_closes + 1}/2, then re-observe.',
                 'specialist_phase':'dismiss-startup-layer'}
+    state['startup_modal_clear_complete']=True
+    if not _task091_canvas_ready(observation):
+        state['handoff_reason']='WPS_DECK_NOT_OBSERVED_AFTER_BOUNDED_MODAL_CLEAR'
+        return None
 
     # Anchor only after current AT-SPI evidence contains deck content.
     if not state.get('anchored'):
@@ -737,9 +739,17 @@ def call_mesh(messages):
         STATE['memory'].append('OBSERVED MILESTONE: '+json.dumps(semantic['milestone'],ensure_ascii=False)); STATE['memory']=STATE['memory'][-8:]
         ELITE.checkpoint(semantic['milestone']); log_event({'status':'MILESTONE_VERIFIED','milestone':semantic['milestone'],'backtrack_anchor':ELITE.recovery_anchor()})
         if screenshot and not STATE.get('visual_memory'): STATE['visual_memory']=screenshot; STATE['visual_memory_meta']=semantic['milestone']
-    if semantic_terminal(MILESTONES.stalled, VERIFIER.no_progress):return terminal('SEMANTIC_RECOVERY_EXHAUSTED')
-    if VERIFIER.no_progress>=MAX_NO_PROGRESS or STATE['wait_responses']>=MAX_WAIT_RESPONSES or STATE['step']>MAX_STEPS:
-        return terminal('RECOVERY_EXHAUSTED' if STATE['step']<=MAX_STEPS else 'STEP_BUDGET')
+    task091_state=STATE.get('task091_specialist') if isinstance(STATE.get('task091_specialist'),dict) else {}
+    task091_in_progress=(_task091_match(task_from(messages))
+                         and bool(task091_state.get('owned'))
+                         and not task091_state.get('handoff')
+                         and not task091_state.get('handoff_reason'))
+    if semantic_terminal(MILESTONES.stalled, VERIFIER.no_progress) and not task091_in_progress:
+        return terminal('SEMANTIC_RECOVERY_EXHAUSTED')
+    if STATE['step']>MAX_STEPS:
+        return terminal('STEP_BUDGET')
+    if (VERIFIER.no_progress>=MAX_NO_PROGRESS or STATE['wait_responses']>=MAX_WAIT_RESPONSES) and not task091_in_progress:
+        return terminal('RECOVERY_EXHAUSTED')
     STATE['phase']='plan' if (elite_decision['mode']=='replan' or VERIFIER.no_progress>=2 or not STATE['plan']) else 'execute'
     body={'instruction':task_from(messages),'observation':obs,'screenshot_data_url':screenshot,'previous_command':STATE['previous'],'executed_count':STATE['executed'],'active_application':active_application,'memory':'\n'.join([STATE['plan']]+STATE['memory'][-5:]+[str(x) for x in STATE['history'][-4:]]),'phase':STATE['phase'],'no_progress_count':VERIFIER.no_progress,'step':STATE['step'],'verifier':verification,'verified_milestones':MILESTONES.context(),'recovery_strategy':RECOVERY[VERIFIER.recovery_level],'route_cooldowns':STATE['cooldowns'],'expected_build':EXPECTED_BUILD,'performance_mode':elite_decision['mode'],'performance_reason':elite_decision['reason'],'performance_metrics':ELITE.metrics(),'reference_screenshot_data_url':STATE.get('visual_memory','') if STATE.get('visual_memory') and STATE.get('visual_memory')!=screenshot else '','reference_visual_meta':STATE.get('visual_memory_meta'),'task_ledger':{'verified_milestones':MILESTONES.context().get('verified',[]),'verified_facts':STATE.get('facts',[])[:24],'recent_outcomes':STATE['history'][-6:],'backtrack_anchor':ELITE.recovery_anchor(),'root_instruction_sha256':hashlib.sha256(task_from(messages).encode()).hexdigest(),'provider_waits':STATE.get('provider_waits',0),'cognitive_waits':STATE.get('wait_responses',0),'no_progress_count':VERIFIER.no_progress,'verifier_reason':verification.get('reason')}}
     recovery=recovery_policy(body['instruction'], body.get('active_application','unknown'), MILESTONES.stalled, VERIFIER.no_progress, VERIFIER.recovery_level, STATE['provider'], STATE.get('visual_capacity_exhausted',False))
