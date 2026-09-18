@@ -8,8 +8,8 @@ from pathlib import Path
 
 DECK = 'Operating_Committee_Rebaseline_Draft.pptx'
 WORKBOOK = 'Reforecast_Model_H2.xlsx'
-ALLOWED_LAUNCHERS = {'google chrome', 'wps presentation', 'wps spreadsheets',
-                     DECK.lower(), WORKBOOK.lower()}
+ALLOWED_LAUNCHERS = {'google chrome', 'wps presentation', 'wps 2019', 'wps office',
+                     'wps spreadsheets', DECK.lower(), WORKBOOK.lower()}
 POINTERS = {'click', 'doubleClick', 'rightClick', 'moveTo', 'mouseDown', 'mouseUp', 'dragTo'}
 NON_EDITING = {'moveTo', 'sleep', 'keyDown', 'keyUp'}
 
