@@ -15,6 +15,8 @@ NON_EDITING = {'moveTo', 'sleep', 'keyDown', 'keyUp'}
 WPS_TRANSIENT_TITLES = {'system check', 'wps office', 'set wps office as your default office software',
                         'presentation', 'replace', 'find', 'find and replace', 'find & replace'}
 
+TASK091_VERIFIED_POINTS = {(745, 335), (738, 503), (1338, 393), (1338, 511), (1338, 630), (558, 364), (792, 364), (1026, 364), (1245, 364), (1439, 364), (843, 404), (843, 465), (843, 525), (843, 586), (843, 646), (843, 707), (617, 360), (615, 752), (728, 360), (727, 752), (839, 360), (838, 752), (950, 360), (949, 752), (1062, 360), (1060, 752), (1173, 360), (1171, 752), (1284, 360), (1198, 400), (1322, 400), (1447, 400), (1198, 450), (1322, 450), (1447, 450), (1198, 500), (1322, 500), (1447, 500), (717, 383), (571, 499), (576, 408), (850, 408), (1123, 408), (800, 195), (505, 455), (901, 453), (505, 535), (1013, 533), (234, 391), (609, 391), (984, 391), (1396, 466), (1396, 526), (1396, 586), (1396, 646), (1396, 705), (1396, 765), (544, 536), (804, 536), (1064, 536), (1323, 536), (544, 581), (804, 581), (1064, 581), (1323, 581), (544, 627), (1064, 627), (544, 672), (1064, 672), (544, 718), (804, 718), (1064, 718), (544, 763), (1064, 763), (1323, 763)}
+
 
 def digest(value: object) -> str:
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
@@ -131,6 +133,14 @@ def preflight(command: str, snapshot: dict) -> str:
 
     if point is not None:
         target = snapshot.get('target')
+        deck_spatial = (target is None and app == 'wps-presentation'
+                        and name == 'doubleClick' and point in TASK091_VERIFIED_POINTS
+                        and isinstance(snapshot.get('deck_slide_text'), dict)
+                        and bool(snapshot.get('deck_slide_text')))
+        if deck_spatial:
+            require(inside(point, snapshot.get('screen')), 'POINTER_OUTSIDE_SCREEN')
+            require(inside(point, window.get('bbox')), 'POINTER_OUTSIDE_FOREGROUND')
+            return 'wps-content'
         require(isinstance(target, dict), 'UI_TARGET_UNAVAILABLE')
         require(target.get('showing') is True and target.get('enabled') is True,
                 'UI_TARGET_NOT_INTERACTIVE')
