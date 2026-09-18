@@ -888,6 +888,36 @@ class LocalVLMRoute:
                         attempts.append({**base,'status':'budget_exceeded','repair_index':repair_index,'contract_error':last_error,
                                          **_output_evidence(output)})
                         return None,attempts
+                    active=_norm(body.get('active_application'))
+                    if last_error=='LOCAL_ACTION_REQUIRED' and 'wps presentation' in active:
+                        try:
+                            action,selector_meta=default_select_action(body,image_arg)
+                            elapsed=self.clock()-started
+                            if elapsed>budget:
+                                attempts.append({**base,'status':'budget_exceeded','repair_index':repair_index,
+                                                 'contract_error':last_error,'selector_recovery':True,
+                                                 'selector_mode':'single_forward_logits','latency_seconds':round(elapsed,3),
+                                                 **selector_meta})
+                                return None,attempts
+                            result={'provider':'local-cloud-vlm','model':MODEL,'action':action,
+                                    'raw_response':{'choices':[{'message':{'role':'assistant',
+                                                                         'content':json.dumps(action)}}]}}
+                            attempts.append({**base,'status':200,'zero_spend_confirmed':True,
+                                             'repair_index':repair_index,'selector_recovery':True,
+                                             'selector_recovery_from':last_error,
+                                             'selector_mode':'single_forward_logits',
+                                             'latency_seconds':round(elapsed,3),**selector_meta})
+                            return result,attempts
+                        except ValueError as selector_exc:
+                            attempts.append({**base,'status':'selector_recovery_failed',
+                                             'error_type':'ValueError','contract_error':str(selector_exc),
+                                             'repair_index':repair_index,'selector_recovery':True,
+                                             'selector_mode':'single_forward_logits'})
+                        except Exception as selector_exc:
+                            attempts.append({**base,'status':'selector_recovery_failed',
+                                             'error_type':type(selector_exc).__name__,
+                                             'repair_index':repair_index,'selector_recovery':True,
+                                             'selector_mode':'single_forward_logits'})
                     continue
                 result={'provider':'local-cloud-vlm','model':MODEL,'action':action,
                         'raw_response':{'choices':[{'message':{'role':'assistant','content':json.dumps(action)}}]}}
