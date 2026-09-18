@@ -72,6 +72,18 @@ def snapshot(controller, root: Path, name: str, point):
     require(not metadata_path.exists() and not screenshot_path.exists(), 'EVIDENCE_OVERWRITE_FORBIDDEN')
     metadata_path.write_bytes(raw)
     screenshot_path.write_bytes(png)
+    operational = {
+        'schema': 1,
+        'source': name,
+        'stable': payload.get('stable') is True,
+        'captured_monotonic_ns': payload.get('captured_monotonic_ns'),
+        'window': payload.get('window', {}),
+    }
+    operational_raw=(json.dumps(operational, sort_keys=True) + '\n').encode()
+    operational_path=root / 'window-state.json'
+    temporary=root / ('.window-state-' + str(os.getpid()) + '.tmp')
+    temporary.write_bytes(operational_raw)
+    os.replace(temporary, operational_path)
     return payload, {'metadata': str(metadata_path.relative_to(root)),
                      'metadata_sha256': hashlib.sha256(raw).hexdigest(),
                      'screenshot': str(screenshot_path.relative_to(root)),
