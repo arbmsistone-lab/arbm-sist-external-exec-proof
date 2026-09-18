@@ -65,7 +65,28 @@ def audit_task(root, task, sha):
         if 'http' in event:
             if event.get('mandatory_cost_usd') != 0 or event.get('paid_fallback_used') is not False: raise ValueError('ZERO_SPEND_UNPROVEN')
             for attempt in event.get('provider_attempts', []):
-                if attempt.get('status') == 200 and not (attempt.get('free_plan_proven') is True or attempt.get('zero_spend_confirmed') is True): raise ValueError('FREE_PROVIDER_UNPROVEN')
+                if attempt.get('status') != 200:
+                    continue
+                proven = attempt.get('free_plan_proven') is True or attempt.get('zero_spend_confirmed') is True
+                if proven:
+                    if attempt.get('route') == 'openrouter-multimodal-free':
+                        if attempt.get('cost_proof_status') != 'proven_zero' or attempt.get('response_admission') != 'accepted':
+                            raise ValueError('FREE_PROVIDER_PROOF_SCHEMA')
+                        if attempt.get('action_promoted') is not bool(attempt.get('parsed')):
+                            raise ValueError('FREE_PROVIDER_PROMOTION_MISMATCH')
+                    continue
+                rejected_unproven = (
+                    attempt.get('route') == 'openrouter-multimodal-free'
+                    and attempt.get('mandatory_cost_usd') == 0
+                    and attempt.get('paid_fallback_used') is False
+                    and attempt.get('cost_proof_status') == 'unproven'
+                    and attempt.get('response_admission') == 'rejected'
+                    and attempt.get('action_promoted') is False
+                    and attempt.get('parsed') is False
+                    and attempt.get('contract_error') == 'RESPONSE_ZERO_COST_UNPROVEN'
+                )
+                if not rejected_unproven:
+                    raise ValueError('FREE_PROVIDER_UNPROVEN')
         issued |= event.get('status') in ('ACTION_ISSUED', 'GIMP_SPECIALIST_ACTION_ISSUED')
     if not issued: raise ValueError('NO_REAL_AGENT_ACTION')
     judges=audit_judgements(root,task,sha)
