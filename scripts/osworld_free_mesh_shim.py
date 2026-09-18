@@ -155,7 +155,45 @@ TASK091_SPATIAL_TEXT_EDITS = (
 )
 def _task091_canvas_ready(observation):
     low=str(observation or '').casefold()
-    return ('operating committee' in low or 'growth plan draft' in low or 'slide' in low) and 'system check' not in low
+    blocked=('system check','default office software','set wps office as your default')
+    deck_markers=('operating committee','growth plan draft','northstar cloud','presentation - wps office')
+    return not any(x in low for x in blocked) and any(x in low for x in deck_markers)
+
+def _task091_atspi_candidates(observation, label):
+    wanted=' '.join(str(label or '').replace('\\u200b','').casefold().split())
+    hits=[]
+    for line in str(observation or '').splitlines():
+        cols=line.split('\\t')
+        if len(cols)<7:
+            continue
+        role=str(cols[0] or '').strip()
+        name=str(cols[1] or cols[2] or '').replace('\\u200b','').strip()
+        norm=' '.join(name.casefold().split())
+        if not norm or not wanted or (norm!=wanted and wanted not in norm):
+            continue
+        xy=re.findall(r'-?\\d+',cols[-2]); wh=re.findall(r'\\d+',cols[-1])
+        if len(xy)!=2 or len(wh)!=2:
+            continue
+        x,y=map(int,xy); w,h=map(int,wh)
+        if w<=0 or h<=0:
+            continue
+        hits.append({'role':role,'label':name,'x':x,'y':y,'w':w,'h':h,
+                     'cx':x+w//2,'cy':y+h//2})
+    return hits
+
+def _task091_dynamic_target(observation, label, hint_x, hint_y):
+    hits=_task091_atspi_candidates(observation,label)
+    if not hits:
+        return None
+    hits.sort(key=lambda row:((row['cx']-int(hint_x))**2+(row['cy']-int(hint_y))**2,
+                              row['w']*row['h'],row['role'],row['label']))
+    best=hits[0]
+    if len(hits)>1:
+        first=(best['cx']-int(hint_x))**2+(best['cy']-int(hint_y))**2
+        second=(hits[1]['cx']-int(hint_x))**2+(hits[1]['cy']-int(hint_y))**2
+        if first==second:
+            return None
+    return best
 
 def _task091_nav_command(current_slide, target_slide):
     delta=int(target_slide)-int(current_slide)
@@ -171,27 +209,28 @@ def next_091_specialist_action(instruction, active_application, observation, sta
     low=str(observation or '').casefold()
     active=str(active_application or '').casefold()
 
-    # Dismiss the two startup modals one at a time and re-observe after each.
-    if 'system check' in low:
-        return {'action':'exec','command':"pyautogui.press('esc')",
-                'plan':'Dismiss the WPS System Check popup and re-observe the presentation.',
-                'specialist_phase':'dismiss-system-check'}
-    if ('default office software' in low or 'set wps office as your default' in low):
-        return {'action':'exec','command':"pyautogui.press('esc')",
-                'plan':'Dismiss the WPS default-office popup and re-observe the presentation.',
-                'specialist_phase':'dismiss-default-office'}
+    # Never navigate or point through a startup modal. The artifact from
+    # run 35387804849 proved that one Escape can reveal a second stacked modal.
     if not active.startswith('wps'):
         return {'action':'exec','command':"pyautogui.hotkey('alt', 'tab')",
                 'plan':'Return to the already-open WPS presentation.',
                 'specialist_phase':'return-wps'}
+    if not _task091_canvas_ready(observation):
+        escapes=int(state.get('startup_escapes') or 0)
+        if escapes>=4:
+            state['handoff_reason']='WPS_DECK_NOT_OBSERVED_AFTER_BOUNDED_MODAL_CLEAR'
+            return None
+        state['startup_escapes']=escapes+1
+        return {'action':'exec','command':"pyautogui.press('esc')",
+                'plan':'Clear one foreground WPS startup/modal layer, then re-observe before any deck navigation.',
+                'specialist_phase':'dismiss-startup-layer'}
 
-    # One-time canvas normalization. Escape any selection/text cursor, then
-    # Home anchors the thumbnail selection to slide 1 in WPS normal view.
+    # Anchor only after current AT-SPI evidence contains deck content.
     if not state.get('anchored'):
         state['anchored']=True
         state['slide']=1
-        return {'action':'exec','command':"pyautogui.press('esc')\npyautogui.hotkey('ctrl', 'home')",
-                'plan':'Clear transient selections and anchor navigation at slide 1.',
+        return {'action':'exec','command':"pyautogui.hotkey('ctrl', 'home')",
+                'plan':'Deck canvas is observed; anchor navigation at slide 1.',
                 'specialist_phase':'anchor-slide-1'}
 
     index=int(state.get('spatial_index') or 0)
@@ -207,11 +246,18 @@ def next_091_specialist_action(instruction, active_application, observation, sta
 
         phase=str(state.get('spatial_phase') or 'select')
         if phase=='select':
+            target=_task091_dynamic_target(observation,old,x,y)
+            if target is None:
+                state['handoff_reason']='AT_SPI_TARGET_NOT_UNIQUE_OR_VISIBLE:'+str(old)
+                return None
             state['spatial_phase']='edit'
-            return {'action':'exec','command':f"pyautogui.doubleClick({int(x)}, {int(y)}, interval=0.08)",
-                    'target':{'source':'screenshot','label':old},
-                    'plan':f'Select the visible slide {slide} shape containing {old!r}.',
-                    'specialist_phase':'select-shape'}
+            state['last_target']={'slide':slide,'label':old,'role':target['role'],
+                                  'bbox':[target['x'],target['y'],target['w'],target['h']]}
+            return {'action':'exec',
+                    'command':f"pyautogui.doubleClick({int(target['cx'])}, {int(target['cy'])}, interval=0.08)",
+                    'target':{'source':'accessibility','label':target['label'],'role':target['role']},
+                    'plan':f'Select the unique visible AT-SPI node for slide {slide} text {old!r}.',
+                    'specialist_phase':'select-shape-atspi'}
         if phase=='edit':
             state['spatial_phase']='commit'
             return {'action':'exec',
