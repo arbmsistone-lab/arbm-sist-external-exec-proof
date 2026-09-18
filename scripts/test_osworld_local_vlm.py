@@ -32,7 +32,7 @@ class LocalGroundingGateTests(unittest.TestCase):
         self.assertEqual(action['command'],"pyautogui.hotkey('ctrl', 's')")
 
     def test_selector_candidates_include_visible_section_text(self):
-        obs=OBS+'section\\t\\tH2 Rebaseline Directive: Operating Committee Pack\\t\\t\\t(626, 299)\\t(976, 20)\\n'
+        obs=OBS+'section\t\tH2 Rebaseline Directive: Operating Committee Pack\t\t\t(626, 299)\t(976, 20)\n'
         from osworld_local_vlm import _selector_candidates
         items=_selector_candidates({'instruction':'Read the COO H2 Rebaseline Directive email','observation':obs,'active_application':'WPS Presentation'})
         matches=[x for x in items if x['action'].get('target',{}).get('label')=='H2 Rebaseline Directive: Operating Committee Pack']
