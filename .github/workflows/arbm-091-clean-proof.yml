@@ -57,7 +57,9 @@ jobs:
         fetch-depth: 0
         persist-credentials: false
     - name: Install pinned lightweight dependencies
-      run: python -m pip install -r scripts/requirements-osworld.txt
+      run: |
+        python -m pip install -r scripts/requirements-osworld.txt
+        python -m pip install PyYAML==6.0.2
     - name: Verify clean history and exact changed-file scope
       run: python -m arbm091.verify_transplant
     - name: Test score and WPS guards, including negative cases
@@ -133,11 +135,20 @@ jobs:
       ARBM_VM_VOLUME_GB: '50'
       AWS_REGION: us-east-1
       WEBSITE_HOST_SUFFIX: site.hku.icu
-      TASK_ID: 091
+      TASK_ID: '091'
       ARBM_WPS_OBSERVER: '1'
       ARBM_WPS_EVIDENCE_DIR: ${{ github.workspace }}/osworld-v32-evidence/task-091
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+    - name: Verify exact 091 observer environment before heavy initialization
+      shell: bash
+      run: |
+        set -euo pipefail
+        test "$TASK_ID" = '091'
+        test "$ZERO_SPEND_MODE" = 'HARD'
+        test "$RUNNER_ENVIRONMENT" = 'github-hosted'
+        test "$ARBM_WPS_OBSERVER" = '1'
+        printf 'TASK091_ENVIRONMENT_PREFLIGHT_PASS task=%s runner=%s spend=%s\n' "$TASK_ID" "$RUNNER_ENVIRONMENT" "$ZERO_SPEND_MODE"
     - name: Prepare pinned shim runtime
       shell: bash
       run: 'set -euo pipefail
