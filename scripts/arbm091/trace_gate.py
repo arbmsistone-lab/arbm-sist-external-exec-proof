@@ -122,7 +122,8 @@ def preflight(command: str, snapshot: dict) -> str:
         if name == 'hotkey' and set(args) in ({'alt','tab'},{'alt','f4'}):
             raise ValueError('WPS_TRANSIENT_SWITCH_OR_CLOSE_SHORTCUT_FORBIDDEN')
         if title == 'system check':
-            require(name == 'sleep' or _is_press(name,args,'tab') or _is_press(name,args,'enter'),
+            require(name == 'sleep' or _is_press(name,args,'tab') or _is_press(name,args,'space')
+                    or (name == 'click' and point is not None),
                     'SYSTEM_CHECK_ACTION_FORBIDDEN')
         elif title in ('wps office','set wps office as your default office software'):
             require(name == 'sleep' or _is_press(name,args,'esc'),
@@ -147,6 +148,11 @@ def preflight(command: str, snapshot: dict) -> str:
                 'BACKGROUND_TARGET_PID_MISMATCH')
         require(inside(point, window.get('bbox')), 'POINTER_OUTSIDE_FOREGROUND')
         require(snapshot.get('hit_owner_id') == window['id'], 'POINTER_OCCLUDED_OR_FOREIGN_WINDOW')
+        if app == 'wps-transient' and str(window.get('title','')).strip().casefold() == 'system check':
+            require(name == 'click', 'SYSTEM_CHECK_POINTER_ACTION_FORBIDDEN')
+            require(str(target.get('label','')).strip().casefold() == 'close'
+                    and str(target.get('role','')).strip().casefold() in ('push button','push-button','button'),
+                    'SYSTEM_CHECK_CLOSE_TARGET_UNPROVEN')
     elif name == 'hotkey' and set(args) == {'alt', 'tab'}:
         require(app != 'wps-transient', 'WPS_TRANSIENT_APP_SWITCH_FORBIDDEN')
         return 'application-switch'
@@ -172,8 +178,12 @@ def postflight(command: str, before: dict, after: dict) -> str:
         if before_title == 'system check' and _is_press(name,args,'tab'):
             require(after_app == 'wps-transient' and after_title == 'system check',
                     'WPS_TRANSIENT_CLOSE_UNPROVEN')
-        if before_title == 'system check' and _is_press(name,args,'enter'):
-            require(after_title != 'system check','WPS_TRANSIENT_CLOSE_UNPROVEN')
+        if before_title == 'system check' and _is_press(name,args,'space'):
+            require(after_title in ('system check', '') or after_app == 'wps-presentation',
+                    'WPS_TRANSIENT_CLOSE_UNPROVEN')
+        if before_title == 'system check' and name == 'click':
+            require(after_title != 'system check' and after_app == 'wps-presentation',
+                    'WPS_TRANSIENT_CLOSE_UNPROVEN')
         if before_title in ('wps office','set wps office as your default office software') and _is_press(name,args,'esc'):
             require(after_title != before_title,'WPS_TRANSIENT_CLOSE_UNPROVEN')
     return after_app
