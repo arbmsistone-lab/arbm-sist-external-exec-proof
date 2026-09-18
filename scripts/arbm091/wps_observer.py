@@ -78,6 +78,8 @@ def snapshot(controller, root: Path, name: str, point):
         'stable': payload.get('stable') is True,
         'captured_monotonic_ns': payload.get('captured_monotonic_ns'),
         'window': payload.get('window', {}),
+        'controls': payload.get('controls', []),
+        'focused_control': payload.get('focused_control'),
     }
     operational_raw=(json.dumps(operational, sort_keys=True) + '\n').encode()
     operational_path=root / 'window-state.json'
