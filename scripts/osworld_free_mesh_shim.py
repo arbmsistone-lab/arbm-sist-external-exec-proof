@@ -4,7 +4,7 @@ from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from osworld_ingress import project_messages
 from osworld_milestones import Milestones, verified_facts
-from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response, visual_reference_recovery, foreground_context
+from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response, visual_reference_recovery, foreground_context, allow_bounded_wps_escape_repeat
 from osworld_v32_policy import DecisionKind, apply_live_policy
 from osworld_openrouter_free import FREE_ROUTE, prompt as openrouter_prompt
 from osworld_groq_free import GROQ_FREE_ROUTE
@@ -523,7 +523,12 @@ def call_mesh(messages):
                 if rejects_visual_navigation_loop(action, body['instruction'], body.get('active_application','unknown'), MILESTONES.stalled):
                     body['memory']=(body['memory']+'\nVISUAL_NAVIGATION_LOOP_REJECTED: Ctrl+O was already used without a verified visual milestone. Use the visible dialog deliberately or make a target-image edit instead. Do not repeat it.')[-4500:]; body.pop('provider_hint',None); log_event({'status':'VISUAL_NAVIGATION_LOOP_REJECTED','command':command}); continue
                 recent=[x['command'] for x in STATE['history'][-6:]]
-                if VERIFIER.no_progress and command in recent:
+                bounded_wps_escape=allow_bounded_wps_escape_repeat(
+                    action,body.get('active_application','unknown'),VERIFIER.last_result,recent)
+                if VERIFIER.no_progress and command in recent and bounded_wps_escape:
+                    log_event({'status':'BOUNDED_WPS_ESCAPE_REPEAT_ALLOWED','command':command,'attempt':attempt+1,
+                               'verifier_reason':VERIFIER.last_result.get('reason')})
+                if VERIFIER.no_progress and command in recent and not bounded_wps_escape:
                     body['request_tabu'].append({'action':'exec','command':command,'target':action.get('target') if isinstance(action.get('target'),dict) else {},'weight':3,'reason':'repeated-no-progress','attempt':attempt+1})
                     body['request_tabu']=body['request_tabu'][-12:]
                     body['memory']=(body['memory']+'\nNO EFFECT: rejected repeated action '+command+'. Change GUI strategy or target.')[-4500:]
