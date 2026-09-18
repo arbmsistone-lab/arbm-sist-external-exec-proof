@@ -18,10 +18,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
-      - name: Read exact reviewed builder
+      - name: Read exact reviewed builder and authorized driver
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: 7eb22e7eac7e1e560ec8d9238847134a05c43d20
+          ref: 9f30ddb441492ac3f58538ecb5ac104a41c43b48
           path: control
           persist-credentials: false
       - name: Read exact previous clean candidate
@@ -31,16 +31,17 @@ jobs:
           path: candidate
           fetch-depth: 0
           persist-credentials: false
-      - name: Validate reviewed builder and free remote scope
+      - name: Validate reviewed sources and free remote scope
         shell: bash
         run: |
           set -euo pipefail
           test "$RUNNER_ENVIRONMENT" = github-hosted
           test "$ZERO_SPEND_MODE" = HARD
           test "$GITHUB_REPOSITORY" = arbmsistone-lab/arbm-sist-external-exec-proof
-          test "$(git -C control rev-parse HEAD)" = 7eb22e7eac7e1e560ec8d9238847134a05c43d20
+          test "$(git -C control rev-parse HEAD)" = 9f30ddb441492ac3f58538ecb5ac104a41c43b48
           test "$(git hash-object control/audit/rebuild_091_env_contract.py)" = 3373229ef12e0177dc77d20ab35ccbd906800e54
-          python -c 'import ast; from pathlib import Path; ast.parse(Path("control/audit/rebuild_091_env_contract.py").read_text())'
+          test "$(git hash-object control/audit/rebuild_091_env_authorized_driver.py)" = 86b5d88a396f66806f959711e1d77959265ba7bf
+          python -c 'import ast; from pathlib import Path; [ast.parse(Path("control/audit", name).read_text()) for name in ("rebuild_091_env_contract.py", "rebuild_091_env_authorized_driver.py")]'
       - name: Install existing verification dependencies
         run: python -m pip install --disable-pip-version-check -r candidate/scripts/requirements-osworld.txt
       - name: Reproduce original bug and verify corrected immutable candidate
@@ -52,7 +53,7 @@ jobs:
           set -euo pipefail
           export ARBM_OSWORLD_SHIM_LOG="$RUNNER_TEMP/arbm091-env-test-shim.log"
           export ARBM_OSWORLD_OBSERVATIONS="$RUNNER_TEMP/arbm091-env-test-observations"
-          python "$GITHUB_WORKSPACE/control/audit/rebuild_091_env_contract.py" 2>&1 | tee "$RUNNER_TEMP/arbm091-env-rebuild.log"
+          python "$GITHUB_WORKSPACE/control/audit/rebuild_091_env_authorized_driver.py" 2>&1 | tee "$RUNNER_TEMP/arbm091-env-rebuild.log"
           test -s "$RUNNER_TEMP/arbm091-env-candidate-receipt.json"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Preserve positive and negative regression evidence
