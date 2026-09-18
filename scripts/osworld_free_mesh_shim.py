@@ -154,10 +154,39 @@ TASK091_SPATIAL_TEXT_EDITS = (
     (13, 1064, 763, 'Dec 04', 'Dec 05'),
     (13, 1323, 763, 'Red', 'Green'),
 )
-def _task091_canvas_ready(observation):
+def _task091_norm(value):
+    return ' '.join(str(value or '').replace('\u200b','').casefold().split())
+
+def _task091_slide_text(window_state, slide):
+    if not isinstance(window_state,dict):
+        return ''
+    deck=window_state.get('deck_slide_text',{})
+    if not isinstance(deck,dict):
+        return ''
+    return str(deck.get(str(int(slide)),'') or '')
+
+def _task091_text_count(window_state, slide, value):
+    wanted=_task091_norm(value)
+    haystack=_task091_norm(_task091_slide_text(window_state,slide))
+    return haystack.count(wanted) if wanted else 0
+
+def _task091_canvas_ready(observation, window_state=None):
     low=str(observation or '').casefold()
     deck_markers=('operating committee','growth plan draft','northstar cloud','presentation - wps office')
-    return any(x in low for x in deck_markers)
+    if any(x in low for x in deck_markers):
+        return True
+    deck=window_state.get('deck_slide_text',{}) if isinstance(window_state,dict) else {}
+    return isinstance(deck,dict) and bool(deck)
+
+def _task091_write_command(value):
+    lines=str(value).split('\n')
+    commands=["pyautogui.hotkey('ctrl', 'a')"]
+    for index,line in enumerate(lines):
+        if line:
+            commands.append(f"pyautogui.write({line!r}, interval=0.001)")
+        if index + 1 < len(lines):
+            commands.append("pyautogui.hotkey('shift', 'enter')")
+    return '\n'.join(commands)
 
 def _task091_window_state():
     root=os.environ.get('ARBM_WPS_EVIDENCE_DIR')
@@ -257,14 +286,24 @@ def _task091_same_region(hit,bbox):
     tolerance=max(120,int(max(w,h)*1.75))
     return abs(int(hit.get('cx',0))-cx)<=tolerance and abs(int(hit.get('cy',0))-cy)<=tolerance
 
-def _task091_verify_pending(observation,pending):
+def _task091_verify_pending(observation,pending,window_state):
+    slide=int(pending.get('slide') or 0)
+    before_old=int(pending.get('before_old_count') or 0)
+    before_new=int(pending.get('before_new_count') or 0)
+    after_old=_task091_text_count(window_state,slide,pending.get('old'))
+    after_new=_task091_text_count(window_state,slide,pending.get('new'))
+    disk_verified=(before_old > 0 and after_old < before_old and after_new > before_new)
+    if disk_verified:
+        return True,'disk-verified',{'source':'target-pptx','slide':slide,
+                                    'old_count_before':before_old,'old_count_after':after_old,
+                                    'new_count_before':before_new,'new_count_after':after_new}
     bbox=pending.get('target',{}).get('bbox')
     old_hits=_task091_atspi_candidates(observation,pending.get('old'))
     status,new_hit=_task091_target_resolution(
         observation,pending.get('new'),
         pending.get('target',{}).get('cx',0),pending.get('target',{}).get('cy',0))
-    old_same=any(_task091_same_region(hit,bbox) for hit in old_hits)
-    new_same=(status=='visible' and _task091_same_region(new_hit,bbox))
+    old_same=any(_task091_same_region(hit,bbox) for hit in old_hits) if bbox else bool(old_hits)
+    new_same=(status=='visible' and (not bbox or _task091_same_region(new_hit,bbox)))
     return bool(new_same and not old_same),status,new_hit
 
 def next_091_specialist_action(instruction, active_application, observation, state, window_state=None):
@@ -335,7 +374,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
     state['mode']='DECK_ACTIVE'
     state.pop('transient_phase',None)
     state.pop('transient_title',None)
-    if not _task091_canvas_ready(observation):
+    if not _task091_canvas_ready(observation,window_state):
         misses=int(state.get('deck_observation_retries') or 0)
         if misses>=1:
             return _task091_terminal('WPS_DECK_FOREGROUND_UNPROVEN',state)
@@ -356,10 +395,10 @@ def next_091_specialist_action(instruction, active_application, observation, sta
     if isinstance(pending,dict):
         stage=pending.get('stage')
         state['mode']={'select-issued':'TARGET_VISIBLE','edit-issued':'TARGET_EDITING',
-                       'commit-issued':'TARGET_COMMITTED'}.get(stage,'TARGET_VERIFYING')
+                       'commit-issued':'TARGET_COMMITTED','save-issued':'TARGET_VERIFYING'}.get(stage,'TARGET_VERIFYING')
         if stage == 'select-issued':
             pending['stage']='edit-issued'
-            command="pyautogui.hotkey('ctrl', 'a')\n"+f"pyautogui.write({pending['new']!r}, interval=0.001)"
+            command=_task091_write_command(pending['new'])
             pending['action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
                     'plan':f"Edit the selected target from {pending['old']!r} to {pending['new']!r}.",
@@ -369,10 +408,17 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             command="pyautogui.press('esc')"
             pending['commit_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
-                    'plan':'Commit the pending shape edit, then re-observe before advancing.',
+                    'plan':'Commit the pending shape edit without advancing its transaction.',
                     'specialist_phase':'commit-pending-target','expected_change':pending['new']}
         if stage == 'commit-issued':
-            verified,status,new_hit=_task091_verify_pending(observation,pending)
+            pending['stage']='save-issued'
+            command="pyautogui.hotkey('ctrl', 's')\npyautogui.sleep(0.25)"
+            pending['save_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+            return {'action':'exec','command':command,
+                    'plan':'Persist the pending GUI edit before verifying the target PPTX on disk.',
+                    'specialist_phase':'save-pending-target','expected_change':pending['new']}
+        if stage == 'save-issued':
+            verified,status,new_hit=_task091_verify_pending(observation,pending,window_state)
             if verified:
                 state['mode']='TARGET_VERIFIED'
                 state['spatial_index']=int(state.get('spatial_index') or 0)+1
@@ -405,15 +451,23 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                     'specialist_phase':'navigate-slide'}
 
         status,target=_task091_target_resolution(observation,old,x,y)
+        source='accessibility'
+        before_old=_task091_text_count(window_state,slide,old)
+        before_new=_task091_text_count(window_state,slide,new)
         if status != 'visible':
-            retries=int(state.get('target_retries') or 0)
-            if retries<1:
-                state['target_retries']=retries+1
-                return {'action':'exec','command':"pyautogui.sleep(0.2)",
-                        'plan':f'Re-observe the current slide once for target {old!r}.',
-                        'specialist_phase':'reobserve-target'}
-            reason='TASK091_TARGET_AMBIGUOUS' if status=='ambiguous' else 'TASK091_TARGET_NOT_VISIBLE'
-            return _task091_terminal(reason,state)
+            if status == 'ambiguous':
+                return _task091_terminal('TASK091_TARGET_AMBIGUOUS',state)
+            if before_old <= 0:
+                retries=int(state.get('target_retries') or 0)
+                if retries<1:
+                    state['target_retries']=retries+1
+                    return {'action':'exec','command':"pyautogui.sleep(0.2)",
+                            'plan':f'Re-observe the proven target deck once for {old!r}.',
+                            'specialist_phase':'reobserve-target'}
+                return _task091_terminal('TASK091_TARGET_NOT_VISIBLE',state)
+            source='target-pptx-spatial'
+            target={'label':old,'role':'task091-canonical-point',
+                    'x':int(x)-1,'y':int(y)-1,'w':2,'h':2,'cx':int(x),'cy':int(y)}
 
         state['target_retries']=0
         state['mode']='TARGET_VISIBLE'
@@ -422,14 +476,17 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             'slide':slide,'old':old,'new':new,'stage':'select-issued',
             'target':{'label':target['label'],'role':target['role'],
                       'bbox':[target['x'],target['y'],target['w'],target['h']],
-                      'cx':target['cx'],'cy':target['cy']},
+                      'cx':target['cx'],'cy':target['cy'],'source':source},
+            'before_old_count':before_old,'before_new_count':before_new,
             'before_observation_hash':hashlib.sha256(str(observation or '').encode()).hexdigest(),
             'action_command_hash':hashlib.sha256(command.encode()).hexdigest(),
             'verify_attempts':0,
         }
         return {'action':'exec','command':command,
-                'target':{'source':'accessibility','label':target['label'],'role':target['role']},
-                'plan':f'Select the unique visible AT-SPI target on slide {slide} containing {old!r}.',
+                'target':{'source':source,'label':target['label'],'role':target['role']},
+                'plan':(f'Select the unique visible AT-SPI target on slide {slide} containing {old!r}.'
+                        if source=='accessibility' else
+                        f'Select the canonical Task 091 point only after target-PPTX proof of {old!r} on slide {slide}.'),
                 'specialist_phase':'select-pending-target'}
 
     if state.get('pending_edit'):
