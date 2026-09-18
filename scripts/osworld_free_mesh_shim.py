@@ -4,7 +4,7 @@ from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from osworld_ingress import project_messages
 from osworld_milestones import Milestones, verified_facts
-from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response, visual_reference_recovery, foreground_context, allow_bounded_wps_escape_repeat
+from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response, visual_reference_recovery, foreground_context, allow_bounded_wps_escape_repeat, allow_bounded_wps_modal_close_repeat
 from osworld_v32_policy import DecisionKind, apply_live_policy
 from osworld_openrouter_free import FREE_ROUTE, prompt as openrouter_prompt
 from osworld_groq_free import GROQ_FREE_ROUTE
@@ -534,10 +534,15 @@ def call_mesh(messages):
                 recent=recent_commands
                 bounded_wps_escape=allow_bounded_wps_escape_repeat(
                     action,body.get('active_application','unknown'),VERIFIER.last_result,recent)
+                bounded_wps_modal_close=allow_bounded_wps_modal_close_repeat(
+                    action,body.get('active_application','unknown'),VERIFIER.last_result,recent)
                 if VERIFIER.no_progress and command in recent and bounded_wps_escape:
                     log_event({'status':'BOUNDED_WPS_ESCAPE_REPEAT_ALLOWED','command':command,'attempt':attempt+1,
                                'verifier_reason':VERIFIER.last_result.get('reason')})
-                if VERIFIER.no_progress and command in recent and not bounded_wps_escape:
+                if VERIFIER.no_progress and command in recent and bounded_wps_modal_close:
+                    log_event({'status':'BOUNDED_WPS_MODAL_CLOSE_REPEAT_ALLOWED','command':command,'attempt':attempt+1,
+                               'verifier_reason':VERIFIER.last_result.get('reason')})
+                if VERIFIER.no_progress and command in recent and not (bounded_wps_escape or bounded_wps_modal_close):
                     body['request_tabu'].append({'action':'exec','command':command,'target':action.get('target') if isinstance(action.get('target'),dict) else {},'weight':3,'reason':'repeated-no-progress','attempt':attempt+1})
                     body['request_tabu']=body['request_tabu'][-12:]
                     body['memory']=(body['memory']+'\nNO EFFECT: rejected repeated action '+command+'. Change GUI strategy or target.')[-4500:]
@@ -553,6 +558,13 @@ def call_mesh(messages):
                         'state_changed': bool(VERIFIER.last_result.get('tree_changed') or VERIFIER.last_result.get('visual_changed')),
                         'bounded_retry': True,
                         'reason': 'stacked WPS modal dismissal after independently observed foreground change',
+                    }
+                elif bounded_wps_modal_close:
+                    retry_proof={
+                        'fresh_observation': True,
+                        'state_changed': False,
+                        'bounded_retry': True,
+                        'reason': 'one bounded retry of the explicitly observed WPS modal close control after a focus-only click',
                     }
                 elite_action=ELITE.before_action(command,action.get('target'),retry_proof=retry_proof)
                 if not elite_action['allow']:
