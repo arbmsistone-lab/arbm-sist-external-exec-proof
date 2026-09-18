@@ -168,21 +168,24 @@ class MeshTests(unittest.TestCase):
   self.assertIn('Ctrl+L',bodies[0]['recovery_strategy'])
   self.assertIsNone(bodies[1].get('provider_hint'))
 
- def test_task091_spatial_specialist_uses_exact_geometry_structured_cells_and_handoff(self):
+ def test_task091_spatial_specialist_uses_live_atspi_targets_and_bounded_modal_clear(self):
   task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
         'The COO has asked you to rebaseline the H2 Operating Committee pack. '
         'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
         'Reforecast_Model_H2.xlsx is the source of truth.')
   with patch.dict(os.environ,{'TASK_ID':'091','ZERO_SPEND_MODE':'HARD'},clear=False):
    state={}
-   self.assertEqual(shim.next_091_specialist_action(
-    task,'WPS Presentation','System Check',state)['command'],"pyautogui.press('esc')")
-   self.assertEqual(shim.next_091_specialist_action(
-    task,'WPS Presentation','Set WPS Office as your default office software',state)['command'],
-    "pyautogui.press('esc')")
+   first_modal=shim.next_091_specialist_action(task,'WPS Presentation','System Check',state)
+   second_modal=shim.next_091_specialist_action(
+    task,'WPS Presentation','Set WPS Office as your default office software',state)
+   self.assertEqual(first_modal['command'],"pyautogui.press('esc')")
+   self.assertEqual(second_modal['command'],"pyautogui.press('esc')")
+   self.assertFalse(state.get('anchored'))
    state={}
-   anchor=shim.next_091_specialist_action(task,'WPS Presentation','Operating Committee deck',state)
-   self.assertIn("pyautogui.hotkey('ctrl', 'home')",anchor['command'])
+   deck_obs=('text\tOperating Committee\tOperating Committee\t\t\t(500, 180)\t(600, 60)\n'
+             'text\tGrowth Plan Draft\tGrowth Plan Draft\t\t\t(700, 300)\t(100, 40)')
+   anchor=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state)
+   self.assertEqual(anchor['command'],"pyautogui.hotkey('ctrl', 'home')")
    required={'$40.9M','$2.8M','104%','71%','17 mo','206','3',
              'Renewal saves','Pricing discipline','Migration delay','Support credits',
              'International Pilot stop','Partner stabilization','Platform','Reliability',
@@ -193,8 +196,6 @@ class MeshTests(unittest.TestCase):
              'Recovery review with OpCom'}
    finals={row[4] for row in shim.TASK091_SPATIAL_TEXT_EDITS}
    self.assertTrue(required.issubset(finals))
-   # Exact geometry regression uses direct tuple membership because the same
-   # visible draft text can legitimately occur on multiple slides.
    self.assertIn((2,558,364,'$42.8M','$40.9M'),shim.TASK091_SPATIAL_TEXT_EDITS)
    self.assertIn((2,792,364,'112%','104%'),shim.TASK091_SPATIAL_TEXT_EDITS)
    self.assertIn((2,1245,364,'19 mo','17 mo'),shim.TASK091_SPATIAL_TEXT_EDITS)
@@ -202,17 +203,28 @@ class MeshTests(unittest.TestCase):
    self.assertIn((12,1396,705,'214','206'),shim.TASK091_SPATIAL_TEXT_EDITS)
    self.assertIn((7,717,383,'Regional launch readiness','Vendor SLA breach'),shim.TASK091_SPATIAL_TEXT_EDITS)
    self.assertFalse(any("hotkey('ctrl', 'h')" in str(row) for row in shim.TASK091_SPATIAL_TEXT_EDITS))
-   self.assertTrue(all(type(row[1]) is int and type(row[2]) is int for row in shim.TASK091_SPATIAL_TEXT_EDITS))
-   first=shim.next_091_specialist_action(task,'WPS Presentation','Operating Committee deck',state)
+   target=shim._task091_dynamic_target(deck_obs,'Growth Plan Draft',745,335)
+   self.assertEqual((target['cx'],target['cy']),(750,320))
+   first=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state)
    self.assertEqual(first['action'],'exec')
-   self.assertEqual(first['target']['source'],'screenshot')
-   self.assertIn('doubleClick',first['command'])
-   # Completion is intentionally not self-certified; after save the specialist
-   # returns None so the visual mesh must finish chart/fill work and evaluator decides.
+   self.assertEqual(first['target']['source'],'accessibility')
+   self.assertEqual(first['target']['label'],'Growth Plan Draft')
+   self.assertIn('doubleClick(750, 320',first['command'])
+   # No observed node means no blind pointer.
+   missing_state={'anchored':True,'slide':1,'spatial_index':0}
+   self.assertIsNone(shim.next_091_specialist_action(
+    task,'WPS Presentation','text\tOperating Committee\tOperating Committee\t\t\t(500, 180)\t(600, 60)',
+    missing_state))
+   self.assertTrue(str(missing_state.get('handoff_reason','')).startswith('AT_SPI_TARGET_NOT_UNIQUE_OR_VISIBLE'))
+   # Equidistant duplicate candidates are ambiguous and fail closed.
+   dup=('text\tOperating Committee\tOperating Committee\t\t\t(500, 180)\t(600, 60)\n'
+        'text\tGrowth Plan Draft\tGrowth Plan Draft\t\t\t(690, 300)\t(100, 40)\n'
+        'text\tGrowth Plan Draft\tGrowth Plan Draft\t\t\t(700, 300)\t(100, 40)')
+   self.assertIsNone(shim._task091_dynamic_target(dup,'Growth Plan Draft',745,320))
    state={'anchored':True,'slide':13,'spatial_index':len(shim.TASK091_SPATIAL_TEXT_EDITS)}
-   save=shim.next_091_specialist_action(task,'WPS Presentation','Operating Committee deck',state)
+   save=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state)
    self.assertIn("hotkey('ctrl', 's')",save['command'])
-   self.assertIsNone(shim.next_091_specialist_action(task,'WPS Presentation','Operating Committee deck',state))
+   self.assertIsNone(shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state))
    self.assertTrue(state.get('handoff'))
 
  def test_task091_specialist_does_not_capture_other_tasks(self):
