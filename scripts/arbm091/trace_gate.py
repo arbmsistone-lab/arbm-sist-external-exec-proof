@@ -201,7 +201,7 @@ def verify_trace(root: Path, sha: str, run_id: str, run_attempt: str) -> dict:
     require(bool(raw) and raw.endswith(b'\n'), 'TRACE_EMPTY_OR_TRUNCATED')
     previous = '0' * 64
     steps = set()
-    wps = edits = saves = switches = 0
+    wps = edits = saves = switches = transients = 0
     for ordinal, line in enumerate(raw.decode().splitlines(), 1):
         row = json.loads(line)
         event_hash = row.pop('event_sha256', None)
@@ -230,13 +230,18 @@ def verify_trace(root: Path, sha: str, run_id: str, run_attempt: str) -> dict:
                 'STALE_OR_REORDERED_FRAME')
         scope = preflight(command, before)
         require(scope == row.get('scope'), 'TRACE_SCOPE_MISMATCH')
+        after_app = postflight(command, before, after)
         if scope == 'application-switch':
             switches += 1
             continue
-        require(classify(after.get('window', {})) != 'unapproved', 'POST_ACTION_APP_DRIFT')
+        require(after_app != 'unapproved', 'POST_ACTION_APP_DRIFT')
+        if scope == 'wps-transient':
+            wps += 1
+            transients += 1
+            continue
         if scope == 'wps-content':
             wps += 1
-            require(classify(after['window']) == 'wps-presentation', 'WPS_CONTEXT_LOST')
+            require(after_app in ('wps-presentation','wps-transient'), 'WPS_CONTEXT_LOST')
             if is_save(command):
                 saves += 1
             elif parse_atom(command)[0] not in NON_EDITING:
@@ -246,5 +251,5 @@ def verify_trace(root: Path, sha: str, run_id: str, run_attempt: str) -> dict:
     require(edits > 0, 'WPS_UI_EFFECT_UNPROVEN')
     require(saves > 0, 'AGENT_WPS_SAVE_UNPROVEN')
     return {'wps_actions': wps, 'wps_ui_changes': edits, 'agent_save_actions': saves,
-            'application_switches': switches, 'trace_tail_sha256': previous,
+            'application_switches': switches, 'wps_transient_actions': transients, 'trace_tail_sha256': previous,
             'note': 'UI effects do not establish semantic task success; official score is separately required.'}
