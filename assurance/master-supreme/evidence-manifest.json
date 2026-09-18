@@ -46,10 +46,12 @@
       "environment": "GitHub-hosted Ubuntu 24.04",
       "expected": "Same pinned input/model/policy selects the same safe semantic action twice; ZERO_SPEND proven",
       "actual": "PASS: pyautogui.press('tab') selected twice with identical selector ranking/logits; zero_spend_confirmed=true",
-      "state": "PASS",
+      "state": "BLOCKED",
       "commit_sha": "491f1350338129b5c898f8ce2b9afebd0efe029d",
       "evidence_reference": "GitHub Actions run 35338722218; artifact 10544187252; artifact digest e93e43cf560bc8c7a5fc9ffc0f57036d460e70bf278aa56d9a3fd06ed66b3b0c",
-      "scope_note": "Auxiliary assurance branch proof for replay mechanism derived from RC 21159f188f7a6bf73effa54e6610f76be81aa165; not a substitute for official 091 score."
+      "scope_note": "Auxiliary assurance branch proof for replay mechanism derived from RC 21159f188f7a6bf73effa54e6610f76be81aa165; not a substitute for official 091 score.",
+      "test_result": "PASS",
+      "blocked_cause": "Auxiliary assurance implementation SHA differs from the currently registered release-candidate SHA; must be incorporated or independently replayed on the final candidate before certification."
     }
   ],
   "certification_state": "BLOCKED"
