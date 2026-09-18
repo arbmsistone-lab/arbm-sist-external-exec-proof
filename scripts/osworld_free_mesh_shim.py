@@ -537,7 +537,15 @@ def call_mesh(messages):
                     STATE['cooldowns'][route+':'+str(data.get('model'))]=int((time.time()+90)*1000)
                     log_event({'status':'INTRA_REQUEST_TABU','reason':'repeated-no-progress','command':command,'attempt':attempt+1})
                     continue
-                elite_action=ELITE.before_action(command,action.get('target'))
+                retry_proof=None
+                if bounded_wps_escape:
+                    retry_proof={
+                        'fresh_observation': True,
+                        'state_changed': bool(VERIFIER.last_result.get('tree_changed') or VERIFIER.last_result.get('visual_changed')),
+                        'bounded_retry': True,
+                        'reason': 'stacked WPS modal dismissal after independently observed foreground change',
+                    }
+                elite_action=ELITE.before_action(command,action.get('target'),retry_proof=retry_proof)
                 if not elite_action['allow']:
                     body['request_tabu'].append({'action':'exec','command':command,'target':action.get('target') if isinstance(action.get('target'),dict) else {},'weight':3,'reason':'elite-tabu','attempt':attempt+1})
                     body['request_tabu']=body['request_tabu'][-12:]
