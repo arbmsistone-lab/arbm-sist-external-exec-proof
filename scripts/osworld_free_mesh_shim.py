@@ -281,15 +281,10 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             phase=None
         if title == 'system check':
             if phase is None:
-                state['transient_phase']='tab-issued'
-                return {'action':'exec','command':"pyautogui.press('tab')",
-                        'plan':'Focus the native System Check Close control.',
-                        'specialist_phase':'transient-system-check-tab'}
-            if phase == 'tab-issued':
-                state['transient_phase']='enter-issued'
-                return {'action':'exec','command':"pyautogui.press('enter')",
-                        'plan':'Activate the focused System Check Close control.',
-                        'specialist_phase':'transient-system-check-enter'}
+                state['transient_phase']='alt-f4-issued'
+                return {'action':'exec','command':"pyautogui.hotkey('alt', 'f4')",
+                        'plan':'Close the proven foreground System Check transient without touching the deck window.',
+                        'specialist_phase':'transient-system-check-alt-f4'}
             return _task091_terminal('WPS_TRANSIENT_CLOSE_UNPROVEN',state)
         if title in ('wps office','set wps office as your default office software'):
             if phase is None:
