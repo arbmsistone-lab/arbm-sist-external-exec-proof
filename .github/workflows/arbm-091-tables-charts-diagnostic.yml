@@ -1,0 +1,104 @@
+name: ARBM 091 Tables Charts Diagnostic
+on:
+  push:
+    branches:
+      - chatgpt/arbm-091-input-diagnostic-20260918
+    paths:
+      - .github/workflows/arbm-091-tables-charts-diagnostic.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+env:
+  ZERO_SPEND_MODE: HARD
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Verify zero-spend runner
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = HARD
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+      - name: Hydrate pinned task 091 assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v2026.08.08 https://github.com/xlang-ai/OSWorld-V2.git osworld
+          test "$(git -C osworld rev-parse HEAD)" = d578d2d4e0dc82b43e270fdaa7fa89d9708cd154
+          python -m pip install --disable-pip-version-check -q uv==0.8.15 huggingface_hub==0.35.3 python-pptx==1.0.2
+          cd osworld
+          uv sync --frozen
+          uv run python scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
+          uv run python - <<'PY' > /tmp/osworld_asset_dirs.txt
+          import os
+          from huggingface_hub import HfApi
+          files=HfApi(token=os.environ['HF_TOKEN']).list_repo_files(
+              repo_id='xlangai/osworld_v2_assets_gated',repo_type='dataset',revision='v2026.08.08')
+          print('\n'.join(sorted({x.split('/')[0] for x in files if x.startswith('task_091') and '/' in x})))
+          PY
+          while IFS= read -r asset_dir; do
+            uv run python scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 \
+              --allow-pattern "${asset_dir}/**" --target-dir cache/osworld_v2_assets
+          done < /tmp/osworld_asset_dirs.txt
+          cd ..
+      - name: Extract tables and charts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p diagnostic
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from pptx import Presentation
+          root=Path('osworld/cache/osworld_v2_assets')
+          pptx=next(root.rglob('Operating_Committee_Rebaseline_Draft.pptx'))
+          prs=Presentation(str(pptx))
+          out={'status':'TASK091_TABLES_CHARTS','slide_width':prs.slide_width,'slide_height':prs.slide_height,'slides':[]}
+          for si,slide in enumerate(prs.slides,1):
+              row={'slide':si,'tables':[],'charts':[]}
+              for shape in slide.shapes:
+                  if getattr(shape,'has_table',False):
+                      table=shape.table
+                      rows=[]
+                      top=shape.top
+                      for ri,r in enumerate(table.rows):
+                          left=shape.left
+                          cells=[]
+                          for ci,c in enumerate(table.columns):
+                              cell=table.cell(ri,ci)
+                              cells.append({'row':ri,'col':ci,'text':cell.text,'left':left,'top':top,
+                                            'width':c.width,'height':r.height,
+                                            'cx':left+c.width//2,'cy':top+r.height//2})
+                              left+=c.width
+                          rows.append(cells)
+                          top+=r.height
+                      row['tables'].append({'name':shape.name,'left':shape.left,'top':shape.top,
+                                             'width':shape.width,'height':shape.height,'cells':rows})
+                  if getattr(shape,'has_chart',False):
+                      ch=shape.chart
+                      cats=[]
+                      try: cats=[str(x) for x in ch.plots[0].categories]
+                      except Exception: pass
+                      series=[]
+                      for ser in ch.series:
+                          vals=[]
+                          try: vals=[None if v is None else float(v) for v in ser.values]
+                          except Exception: pass
+                          series.append({'name':str(ser.name),'values':vals})
+                      row['charts'].append({'name':shape.name,'left':shape.left,'top':shape.top,
+                                            'width':shape.width,'height':shape.height,
+                                            'categories':cats,'series':series})
+              if row['tables'] or row['charts']: out['slides'].append(row)
+          Path('diagnostic/task091-tables-charts.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps({'slides':[x['slide'] for x in out['slides']]}))
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: arbm091-tables-charts
+          path: diagnostic/task091-tables-charts.json
+          if-no-files-found: error
+          retention-days: 30
