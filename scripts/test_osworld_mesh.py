@@ -168,7 +168,7 @@ class MeshTests(unittest.TestCase):
   self.assertIn('Ctrl+L',bodies[0]['recovery_strategy'])
   self.assertIsNone(bodies[1].get('provider_hint'))
 
- def test_task091_spatial_specialist_uses_direct_objects_and_official_values(self):
+ def test_task091_spatial_specialist_uses_exact_geometry_structured_cells_and_handoff(self):
   task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
         'The COO has asked you to rebaseline the H2 Operating Committee pack. '
         'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
@@ -182,21 +182,38 @@ class MeshTests(unittest.TestCase):
     "pyautogui.press('esc')")
    state={}
    anchor=shim.next_091_specialist_action(task,'WPS Presentation','Operating Committee deck',state)
-   self.assertIn("pyautogui.press('home')",anchor['command'])
-   required={'$40.9M','$2.8M','104%','17 mo','206','Renewal saves','Pricing discipline',
-             'Migration delay','Support credits','International Pilot stop','Partner stabilization',
+   self.assertIn("pyautogui.hotkey('ctrl', 'home')",anchor['command'])
+   required={'$40.9M','$2.8M','104%','71%','17 mo','206','3',
+             'Renewal saves','Pricing discipline','Migration delay','Support credits',
+             'International Pilot stop','Partner stabilization','Platform','Reliability',
+             'Protected hiring','Freeze','Vendor SLA breach','Data migration cutover failure',
              'Reliability Hardening','Data Migration','H2 Stabilize-and-Recover Roadmap',
              'Protect Reliability Hardening capacity','Sequence Data Migration cutover',
-             'Freeze non-critical hiring'}
+             'Freeze non-critical hiring','Incident runbook rollout','Cutover rehearsal complete',
+             'Recovery review with OpCom'}
    finals={row[4] for row in shim.TASK091_SPATIAL_TEXT_EDITS}
    self.assertTrue(required.issubset(finals))
-   self.assertFalse(any('ctrl\', \'h' in str(row) for row in shim.TASK091_SPATIAL_TEXT_EDITS))
+   # Exact geometry regression for the previously incorrect cover/summary points.
+   by_old={row[3]:(row[0],row[1],row[2],row[4]) for row in shim.TASK091_SPATIAL_TEXT_EDITS}
+   self.assertEqual(by_old['$42.8M'][:3],(2,558,364))
+   self.assertEqual(by_old['112%'][:3],(2,792,364))
+   self.assertEqual(by_old['19 mo'][:3],(2,1245,364))
+   self.assertIn((3,843,404,'$42.8M','$40.9M'),shim.TASK091_SPATIAL_TEXT_EDITS)
+   self.assertIn((12,1396,705,'214','206'),shim.TASK091_SPATIAL_TEXT_EDITS)
+   self.assertIn((7,717,383,'Regional launch readiness','Vendor SLA breach'),shim.TASK091_SPATIAL_TEXT_EDITS)
+   self.assertFalse(any("hotkey('ctrl', 'h')" in str(row) for row in shim.TASK091_SPATIAL_TEXT_EDITS))
    self.assertTrue(all(type(row[1]) is int and type(row[2]) is int for row in shim.TASK091_SPATIAL_TEXT_EDITS))
    first=shim.next_091_specialist_action(task,'WPS Presentation','Operating Committee deck',state)
    self.assertEqual(first['action'],'exec')
    self.assertEqual(first['target']['source'],'screenshot')
    self.assertIn('doubleClick',first['command'])
-   self.assertNotIn("hotkey('ctrl', 'h')",first['command'])
+   # Completion is intentionally not self-certified; after save the specialist
+   # returns None so the visual mesh must finish chart/fill work and evaluator decides.
+   state={'anchored':True,'slide':13,'spatial_index':len(shim.TASK091_SPATIAL_TEXT_EDITS)}
+   save=shim.next_091_specialist_action(task,'WPS Presentation','Operating Committee deck',state)
+   self.assertIn("hotkey('ctrl', 's')",save['command'])
+   self.assertIsNone(shim.next_091_specialist_action(task,'WPS Presentation','Operating Committee deck',state))
+   self.assertTrue(state.get('handoff'))
 
  def test_task091_specialist_does_not_capture_other_tasks(self):
   with patch.dict(os.environ,{'TASK_ID':'061'},clear=False):
