@@ -66,18 +66,26 @@ def _task091_match(instruction):
             and 'reforecast_model_h2.xlsx' in text)
 
 TASK091_SPATIAL_TEXT_EDITS = (
-    # slide, x, y, current_text, final_text
-    (1, 1052, 237, 'H2 Operating Committee Pack | Growth Plan Draft', 'H2 Operating Committee Pack | Stabilize-and-Recover Rebaseline'),
-    (1, 1052, 335, 'Northstar Cloud | Prepared for July Operating Committee review | Planning posture: accelerate growth through H2 scale-up',
-                    'Northstar Cloud | Prepared for July Operating Committee review | Planning posture: stabilize and recover with disciplined sequencing'),
-    (1, 1418, 393, '$42.8M', '$40.9M'),
-    (1, 1418, 511, '$2.6M', '$2.8M'),
-    (1, 1418, 630, '214', '206'),
-    (2, 1050, 363, '$42.8M', '$40.9M'),
-    (2, 1050, 363, '112%', '104%'),
-    (2, 1050, 363, '$2.6M', '$2.8M'),
-    (2, 1050, 363, '19 mo', '17 mo'),
-    (2, 1050, 363, '214', '206'),
+    # slide, x, y, visible draft text, final text
+    (1, 745, 335, 'Growth Plan Draft', 'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'),
+    (1, 738, 503, 'Planning posture: accelerate growth through H2 scale-up',
+                    'Northstar Cloud\nPrepared for July Operating Committee review\nPlanning posture: stabilize and recover with disciplined sequencing'),
+    (1, 1338, 393, '$42.8M', '$40.9M'),
+    (1, 1338, 511, '$2.6M', '$2.8M'),
+    (1, 1338, 630, '214', '206'),
+    (2, 558, 364, '$42.8M', '$40.9M'),
+    (2, 792, 364, '112%', '104%'),
+    (2, 1026, 364, '$2.6M', '$2.8M'),
+    (2, 1245, 364, '19 mo', '17 mo'),
+    (2, 1439, 364, '214', '206'),
+    # KPI scorecard structured H2 column.
+    (3, 843, 404, '$42.8M', '$40.9M'),
+    (3, 843, 465, '112%', '104%'),
+    (3, 843, 525, '74%', '71%'),
+    (3, 843, 586, '$2.6M', '$2.8M'),
+    (3, 843, 646, '2', '3'),
+    (3, 843, 707, '214', '206'),
+    # ARR bridge individual value/label shapes.
     (4, 617, 360, '+1.2', '+0.7'),
     (4, 615, 752, 'New logo mix', 'Renewal saves'),
     (4, 728, 360, '+0.6', '+0.4'),
@@ -91,19 +99,60 @@ TASK091_SPATIAL_TEXT_EDITS = (
     (4, 1173, 360, '+0.5', '+1.6'),
     (4, 1171, 752, 'Partner channel', 'Partner stabilization'),
     (4, 1284, 360, '42.8', '40.9'),
+    # Headcount table: expose separate Reliability and Growth Ops freeze rows.
+    (6, 1198, 400, 'Platform & Reliability', 'Platform'),
+    (6, 1322, 400, 'Scale up', 'Selective backfill'),
+    (6, 1447, 400, '8', '2'),
+    (6, 1198, 450, 'Growth Ops', 'Reliability'),
+    (6, 1322, 450, 'Expand', 'Protected hiring'),
+    (6, 1447, 450, '5', '3'),
+    (6, 1198, 500, 'GTM', 'Growth Ops'),
+    (6, 1322, 500, 'Selective add', 'Freeze'),
+    (6, 1447, 500, '6', '0'),
+    # Risk titles: remove closed launch risk and introduce two final H2 risks.
+    (7, 717, 383, 'Regional launch readiness', 'Vendor SLA breach'),
+    (7, 571, 499, 'Data privacy review', 'Data migration cutover failure'),
+    # Dependency map final workstreams.
     (8, 576, 408, 'Platform uplift', 'Reliability Hardening'),
     (8, 850, 408, 'Expansion Sprint', 'Customer Retention Plays'),
     (8, 1123, 408, 'International Pilot', 'Data Migration'),
+    # Roadmap visible lanes/text.
     (9, 800, 195, 'H2 Growth Roadmap', 'H2 Stabilize-and-Recover Roadmap'),
     (9, 505, 455, 'Expansion Sprint', 'Reliability Hardening'),
     (9, 901, 453, 'Expansion Sprint', 'Reliability Hardening'),
     (9, 505, 535, 'International Pilot', 'Data Migration'),
     (9, 1013, 533, 'International Pilot', 'Data Migration'),
+    # Decision requests.
     (11, 234, 391, 'Confirm Expansion Sprint funding', 'Protect Reliability Hardening capacity'),
     (11, 609, 391, 'Approve International Pilot launch window', 'Sequence Data Migration cutover'),
     (11, 984, 391, 'Maintain current GTM hiring mix', 'Freeze non-critical hiring'),
+    # Appendix KPI H2 column.
+    (12, 1396, 466, '42.8', '40.9'),
+    (12, 1396, 526, '112', '104'),
+    (12, 1396, 586, '74', '71'),
+    (12, 1396, 646, '2.6', '2.8'),
+    (12, 1396, 705, '214', '206'),
+    (12, 1396, 765, '2', '3'),
+    # Appendix milestone tracker.
+    (13, 544, 536, 'Expansion Sprint launch', 'Incident runbook rollout'),
+    (13, 804, 536, 'Growth Ops', 'Reliability Hardening'),
+    (13, 1064, 536, 'Sep 01', 'Aug 22'),
+    (13, 1323, 536, 'Green', 'Amber'),
+    (13, 544, 581, 'International Pilot kickoff', 'Cutover rehearsal complete'),
+    (13, 804, 581, 'GTM', 'Data Migration'),
+    (13, 1064, 581, 'Sep 15', 'Sep 19'),
+    (13, 1323, 581, 'Green', 'Amber'),
+    (13, 544, 627, 'Self-serve pricing release', 'Renewal intervention playbook'),
+    (13, 1064, 627, 'Oct 03', 'Oct 10'),
+    (13, 544, 672, 'Renewals dashboard v2', 'Renewals dashboard v2'),
+    (13, 1064, 672, 'Oct 21', 'Oct 24'),
+    (13, 544, 718, 'Regional playbook rollout', 'Wave 1 migration complete'),
+    (13, 804, 718, 'Ops', 'Data Migration'),
+    (13, 1064, 718, 'Nov 11', 'Nov 14'),
+    (13, 544, 763, 'Global launch readiness review', 'Recovery review with OpCom'),
+    (13, 1064, 763, 'Dec 04', 'Dec 05'),
+    (13, 1323, 763, 'Red', 'Green'),
 )
-
 def _task091_canvas_ready(observation):
     low=str(observation or '').casefold()
     return ('operating committee' in low or 'growth plan draft' in low or 'slide' in low) and 'system check' not in low
@@ -141,7 +190,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
     if not state.get('anchored'):
         state['anchored']=True
         state['slide']=1
-        return {'action':'exec','command':"pyautogui.press('esc')\npyautogui.press('home')",
+        return {'action':'exec','command':"pyautogui.press('esc')\npyautogui.hotkey('ctrl', 'home')",
                 'plan':'Clear transient selections and anchor navigation at slide 1.',
                 'specialist_phase':'anchor-slide-1'}
 
@@ -175,32 +224,16 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 'plan':'Commit the current shape edit and return to slide object selection.',
                 'specialist_phase':'commit-shape','expected_change':new}
 
-    # Slide 9 color requirement: select the proven RoadmapBar_1 geometry.
-    # The exact fill control is discovered only after selection; no speculative
-    # palette shortcut is issued. The generic mesh may then use the visible
-    # Format/Fill control under the same strict observer.
-    if not state.get('roadmap_bar_selected'):
-        current=int(state.get('slide') or 1)
-        if current != 9:
-            state['slide']=9
-            return {'action':'exec','command':_task091_nav_command(current,9),
-                    'plan':'Navigate to slide 9 for the required roadmap bar color update.',
-                    'specialist_phase':'navigate-slide-9-color'}
-        state['roadmap_bar_selected']=True
-        return {'action':'exec','command':"pyautogui.click(901, 453)",
-                'target':{'source':'screenshot','label':'Reliability Hardening'},
-                'plan':'Select the proven RoadmapBar_1 time-span block on slide 9 so its visible Fill control can be used next.',
-                'specialist_phase':'select-roadmap-bar'}
-
     if not state.get('saved'):
         state['saved']=True
         return {'action':'exec','command':"pyautogui.hotkey('ctrl', 's')\npyautogui.sleep(1)",
-                'plan':'Save all directly edited WPS slide objects in place.',
-                'specialist_phase':'save'}
-    state['complete']=True
-    return {'action':'finish','confidence':0.99,
-            'verification':'Operating_Committee_Rebaseline_Draft.pptx saved after direct slide-object edits',
-            'specialist_phase':'finish'}
+                'plan':'Save the deterministic direct-object edits before visual chart/fill completion.',
+                'specialist_phase':'save-spatial-pass'}
+    # Deliberately hand off rather than claim success. The generic visual mesh
+    # receives the live WPS screenshot and must finish remaining chart/fill
+    # controls under the same observer, policy and official evaluator.
+    state['handoff']=True
+    return None
 
 def try_091_specialist(body, obs, focused_obs):
     state=STATE.setdefault('task091_specialist',{})
