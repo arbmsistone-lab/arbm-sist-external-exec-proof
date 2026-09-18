@@ -189,8 +189,8 @@ class MeshTests(unittest.TestCase):
    'owner_title':'Replace','wm_class':'wpp wpp','bbox':[600,400,700,220]}}
   with patch.dict(os.environ,{'TASK_ID':'091','ZERO_SPEND_MODE':'HARD'},clear=False):
    state={}
-   self.assertEqual(shim.next_091_specialist_action(task,'WPS 2019','',state,system)['command'],"pyautogui.press('tab')")
-   self.assertEqual(shim.next_091_specialist_action(task,'WPS 2019','',state,system)['command'],"pyautogui.press('enter')")
+   self.assertEqual(shim.next_091_specialist_action(task,'WPS 2019','',state,system)['command'],"pyautogui.hotkey('alt', 'f4')")
+   self.assertEqual(state.get('transient_phase'),'alt-f4-issued')
    # No slide-internal AT-SPI text is required after foreground is proven.
    opened=shim.next_091_specialist_action(task,'WPS 2019','',state,deck)
    self.assertEqual(opened['command'],"pyautogui.hotkey('ctrl', 'h')")
