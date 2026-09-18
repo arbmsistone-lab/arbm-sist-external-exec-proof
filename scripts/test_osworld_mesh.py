@@ -181,7 +181,10 @@ class MeshTests(unittest.TestCase):
    'id':50331680,'pid':2689,'title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Office',
    'owner_title':'','wm_class':'wpp wpp','bbox':[70,27,1850,1053]},
    'deck_slide_text':{'1':'Growth Plan Draft Planning posture: accelerate growth through H2 scale-up $42.8M $2.6M 214'},
-   'deck_slide_runs':{'1':['Growth Plan Draft','Planning posture: accelerate growth through H2 scale-up','$42.8M','$2.6M','214']}}
+   'deck_slide_runs':{'1':['Growth Plan Draft','Planning posture: accelerate growth through H2 scale-up','$42.8M','$2.6M','214']},
+   'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                'sha256':'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                'size':1234,'mtime_ns':1}}
   deck_obs=('text\tOperating Committee\tOperating Committee\t\t\t(500, 180)\t(600, 60)\n'
             'text\tGrowth Plan Draft\tGrowth Plan Draft\t\t\t(700, 300)\t(100, 40)')
   with patch.dict(os.environ,{'TASK_ID':'091','ZERO_SPEND_MODE':'HARD'},clear=False):
@@ -269,7 +272,10 @@ class MeshTests(unittest.TestCase):
    self.assertEqual(state['pending_edit']['stage'],'save-issued')
    deck_after={**deck,'deck_slide_text':{'1':'H2 Operating Committee Pack Stabilize-and-Recover Rebaseline Planning posture: accelerate growth through H2 scale-up $42.8M $2.6M 214'},
                'deck_slide_runs':{'1':['H2 Operating Committee Pack','Stabilize-and-Recover Rebaseline',
-                                       'Planning posture: accelerate growth through H2 scale-up','$42.8M','$2.6M','214']}}
+                                       'Planning posture: accelerate growth through H2 scale-up','$42.8M','$2.6M','214']},
+               'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                            'sha256':'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+                            'size':1240,'mtime_ns':2}}
    verified=shim.next_091_specialist_action(task,'WPS Presentation',commit_obs,state,deck_after)
    self.assertEqual(verified['action'],'checkpoint')
    self.assertEqual(verified['checkpoint'],'TASK091_FIRST_STRUCTURAL_EDIT_VERIFIED')
@@ -291,6 +297,9 @@ class MeshTests(unittest.TestCase):
    self.assertEqual(failed['action'],'terminal')
    self.assertEqual(failed['reason'],'TASK091_EDIT_NOT_VERIFIED')
    self.assertEqual(stuck['spatial_index'],0)
+
+   self.assertIn("hotkey('shift', 'enter')",edit['command'])
+   self.assertNotIn("\\n', interval",edit['command'])
 
    # Official WPS runner may expose no canvas AT-SPI. In that case only the
    # canonical Task 091 point is usable, and only when target-PPTX text proves
@@ -320,6 +329,15 @@ class MeshTests(unittest.TestCase):
    self.assertIn('sleep',shim.next_091_specialist_action(task,'WPS Presentation',dup,ambiguous,deck)['command'])
    amb_terminal=shim.next_091_specialist_action(task,'WPS Presentation',dup,ambiguous,deck)
    self.assertEqual(amb_terminal['reason'],'TASK091_TARGET_AMBIGUOUS')
+
+   no_op_index=next(i for i,row in enumerate(shim.TASK091_SPATIAL_TEXT_EDITS)
+                    if shim._task091_norm(row[3]) == shim._task091_norm(row[4]))
+   no_op_row=shim.TASK091_SPATIAL_TEXT_EDITS[no_op_index]
+   no_op_state={'owned':True,'anchored':True,'slide':no_op_row[0],'spatial_index':no_op_index}
+   no_op=shim.next_091_specialist_action(task,'WPS Presentation','',no_op_state,deck)
+   self.assertEqual(no_op['action'],'checkpoint')
+   self.assertEqual(no_op['checkpoint'],'TASK091_TARGET_ALREADY_FINAL')
+   self.assertEqual(no_op_state['spatial_index'],no_op_index+1)
 
    # A normal deck never receives transient close keys.
    normal={}
