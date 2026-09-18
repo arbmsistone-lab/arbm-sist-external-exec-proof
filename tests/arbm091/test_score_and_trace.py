@@ -181,6 +181,23 @@ class ForegroundTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'UNAPPROVED'):
             preflight("pyautogui.write('text')", body)
 
+    def test_native_wps_replace_modal_is_wps_content(self):
+        body = snapshot('Presentation', 'wpp wpp', pid=2684)
+        body['window']['owner_title'] = 'Replace'
+        self.assertEqual(classify(body['window']), 'wps-presentation')
+        self.assertEqual(preflight("pyautogui.write('$40.9M')", body), 'wps-content')
+
+    def test_native_wps_find_modal_is_wps_content(self):
+        body = snapshot('Find', 'wpp wpp', pid=2684)
+        body['window']['owner_title'] = 'Presentation'
+        self.assertEqual(preflight("pyautogui.press('tab')", body), 'wps-content')
+
+    def test_foreign_or_generic_wpp_window_is_still_rejected(self):
+        body = snapshot('Calculator', 'wpp wpp', pid=2684)
+        body['window']['owner_title'] = 'Utility'
+        with self.assertRaisesRegex(ValueError, 'UNAPPROVED'):
+            preflight("pyautogui.press('enter')", body)
+
 
 class TraceTests(unittest.TestCase):
     def setUp(self):
