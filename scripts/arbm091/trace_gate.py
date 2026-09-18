@@ -38,7 +38,17 @@ def is_authorized_wps_transient(window: dict) -> bool:
     owner=str(window.get('owner_title', '')).strip().casefold()
     return (_is_wps_class(window.get('wm_class', ''))
             and DECK.casefold() in owner
-            and title in WPS_TRANSIENT_TITLES)
+            and title in {'system check','wps office','set wps office as your default office software'})
+
+
+def _is_legacy_wps_modal(window: dict) -> bool:
+    title=str(window.get('title', '')).strip().casefold()
+    owner=str(window.get('owner_title', '')).strip().casefold()
+    klass_tokens=set(str(window.get('wm_class','')).casefold().replace('.',' ').replace('-',' ').split())
+    legacy=(title in {'presentation','replace','find','find and replace','find & replace'}
+            or owner in {'presentation','replace','find','find and replace','find & replace'}
+            or 'replace' in owner or 'find' in owner)
+    return 'wpp' in klass_tokens and legacy
 
 
 def classify(window: dict) -> str:
@@ -52,6 +62,8 @@ def classify(window: dict) -> str:
     if is_authorized_wps_transient(window):
         return 'wps-transient'
     if DECK.casefold() in title.casefold() and _is_wps_class(klass):
+        return 'wps-presentation'
+    if _is_legacy_wps_modal(window):
         return 'wps-presentation'
     if WORKBOOK.casefold() in titles and any(x in klass for x in ('wps', 'et', 'kingsoft', 'libreoffice', 'soffice')):
         return 'reference-workbook'
