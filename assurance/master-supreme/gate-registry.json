@@ -1,0 +1,108 @@
+{
+  "protocol": "MASTER_SUPREME_INTERNATIONAL",
+  "product": "ARBM SIST",
+  "repository": "arbmsistone-lab/arbm-sist-external-exec-proof",
+  "release_candidate": {
+    "branch": "chatgpt/arbm-top3-consolidated-20260917",
+    "sha": "f114c9b1833d5ae5a07af923dae548033078485d",
+    "immutable_during_proof": true
+  },
+  "allowed_states": [
+    "PASS",
+    "FAIL",
+    "BLOCKED",
+    "NOT_APPLICABLE"
+  ],
+  "rules": {
+    "evidence_required_for_pass": true,
+    "justification_required_for_not_applicable": true,
+    "remediation_required_for_fail": true,
+    "explicit_cause_required_for_blocked": true,
+    "zero_false_green": true,
+    "no_gate_bypass": true,
+    "change_invalidates_affected_gates": true
+  },
+  "gates": [
+    {
+      "id": "G-REGRESSION",
+      "state": "PASS",
+      "evidence": "GitHub Actions run 35330393913"
+    },
+    {
+      "id": "G-V32-DETERMINISTIC",
+      "state": "PASS",
+      "evidence": "GitHub Actions run 35330393913"
+    },
+    {
+      "id": "G-HISTORICAL-REPLAY",
+      "state": "PASS",
+      "evidence": "GitHub Actions run 35330393913"
+    },
+    {
+      "id": "G-ZERO-SPEND",
+      "state": "PASS",
+      "evidence": "GitHub Actions run 35330393913"
+    },
+    {
+      "id": "G-091-OFFICIAL",
+      "state": "BLOCKED",
+      "evidence": "run 35330495483 in progress at registry creation"
+    },
+    {
+      "id": "G-OFFICIAL-18",
+      "state": "BLOCKED",
+      "depends_on": [
+        "G-091-OFFICIAL"
+      ]
+    },
+    {
+      "id": "G-CAPACITY-DR",
+      "state": "BLOCKED",
+      "depends_on": [
+        "G-OFFICIAL-18"
+      ]
+    },
+    {
+      "id": "G-SUPPLY-CHAIN",
+      "state": "BLOCKED",
+      "depends_on": [
+        "G-OFFICIAL-18"
+      ]
+    },
+    {
+      "id": "G-IVV",
+      "state": "BLOCKED",
+      "depends_on": [
+        "G-SUPPLY-CHAIN"
+      ]
+    },
+    {
+      "id": "G-RED-TEAM",
+      "state": "BLOCKED",
+      "depends_on": [
+        "G-IVV"
+      ]
+    },
+    {
+      "id": "G-META-AUDIT",
+      "state": "BLOCKED",
+      "depends_on": [
+        "G-RED-TEAM"
+      ]
+    },
+    {
+      "id": "G-PRODUCTION-PARITY",
+      "state": "BLOCKED",
+      "depends_on": [
+        "G-META-AUDIT"
+      ]
+    },
+    {
+      "id": "G-FINAL-SIGNOFF",
+      "state": "BLOCKED",
+      "depends_on": [
+        "G-PRODUCTION-PARITY"
+      ]
+    }
+  ]
+}
