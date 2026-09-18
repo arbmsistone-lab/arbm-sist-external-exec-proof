@@ -26,6 +26,7 @@ class EliteController:
         self.max_waits = int(max_waits)
         self.max_stall = int(max_stall)
         self.failed_actions = deque(maxlen=int(tabu_size))
+        self.evidence_retry_fingerprints = set()
         self.pending_action = None
         self.latencies = deque(maxlen=32)
         self.checkpoints = deque(maxlen=16)
@@ -37,11 +38,25 @@ class EliteController:
         self.no_progress_events = 0
         self.wait_events = 0
 
-    def before_action(self, command, target=None):
+    def before_action(self, command, target=None, retry_proof=None):
         fp = action_fingerprint(command,target)
         if fp in self.failed_actions:
-            return {'allow': False, 'mode': 'replan', 'reason': 'tabu_failed_action',
-                    'fingerprint': fp}
+            proof = retry_proof if isinstance(retry_proof,dict) else {}
+            bounded = (
+                proof.get('fresh_observation') is True
+                and proof.get('state_changed') is True
+                and proof.get('bounded_retry') is True
+                and bool(str(proof.get('reason') or '').strip())
+                and fp not in self.evidence_retry_fingerprints
+            )
+            if not bounded:
+                return {'allow': False, 'mode': 'replan', 'reason': 'tabu_failed_action',
+                        'fingerprint': fp}
+            self.evidence_retry_fingerprints.add(fp)
+            self.pending_action = fp
+            self.issued += 1
+            return {'allow': True, 'mode': self.decision()['mode'],
+                    'reason': 'evidence_bounded_retry', 'fingerprint': fp}
         self.pending_action = fp
         self.issued += 1
         return {'allow': True, 'mode': self.decision()['mode'],
@@ -98,6 +113,7 @@ class EliteController:
         self.latencies.clear()
         self.pending_action = None
         self.failed_actions.clear()
+        self.evidence_retry_fingerprints.clear()
         self.checkpoints.clear()
         self.backtrack_events = 0
         self.issued = 0
@@ -148,6 +164,7 @@ class EliteController:
             'wait_events': self.wait_events,
             'progress_ratio': round(progress_ratio, 6),
             'tabu_actions': len(self.failed_actions),
+            'evidence_bounded_retries': len(self.evidence_retry_fingerprints),
             'verified_checkpoints': len(self.checkpoints),
             'backtrack_events': self.backtrack_events,
             'last_verified_checkpoint': dict(self.checkpoints[-1]) if self.checkpoints else None,
