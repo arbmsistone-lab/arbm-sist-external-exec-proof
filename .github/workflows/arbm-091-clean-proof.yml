@@ -88,6 +88,12 @@ jobs:
         test -s /tmp/091-modal/task-091/wps-observations/0002-01-before.json
         test -s /tmp/091-modal/task-091/wps-observations/0006-01-after.json
         test -s /tmp/091-modal/task-091/wps-observations/0007-01-after.json
+        gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10571101397/zip > /tmp/091-current.zip
+        mkdir -p /tmp/091-current
+        unzip -q /tmp/091-current.zip -d /tmp/091-current
+        test -s /tmp/091-current/task-091/wps-observations/0002-01-after.json
+        test -s /tmp/091-current/task-091/wps-observations/0003-01-after.json
+        test -s /tmp/091-current/task-091/wps-observations/0004-01-after.json
     - name: Install pinned local VLM runtime
       run: 'set -euo pipefail
 
@@ -128,11 +134,11 @@ jobs:
         first=shim.next_091_specialist_action(task,'WPS 2019','',state,before)
         assert first['command'] == "pyautogui.press('tab')", first
         second=shim.next_091_specialist_action(task,'WPS 2019','',state,after_tab)
-        assert second['command'] == "pyautogui.press('enter')", second
+        assert second['command'] == "pyautogui.press('space')", second
         assert "alt', 'tab" not in first['command'] + second['command']
         assert "alt', 'f4" not in first['command'] + second['command']
         try:
-            postflight(second['command'], after_tab, drift)
+            postflight("pyautogui.click(695, 376)", after_tab, drift)
         except ValueError as exc:
             assert 'WPS_TRANSIENT_CLOSE_UNPROVEN' in str(exc), exc
         else:
@@ -143,6 +149,40 @@ jobs:
         print('RUN35391431490_MODAL_REGRESSION=PASS')
         PY
         grep -F 'RUN35391431490_MODAL_REGRESSION=PASS' /tmp/run35391431490-modal-regression.json
+    - name: Replay run 35400883826 Enter regression
+      shell: bash
+      run: |
+        set -euo pipefail
+        TASK_ID=091 ZERO_SPEND_MODE=HARD PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35400883826-enter-regression.json
+        import json
+        from pathlib import Path
+        import osworld_free_mesh_shim as shim
+        from arbm091.trace_gate import postflight
+
+        root=Path('/tmp/091-current/task-091/wps-observations')
+        before=json.loads((root/'0002-01-after.json').read_text())
+        after_tab=json.loads((root/'0003-01-after.json').read_text())
+        after_enter=json.loads((root/'0004-01-after.json').read_text())
+        state={}
+        task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
+              'The COO has asked you to rebaseline the H2 Operating Committee pack. '
+              'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
+              'Reforecast_Model_H2.xlsx is the source of truth.')
+        first=shim.next_091_specialist_action(task,'WPS 2019','',state,before)
+        second=shim.next_091_specialist_action(task,'WPS 2019','',state,after_tab)
+        assert first['command'] == "pyautogui.press('tab')", first
+        assert second['command'] == "pyautogui.press('space')", second
+        assert "press('enter')" not in first['command'] + second['command']
+        assert postflight(second['command'], after_tab, after_enter) == 'wps-transient'
+        third=shim.next_091_specialist_action(task,'WPS 2019','',state,after_enter)
+        assert third['action'] == 'terminal', third
+        assert third['reason'] == 'TASK091_TARGET_NOT_VISIBLE', third
+        print(json.dumps({'status':'PASS','corpus_run':'35400883826',
+                          'first':first['command'],'second':second['command'],
+                          'bounded_fallback_required':True,'zero_spend':'HARD'},sort_keys=True))
+        print('RUN35400883826_ENTER_REGRESSION=PASS')
+        PY
+        grep -F 'RUN35400883826_ENTER_REGRESSION=PASS' /tmp/run35400883826-enter-regression.json
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       if: always()
       with:
@@ -150,6 +190,7 @@ jobs:
         path: |
           /tmp/091-local-contract-replay.json
           /tmp/run35391431490-modal-regression.json
+          /tmp/run35400883826-enter-regression.json
         if-no-files-found: warn
         retention-days: 30
     permissions:
