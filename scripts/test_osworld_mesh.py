@@ -193,11 +193,11 @@ class MeshTests(unittest.TestCase):
              'Recovery review with OpCom'}
    finals={row[4] for row in shim.TASK091_SPATIAL_TEXT_EDITS}
    self.assertTrue(required.issubset(finals))
-   # Exact geometry regression for the previously incorrect cover/summary points.
-   by_old={row[3]:(row[0],row[1],row[2],row[4]) for row in shim.TASK091_SPATIAL_TEXT_EDITS}
-   self.assertEqual(by_old['$42.8M'][:3],(2,558,364))
-   self.assertEqual(by_old['112%'][:3],(2,792,364))
-   self.assertEqual(by_old['19 mo'][:3],(2,1245,364))
+   # Exact geometry regression uses direct tuple membership because the same
+   # visible draft text can legitimately occur on multiple slides.
+   self.assertIn((2,558,364,'$42.8M','$40.9M'),shim.TASK091_SPATIAL_TEXT_EDITS)
+   self.assertIn((2,792,364,'112%','104%'),shim.TASK091_SPATIAL_TEXT_EDITS)
+   self.assertIn((2,1245,364,'19 mo','17 mo'),shim.TASK091_SPATIAL_TEXT_EDITS)
    self.assertIn((3,843,404,'$42.8M','$40.9M'),shim.TASK091_SPATIAL_TEXT_EDITS)
    self.assertIn((12,1396,705,'214','206'),shim.TASK091_SPATIAL_TEXT_EDITS)
    self.assertIn((7,717,383,'Regional launch readiness','Vendor SLA breach'),shim.TASK091_SPATIAL_TEXT_EDITS)
