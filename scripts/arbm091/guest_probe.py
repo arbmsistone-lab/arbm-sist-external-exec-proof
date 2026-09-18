@@ -80,12 +80,13 @@ def capture(point):
                 return int(window.id), int(pid)
         return 0, 0
 
-    def deck_slide_text(window):
+    def deck_slide_content(window):
         title_value = str(window.get('title', ''))
         path = '/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx'
         if 'Operating_Committee_Rebaseline_Draft.pptx' not in title_value or not os.path.isfile(path):
-            return {}
-        result = {}
+            return {}, {}
+        text_result = {}
+        run_result = {}
         try:
             with zipfile.ZipFile(path, 'r') as archive:
                 names = [name for name in archive.namelist()
@@ -98,13 +99,16 @@ def capture(point):
                     root_xml = ET.fromstring(archive.read(name))
                     parts = []
                     for node in root_xml.iter():
-                        if node.tag.endswith('}t') and node.text:
-                            parts.append(str(node.text))
-                    normalized = ' '.join(' '.join(parts).split())
-                    result[str(int(number))] = normalized
+                        if node.tag.endswith('}t') and node.text is not None:
+                            value = ' '.join(str(node.text).split())
+                            if value:
+                                parts.append(value)
+                    key = str(int(number))
+                    run_result[key] = parts
+                    text_result[key] = ' '.join(parts)
         except Exception:
-            return {}
-        return result
+            return {}, {}
+        return text_result, run_result
 
     before = window_info()
     target = None
@@ -193,9 +197,10 @@ def capture(point):
     image.save(output, format='PNG')
     owner_id, owner_pid = hit_owner()
     after = window_info()
+    deck_text, deck_runs = deck_slide_content(after)
     result = {'window': after, 'target': target, 'controls': controls,
-              'focused_control': focused_control, 'deck_slide_text': deck_slide_text(after),
-              'hit_owner_id': owner_id,
+              'focused_control': focused_control, 'deck_slide_text': deck_text,
+              'deck_slide_runs': deck_runs, 'hit_owner_id': owner_id,
               'hit_owner_pid': owner_pid, 'screen': [0, 0, image.width, image.height],
               'stable': before == after, 'captured_monotonic_ns': time.monotonic_ns(),
               'screenshot_base64': base64.b64encode(output.getvalue()).decode('ascii')}
