@@ -303,6 +303,29 @@ def _repair_wps_modal_dismiss(action, active_application):
     return repaired
 
 
+
+def allow_bounded_wps_escape_repeat(action, active_application, verifier_result, recent_commands):
+    """Allow exactly one evidence-backed second Escape for stacked WPS modals."""
+    if not isinstance(action,dict) or action.get('action')!='exec':
+        return False
+    if str(action.get('command') or '') != "pyautogui.press('esc')":
+        return False
+    if 'WPS modal-dismiss' not in str(action.get('compiler_note') or ''):
+        return False
+    if not normalized_target(active_application).startswith('wps'):
+        return False
+    result=verifier_result if isinstance(verifier_result,dict) else {}
+    if not (result.get('tree_changed') is True or result.get('visual_changed') is True):
+        return False
+    recent=[str(x or '') for x in (recent_commands or [])]
+    consecutive=0
+    for command in reversed(recent):
+        if command=="pyautogui.press('esc')":
+            consecutive+=1
+            continue
+        break
+    return consecutive==1
+
 def ground_action(action, active_application, observation='', verified_milestones=None, allow_canonical=False):
     """Compile desktop activation and block unsafe source-context abandonment."""
     a=canonical_action(action)
