@@ -115,11 +115,36 @@ def _pid_accepts(item,body):
     return pid is None or int(pid)==active
 
 
+def _foreground_scope_accepts(item,body):
+    """Reject Ubuntu shell chrome from the WPS content candidate set.
+
+    OSWorld's public accessibility observation does not expose process IDs.
+    The execution observer still performs the authoritative PID check inside
+    the guest. This earlier filter removes controls whose geometry proves they
+    belong to Ubuntu's top panel or left dock while WPS Presentation is the
+    observed foreground application.
+    """
+    active=_norm(body.get('active_application'))
+    if not active.startswith('wps presentation'):
+        return True
+    role=_norm(item.get('role'))
+    x=int(item.get('x') or 0); y=int(item.get('y') or 0)
+    w=int(item.get('w') or 0); h=int(item.get('h') or 0)
+    geometry=body.get('image_geometry') if isinstance(body.get('image_geometry'),dict) else {}
+    width=max(1,int(geometry.get('width') or 1920))
+    dock_width=max(72,min(96,int(round(width*0.05))))
+    top_panel=(role=='menu' and y<=1 and 0<h<=40)
+    left_dock=(role in {'push-button','toggle-button','button'}
+               and x<=1 and 0<w<=dock_width and y>=24)
+    return not (top_panel or left_dock)
+
+
 def _preflight_candidate(item,body,foreground_observation):
     role=_norm(item.get('role')); label=str(item.get('label') or '').strip()
     if role not in _ACTIONABLE_ROLES or not label:
         return None
-    if not _viewport_accepts(item,body) or not _pid_accepts(item,body):
+    if (not _viewport_accepts(item,body) or not _pid_accepts(item,body)
+            or not _foreground_scope_accepts(item,body)):
         return None
     action={'action':'exec',
             'command':f"pyautogui.click({item['cx']}, {item['cy']})",
