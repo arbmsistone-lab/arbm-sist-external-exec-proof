@@ -1,0 +1,69 @@
+name: ARBM 091 Pinned Transplant Sources
+on:
+  push:
+    branches: [chatgpt/arbm-091-transplant-bootstrap-20260918]
+    paths: [.github/workflows/arbm-091-transplant-bootstrap.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: arbm091-pinned-source-export
+  cancel-in-progress: false
+env:
+  ZERO_SPEND_MODE: HARD
+jobs:
+  export-sources:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Export only verified public Git objects
+        shell: bash
+        env:
+          BASE: cf008c04e9bf01e87fca80799dfc25b1de68d888
+          BEFORE: 1e7ef74fc83b715a9bb23dd8db334cc63ead5fde
+          AFTER: 04c15b7d30e6dbae62c831e363bced71240aa075
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = HARD
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$GITHUB_REPOSITORY" = arbmsistone-lab/arbm-sist-external-exec-proof
+          test "$GITHUB_EVENT_NAME" = push -o "$GITHUB_EVENT_NAME" = workflow_dispatch
+          URL=https://github.com/arbmsistone-lab/arbm-sist-external-exec-proof.git
+          test "$(git ls-remote "$URL" refs/heads/master | cut -f1)" = "$BASE"
+          mkdir public-source-export
+          git init public-objects
+          for pair in "base:$BASE" "before:$BEFORE" "after:$AFTER"; do
+            name=${pair%%:*}
+            sha=${pair#*:}
+            git -C public-objects -c credential.helper= fetch --depth=1 --no-tags "$URL" "$sha"
+            test "$(git -C public-objects rev-parse FETCH_HEAD)" = "$sha"
+            test "$(git -C public-objects cat-file -t "$sha")" = commit
+            git -C public-objects update-ref "refs/arbm/pinned/$name" "$sha"
+            printf '%s %s\n' "$name" "$sha" >> public-source-export/pinned-commits.txt
+          done
+          git -C public-objects symbolic-ref HEAD refs/arbm/pinned/base
+          git -C public-objects fsck --full --strict
+          if git -C public-objects config --local --list | grep -Eiq 'credential|authorization|extraheader|password|token'; then
+            echo 'UNSAFE_GIT_CONFIGURATION' >&2
+            exit 1
+          fi
+          test "$(git ls-remote "$URL" refs/heads/master | cut -f1)" = "$BASE"
+          tar -C public-objects -czf public-source-export/pinned-public-git-objects.tar.gz .git/objects .git/refs .git/shallow .git/HEAD
+          tar -tzf public-source-export/pinned-public-git-objects.tar.gz > public-source-export/archive-paths.txt
+          if grep -Eiq '(^|/)(config|credentials|hooks)(/|$)|authorization|extraheader|password|token' public-source-export/archive-paths.txt; then
+            echo 'UNSAFE_ARCHIVE_ENTRY' >&2
+            exit 1
+          fi
+          printf '%s\n' "$GITHUB_SHA" > public-source-export/bootstrap-sha.txt
+          printf '%s\n' "$GITHUB_RUN_ID" > public-source-export/bootstrap-run-id.txt
+          printf '%s\n' "$GITHUB_RUN_ATTEMPT" > public-source-export/bootstrap-run-attempt.txt
+          cd public-source-export
+          sha256sum pinned-public-git-objects.tar.gz pinned-commits.txt archive-paths.txt bootstrap-sha.txt bootstrap-run-id.txt bootstrap-run-attempt.txt > SHA256SUMS.txt
+          cat pinned-commits.txt SHA256SUMS.txt
+      - name: Preserve pinned public source objects
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: arbm091-pinned-public-source
+          path: public-source-export/
+          if-no-files-found: error
+          retention-days: 14
