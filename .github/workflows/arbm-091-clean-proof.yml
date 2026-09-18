@@ -3,7 +3,7 @@ run-name: ARBM 091 clean proof ${{ github.sha }}
 'on':
   push:
     branches:
-    - chatgpt/arbm-091-clean-transplant-proof-20260918
+    - chatgpt/arbm-091-clean-env-contract-20260918
   workflow_dispatch: {}
 permissions:
   actions: read
@@ -133,11 +133,20 @@ jobs:
       ARBM_VM_VOLUME_GB: '50'
       AWS_REGION: us-east-1
       WEBSITE_HOST_SUFFIX: site.hku.icu
-      TASK_ID: 091
+      TASK_ID: '091'
       ARBM_WPS_OBSERVER: '1'
       ARBM_WPS_EVIDENCE_DIR: ${{ github.workspace }}/osworld-v32-evidence/task-091
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+    - name: Validate literal task identity before runtime preparation
+      shell: bash
+      run: |
+        set -euo pipefail
+        test "$TASK_ID" = '091'
+        test "$RUNNER_ENVIRONMENT" = github-hosted
+        test "$ZERO_SPEND_MODE" = HARD
+        test "$ARBM_WPS_OBSERVER" = 1
+        printf '%s\n' 'LITERAL_REMOTE_ZERO_SPEND_TASK091_ENV_PASS'
     - name: Prepare pinned shim runtime
       shell: bash
       run: 'set -euo pipefail
@@ -263,6 +272,12 @@ jobs:
         test -s osworld-wps-observer.patch
 
         '
+    - name: Validate observer import in pinned upstream runtime before VM
+      shell: bash
+      run: |
+        set -euo pipefail
+        test "$TASK_ID" = '091'
+        (cd osworld && uv run python -c 'from desktop_env.desktop_env import DesktopEnv; assert getattr(DesktopEnv, "_arbm091_observed", False), "OBSERVER_NOT_INSTALLED"; print("PINNED_UPSTREAM_OBSERVER_IMPORT_PASS_NO_VM_STARTED")')
     - name: Download pinned official VM
       shell: bash
       run: 'set -euo pipefail
