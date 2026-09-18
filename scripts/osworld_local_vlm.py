@@ -387,6 +387,16 @@ def _action_fingerprint(action):
     ))
 
 
+def _target_fingerprint(action):
+    if not isinstance(action,dict):
+        return ''
+    target=action.get('target') if isinstance(action.get('target'),dict) else {}
+    role=_norm(target.get('role')); label=_norm(target.get('label'))
+    if not role or not label:
+        return ''
+    return 'target|'+role+'|'+label
+
+
 def _recent_tabu_counts(body):
     counts={}
     previous=str(body.get('previous_command') or '').strip()
@@ -396,12 +406,16 @@ def _recent_tabu_counts(body):
     for row in rows[-8:]:
         if not isinstance(row,dict):
             continue
-        action={'action':'exec','command':str(row.get('command') or '')}
-        fp=_action_fingerprint(action)
+        action={'action':'exec','command':str(row.get('command') or ''),
+                'target':row.get('target') if isinstance(row.get('target'),dict) else {}}
+        fp=_action_fingerprint(action); target_fp=_target_fingerprint(action)
         outcome=row.get('outcome') if isinstance(row.get('outcome'),dict) else {}
         progressed=bool(outcome.get('progress') or outcome.get('semantic_verified'))
-        if fp and not progressed:
-            counts[fp]=counts.get(fp,0)+1
+        if not progressed:
+            if fp:
+                counts[fp]=counts.get(fp,0)+1
+            if target_fp:
+                counts[target_fp]=counts.get(target_fp,0)+1
     if previous and no_progress:
         fp=_action_fingerprint({'action':'exec','command':previous})
         counts[fp]=max(counts.get(fp,0),no_progress)
@@ -413,11 +427,15 @@ def _recent_tabu_counts(body):
                 'command':str(row.get('command') or ''),
                 'target':row.get('target') if isinstance(row.get('target'),dict) else {}}
         fp=_action_fingerprint(action)
+        weight=max(1,int(row.get('weight') or 1))
         if fp:
-            counts[fp]=counts.get(fp,0)+max(1,int(row.get('weight') or 1))
+            counts[fp]=counts.get(fp,0)+weight
         command_fp=_action_fingerprint({'action':'exec','command':str(row.get('command') or '')})
         if command_fp:
-            counts[command_fp]=counts.get(command_fp,0)+max(1,int(row.get('weight') or 1))
+            counts[command_fp]=counts.get(command_fp,0)+weight
+        target_fp=_target_fingerprint(action)
+        if target_fp:
+            counts[target_fp]=counts.get(target_fp,0)+weight
     return counts
 
 
@@ -425,10 +443,11 @@ def _selector_penalty(candidate, tabu_counts):
     action=candidate.get('action') if isinstance(candidate,dict) else None
     full=_action_fingerprint(action)
     count=tabu_counts.get(full,0)
-    if not count and isinstance(action,dict):
+    if isinstance(action,dict):
         command=re.sub(r'\s+',' ',str(action.get('command') or '')).strip()
         command_fp=_action_fingerprint({'action':'exec','command':command})
-        count=tabu_counts.get(command_fp,0)
+        target_fp=_target_fingerprint(action)
+        count=max(count,tabu_counts.get(command_fp,0),tabu_counts.get(target_fp,0))
     scalar=float(os.environ.get('ARBM_LOCAL_VLM_TABU_LOGIT_PENALTY','12.0'))
     return scalar*min(4,max(0,int(count))), int(count)
 
@@ -580,6 +599,13 @@ def _selector_image(image_b64):
     return image
 
 
+def _selector_use_vision(body):
+    explicit=os.environ.get('ARBM_LOCAL_VLM_SELECTOR_VISION','0')=='1'
+    recovery=str(body.get('provider_hint') or '').strip().lower() in {'local','local-first'}
+    no_progress=max(0,int(body.get('no_progress_count') or 0))>0
+    return bool(explicit or recovery or no_progress)
+
+
 def default_select_action(body, image_b64):
     import torch
     processor,model=_load_runtime()
@@ -590,7 +616,7 @@ def default_select_action(body, image_b64):
         raise ValueError('LOCAL_SELECTOR_NO_CANDIDATES')
     symbols=symbols[:len(candidates)]
     prompt=_selector_prompt(body,candidates,symbols)
-    use_vision=os.environ.get('ARBM_LOCAL_VLM_SELECTOR_VISION','0')=='1'
+    use_vision=_selector_use_vision(body)
     image=None
     if use_vision:
         image=_selector_image(image_b64)
