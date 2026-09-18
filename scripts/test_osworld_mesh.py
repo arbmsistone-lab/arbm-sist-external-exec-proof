@@ -168,7 +168,7 @@ class MeshTests(unittest.TestCase):
   self.assertIn('Ctrl+L',bodies[0]['recovery_strategy'])
   self.assertIsNone(bodies[1].get('provider_hint'))
 
- def test_task091_specialist_is_bounded_keyboard_only_and_uses_official_values(self):
+ def test_task091_specialist_is_atomic_confirmation_driven_and_uses_official_values(self):
   task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
         'The COO has asked you to rebaseline the H2 Operating Committee pack. '
         'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
@@ -177,24 +177,40 @@ class MeshTests(unittest.TestCase):
    state={}
    close=shim.next_091_specialist_action(task,'WPS Presentation','System Check',state)
    self.assertEqual(close['command'],"pyautogui.hotkey('alt', 'f4')")
+   close_default=shim.next_091_specialist_action(
+    task,'WPS Presentation','Set WPS Office as your default office software',state)
+   self.assertEqual(close_default['command'],"pyautogui.hotkey('alt', 'f4')")
    state={}
-   seen=[]
-   for _ in range(len(shim.TASK091_REPLACEMENTS)):
-    action=shim.next_091_specialist_action(task,'WPS 2019','WPS Presentation',state)
-    compiled=shim.canonical_action(action)
-    self.assertEqual(compiled['action'],'exec')
-    self.assertNotRegex(compiled['command'],r'pyautogui\.(?:click|doubleClick|rightClick|moveTo|dragTo)')
-    self.assertLessEqual(len(compiled['command'].splitlines()),8)
-    seen.append(action['expected_change'])
+   expected=[]
+   for index in range(len(shim.TASK091_REPLACEMENTS)):
+    old,new=shim.TASK091_REPLACEMENTS[index]
+    open_action=shim.next_091_specialist_action(task,'WPS Presentation','deck',state)
+    self.assertEqual(open_action['command'],"pyautogui.hotkey('ctrl', 'h')")
+    find_action=shim.next_091_specialist_action(task,'WPS Presentation','Replace dialog',state)
+    self.assertIn(repr(old),find_action['command'])
+    replace_action=shim.next_091_specialist_action(task,'WPS Presentation','Replace dialog',state)
+    self.assertIn(repr(new),replace_action['command'])
+    apply_action=shim.next_091_specialist_action(task,'WPS Presentation','Replace dialog',state)
+    self.assertEqual(apply_action['command'],"pyautogui.hotkey('alt', 'a')")
+    confirm=shim.next_091_specialist_action(task,'WPS Presentation','WPS Presentation made 1 replacements',state)
+    self.assertEqual(confirm['command'],"pyautogui.press('enter')")
+    for action in (open_action,find_action,replace_action,apply_action,confirm):
+     compiled=shim.canonical_action(action)
+     self.assertEqual(compiled['action'],'exec')
+     self.assertNotRegex(compiled['command'],r'pyautogui\.(?:click|doubleClick|rightClick|moveTo|dragTo)')
+     self.assertLessEqual(len(compiled['command'].splitlines()),8)
+    expected.append(new)
    required={'$40.9M','$2.8M','104%','71%','206','Renewal saves','Pricing discipline',
              'Migration delay','Support credits','Partner stabilization',
              'Customer Retention Plays','Data Migration','Reliability Hardening',
              'Vendor SLA breach','Data migration cutover failure',
              'Stabilize-and-Recover Rebaseline','Recovery review with OpCom'}
-   self.assertTrue(required.issubset(set(seen)))
-   save=shim.next_091_specialist_action(task,'WPS 2019','WPS Presentation',state)
+   self.assertTrue(required.issubset(set(expected)))
+   close_replace=shim.next_091_specialist_action(task,'WPS Presentation','deck',state)
+   self.assertEqual(close_replace['command'],"pyautogui.press('esc')")
+   save=shim.next_091_specialist_action(task,'WPS Presentation','deck',state)
    self.assertIn("pyautogui.hotkey('ctrl', 's')",shim.canonical_action(save)['command'])
-   finish=shim.next_091_specialist_action(task,'WPS 2019','WPS Presentation',state)
+   finish=shim.next_091_specialist_action(task,'WPS Presentation','deck',state)
    self.assertEqual(finish['action'],'finish')
 
  def test_task091_specialist_does_not_capture_other_tasks(self):
