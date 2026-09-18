@@ -36,7 +36,7 @@ class LocalGroundingGateTests(unittest.TestCase):
         from osworld_local_vlm import _selector_candidates
         items=_selector_candidates({'instruction':'Read the COO H2 Rebaseline Directive email','observation':obs,'active_application':'WPS Presentation'})
         matches=[x for x in items if x['action'].get('target',{}).get('label')=='H2 Rebaseline Directive: Operating Committee Pack']
-        self.assertEqual(len(matches),1)
+        self.assertEqual(len(matches),1,msg=items)
         self.assertEqual(matches[0]['action']['target']['role'],'section')
 
     def test_selector_candidates_are_bounded(self):
