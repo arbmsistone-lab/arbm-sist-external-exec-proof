@@ -121,15 +121,13 @@ def _preflight_candidate(item,body,foreground_observation):
         return None
     if not _viewport_accepts(item,body) or not _pid_accepts(item,body):
         return None
-    # The selector candidate is already derived from one parsed accessibility
-    # node with bounded geometry. Do not re-resolve the same semantic label
-    # against the tree a second time: duplicate/static aliases can create a
-    # false negative. Compile only our deterministic literal GUI call, then
-    # bind it to an integrity-protected canonical target.
-    compiled=canonical_action({
-        'action':'exec',
-        'command':f"pyautogui.click({item['cx']}, {item['cy']})",
-    })
+    action={'action':'exec',
+            'command':f"pyautogui.click({item['cx']}, {item['cy']})",
+            'target':{'source':'accessibility','label':item['label'],'role':item['role']}}
+    try:
+        compiled=_compile_action(action,foreground_observation)
+    except ValueError:
+        return None
     target={
         'source':'accessibility-canonical',
         'label':item['label'],'role':item['role'],
