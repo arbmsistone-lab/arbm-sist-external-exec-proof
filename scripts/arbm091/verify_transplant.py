@@ -18,6 +18,7 @@ LOCAL_VLM_TEST = 'scripts/test_osworld_local_vlm.py'
 TRACE_GATE = 'scripts/arbm091/trace_gate.py'
 TRACE_TEST = 'tests/arbm091/test_score_and_trace.py'
 WPS_OBSERVER = 'scripts/arbm091/wps_observer.py'
+GUEST_PROBE = 'scripts/arbm091/guest_probe.py'
 SHIM = 'scripts/osworld_free_mesh_shim.py'
 MESH_TEST = 'scripts/test_osworld_mesh.py'
 WPS_ALIAS_COMMIT = 'f0a49b84c95808b501cd91aed14bd702e8230a9c'
@@ -52,11 +53,11 @@ task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
 first=shim.next_091_specialist_action(task,'WPS 2019','',state,before)
 assert first['command'] == "pyautogui.press('tab')", first
 second=shim.next_091_specialist_action(task,'WPS 2019','',state,after_tab)
-assert second['command'] == "pyautogui.press('enter')", second
+assert second['command'] == "pyautogui.press('space')", second
 assert "alt', 'tab" not in first['command'] + second['command']
 assert "alt', 'f4" not in first['command'] + second['command']
 try:
-    postflight(second['command'], after_tab, drift)
+    postflight("pyautogui.click(695, 376)", after_tab, drift)
 except ValueError as exc:
     assert 'WPS_TRANSIENT_CLOSE_UNPROVEN' in str(exc), exc
 else:
@@ -67,6 +68,42 @@ print(json.dumps({'status':'PASS','corpus_run':'35391431490',
 print('RUN35391431490_MODAL_REGRESSION=PASS')
 PY
 grep -F 'RUN35391431490_MODAL_REGRESSION=PASS' /tmp/run35391431490-modal-regression.json
+'''
+}
+RUN35400883826_ENTER_REPLAY = {
+    'name': 'Replay run 35400883826 Enter regression',
+    'shell': 'bash',
+    'run': '''set -euo pipefail
+TASK_ID=091 ZERO_SPEND_MODE=HARD PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35400883826-enter-regression.json
+import json
+from pathlib import Path
+import osworld_free_mesh_shim as shim
+from arbm091.trace_gate import postflight
+
+root=Path('/tmp/091-current/task-091/wps-observations')
+before=json.loads((root/'0002-01-after.json').read_text())
+after_tab=json.loads((root/'0003-01-after.json').read_text())
+after_enter=json.loads((root/'0004-01-after.json').read_text())
+state={}
+task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
+      'The COO has asked you to rebaseline the H2 Operating Committee pack. '
+      'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
+      'Reforecast_Model_H2.xlsx is the source of truth.')
+first=shim.next_091_specialist_action(task,'WPS 2019','',state,before)
+second=shim.next_091_specialist_action(task,'WPS 2019','',state,after_tab)
+assert first['command'] == "pyautogui.press('tab')", first
+assert second['command'] == "pyautogui.press('space')", second
+assert "press('enter')" not in first['command'] + second['command']
+assert postflight(second['command'], after_tab, after_enter) == 'wps-transient'
+third=shim.next_091_specialist_action(task,'WPS 2019','',state,after_enter)
+assert third['action'] == 'terminal', third
+assert third['reason'] == 'TASK091_TARGET_NOT_VISIBLE', third
+print(json.dumps({'status':'PASS','corpus_run':'35400883826',
+                  'first':first['command'],'second':second['command'],
+                  'bounded_fallback_required':True,'zero_spend':'HARD'},sort_keys=True))
+print('RUN35400883826_ENTER_REGRESSION=PASS')
+PY
+grep -F 'RUN35400883826_ENTER_REGRESSION=PASS' /tmp/run35400883826-enter-regression.json
 '''
 }
 ENVIRONMENT_PREFLIGHT = {
@@ -124,6 +161,12 @@ unzip -q /tmp/091-modal.zip -d /tmp/091-modal
 test -s /tmp/091-modal/task-091/wps-observations/0002-01-before.json
 test -s /tmp/091-modal/task-091/wps-observations/0006-01-after.json
 test -s /tmp/091-modal/task-091/wps-observations/0007-01-after.json
+gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10571101397/zip > /tmp/091-current.zip
+mkdir -p /tmp/091-current
+unzip -q /tmp/091-current.zip -d /tmp/091-current
+test -s /tmp/091-current/task-091/wps-observations/0002-01-after.json
+test -s /tmp/091-current/task-091/wps-observations/0003-01-after.json
+test -s /tmp/091-current/task-091/wps-observations/0004-01-after.json
 '''
     replay[3]['name'] = 'Replay exact WPS 2019 Step 2 through alias-isolated selector twice'
     replay[3]['run'] = (
@@ -132,7 +175,8 @@ test -s /tmp/091-modal/task-091/wps-observations/0007-01-after.json
         "  | tee /tmp/091-local-contract-replay.json\n"
         "! grep -F 'pyautogui.click(35, 884)' /tmp/091-local-contract-replay.json\n")
     replay.insert(4, RUN35391431490_MODAL_REPLAY)
-    replay[5]['with']['path'] = '/tmp/091-local-contract-replay.json\n/tmp/run35391431490-modal-regression.json\n'
+    replay.insert(5, RUN35400883826_ENTER_REPLAY)
+    replay[6]['with']['path'] = '/tmp/091-local-contract-replay.json\n/tmp/run35391431490-modal-regression.json\n/tmp/run35400883826-enter-regression.json\n'
     require(len(re.findall(r'(?m)^\s+TASK_ID: [\'"]091[\'"]\s*$', text)) == 1,
             'TASK091_MUST_BE_QUOTED_YAML_STRING')
     require(normalize(current) == normalize(expected), 'UNEXPECTED_WORKFLOW_SEMANTIC_DELTA')
@@ -147,11 +191,11 @@ def main():
             'CLEAN_BASELINE_ANCESTRY_MISMATCH')
     require(git('rev-list', '--count', BASE + '..' + CLEAN_BASELINE) == '3',
             'EXACTLY_THREE_BASELINE_COMMITS_REQUIRED')
-    require(git('rev-list', '--count', BASE + '..HEAD') == '66',
-            'EXACTLY_SIXTY_SIX_AUDITED_COMMITS_REQUIRED')
+    require(git('rev-list', '--count', BASE + '..HEAD') == '74',
+            'EXACTLY_SEVENTY_FOUR_AUDITED_COMMITS_REQUIRED')
     require(not git('rev-list', '--merges', BASE + '..HEAD'), 'MERGE_COMMITS_FORBIDDEN')
     overlay = git('rev-list', '--reverse', CLEAN_BASELINE + '..HEAD').splitlines()
-    require(len(overlay) == 63, 'EXACTLY_SIXTY_THREE_REPAIR_COMMITS_REQUIRED')
+    require(len(overlay) == 71, 'EXACTLY_SEVENTY_ONE_REPAIR_COMMITS_REQUIRED')
     require(overlay[2] == PID_FILTER_COMMIT and overlay[3] == PID_TEST_COMMIT,
             'PID_REPAIR_COMMIT_IDENTITY_MISMATCH')
     require(overlay[6] == WPS_ALIAS_COMMIT and overlay[7] == WPS_ALIAS_TEST_COMMIT
@@ -161,7 +205,7 @@ def main():
                        LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, VERIFIER, WORKFLOW, VERIFIER, WORKFLOW,
                        VERIFIER, SHIM, MESH_TEST, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, WPS_OBSERVER, TRACE_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST,
                        (SHIM, MESH_TEST), VERIFIER, TRACE_GATE, TRACE_GATE, WPS_OBSERVER, WPS_OBSERVER,
-                       SHIM, TRACE_GATE, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, VERIFIER, TRACE_GATE, VERIFIER, WORKFLOW, VERIFIER, VERIFIER, WORKFLOW, VERIFIER)
+                       SHIM, TRACE_GATE, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, VERIFIER, TRACE_GATE, VERIFIER, WORKFLOW, VERIFIER, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, TRACE_TEST, MESH_TEST, WORKFLOW, VERIFIER)
     require(overlay[43] == SUPERSEDED_ALT_F4_COMMIT, 'SUPERSEDED_ALT_F4_COMMIT_IDENTITY_MISMATCH')
     for commit, allowed in zip(overlay, expected_scopes):
         actual=set(git('diff-tree', '--no-commit-id', '--name-only', '-r', commit).splitlines())
@@ -177,7 +221,7 @@ def main():
     changed = set(git('diff', '--name-only', BASE, 'HEAD').splitlines())
     require(changed == set(manifest), 'CHANGED_FILE_ALLOWLIST_MISMATCH')
     require(set(git('diff', '--name-only', CLEAN_BASELINE, 'HEAD').splitlines())
-            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER},
+            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE},
             'REPAIR_TOTAL_SCOPE_MISMATCH')
     exists = subprocess.run(['git', 'cat-file', '-e', PATCH_SOURCE], capture_output=True).returncode == 0
     if exists:
@@ -195,8 +239,8 @@ def main():
     expected.update({row['path']: row['after_sha256'] for row in adjustments})
     expected.update(patch['postimage_sha256'])
     repaired = {LOCAL_VLM: WPS_ALIAS_COMMIT, LOCAL_VLM_TEST: WPS_ALIAS_TEST_COMMIT,
-                TRACE_GATE: overlay[56], TRACE_TEST: overlay[52], WPS_OBSERVER: overlay[48],
-                SHIM: overlay[49], MESH_TEST: overlay[51]}
+                TRACE_GATE: overlay[65], TRACE_TEST: overlay[67], WPS_OBSERVER: overlay[64],
+                GUEST_PROBE: overlay[63], SHIM: overlay[66], MESH_TEST: overlay[68]}
     for path, wanted in expected.items():
         if path in repaired:
             source = subprocess.check_output(['git', 'show', repaired[path] + ':' + path])
@@ -209,9 +253,9 @@ def main():
     verify_workflow_delta()
     print(json.dumps({'status': 'CLEAN_HISTORY_AND_SCOPE_PASS', 'base_sha': BASE,
                       'clean_baseline_sha': CLEAN_BASELINE, 'baseline_commits': 3,
-                      'repair_commits': overlay, 'new_commits': 66, 'changed_files': len(changed),
+                      'repair_commits': overlay, 'new_commits': 74, 'changed_files': len(changed),
                       'repair_scope': [VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST,
-                                       TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER], 'official_score_claimed': False}))
+                                       TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE], 'official_score_claimed': False}))
 
 
 if __name__ == '__main__':
