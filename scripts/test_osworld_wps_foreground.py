@@ -54,6 +54,25 @@ class WPSForegroundRegressionTests(unittest.TestCase):
         self.assertEqual(out["target"]["label"],"Close")
         self.assertIn("two bounded Escape",out.get("compiler_note",""))
 
+    def test_after_two_stalled_escapes_explicit_ok_uses_default_enter(self):
+        action={
+            "action":"exec",
+            "command":"pyautogui.click(774, 415)",
+            "plan":"Dismiss the foreground WPS Office modal.",
+            "summary":"Confirm the visible WPS Office prompt.",
+            "verification":"The modal remains foreground and OK is visible.",
+            "expected_change":"The WPS Office prompt should disappear.",
+            "observed_facts":[{"quote":"WPS Office"},{"quote":"OK"}],
+            "checkpoint":{"name":"wps_prompt_dismissed","application":"WPS Spreadsheets","visible_text":"Reforecast_Model_H2.xlsx"},
+        }
+        out=control.ground_action(
+            action,"WPS Spreadsheets","",[],
+            verifier_result={"reason":"action_no_progress","tree_changed":False,"visual_changed":False},
+            recent_commands=["pyautogui.press('esc')","pyautogui.press('esc')"])
+        self.assertEqual(out["command"],"pyautogui.press('enter')")
+        self.assertNotIn("target",out)
+        self.assertIn("deterministic Enter",out.get("compiler_note",""))
+
     def test_after_two_stalled_escapes_without_named_control_remains_fail_closed(self):
         action={
             "action":"exec",
