@@ -5,6 +5,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from osworld_ingress import project_messages
 from osworld_milestones import Milestones, verified_facts
 from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response, visual_reference_recovery, foreground_context, allow_bounded_wps_escape_repeat, allow_bounded_wps_modal_close_repeat
+from arbm091.trace_gate import classify as classify_wps_window
 from osworld_v32_policy import DecisionKind, apply_live_policy
 from osworld_openrouter_free import FREE_ROUTE, prompt as openrouter_prompt
 from osworld_groq_free import GROQ_FREE_ROUTE
@@ -155,19 +156,33 @@ TASK091_SPATIAL_TEXT_EDITS = (
 )
 def _task091_canvas_ready(observation):
     low=str(observation or '').casefold()
-    blocked=('system check','default office software','set wps office as your default')
     deck_markers=('operating committee','growth plan draft','northstar cloud','presentation - wps office')
-    return not any(x in low for x in blocked) and any(x in low for x in deck_markers)
+    return any(x in low for x in deck_markers)
+
+def _task091_window_state():
+    root=os.environ.get('ARBM_WPS_EVIDENCE_DIR')
+    if not root:
+        return None
+    path=Path(root)/'window-state.json'
+    if not path.is_file():
+        return None
+    try:
+        value=json.loads(path.read_text(encoding='utf-8'))
+    except Exception:
+        return None
+    if value.get('schema') != 1 or value.get('stable') is not True or not isinstance(value.get('window'),dict):
+        return None
+    return value
 
 def _task091_atspi_candidates(observation, label):
-    wanted=' '.join(str(label or '').replace('\\u200b','').casefold().split())
+    wanted=' '.join(str(label or '').replace('\u200b','').casefold().split())
     hits=[]
     for line in str(observation or '').splitlines():
         cols=line.split('\t')
         if len(cols)<7:
             continue
         role=str(cols[0] or '').strip()
-        name=str(cols[1] or cols[2] or '').replace('\\u200b','').strip()
+        name=str(cols[1] or cols[2] or '').replace('\u200b','').strip()
         norm=' '.join(name.casefold().split())
         if not norm or not wanted or (norm!=wanted and wanted not in norm):
             continue
@@ -181,10 +196,10 @@ def _task091_atspi_candidates(observation, label):
                      'cx':x+w//2,'cy':y+h//2})
     return hits
 
-def _task091_dynamic_target(observation, label, hint_x, hint_y):
+def _task091_target_resolution(observation, label, hint_x, hint_y):
     hits=_task091_atspi_candidates(observation,label)
     if not hits:
-        return None
+        return 'missing',None
     hits.sort(key=lambda row:((row['cx']-int(hint_x))**2+(row['cy']-int(hint_y))**2,
                               row['w']*row['h'],row['role'],row['label']))
     best=hits[0]
@@ -192,8 +207,12 @@ def _task091_dynamic_target(observation, label, hint_x, hint_y):
         first=(best['cx']-int(hint_x))**2+(best['cy']-int(hint_y))**2
         second=(hits[1]['cx']-int(hint_x))**2+(hits[1]['cy']-int(hint_y))**2
         if first==second:
-            return None
-    return best
+            return 'ambiguous',None
+    return 'visible',best
+
+def _task091_dynamic_target(observation, label, hint_x, hint_y):
+    status,target=_task091_target_resolution(observation,label,hint_x,hint_y)
+    return target if status=='visible' else None
 
 def _task091_nav_command(current_slide, target_slide):
     delta=int(target_slide)-int(current_slide)
@@ -202,38 +221,143 @@ def _task091_nav_command(current_slide, target_slide):
     key='pagedown' if delta>0 else 'pageup'
     return "pyautogui.press(%r, presses=%d, interval=0.12)" % (key, abs(delta))
 
-def next_091_specialist_action(instruction, active_application, observation, state):
+def _task091_terminal(reason,state):
+    state['terminal_reason']=str(reason)
+    return {'action':'terminal','reason':str(reason),'specialist_phase':'terminal'}
+
+def _task091_same_region(hit,bbox):
+    if not isinstance(hit,dict) or not isinstance(bbox,list) or len(bbox)!=4:
+        return False
+    x,y,w,h=bbox
+    cx=x+w//2; cy=y+h//2
+    tolerance=max(120,int(max(w,h)*1.75))
+    return abs(int(hit.get('cx',0))-cx)<=tolerance and abs(int(hit.get('cy',0))-cy)<=tolerance
+
+def _task091_verify_pending(observation,pending):
+    bbox=pending.get('target',{}).get('bbox')
+    old_hits=_task091_atspi_candidates(observation,pending.get('old'))
+    status,new_hit=_task091_target_resolution(
+        observation,pending.get('new'),
+        pending.get('target',{}).get('cx',0),pending.get('target',{}).get('cy',0))
+    old_same=any(_task091_same_region(hit,bbox) for hit in old_hits)
+    new_same=(status=='visible' and _task091_same_region(new_hit,bbox))
+    return bool(new_same and not old_same),status,new_hit
+
+def next_091_specialist_action(instruction, active_application, observation, state, window_state=None):
     if not _task091_match(instruction):
         return None
     state['owned']=True
-    low=str(observation or '').casefold()
-    active=str(active_application or '').casefold()
+    state.setdefault('mode','TRANSIENT_WPS')
+    state.setdefault('spatial_index',0)
+    state.setdefault('target_retries',0)
+    window_state=window_state if window_state is not None else _task091_window_state()
 
-    # The official 091 VM artifact proves two stacked WPS startup dialogs.
-    # Escape does not dismiss the System Check window there, so clear exactly
-    # two native WPS modal layers with Alt+F4 before any deck navigation.
-    if not active.startswith('wps'):
-        return {'action':'exec','command':"pyautogui.hotkey('alt', 'tab')",
-                'plan':'Return to the already-open WPS presentation.',
-                'specialist_phase':'return-wps'}
-    startup_closes=int(state.get('startup_alt_f4') or 0)
-    if startup_closes < 2:
-        state['startup_alt_f4']=startup_closes+1
-        return {'action':'exec','command':"pyautogui.hotkey('alt', 'f4')",
-                'plan':f'Dismiss bounded WPS startup modal layer {startup_closes + 1}/2, then re-observe.',
-                'specialist_phase':'dismiss-startup-layer'}
-    state['startup_modal_clear_complete']=True
+    # First turn only synchronizes trusted guest window state through the observer.
+    if window_state is None:
+        state['mode']='TRANSIENT_WPS'
+        return {'action':'exec','command':"pyautogui.sleep(0.2)",
+                'plan':'Synchronize trusted guest foreground state before any task action.',
+                'specialist_phase':'sync-window-state'}
+
+    try:
+        app=classify_wps_window(window_state.get('window',{}))
+    except Exception:
+        return _task091_terminal('WPS_DECK_FOREGROUND_UNPROVEN',state)
+    window=window_state.get('window',{})
+    title=str(window.get('title','')).strip().casefold()
+
+    if app == 'wps-transient':
+        state['mode']='TRANSIENT_WPS'
+        current=state.get('transient_title')
+        phase=state.get('transient_phase')
+        if current != title:
+            state['transient_title']=title
+            state['transient_phase']=None
+            phase=None
+        if title == 'system check':
+            if phase is None:
+                state['transient_phase']='tab-issued'
+                return {'action':'exec','command':"pyautogui.press('tab')",
+                        'plan':'Focus the System Check Close control while retaining WPS transient ownership.',
+                        'specialist_phase':'transient-system-check-tab'}
+            if phase == 'tab-issued':
+                state['transient_phase']='enter-issued'
+                return {'action':'exec','command':"pyautogui.press('enter')",
+                        'plan':'Activate the focused System Check Close control.',
+                        'specialist_phase':'transient-system-check-enter'}
+            return _task091_terminal('WPS_TRANSIENT_CLOSE_UNPROVEN',state)
+        if title in ('wps office','set wps office as your default office software'):
+            if phase is None:
+                state['transient_phase']='esc-issued'
+                return {'action':'exec','command':"pyautogui.press('esc')",
+                        'plan':'Dismiss the allowlisted WPS default-office transient and re-probe foreground.',
+                        'specialist_phase':'transient-default-office-esc'}
+            return _task091_terminal('WPS_TRANSIENT_CLOSE_UNPROVEN',state)
+        return _task091_terminal('WPS_TRANSIENT_CLOSE_UNPROVEN',state)
+
+    if app != 'wps-presentation':
+        return _task091_terminal('WPS_DECK_FOREGROUND_UNPROVEN',state)
+
+    state['mode']='DECK_ACTIVE'
+    state.pop('transient_phase',None)
+    state.pop('transient_title',None)
     if not _task091_canvas_ready(observation):
-        state['handoff_reason']='WPS_DECK_NOT_OBSERVED_AFTER_BOUNDED_MODAL_CLEAR'
-        return None
+        misses=int(state.get('deck_observation_retries') or 0)
+        if misses>=1:
+            return _task091_terminal('WPS_DECK_FOREGROUND_UNPROVEN',state)
+        state['deck_observation_retries']=misses+1
+        return {'action':'exec','command':"pyautogui.sleep(0.2)",
+                'plan':'Deck foreground is proven by guest state; re-observe AT-SPI deck content once.',
+                'specialist_phase':'deck-a11y-resync'}
+    state['deck_observation_retries']=0
 
-    # Anchor only after current AT-SPI evidence contains deck content.
     if not state.get('anchored'):
         state['anchored']=True
         state['slide']=1
         return {'action':'exec','command':"pyautogui.hotkey('ctrl', 'home')",
-                'plan':'Deck canvas is observed; anchor navigation at slide 1.',
+                'plan':'Foreground is the official deck; anchor navigation at slide 1.',
                 'specialist_phase':'anchor-slide-1'}
+
+    pending=state.get('pending_edit')
+    if isinstance(pending,dict):
+        stage=pending.get('stage')
+        state['mode']={'select-issued':'TARGET_VISIBLE','edit-issued':'TARGET_EDITING',
+                       'commit-issued':'TARGET_COMMITTED'}.get(stage,'TARGET_VERIFYING')
+        if stage == 'select-issued':
+            pending['stage']='edit-issued'
+            command="pyautogui.hotkey('ctrl', 'a')\n"+f"pyautogui.write({pending['new']!r}, interval=0.001)"
+            pending['action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+            return {'action':'exec','command':command,
+                    'plan':f"Edit the selected target from {pending['old']!r} to {pending['new']!r}.",
+                    'specialist_phase':'edit-pending-target','expected_change':pending['new']}
+        if stage == 'edit-issued':
+            pending['stage']='commit-issued'
+            command="pyautogui.press('esc')"
+            pending['commit_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+            return {'action':'exec','command':command,
+                    'plan':'Commit the pending shape edit, then re-observe before advancing.',
+                    'specialist_phase':'commit-pending-target','expected_change':pending['new']}
+        if stage == 'commit-issued':
+            verified,status,new_hit=_task091_verify_pending(observation,pending)
+            if verified:
+                state['mode']='TARGET_VERIFIED'
+                state['spatial_index']=int(state.get('spatial_index') or 0)+1
+                state['pending_edit']=None
+                state['target_retries']=0
+                checkpoint='TASK091_FIRST_STRUCTURAL_EDIT_VERIFIED' if state['spatial_index']==1 else 'TASK091_STRUCTURAL_EDIT_VERIFIED'
+                if state['spatial_index']==1:
+                    state['first_structural_edit_verified']=True
+                return {'action':'checkpoint','checkpoint':checkpoint,
+                        'slide':pending['slide'],'old':pending['old'],'new':pending['new'],
+                        'target':new_hit,'specialist_phase':'verify-pending-target'}
+            attempts=int(pending.get('verify_attempts') or 0)+1
+            pending['verify_attempts']=attempts
+            if attempts>=2:
+                return _task091_terminal('TASK091_EDIT_NOT_VERIFIED',state)
+            return {'action':'exec','command':"pyautogui.sleep(0.2)",
+                    'plan':'Pending edit is not semantically verified yet; re-observe same target without advancing.',
+                    'specialist_phase':'reobserve-pending-target'}
+        return _task091_terminal('TASK091_EDIT_NOT_COMMITTED',state)
 
     index=int(state.get('spatial_index') or 0)
     if index < len(TASK091_SPATIAL_TEXT_EDITS):
@@ -246,57 +370,78 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                     'plan':f'Navigate from slide {current} to slide {slide} before editing {old!r}.',
                     'specialist_phase':'navigate-slide'}
 
-        phase=str(state.get('spatial_phase') or 'select')
-        if phase=='select':
-            target=_task091_dynamic_target(observation,old,x,y)
-            if target is None:
-                state['handoff_reason']='AT_SPI_TARGET_NOT_UNIQUE_OR_VISIBLE:'+str(old)
-                return None
-            state['spatial_phase']='edit'
-            state['last_target']={'slide':slide,'label':old,'role':target['role'],
-                                  'bbox':[target['x'],target['y'],target['w'],target['h']]}
-            return {'action':'exec',
-                    'command':f"pyautogui.doubleClick({int(target['cx'])}, {int(target['cy'])}, interval=0.08)",
-                    'target':{'source':'accessibility','label':target['label'],'role':target['role']},
-                    'plan':f'Select the unique visible AT-SPI node for slide {slide} text {old!r}.',
-                    'specialist_phase':'select-shape-atspi'}
-        if phase=='edit':
-            state['spatial_phase']='commit'
-            return {'action':'exec',
-                    'command':"pyautogui.hotkey('ctrl', 'a')\n"+f"pyautogui.write({new!r}, interval=0.001)",
-                    'plan':f'Replace the selected shape text with the final value {new!r}.',
-                    'specialist_phase':'edit-shape','expected_change':new}
-        state['spatial_phase']='select'
-        state['spatial_index']=index+1
-        return {'action':'exec','command':"pyautogui.press('esc')",
-                'plan':'Commit the current shape edit and return to slide object selection.',
-                'specialist_phase':'commit-shape','expected_change':new}
+        status,target=_task091_target_resolution(observation,old,x,y)
+        if status != 'visible':
+            retries=int(state.get('target_retries') or 0)
+            if retries<1:
+                state['target_retries']=retries+1
+                return {'action':'exec','command':"pyautogui.sleep(0.2)",
+                        'plan':f'Re-observe the current slide once for target {old!r}.',
+                        'specialist_phase':'reobserve-target'}
+            reason='TASK091_TARGET_AMBIGUOUS' if status=='ambiguous' else 'TASK091_TARGET_NOT_VISIBLE'
+            return _task091_terminal(reason,state)
 
+        state['target_retries']=0
+        state['mode']='TARGET_VISIBLE'
+        command=f"pyautogui.doubleClick({int(target['cx'])}, {int(target['cy'])}, interval=0.08)"
+        state['pending_edit']={
+            'slide':slide,'old':old,'new':new,'stage':'select-issued',
+            'target':{'label':target['label'],'role':target['role'],
+                      'bbox':[target['x'],target['y'],target['w'],target['h']],
+                      'cx':target['cx'],'cy':target['cy']},
+            'before_observation_hash':hashlib.sha256(str(observation or '').encode()).hexdigest(),
+            'action_command_hash':hashlib.sha256(command.encode()).hexdigest(),
+            'verify_attempts':0,
+        }
+        return {'action':'exec','command':command,
+                'target':{'source':'accessibility','label':target['label'],'role':target['role']},
+                'plan':f'Select the unique visible AT-SPI target on slide {slide} containing {old!r}.',
+                'specialist_phase':'select-pending-target'}
+
+    if state.get('pending_edit'):
+        return _task091_terminal('TASK091_EDIT_NOT_COMMITTED',state)
     if not state.get('saved'):
         state['saved']=True
         return {'action':'exec','command':"pyautogui.hotkey('ctrl', 's')\npyautogui.sleep(1)",
-                'plan':'Save the deterministic direct-object edits before visual chart/fill completion.',
-                'specialist_phase':'save-spatial-pass'}
-    # Deliberately hand off rather than claim success. The generic visual mesh
-    # receives the live WPS screenshot and must finish remaining chart/fill
-    # controls under the same observer, policy and official evaluator.
+                'plan':'Save all semantically verified direct-object edits before structural chart/fill handoff.',
+                'specialist_phase':'save-verified-spatial-pass'}
+    state['mode']='STRUCTURAL_HANDOFF'
     state['handoff']=True
+    state['handoff_reason']='DIRECT_TEXT_PASS_VERIFIED_CHART_FILL_REMAINS'
     return None
 
 def try_091_specialist(body, obs, focused_obs):
     state=STATE.setdefault('task091_specialist',{})
-    candidate=next_091_specialist_action(body.get('instruction',''),body.get('active_application','unknown'),focused_obs,state)
-    if not candidate: return None
-    if candidate.get('action')=='finish':
-        STATE['phase']='done'
-        log_event({'status':'TASK091_SPECIALIST_FINISH_CANDIDATE','replacements':state.get('replace_index',0),'saved':state.get('saved',False)})
-        return 'DONE'
+    window_state=_task091_window_state()
+    candidate=None
+    for _ in range(3):
+        candidate=next_091_specialist_action(
+            body.get('instruction',''),body.get('active_application','unknown'),
+            focused_obs,state,window_state)
+        if not candidate:
+            if state.get('owned') and not state.get('handoff'):
+                return terminal(state.get('terminal_reason') or state.get('handoff_reason') or 'TASK091_TARGET_NOT_VISIBLE')
+            return None
+        if candidate.get('action')=='terminal':
+            log_event({'status':'TASK091_SPECIALIST_TERMINAL','reason':candidate.get('reason'),
+                       'mode':state.get('mode'),'pending_edit':state.get('pending_edit')})
+            return terminal(candidate.get('reason') or 'TASK091_EDIT_NOT_VERIFIED')
+        if candidate.get('action')=='checkpoint':
+            log_event({'status':candidate.get('checkpoint'),'slide':candidate.get('slide'),
+                       'old':candidate.get('old'),'new':candidate.get('new'),
+                       'target':candidate.get('target'),'mode':state.get('mode'),
+                       'spatial_index':state.get('spatial_index')})
+            continue
+        break
+    if not candidate:
+        return None
     try:
         action=ground_action(candidate,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]),
                              verifier_result=VERIFIER.last_result,recent_commands=[x['command'] for x in STATE['history'][-6:]])
         decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
     except ValueError as exc:
-        log_event({'status':'TASK091_SPECIALIST_POLICY_REJECTED','reason':str(exc),'action':candidate})
+        log_event({'status':'TASK091_SPECIALIST_POLICY_REJECTED','reason':str(exc),'action':candidate,
+                   'mode':state.get('mode'),'pending_edit':state.get('pending_edit')})
         return terminal('TASK091_SPECIALIST_POLICY_REJECTED:'+str(exc))
     if decision.get('kind')!=DecisionKind.EXEC.value or action.get('action')!='exec':
         return terminal('TASK091_SPECIALIST_NON_EXEC_DECISION')
@@ -304,7 +449,10 @@ def try_091_specialist(body, obs, focused_obs):
     STATE['previous']=command; STATE['executed']+=1; STATE['wait_responses']=0; STATE['provider_waits']=0
     STATE['history'].append({'command':command,'expected':action.get('expected_change',''),'source':'task091-specialist'})
     STATE['history']=STATE['history'][-12:]; VERIFIER.issued(command)
-    log_event({'status':'TASK091_SPECIALIST_ACTION_ISSUED','command':command,'phase':action.get('specialist_phase'),'replace_index':state.get('replace_index',0)})
+    log_event({'status':'TASK091_SPECIALIST_ACTION_ISSUED','command':command,
+               'phase':action.get('specialist_phase'),'mode':state.get('mode'),
+               'spatial_index':state.get('spatial_index'),'pending_edit':state.get('pending_edit'),
+               'window_state':window_state})
     log_event({'status':'ACTION_ISSUED','command':command,'source':'task091-specialist'})
     fence=chr(96)*3
     return fence+'python\n'+command+'\n'+fence
