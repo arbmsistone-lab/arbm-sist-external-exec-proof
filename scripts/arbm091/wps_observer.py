@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import threading
+import time
 from pathlib import Path
 from urllib.parse import urlparse
 import requests
@@ -18,6 +19,29 @@ from arbm091.trace_gate import digest, pointer, preflight, require
 
 _LOCK = threading.Lock()
 _PROBE = Path(__file__).with_name('guest_probe.py').read_text()
+
+
+def _probe_once(controller, point):
+    server = controller.http_server
+    parsed = urlparse(server)
+    require(parsed.scheme == 'http' and parsed.hostname in ('localhost', '127.0.0.1'),
+            'PROBE_ISOLATED_GUEST_ONLY')
+    payload, png = _settled_probe(controller, point)
+    return payload, png
+
+
+def _settled_probe(controller, point, attempts=4, delay=0.12):
+    last = None
+    for index in range(attempts):
+        payload, png = _probe_once(controller, point)
+        last = (payload, png)
+        if payload.get('stable') is True:
+            return payload, png
+        if index + 1 < attempts:
+            time.sleep(delay)
+    payload, png = last
+    require(payload.get('stable') is True, 'FOREGROUND_UNSTABLE')
+    return payload, png
 
 
 def snapshot(controller, root: Path, name: str, point):
