@@ -274,28 +274,65 @@ def _compile_grounded_click(action, observation):
     return action
 
 
-def _repair_wps_modal_dismiss(action, active_application):
-    """Convert an ungrounded visual WPS modal-dismiss click into safe Escape."""
+def _repair_wps_modal_dismiss(action, active_application, verifier_result=None, recent_commands=None):
+    """Resolve WPS modal dismissals with bounded escalation: Escape, then visual Close."""
     if not isinstance(action,dict) or action.get('action')!='exec' or isinstance(action.get('target'),dict):
         return action
     active=normalized_target(active_application)
     if not active.startswith('wps'):
         return action
     calls=_gui_calls(action.get('command',''))
-    if not calls or not any(call.func.attr in {'click','doubleClick','rightClick'} for call in calls):
+    if len(calls)!=1 or calls[0].func.attr not in {'click','doubleClick','rightClick'}:
         return action
     parts=[action.get(key,'') for key in ('plan','summary','verification','expected_change')]
     checkpoint=action.get('checkpoint')
     if isinstance(checkpoint,dict):
         parts.extend(checkpoint.get(key,'') for key in ('name','application','visible_text'))
+    fact_quotes=[]
     for fact in action.get('observed_facts') or []:
         if isinstance(fact,dict):
-            parts.append(fact.get('quote',''))
+            quote=str(fact.get('quote') or '').strip()
+            fact_quotes.append(quote)
+            parts.append(quote)
     semantic=normalized_target(' '.join(str(x or '') for x in parts))
     close_intent=bool(re.search(r'\b(?:close|dismiss|resolve|clear)\b',semantic))
     modal_state=bool(re.search(r'\b(?:modal|dialog|notice|prompt|system check)\b',semantic))
     if not (close_intent and modal_state):
         return action
+
+    recent=[str(x or '') for x in (recent_commands or [])]
+    consecutive_esc=0
+    for command in reversed(recent):
+        if command=="pyautogui.press('esc')":
+            consecutive_esc+=1
+            continue
+        break
+    result=verifier_result if isinstance(verifier_result,dict) else {}
+    last_escape_stalled=(
+        consecutive_esc>=2
+        and result.get('tree_changed') is False
+        and result.get('visual_changed') is False
+        and str(result.get('reason') or '') in {'action_no_progress','visual_change_without_semantic_checkpoint'}
+    )
+
+    if last_escape_stalled:
+        label=next((q for q in fact_quotes if normalized_target(q) in {'close','ok','cancel'}), '')
+        if not label:
+            return action
+        call=calls[0]
+        try:
+            if len(call.args)>=2:
+                float(ast.literal_eval(call.args[0])); float(ast.literal_eval(call.args[1]))
+            else:
+                kwargs={kw.arg:ast.literal_eval(kw.value) for kw in call.keywords if kw.arg}
+                float(kwargs['x']); float(kwargs['y'])
+        except (ValueError,TypeError,KeyError):
+            return action
+        repaired=dict(action)
+        repaired['target']={'source':'screenshot','label':label}
+        repaired['compiler_note']='After two bounded Escape attempts, preserved the single visual pointer using the explicitly observed modal control label.'
+        return repaired
+
     repaired=dict(action)
     repaired.pop('target',None)
     repaired['command']="pyautogui.press('esc')"
@@ -326,10 +363,11 @@ def allow_bounded_wps_escape_repeat(action, active_application, verifier_result,
         break
     return consecutive==1
 
-def ground_action(action, active_application, observation='', verified_milestones=None, allow_canonical=False):
+def ground_action(action, active_application, observation='', verified_milestones=None, allow_canonical=False,
+                  verifier_result=None, recent_commands=None):
     """Compile desktop activation and block unsafe source-context abandonment."""
     a=canonical_action(action)
-    a=_repair_wps_modal_dismiss(a,active_application)
+    a=_repair_wps_modal_dismiss(a,active_application,verifier_result,recent_commands)
     canonical_pointer=False
     if a.get('action')=='exec' and re.search(r'pyautogui\.(?:click|doubleClick|rightClick)\s*\(',a.get('command','')):
         target=a.get('target')
