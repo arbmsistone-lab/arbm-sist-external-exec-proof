@@ -1,0 +1,69 @@
+name: ARBM 091 Rebuild Literal Environment Contract
+on:
+  push:
+    branches: [chatgpt/arbm-091-transplant-bootstrap-20260918]
+    paths: [.github/workflows/arbm-091-rebuild-env-contract.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: arbm091-literal-environment-rebuild
+  cancel-in-progress: false
+env:
+  ZERO_SPEND_MODE: HARD
+  PYTHONDONTWRITEBYTECODE: '1'
+  PYTHONPATH: ${{ github.workspace }}/candidate/scripts
+  ARBM_OSWORLD_SHIM_LOG: ${{ runner.temp }}/arbm091-env-test-shim.log
+  ARBM_OSWORLD_OBSERVATIONS: ${{ runner.temp }}/arbm091-env-test-observations
+jobs:
+  rebuild-and-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Read exact reviewed builder
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 7eb22e7eac7e1e560ec8d9238847134a05c43d20
+          path: control
+          persist-credentials: false
+      - name: Read exact previous clean candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: a3307fd28c0e50634b931692b6bb1049b2c0c5c9
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate reviewed builder and free remote scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$ZERO_SPEND_MODE" = HARD
+          test "$GITHUB_REPOSITORY" = arbmsistone-lab/arbm-sist-external-exec-proof
+          test "$(git -C control rev-parse HEAD)" = 7eb22e7eac7e1e560ec8d9238847134a05c43d20
+          test "$(git hash-object control/audit/rebuild_091_env_contract.py)" = 3373229ef12e0177dc77d20ab35ccbd906800e54
+          python -c 'import ast; from pathlib import Path; ast.parse(Path("control/audit/rebuild_091_env_contract.py").read_text())'
+      - name: Install existing verification dependencies
+        run: python -m pip install --disable-pip-version-check -r candidate/scripts/requirements-osworld.txt
+      - name: Reproduce original bug and verify corrected immutable candidate
+        working-directory: candidate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python "$GITHUB_WORKSPACE/control/audit/rebuild_091_env_contract.py" 2>&1 | tee "$RUNNER_TEMP/arbm091-env-rebuild.log"
+          test -s "$RUNNER_TEMP/arbm091-env-candidate-receipt.json"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Preserve positive and negative regression evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: arbm091-literal-env-contract-build
+          path: |
+            ${{ runner.temp }}/arbm091-env-*.log
+            ${{ runner.temp }}/arbm091-env-*.patch
+            ${{ runner.temp }}/arbm091-env-candidate-receipt.json
+            ${{ runner.temp }}/arbm091-env-test-observations/
+          if-no-files-found: error
+          retention-days: 30
