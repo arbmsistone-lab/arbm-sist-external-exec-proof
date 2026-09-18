@@ -12,6 +12,7 @@ ALLOWED_LAUNCHERS = {'google chrome', 'wps presentation', 'wps 2019', 'wps offic
                      'wps spreadsheets', DECK.lower(), WORKBOOK.lower()}
 POINTERS = {'click', 'doubleClick', 'rightClick', 'moveTo', 'mouseDown', 'mouseUp', 'dragTo'}
 NON_EDITING = {'moveTo', 'sleep', 'keyDown', 'keyUp'}
+WPS_TRANSIENT_TITLES = {'presentation', 'replace', 'find', 'find and replace', 'find & replace'}
 
 
 def digest(value: object) -> str:
@@ -33,6 +34,14 @@ def classify(window: dict) -> str:
     klass = str(window.get('wm_class', '')).casefold()
     titles = (title + ' ' + owner).casefold()
     if DECK.casefold() in titles and any(x in klass for x in ('wps', 'wpp', 'kingsoft')):
+        return 'wps-presentation'
+    klass_tokens = set(klass.replace('.', ' ').replace('-', ' ').split())
+    title_norm = title.strip().casefold()
+    owner_norm = owner.strip().casefold()
+    transient = (title_norm in WPS_TRANSIENT_TITLES
+                 or owner_norm in WPS_TRANSIENT_TITLES
+                 or 'replace' in owner_norm or 'find' in owner_norm)
+    if 'wpp' in klass_tokens and transient:
         return 'wps-presentation'
     if WORKBOOK.casefold() in titles and any(x in klass for x in ('wps', 'et', 'kingsoft', 'libreoffice', 'soffice')):
         return 'reference-workbook'
