@@ -74,20 +74,20 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-    - name: Download exact failed 091 artifact
+    - name: Download pinned 091 replay corpora
       shell: bash
-      run: 'set -euo pipefail
-
-        gh api -H ''Accept: application/vnd.github+json'' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10552892356/zip
-        > /tmp/091.zip
-
+      run: |
+        set -euo pipefail
+        gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10552892356/zip > /tmp/091.zip
         mkdir -p /tmp/091
-
         unzip -q /tmp/091.zip -d /tmp/091
-
         test -s /tmp/091/task-091/shim-observations/step_0002.json
-
-        '
+        gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10567320293/zip > /tmp/091-modal.zip
+        mkdir -p /tmp/091-modal
+        unzip -q /tmp/091-modal.zip -d /tmp/091-modal
+        test -s /tmp/091-modal/task-091/wps-observations/0002-01-before.json
+        test -s /tmp/091-modal/task-091/wps-observations/0006-01-after.json
+        test -s /tmp/091-modal/task-091/wps-observations/0007-01-after.json
     - name: Install pinned local VLM runtime
       run: 'set -euo pipefail
 
@@ -103,11 +103,52 @@ jobs:
         python scripts/replay_091_local_contract.py /tmp/091/task-091/shim-observations/step_0002.json \
           | tee /tmp/091-local-contract-replay.json
         ! grep -F 'pyautogui.click(35, 884)' /tmp/091-local-contract-replay.json
+    - name: Replay run 35391431490 System Check modal regression
+      shell: bash
+      run: |
+        set -euo pipefail
+        ZERO_SPEND_MODE=HARD ARBM_WPS_EVIDENCE_DIR=/tmp/091-modal/task-091 PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35391431490-modal-regression.json
+        import json
+        from pathlib import Path
+        import osworld_free_mesh_shim as shim
+        from arbm091.trace_gate import classify, postflight
+
+        root=Path('/tmp/091-modal/task-091/wps-observations')
+        before=json.loads((root/'0002-01-before.json').read_text())
+        after_tab=json.loads((root/'0006-01-after.json').read_text())
+        drift=json.loads((root/'0007-01-after.json').read_text())
+        assert classify(before['window']) == 'wps-transient'
+        assert before['window']['title'] == 'System Check'
+        assert after_tab['window']['title'] == 'System Check'
+        state={}
+        task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
+              'The COO has asked you to rebaseline the H2 Operating Committee pack. '
+              'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open.')
+        first=shim.next_091_specialist_action(task,'WPS 2019','',state,before)
+        assert first['command'] == "pyautogui.press('tab')", first
+        second=shim.next_091_specialist_action(task,'WPS 2019','',state,after_tab)
+        assert second['command'] == "pyautogui.press('enter')", second
+        assert "alt', 'tab" not in first['command'] + second['command']
+        assert "alt', 'f4" not in first['command'] + second['command']
+        try:
+            postflight(second['command'], after_tab, drift)
+        except ValueError as exc:
+            assert 'WPS_TRANSIENT_CLOSE_UNPROVEN' in str(exc), exc
+        else:
+            raise AssertionError('workbook drift was not rejected')
+        print(json.dumps({'status':'PASS','corpus_run':'35391431490',
+                          'first':first['command'],'second':second['command'],
+                          'drift_rejected':True,'zero_spend':'HARD'},sort_keys=True))
+        print('RUN35391431490_MODAL_REGRESSION=PASS')
+        PY
+        grep -F 'RUN35391431490_MODAL_REGRESSION=PASS' /tmp/run35391431490-modal-regression.json
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       if: always()
       with:
         name: arbm-091-local-contract-replay
-        path: /tmp/091-local-contract-replay.json
+        path: |
+          /tmp/091-local-contract-replay.json
+          /tmp/run35391431490-modal-regression.json
         if-no-files-found: warn
         retention-days: 30
     permissions:
