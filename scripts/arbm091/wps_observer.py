@@ -80,6 +80,7 @@ def snapshot(controller, root: Path, name: str, point):
         'window': payload.get('window', {}),
         'controls': payload.get('controls', []),
         'focused_control': payload.get('focused_control'),
+        'deck_slide_text': payload.get('deck_slide_text', {}),
     }
     operational_raw=(json.dumps(operational, sort_keys=True) + '\n').encode()
     operational_path=root / 'window-state.json'
