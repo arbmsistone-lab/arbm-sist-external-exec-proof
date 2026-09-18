@@ -179,7 +179,9 @@ class MeshTests(unittest.TestCase):
    'wm_class':'wpp wpp','bbox':[120,112,699,327]}}
   deck={'schema':1,'stable':True,'window':{
    'id':50331680,'pid':2689,'title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Office',
-   'owner_title':'','wm_class':'wpp wpp','bbox':[70,27,1850,1053]}}
+   'owner_title':'','wm_class':'wpp wpp','bbox':[70,27,1850,1053]},
+   'deck_slide_text':{'1':'Growth Plan Draft Planning posture: accelerate growth through H2 scale-up $42.8M $2.6M 214'},
+   'deck_slide_runs':{'1':['Growth Plan Draft','Planning posture: accelerate growth through H2 scale-up','$42.8M','$2.6M','214']}}
   deck_obs=('text\tOperating Committee\tOperating Committee\t\t\t(500, 180)\t(600, 60)\n'
             'text\tGrowth Plan Draft\tGrowth Plan Draft\t\t\t(700, 300)\t(100, 40)')
   with patch.dict(os.environ,{'TASK_ID':'091','ZERO_SPEND_MODE':'HARD'},clear=False):
@@ -262,7 +264,13 @@ class MeshTests(unittest.TestCase):
    self.assertEqual(commit['command'],"pyautogui.press('esc')")
    self.assertEqual(state['spatial_index'],0)
    self.assertEqual(state['pending_edit']['stage'],'commit-issued')
-   verified=shim.next_091_specialist_action(task,'WPS Presentation',commit_obs,state,deck)
+   save_pending=shim.next_091_specialist_action(task,'WPS Presentation',commit_obs,state,deck)
+   self.assertIn("hotkey('ctrl', 's')",save_pending['command'])
+   self.assertEqual(state['pending_edit']['stage'],'save-issued')
+   deck_after={**deck,'deck_slide_text':{'1':'H2 Operating Committee Pack Stabilize-and-Recover Rebaseline Planning posture: accelerate growth through H2 scale-up $42.8M $2.6M 214'},
+               'deck_slide_runs':{'1':['H2 Operating Committee Pack','Stabilize-and-Recover Rebaseline',
+                                       'Planning posture: accelerate growth through H2 scale-up','$42.8M','$2.6M','214']}}
+   verified=shim.next_091_specialist_action(task,'WPS Presentation',commit_obs,state,deck_after)
    self.assertEqual(verified['action'],'checkpoint')
    self.assertEqual(verified['checkpoint'],'TASK091_FIRST_STRUCTURAL_EDIT_VERIFIED')
    self.assertEqual(state['spatial_index'],1)
@@ -274,13 +282,30 @@ class MeshTests(unittest.TestCase):
           'pending_edit':{'slide':1,'old':'Growth Plan Draft',
                           'new':'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline',
                           'stage':'commit-issued','target':{'bbox':[700,300,100,40],'cx':750,'cy':320},
-                          'verify_attempts':0}}
+                          'before_old_count':1,'before_new_count':0,'verify_attempts':0}}
+   persist=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,stuck,deck)
+   self.assertIn("hotkey('ctrl', 's')",persist['command'])
    retry=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,stuck,deck)
    self.assertIn('sleep',retry['command'])
    failed=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,stuck,deck)
    self.assertEqual(failed['action'],'terminal')
    self.assertEqual(failed['reason'],'TASK091_EDIT_NOT_VERIFIED')
    self.assertEqual(stuck['spatial_index'],0)
+
+   # Official WPS runner may expose no canvas AT-SPI. In that case only the
+   # canonical Task 091 point is usable, and only when target-PPTX text proves
+   # the expected old value on the expected slide.
+   spatial_state={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
+   spatial=shim.next_091_specialist_action(task,'WPS Presentation','',spatial_state,deck)
+   self.assertEqual(spatial['target']['source'],'target-pptx-spatial')
+   self.assertEqual(spatial['command'],'pyautogui.doubleClick(745, 335, interval=0.08)')
+   self.assertEqual(spatial_state['pending_edit']['before_old_count'],1)
+   no_old={**deck,'deck_slide_text':{'1':'Already changed'}}
+   no_old_state={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
+   retry_no_old=shim.next_091_specialist_action(task,'WPS Presentation','',no_old_state,no_old)
+   self.assertIn('sleep',retry_no_old['command'])
+   no_old_terminal=shim.next_091_specialist_action(task,'WPS Presentation','',no_old_state,no_old)
+   self.assertEqual(no_old_terminal['reason'],'TASK091_TARGET_NOT_VISIBLE')
 
    # Missing and ambiguous targets never click blindly.
    missing_obs='text\tOperating Committee\tOperating Committee\t\t\t(500, 180)\t(600, 60)'
