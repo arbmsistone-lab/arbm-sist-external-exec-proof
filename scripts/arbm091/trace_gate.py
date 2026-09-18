@@ -169,17 +169,24 @@ def postflight(command: str, before: dict, after: dict) -> str:
     after_app=classify(after_window)
     name,args,_=parse_atom(command)
     if before_app == 'wps-transient':
-        require(after_window.get('pid') == before_window.get('pid'),
-                'WPS_TRANSIENT_CLOSE_UNPROVEN')
         require(after_app in ('wps-transient','wps-presentation'),
                 'WPS_TRANSIENT_CLOSE_UNPROVEN')
         before_title=str(before_window.get('title', '')).strip().casefold()
+        before_owner=str(before_window.get('owner_title', '')).strip().casefold()
         after_title=str(after_window.get('title', '')).strip().casefold()
+        if after_app == 'wps-transient':
+            require(after_window.get('pid') == before_window.get('pid'),
+                    'WPS_TRANSIENT_CLOSE_UNPROVEN')
+        else:
+            require(DECK.casefold() in before_owner and DECK.casefold() in after_title
+                    and _is_wps_class(after_window.get('wm_class','')),
+                    'WPS_TRANSIENT_OWNER_HANDOFF_UNPROVEN')
         if before_title == 'system check' and _is_press(name,args,'tab'):
             require(after_app == 'wps-transient' and after_title == 'system check',
                     'WPS_TRANSIENT_CLOSE_UNPROVEN')
         if before_title == 'system check' and _is_press(name,args,'space'):
-            require(after_title in ('system check', '') or after_app == 'wps-presentation',
+            require((after_app == 'wps-transient' and after_title == 'system check')
+                    or after_app == 'wps-presentation',
                     'WPS_TRANSIENT_CLOSE_UNPROVEN')
         if before_title == 'system check' and name == 'click':
             require(after_title != 'system check' and after_app == 'wps-presentation',
