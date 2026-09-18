@@ -206,6 +206,9 @@ class FreeRoute:
                 catalog_sha256=self.catalog_hash, catalog_pricing=model['pricing'],
                 context_length=model['context_length'], latency_seconds=round(latency,3),
                 usage_cost=(data.get('usage') or {}).get('cost'), parsed=action is not None,
+                cost_proof_status=('proven_zero' if cost_proven else ('unproven' if status == 200 else 'not_applicable')),
+                response_admission=('accepted' if cost_proven else ('rejected' if status == 200 else 'not_applicable')),
+                action_promoted=bool(action is not None),
                 contract_error=error, retry_after=headers.get('Retry-After', headers.get('retry-after')),
                 generation_id=data.get('id'), serving_provider=data.get('provider'), circuit=state['state'])
             if action is not None:
