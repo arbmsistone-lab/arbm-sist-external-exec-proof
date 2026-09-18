@@ -79,7 +79,7 @@ class Milestones:
                    'new_content_count':len(new_content)}
             self.verified.append(proof);self.verified=self.verified[-40:];self.stalled=0
             self.last={'status':'VERIFIED','milestone':proof,'stalled_actions':0}
-        elif expected_app_reached:
+        elif expected_app_reached and not matched:
             # Reaching the exact expected foreground is independently observable
             # progress, but it is not proof that the checkpoint content is complete.
             # Keep verified[] untouched and require a later observation for the
