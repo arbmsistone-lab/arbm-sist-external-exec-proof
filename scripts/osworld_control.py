@@ -273,9 +273,40 @@ def _compile_grounded_click(action, observation):
         action['compiler_note']='Accessibility-grounded target resolved deterministically: '+target['role']+' '+target['name']
     return action
 
+
+def _repair_wps_modal_dismiss(action, active_application):
+    """Convert an ungrounded visual WPS modal-dismiss click into safe Escape."""
+    if not isinstance(action,dict) or action.get('action')!='exec' or isinstance(action.get('target'),dict):
+        return action
+    active=normalized_target(active_application)
+    if not active.startswith('wps'):
+        return action
+    calls=_gui_calls(action.get('command',''))
+    if not calls or not any(call.func.attr in {'click','doubleClick','rightClick'} for call in calls):
+        return action
+    parts=[action.get(key,'') for key in ('plan','summary','verification','expected_change')]
+    checkpoint=action.get('checkpoint')
+    if isinstance(checkpoint,dict):
+        parts.extend(checkpoint.get(key,'') for key in ('name','application','visible_text'))
+    for fact in action.get('observed_facts') or []:
+        if isinstance(fact,dict):
+            parts.append(fact.get('quote',''))
+    semantic=normalized_target(' '.join(str(x or '') for x in parts))
+    close_intent=bool(re.search(r'\b(?:close|dismiss|resolve|clear)\b',semantic))
+    modal_state=bool(re.search(r'\b(?:modal|dialog|notice|prompt|system check)\b',semantic))
+    if not (close_intent and modal_state):
+        return action
+    repaired=dict(action)
+    repaired.pop('target',None)
+    repaired['command']="pyautogui.press('esc')"
+    repaired['compiler_note']='Replaced ungrounded WPS modal-dismiss pointer with deterministic Escape.'
+    return repaired
+
+
 def ground_action(action, active_application, observation='', verified_milestones=None, allow_canonical=False):
     """Compile desktop activation and block unsafe source-context abandonment."""
     a=canonical_action(action)
+    a=_repair_wps_modal_dismiss(a,active_application)
     canonical_pointer=False
     if a.get('action')=='exec' and re.search(r'pyautogui\.(?:click|doubleClick|rightClick)\s*\(',a.get('command','')):
         target=a.get('target')
@@ -457,6 +488,16 @@ def foreground_context(text):
         # menu/document trees after it belong to covered background windows.
         ends=[i for i,l in enumerate(kept) if l.startswith('menu\tSystem\t')]
         if ends:kept=kept[:ends[0]+1]
+    elif normalized_target(active).startswith('wps'):
+        # WPS can be foreground while AT-SPI still exposes Chromium's covered
+        # document tree. When that mismatch is explicit, discard the stale web
+        # tree and retain only the WPS panel marker plus dock controls.
+        panel=[i for i,l in enumerate(kept)
+               if l.startswith('menu\t') and normalized_target(l.split('\t')[1]).startswith('wps')]
+        if panel:
+            start=panel[-1]
+            if any(l.startswith('document-web\t') for l in kept[:start]):
+                kept=kept[start:]
     prefix='ACTIVE APPLICATION (Ubuntu panel): '+active+'\n'
     if hidden:prefix+='BACKGROUND DESKTOP FILES (not clickable until revealed): '+', '.join(hidden)+'\n'
     return prefix+'\n'.join(kept),active
