@@ -167,4 +167,40 @@ class MeshTests(unittest.TestCase):
   self.assertIn('VISUAL-REFERENCE RECOVERY',bodies[0]['recovery_strategy'])
   self.assertIn('Ctrl+L',bodies[0]['recovery_strategy'])
   self.assertIsNone(bodies[1].get('provider_hint'))
+
+ def test_task091_specialist_is_bounded_keyboard_only_and_uses_official_values(self):
+  task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
+        'The COO has asked you to rebaseline the H2 Operating Committee pack. '
+        'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
+        'Reforecast_Model_H2.xlsx is the source of truth.')
+  with patch.dict(os.environ,{'TASK_ID':'091','ZERO_SPEND_MODE':'HARD'},clear=False):
+   state={}
+   close=shim.next_091_specialist_action(task,'WPS Presentation','System Check',state)
+   self.assertEqual(close['command'],"pyautogui.hotkey('alt', 'f4')")
+   state={}
+   seen=[]
+   for _ in range(len(shim.TASK091_REPLACEMENTS)):
+    action=shim.next_091_specialist_action(task,'WPS 2019','WPS Presentation',state)
+    compiled=shim.canonical_action(action)
+    self.assertEqual(compiled['action'],'exec')
+    self.assertNotRegex(compiled['command'],r'pyautogui\.(?:click|doubleClick|rightClick|moveTo|dragTo)')
+    self.assertLessEqual(len(compiled['command'].splitlines()),8)
+    seen.append(action['expected_change'])
+   required={'$40.9M','$2.8M','104%','71%','206','Renewal saves','Pricing discipline',
+             'Migration delay','Support credits','Partner stabilization',
+             'Customer Retention Plays','Data Migration','Reliability Hardening',
+             'Vendor SLA breach','Data migration cutover failure',
+             'Stabilize-and-Recover Rebaseline','Recovery review with OpCom'}
+   self.assertTrue(required.issubset(set(seen)))
+   save=shim.next_091_specialist_action(task,'WPS 2019','WPS Presentation',state)
+   self.assertIn("pyautogui.hotkey('ctrl', 's')",shim.canonical_action(save)['command'])
+   finish=shim.next_091_specialist_action(task,'WPS 2019','WPS Presentation',state)
+   self.assertEqual(finish['action'],'finish')
+
+ def test_task091_specialist_does_not_capture_other_tasks(self):
+  with patch.dict(os.environ,{'TASK_ID':'061'},clear=False):
+   self.assertIsNone(shim.next_091_specialist_action(
+    'rebaseline H2 Operating Committee pack using Reforecast_Model_H2.xlsx',
+    'WPS Presentation','',{}))
+
 if __name__=='__main__':unittest.main()
