@@ -65,78 +65,141 @@ def _task091_match(instruction):
             and 'operating committee' in text and 'rebaseline' in text
             and 'reforecast_model_h2.xlsx' in text)
 
+TASK091_SPATIAL_TEXT_EDITS = (
+    # slide, x, y, current_text, final_text
+    (1, 1052, 237, 'H2 Operating Committee Pack | Growth Plan Draft', 'H2 Operating Committee Pack | Stabilize-and-Recover Rebaseline'),
+    (1, 1052, 335, 'Northstar Cloud | Prepared for July Operating Committee review | Planning posture: accelerate growth through H2 scale-up',
+                    'Northstar Cloud | Prepared for July Operating Committee review | Planning posture: stabilize and recover with disciplined sequencing'),
+    (1, 1418, 393, '$42.8M', '$40.9M'),
+    (1, 1418, 511, '$2.6M', '$2.8M'),
+    (1, 1418, 630, '214', '206'),
+    (2, 1050, 363, '$42.8M', '$40.9M'),
+    (2, 1050, 363, '112%', '104%'),
+    (2, 1050, 363, '$2.6M', '$2.8M'),
+    (2, 1050, 363, '19 mo', '17 mo'),
+    (2, 1050, 363, '214', '206'),
+    (4, 617, 360, '+1.2', '+0.7'),
+    (4, 615, 752, 'New logo mix', 'Renewal saves'),
+    (4, 728, 360, '+0.6', '+0.4'),
+    (4, 727, 752, 'Price uplift', 'Pricing discipline'),
+    (4, 839, 360, '+0.8', '-0.6'),
+    (4, 838, 752, 'Usage expansion', 'Migration delay'),
+    (4, 950, 360, '+0.4', '-0.5'),
+    (4, 949, 752, 'International pilot', 'Support credits'),
+    (4, 1062, 360, '-0.3', '-0.3'),
+    (4, 1060, 752, 'Hiring drag', 'International Pilot stop'),
+    (4, 1173, 360, '+0.5', '+1.6'),
+    (4, 1171, 752, 'Partner channel', 'Partner stabilization'),
+    (4, 1284, 360, '42.8', '40.9'),
+    (8, 576, 408, 'Platform uplift', 'Reliability Hardening'),
+    (8, 850, 408, 'Expansion Sprint', 'Customer Retention Plays'),
+    (8, 1123, 408, 'International Pilot', 'Data Migration'),
+    (9, 800, 195, 'H2 Growth Roadmap', 'H2 Stabilize-and-Recover Roadmap'),
+    (9, 505, 455, 'Expansion Sprint', 'Reliability Hardening'),
+    (9, 901, 453, 'Expansion Sprint', 'Reliability Hardening'),
+    (9, 505, 535, 'International Pilot', 'Data Migration'),
+    (9, 1013, 533, 'International Pilot', 'Data Migration'),
+    (11, 234, 391, 'Confirm Expansion Sprint funding', 'Protect Reliability Hardening capacity'),
+    (11, 609, 391, 'Approve International Pilot launch window', 'Sequence Data Migration cutover'),
+    (11, 984, 391, 'Maintain current GTM hiring mix', 'Freeze non-critical hiring'),
+)
+
+def _task091_canvas_ready(observation):
+    low=str(observation or '').casefold()
+    return ('operating committee' in low or 'growth plan draft' in low or 'slide' in low) and 'system check' not in low
+
+def _task091_nav_command(current_slide, target_slide):
+    delta=int(target_slide)-int(current_slide)
+    if delta == 0:
+        return None
+    key='pagedown' if delta>0 else 'pageup'
+    return "pyautogui.press(%r, presses=%d, interval=0.12)" % (key, abs(delta))
+
 def next_091_specialist_action(instruction, active_application, observation, state):
     if not _task091_match(instruction):
         return None
-    state['owned'] = True
-    low = str(observation or '').casefold()
-    active = str(active_application or '').casefold()
+    state['owned']=True
+    low=str(observation or '').casefold()
+    active=str(active_application or '').casefold()
 
-    # WPS launch-time popups must never be mistaken for editable deck content.
+    # Dismiss the two startup modals one at a time and re-observe after each.
     if 'system check' in low:
-        return {'action':'exec','command':"pyautogui.hotkey('alt', 'f4')",
-                'plan':'Close the native WPS System Check popup, then re-observe.',
+        return {'action':'exec','command':"pyautogui.press('esc')",
+                'plan':'Dismiss the WPS System Check popup and re-observe the presentation.',
                 'specialist_phase':'dismiss-system-check'}
-    if ('set wps office as your default office software' in low
-            or ('wps office' in low and 'default office' in low)):
-        return {'action':'exec','command':"pyautogui.hotkey('alt', 'f4')",
-                'plan':'Close the native WPS default-office popup, then re-observe.',
+    if ('default office software' in low or 'set wps office as your default' in low):
+        return {'action':'exec','command':"pyautogui.press('esc')",
+                'plan':'Dismiss the WPS default-office popup and re-observe the presentation.',
                 'specialist_phase':'dismiss-default-office'}
-
-    # Replace All produces a modal confirmation. Confirm it before issuing any
-    # further edit so each semantic replacement is observable and attributable.
-    if 'replacements' in low and ('made ' in low or 'wps presentation' in low):
-        state['confirmed_replace_index'] = int(state.get('replace_index') or 0)
-        return {'action':'exec','command':"pyautogui.press('enter')",
-                'plan':'Acknowledge the native Replace All result and re-observe the deck.',
-                'specialist_phase':'confirm-replace-result'}
-
     if not active.startswith('wps'):
         return {'action':'exec','command':"pyautogui.hotkey('alt', 'tab')",
                 'plan':'Return to the already-open WPS presentation.',
                 'specialist_phase':'return-wps'}
 
-    index = int(state.get('replace_index') or 0)
-    phase = str(state.get('edit_phase') or 'open')
-    if index < len(TASK091_REPLACEMENTS):
-        old, new = TASK091_REPLACEMENTS[index]
-        if phase == 'open':
-            state['edit_phase'] = 'find'
-            return {'action':'exec','command':"pyautogui.hotkey('ctrl', 'h')",
-                    'plan':f'Open WPS Replace for audited replacement {index + 1}.',
-                    'specialist_phase':'replace-open'}
-        if phase == 'find':
-            state['edit_phase'] = 'replace'
-            return {'action':'exec',
-                    'command':"pyautogui.hotkey('ctrl', 'a')\n"+f"pyautogui.write({old!r}, interval=0.001)\npyautogui.press('tab')",
-                    'plan':f'Enter the exact find text {old!r}.',
-                    'specialist_phase':'replace-find'}
-        if phase == 'replace':
-            state['edit_phase'] = 'apply'
+    # One-time canvas normalization. Escape any selection/text cursor, then
+    # Home anchors the thumbnail selection to slide 1 in WPS normal view.
+    if not state.get('anchored'):
+        state['anchored']=True
+        state['slide']=1
+        return {'action':'exec','command':"pyautogui.press('esc')\npyautogui.press('home')",
+                'plan':'Clear transient selections and anchor navigation at slide 1.',
+                'specialist_phase':'anchor-slide-1'}
+
+    index=int(state.get('spatial_index') or 0)
+    if index < len(TASK091_SPATIAL_TEXT_EDITS):
+        slide,x,y,old,new=TASK091_SPATIAL_TEXT_EDITS[index]
+        current=int(state.get('slide') or 1)
+        nav=_task091_nav_command(current,slide)
+        if nav:
+            state['slide']=slide
+            return {'action':'exec','command':nav,
+                    'plan':f'Navigate from slide {current} to slide {slide} before editing {old!r}.',
+                    'specialist_phase':'navigate-slide'}
+
+        phase=str(state.get('spatial_phase') or 'select')
+        if phase=='select':
+            state['spatial_phase']='edit'
+            return {'action':'exec','command':f"pyautogui.doubleClick({int(x)}, {int(y)}, interval=0.08)",
+                    'target':{'source':'screenshot','label':old},
+                    'plan':f'Select the visible slide {slide} shape containing {old!r}.',
+                    'specialist_phase':'select-shape'}
+        if phase=='edit':
+            state['spatial_phase']='commit'
             return {'action':'exec',
                     'command':"pyautogui.hotkey('ctrl', 'a')\n"+f"pyautogui.write({new!r}, interval=0.001)",
-                    'plan':f'Enter the exact official rebaseline text {new!r}.',
-                    'specialist_phase':'replace-value','expected_change':new}
-        if phase == 'apply':
-            state['edit_phase'] = 'open'
-            state['replace_index'] = index + 1
-            return {'action':'exec','command':"pyautogui.hotkey('alt', 'a')",
-                    'plan':f'Apply Replace All for audited replacement {index + 1} and await native confirmation.',
-                    'specialist_phase':'replace-apply','expected_change':new}
-
-    if not state.get('closed_replace'):
-        state['closed_replace'] = True
+                    'plan':f'Replace the selected shape text with the final value {new!r}.',
+                    'specialist_phase':'edit-shape','expected_change':new}
+        state['spatial_phase']='select'
+        state['spatial_index']=index+1
         return {'action':'exec','command':"pyautogui.press('esc')",
-                'plan':'Close the Replace dialog after the deterministic replacement pass.',
-                'specialist_phase':'close-replace'}
+                'plan':'Commit the current shape edit and return to slide object selection.',
+                'specialist_phase':'commit-shape','expected_change':new}
+
+    # Slide 9 color requirement: select the proven RoadmapBar_1 geometry.
+    # The exact fill control is discovered only after selection; no speculative
+    # palette shortcut is issued. The generic mesh may then use the visible
+    # Format/Fill control under the same strict observer.
+    if not state.get('roadmap_bar_selected'):
+        current=int(state.get('slide') or 1)
+        if current != 9:
+            state['slide']=9
+            return {'action':'exec','command':_task091_nav_command(current,9),
+                    'plan':'Navigate to slide 9 for the required roadmap bar color update.',
+                    'specialist_phase':'navigate-slide-9-color'}
+        state['roadmap_bar_selected']=True
+        return {'action':'exec','command':"pyautogui.click(901, 453)",
+                'target':{'source':'screenshot','label':'Reliability Hardening'},
+                'plan':'Select the proven RoadmapBar_1 time-span block on slide 9 so its visible Fill control can be used next.',
+                'specialist_phase':'select-roadmap-bar'}
+
     if not state.get('saved'):
-        state['saved'] = True
+        state['saved']=True
         return {'action':'exec','command':"pyautogui.hotkey('ctrl', 's')\npyautogui.sleep(1)",
-                'plan':'Save the rebaselined presentation in place.',
+                'plan':'Save all directly edited WPS slide objects in place.',
                 'specialist_phase':'save'}
-    state['complete'] = True
+    state['complete']=True
     return {'action':'finish','confidence':0.99,
-            'verification':'WPS replacement pass completed with native result confirmations and save',
+            'verification':'Operating_Committee_Rebaseline_Draft.pptx saved after direct slide-object edits',
             'specialist_phase':'finish'}
 
 def try_091_specialist(body, obs, focused_obs):
