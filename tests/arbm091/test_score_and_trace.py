@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from arbm091.score_tracker import exact_result, scan_fatal
-from arbm091.trace_gate import DECK, WORKBOOK, classify, digest, preflight, verify_trace
+from arbm091.trace_gate import DECK, WORKBOOK, classify, digest, preflight, postflight, verify_trace
 from arbm091 import wps_observer
 from unittest.mock import patch
 
@@ -199,6 +199,36 @@ class ForegroundTests(unittest.TestCase):
         body['window']['owner_title'] = 'Utility'
         with self.assertRaisesRegex(ValueError, 'UNAPPROVED'):
             preflight("pyautogui.press('enter')", body)
+
+    def test_system_check_is_authorized_transient_with_only_tab_enter(self):
+        body = snapshot('System Check', 'wpp wpp', pid=2689)
+        body['window']['owner_title'] = DECK + ' - WPS Office'
+        self.assertEqual(classify(body['window']), 'wps-transient')
+        self.assertEqual(preflight("pyautogui.press('tab')", body), 'wps-transient')
+        self.assertEqual(preflight("pyautogui.press('enter')", body), 'wps-transient')
+        with self.assertRaisesRegex(ValueError, 'TRANSIENT'):
+            preflight("pyautogui.hotkey('alt', 'tab')", body)
+        with self.assertRaisesRegex(ValueError, 'TRANSIENT'):
+            preflight("pyautogui.hotkey('alt', 'f4')", body)
+
+    def test_system_check_postflight_requires_same_wps_pid_and_real_close(self):
+        before = snapshot('System Check', 'wpp wpp', pid=2689)
+        before['window']['owner_title'] = DECK + ' - WPS Office'
+        after_tab = copy.deepcopy(before)
+        after_tab['captured_monotonic_ns'] = 11
+        self.assertEqual(postflight("pyautogui.press('tab')", before, after_tab), 'wps-transient')
+        after_deck = snapshot(DECK + ' - WPS Office', 'wpp wpp', pid=2689)
+        after_deck['captured_monotonic_ns'] = 12
+        self.assertEqual(postflight("pyautogui.press('enter')", before, after_deck), 'wps-presentation')
+        drift = snapshot(WORKBOOK + ' - WPS Spreadsheets', 'et WPS', pid=2566)
+        drift['captured_monotonic_ns'] = 13
+        with self.assertRaisesRegex(ValueError, 'WPS_TRANSIENT_CLOSE_UNPROVEN'):
+            postflight("pyautogui.press('enter')", before, drift)
+
+    def test_non_transient_deck_does_not_authorize_destructive_modal_close(self):
+        body = snapshot(DECK + ' - WPS Presentation', 'wpp WPS', pid=2689)
+        self.assertEqual(classify(body['window']), 'wps-presentation')
+        self.assertEqual(preflight("pyautogui.press('enter')", body), 'wps-content')
 
 
 class ObserverStabilityTests(unittest.TestCase):
