@@ -158,6 +158,21 @@ class ForegroundTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'PID_UNPROVEN'):
             preflight("pyautogui.press('enter')", body)
 
+    def test_task091_canonical_spatial_fallback_requires_target_deck_proof(self):
+        body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2594)
+        body['target'] = None
+        body['deck_slide_text'] = {'1':'Growth Plan Draft'}
+        self.assertEqual(preflight('pyautogui.doubleClick(745, 335, interval=0.08)', body), 'wps-content')
+
+        no_proof = copy.deepcopy(body)
+        no_proof['deck_slide_text'] = {}
+        with self.assertRaisesRegex(ValueError, 'UI_TARGET_UNAVAILABLE'):
+            preflight('pyautogui.doubleClick(745, 335, interval=0.08)', no_proof)
+
+        off_allowlist = copy.deepcopy(body)
+        with self.assertRaisesRegex(ValueError, 'UI_TARGET_UNAVAILABLE'):
+            preflight('pyautogui.doubleClick(746, 335, interval=0.08)', off_allowlist)
+
     def test_application_switch_is_not_edit(self):
         self.assertEqual(preflight("pyautogui.hotkey('alt', 'tab')", snapshot()), 'application-switch')
 
