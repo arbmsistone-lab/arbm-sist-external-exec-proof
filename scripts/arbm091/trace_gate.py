@@ -94,13 +94,28 @@ def inside(point: tuple[int, int], box: list[int]) -> bool:
     return w > 0 and h > 0 and x <= point[0] < x + w and y <= point[1] < y + h
 
 
+def _is_press(name, args, key):
+    return name == 'press' and bool(args) and str(args[0]).casefold() == key
+
+
 def preflight(command: str, snapshot: dict) -> str:
-    """The snapshot is produced by guest_probe.py, never by model text."""
     require(snapshot.get('stable') is True, 'FOREGROUND_UNSTABLE')
     window = snapshot.get('window', {})
     app = classify(window)
     name, args, _ = parse_atom(command)
     point = pointer(command)
+
+    if app == 'wps-transient':
+        title=str(window.get('title', '')).strip().casefold()
+        if name == 'hotkey' and set(args) in ({'alt','tab'},{'alt','f4'}):
+            raise ValueError('WPS_TRANSIENT_SWITCH_OR_CLOSE_SHORTCUT_FORBIDDEN')
+        if title == 'system check':
+            require(name == 'sleep' or _is_press(name,args,'tab') or _is_press(name,args,'enter'),
+                    'SYSTEM_CHECK_ACTION_FORBIDDEN')
+        elif title in ('wps office','set wps office as your default office software'):
+            require(name == 'sleep' or _is_press(name,args,'esc'),
+                    'DEFAULT_OFFICE_ACTION_FORBIDDEN')
+
     if point is not None:
         target = snapshot.get('target')
         require(isinstance(target, dict), 'UI_TARGET_UNAVAILABLE')
@@ -121,11 +136,35 @@ def preflight(command: str, snapshot: dict) -> str:
         require(inside(point, window.get('bbox')), 'POINTER_OUTSIDE_FOREGROUND')
         require(snapshot.get('hit_owner_id') == window['id'], 'POINTER_OCCLUDED_OR_FOREIGN_WINDOW')
     elif name == 'hotkey' and set(args) == {'alt', 'tab'}:
+        require(app != 'wps-transient', 'WPS_TRANSIENT_APP_SWITCH_FORBIDDEN')
         return 'application-switch'
     else:
         require(app != 'unapproved', 'UNAPPROVED_APPLICATION')
-    return 'wps-content' if app == 'wps-presentation' else 'reference'
+    return 'wps-transient' if app == 'wps-transient' else ('wps-content' if app == 'wps-presentation' else 'reference')
 
+
+def postflight(command: str, before: dict, after: dict) -> str:
+    require(after.get('stable') is True, 'FOREGROUND_UNSTABLE')
+    before_window=before.get('window', {})
+    after_window=after.get('window', {})
+    before_app=classify(before_window)
+    after_app=classify(after_window)
+    name,args,_=parse_atom(command)
+    if before_app == 'wps-transient':
+        require(after_window.get('pid') == before_window.get('pid'),
+                'WPS_TRANSIENT_CLOSE_UNPROVEN')
+        require(after_app in ('wps-transient','wps-presentation'),
+                'WPS_TRANSIENT_CLOSE_UNPROVEN')
+        before_title=str(before_window.get('title', '')).strip().casefold()
+        after_title=str(after_window.get('title', '')).strip().casefold()
+        if before_title == 'system check' and _is_press(name,args,'tab'):
+            require(after_app == 'wps-transient' and after_title == 'system check',
+                    'WPS_TRANSIENT_CLOSE_UNPROVEN')
+        if before_title == 'system check' and _is_press(name,args,'enter'):
+            require(after_title != 'system check','WPS_TRANSIENT_CLOSE_UNPROVEN')
+        if before_title in ('wps office','set wps office as your default office software') and _is_press(name,args,'esc'):
+            require(after_title != before_title,'WPS_TRANSIENT_CLOSE_UNPROVEN')
+    return after_app
 
 def is_save(command: str) -> bool:
     name, args, _ = parse_atom(command)
