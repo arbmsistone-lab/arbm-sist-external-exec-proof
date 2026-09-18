@@ -1,0 +1,96 @@
+name: ARBM 091 Build Clean Candidate
+on:
+  push:
+    branches: [chatgpt/arbm-091-transplant-bootstrap-20260918]
+    paths: [.github/workflows/arbm-091-build-clean-candidate.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: arbm091-clean-candidate-object-build
+  cancel-in-progress: false
+env:
+  ZERO_SPEND_MODE: HARD
+  PYTHONDONTWRITEBYTECODE: '1'
+  PYTHONPATH: ${{ github.workspace }}/candidate/scripts
+jobs:
+  assemble-and-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Read isolated preparation branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: control
+          persist-credentials: false
+      - name: Read exact clean base without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: cf008c04e9bf01e87fca80799dfc25b1de68d888
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify bounded transport and unpack reviewed Python sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$ZERO_SPEND_MODE" = HARD
+          test "$GITHUB_REPOSITORY" = arbmsistone-lab/arbm-sist-external-exec-proof
+          python - <<'PY'
+          import ast, base64, hashlib, json, os, pathlib, zlib
+          root = pathlib.Path(os.environ['RUNNER_TEMP']) / 'arbm091-package'
+          assert not root.exists(), 'PACKAGE_DESTINATION_EXISTS'
+          control = pathlib.Path('control/audit')
+          first = (control / 'arbm091-clean-package.part1.b64').read_text().strip()
+          second = (control / 'arbm091-clean-package.part2.b64').read_text().strip()
+          # Correct the single verified transport transcription, not source code.
+          # The complete uncompressed reviewed-source hash is checked below.
+          assert second.count('PLuoLYf2Zt') == 1, 'TRANSPORT_CORRECTION_ANCHOR_CHANGED'
+          second = second.replace('PLuoLYf2Zt', 'PLuoLY72Zt', 1)
+          encoded = first + second
+          assert len(encoded) == 25160, 'TRANSPORT_LENGTH_MISMATCH'
+          compressed = base64.b64decode(encoded, validate=True)
+          inflater = zlib.decompressobj()
+          raw = inflater.decompress(compressed, 100000)
+          assert inflater.eof and not inflater.unconsumed_tail and not inflater.unused_data, 'BOUNDED_DECOMPRESSION_FAILED'
+          assert len(raw) == 68169, 'SOURCE_LENGTH_MISMATCH'
+          assert hashlib.sha256(raw).hexdigest() == 'ff0f5013ce409c21ee4daf951d8324952993f2358edecd343d4fa4836f26b7f6', 'SOURCE_HASH_MISMATCH'
+          files = json.loads(raw)
+          assert isinstance(files, dict) and len(files) == 15, 'SOURCE_FILE_COUNT_MISMATCH'
+          for name, text in files.items():
+              path = pathlib.PurePosixPath(name)
+              assert not path.is_absolute() and '..' not in path.parts and '\\' not in name, 'UNSAFE_SOURCE_PATH'
+              assert path.parts[0] in ('bootstrap', 'package') and path.suffix == '.py', 'UNEXPECTED_SOURCE_TYPE'
+              assert isinstance(text, str), 'INVALID_SOURCE_CONTENT'
+              ast.parse(text, filename=name)
+          for name, text in files.items():
+              path = root / name
+              path.parent.mkdir(parents=True, exist_ok=True)
+              path.write_text(text, encoding='utf-8')
+          print(json.dumps({'status': 'REVIEWED_PACKAGE_HASH_PASS', 'files': len(files), 'sha256': hashlib.sha256(raw).hexdigest()}))
+          PY
+      - name: Install pinned lightweight verification dependencies
+        run: python -m pip install --disable-pip-version-check 'PyYAML==6.0.2' 'Pillow==12.1.1' 'ijson==3.4.0'
+      - name: Assemble three commits, run unchanged regression suite, upload immutable objects only
+        working-directory: candidate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python "$RUNNER_TEMP/arbm091-package/bootstrap/assemble.py" 2>&1 | tee "$RUNNER_TEMP/arbm091-assembly.log"
+          test -s "$RUNNER_TEMP/arbm091-candidate-receipt.json"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git log --format='%H %s' cf008c04e9bf01e87fca80799dfc25b1de68d888..HEAD
+          git diff --check cf008c04e9bf01e87fca80799dfc25b1de68d888 HEAD
+      - name: Preserve assembly receipt and complete logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: arbm091-clean-candidate-assembly
+          path: |
+            ${{ runner.temp }}/arbm091-assembly.log
+            ${{ runner.temp }}/arbm091-candidate-receipt.json
+          if-no-files-found: warn
+          retention-days: 14
