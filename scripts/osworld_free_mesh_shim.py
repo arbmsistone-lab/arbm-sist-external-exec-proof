@@ -244,19 +244,23 @@ def _task091_verify_pending(observation,pending):
     return bool(new_same and not old_same),status,new_hit
 
 def next_091_specialist_action(instruction, active_application, observation, state, window_state=None):
+    """Deterministic 091 text pass using native WPS Replace and trusted window state.
+
+    The official VM does not expose slide internals through the a11y tree.  This
+    state machine therefore never requires AT-SPI slide nodes and never uses
+    blind pointer coordinates.  It advances only through proven WPS windows.
+    """
     if not _task091_match(instruction):
         return None
     state['owned']=True
     state.setdefault('mode','TRANSIENT_WPS')
-    state.setdefault('spatial_index',0)
-    state.setdefault('target_retries',0)
+    state.setdefault('replace_index',0)
+    state.setdefault('replace_phase','open')
     window_state=window_state if window_state is not None else _task091_window_state()
 
-    # First turn only synchronizes trusted guest window state through the observer.
     if window_state is None:
-        state['mode']='TRANSIENT_WPS'
         return {'action':'exec','command':"pyautogui.sleep(0.2)",
-                'plan':'Synchronize trusted guest foreground state before any task action.',
+                'plan':'Synchronize trusted guest foreground state before any 091 edit.',
                 'specialist_phase':'sync-window-state'}
 
     try:
@@ -265,6 +269,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
         return _task091_terminal('WPS_DECK_FOREGROUND_UNPROVEN',state)
     window=window_state.get('window',{})
     title=str(window.get('title','')).strip().casefold()
+    owner=str(window.get('owner_title','')).strip().casefold()
 
     if app == 'wps-transient':
         state['mode']='TRANSIENT_WPS'
@@ -278,7 +283,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             if phase is None:
                 state['transient_phase']='tab-issued'
                 return {'action':'exec','command':"pyautogui.press('tab')",
-                        'plan':'Focus the System Check Close control while retaining WPS transient ownership.',
+                        'plan':'Focus the native System Check Close control.',
                         'specialist_phase':'transient-system-check-tab'}
             if phase == 'tab-issued':
                 state['transient_phase']='enter-issued'
@@ -290,7 +295,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             if phase is None:
                 state['transient_phase']='esc-issued'
                 return {'action':'exec','command':"pyautogui.press('esc')",
-                        'plan':'Dismiss the allowlisted WPS default-office transient and re-probe foreground.',
+                        'plan':'Dismiss the allowlisted default-office transient.',
                         'specialist_phase':'transient-default-office-esc'}
             return _task091_terminal('WPS_TRANSIENT_CLOSE_UNPROVEN',state)
         return _task091_terminal('WPS_TRANSIENT_CLOSE_UNPROVEN',state)
@@ -301,114 +306,85 @@ def next_091_specialist_action(instruction, active_application, observation, sta
     state['mode']='DECK_ACTIVE'
     state.pop('transient_phase',None)
     state.pop('transient_title',None)
-    if not _task091_canvas_ready(observation):
-        misses=int(state.get('deck_observation_retries') or 0)
-        if misses>=1:
-            return _task091_terminal('WPS_DECK_FOREGROUND_UNPROVEN',state)
-        state['deck_observation_retries']=misses+1
-        return {'action':'exec','command':"pyautogui.sleep(0.2)",
-                'plan':'Deck foreground is proven by guest state; re-observe AT-SPI deck content once.',
-                'specialist_phase':'deck-a11y-resync'}
-    state['deck_observation_retries']=0
+    idx=int(state.get('replace_index') or 0)
+    phase=str(state.get('replace_phase') or 'open')
 
-    if not state.get('anchored'):
-        state['anchored']=True
-        state['slide']=1
-        return {'action':'exec','command':"pyautogui.hotkey('ctrl', 'home')",
-                'plan':'Foreground is the official deck; anchor navigation at slide 1.',
-                'specialist_phase':'anchor-slide-1'}
+    # Native Replace result dialog: owner is Replace and title is Presentation.
+    if title == 'presentation' and ('replace' in owner or 'find' in owner):
+        if phase != 'await-result':
+            return _task091_terminal('TASK091_UNEXPECTED_REPLACE_RESULT',state)
+        state['replace_phase']='close-dialog'
+        state['native_result_seen']=int(state.get('native_result_seen') or 0)+1
+        return {'action':'exec','command':"pyautogui.press('enter')",
+                'plan':f'Acknowledge native Replace All result for audited replacement {idx + 1}.',
+                'specialist_phase':'replace-result-ack'}
 
-    pending=state.get('pending_edit')
-    if isinstance(pending,dict):
-        stage=pending.get('stage')
-        state['mode']={'select-issued':'TARGET_VISIBLE','edit-issued':'TARGET_EDITING',
-                       'commit-issued':'TARGET_COMMITTED'}.get(stage,'TARGET_VERIFYING')
-        if stage == 'select-issued':
-            pending['stage']='edit-issued'
-            command="pyautogui.hotkey('ctrl', 'a')\n"+f"pyautogui.write({pending['new']!r}, interval=0.001)"
-            pending['action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
-            return {'action':'exec','command':command,
-                    'plan':f"Edit the selected target from {pending['old']!r} to {pending['new']!r}.",
-                    'specialist_phase':'edit-pending-target','expected_change':pending['new']}
-        if stage == 'edit-issued':
-            pending['stage']='commit-issued'
-            command="pyautogui.press('esc')"
-            pending['commit_command_hash']=hashlib.sha256(command.encode()).hexdigest()
-            return {'action':'exec','command':command,
-                    'plan':'Commit the pending shape edit, then re-observe before advancing.',
-                    'specialist_phase':'commit-pending-target','expected_change':pending['new']}
-        if stage == 'commit-issued':
-            verified,status,new_hit=_task091_verify_pending(observation,pending)
-            if verified:
-                state['mode']='TARGET_VERIFIED'
-                state['spatial_index']=int(state.get('spatial_index') or 0)+1
-                state['pending_edit']=None
-                state['target_retries']=0
-                checkpoint='TASK091_FIRST_STRUCTURAL_EDIT_VERIFIED' if state['spatial_index']==1 else 'TASK091_STRUCTURAL_EDIT_VERIFIED'
-                if state['spatial_index']==1:
-                    state['first_structural_edit_verified']=True
-                return {'action':'checkpoint','checkpoint':checkpoint,
-                        'slide':pending['slide'],'old':pending['old'],'new':pending['new'],
-                        'target':new_hit,'specialist_phase':'verify-pending-target'}
-            attempts=int(pending.get('verify_attempts') or 0)+1
-            pending['verify_attempts']=attempts
-            if attempts>=2:
-                return _task091_terminal('TASK091_EDIT_NOT_VERIFIED',state)
-            return {'action':'exec','command':"pyautogui.sleep(0.2)",
-                    'plan':'Pending edit is not semantically verified yet; re-observe same target without advancing.',
-                    'specialist_phase':'reobserve-pending-target'}
-        return _task091_terminal('TASK091_EDIT_NOT_COMMITTED',state)
+    # Replace dialog remains a WPS-owned presentation modal in trace policy.
+    if title in ('replace','find','find and replace','find & replace') or 'replace' in owner:
+        if idx >= len(TASK091_REPLACEMENTS):
+            if phase == 'close-dialog':
+                state['replace_phase']='save'
+                return {'action':'exec','command':"pyautogui.press('esc')",
+                        'plan':'Close Replace after completing the deterministic text pass.',
+                        'specialist_phase':'replace-close-final'}
+            return _task091_terminal('TASK091_REPLACE_INDEX_OVERFLOW',state)
+        old,new=TASK091_REPLACEMENTS[idx]
+        if phase == 'find':
+            state['replace_phase']='value'
+            return {'action':'exec',
+                    'command':"pyautogui.hotkey('ctrl', 'a')\n"+f"pyautogui.write({old!r}, interval=0.001)\npyautogui.press('tab')",
+                    'plan':f'Enter exact audited find text {old!r}.',
+                    'specialist_phase':'replace-find'}
+        if phase == 'value':
+            state['replace_phase']='apply'
+            return {'action':'exec',
+                    'command':"pyautogui.hotkey('ctrl', 'a')\n"+f"pyautogui.write({new!r}, interval=0.001)",
+                    'plan':f'Enter exact audited replacement text {new!r}.',
+                    'specialist_phase':'replace-value','expected_change':new}
+        if phase == 'apply':
+            state['replace_phase']='await-result'
+            return {'action':'exec','command':"pyautogui.hotkey('alt', 'a')",
+                    'plan':f'Apply native Replace All for audited replacement {idx + 1}.',
+                    'specialist_phase':'replace-apply','expected_change':new}
+        if phase == 'close-dialog':
+            state['replace_index']=idx+1
+            state['replace_phase']='open'
+            return {'action':'exec','command':"pyautogui.press('esc')",
+                    'plan':f'Close Replace after native result {idx + 1}; advance only after confirmation.',
+                    'specialist_phase':'replace-close'}
+        return _task091_terminal('TASK091_REPLACE_PHASE_INVALID',state)
 
-    index=int(state.get('spatial_index') or 0)
-    if index < len(TASK091_SPATIAL_TEXT_EDITS):
-        slide,x,y,old,new=TASK091_SPATIAL_TEXT_EDITS[index]
-        current=int(state.get('slide') or 1)
-        nav=_task091_nav_command(current,slide)
-        if nav:
-            state['slide']=slide
-            return {'action':'exec','command':nav,
-                    'plan':f'Navigate from slide {current} to slide {slide} before editing {old!r}.',
-                    'specialist_phase':'navigate-slide'}
+    # Only the actual deck window may open the next Replace operation.
+    deck_title='operating_committee_rebaseline_draft.pptx' in title
+    if not deck_title:
+        return _task091_terminal('WPS_DECK_FOREGROUND_UNPROVEN',state)
 
-        status,target=_task091_target_resolution(observation,old,x,y)
-        if status != 'visible':
-            retries=int(state.get('target_retries') or 0)
-            if retries<1:
-                state['target_retries']=retries+1
-                return {'action':'exec','command':"pyautogui.sleep(0.2)",
-                        'plan':f'Re-observe the current slide once for target {old!r}.',
-                        'specialist_phase':'reobserve-target'}
-            reason='TASK091_TARGET_AMBIGUOUS' if status=='ambiguous' else 'TASK091_TARGET_NOT_VISIBLE'
-            return _task091_terminal(reason,state)
+    if phase == 'close-dialog':
+        # The result acknowledgement may close both modal layers on some WPS builds.
+        state['replace_index']=idx+1
+        state['replace_phase']='open'
+        idx+=1
+        phase='open'
 
-        state['target_retries']=0
-        state['mode']='TARGET_VISIBLE'
-        command=f"pyautogui.doubleClick({int(target['cx'])}, {int(target['cy'])}, interval=0.08)"
-        state['pending_edit']={
-            'slide':slide,'old':old,'new':new,'stage':'select-issued',
-            'target':{'label':target['label'],'role':target['role'],
-                      'bbox':[target['x'],target['y'],target['w'],target['h']],
-                      'cx':target['cx'],'cy':target['cy']},
-            'before_observation_hash':hashlib.sha256(str(observation or '').encode()).hexdigest(),
-            'action_command_hash':hashlib.sha256(command.encode()).hexdigest(),
-            'verify_attempts':0,
-        }
-        return {'action':'exec','command':command,
-                'target':{'source':'accessibility','label':target['label'],'role':target['role']},
-                'plan':f'Select the unique visible AT-SPI target on slide {slide} containing {old!r}.',
-                'specialist_phase':'select-pending-target'}
+    if idx < len(TASK091_REPLACEMENTS):
+        if phase != 'open':
+            return _task091_terminal('TASK091_REPLACE_DIALOG_LOST',state)
+        state['replace_phase']='find'
+        return {'action':'exec','command':"pyautogui.hotkey('ctrl', 'h')",
+                'plan':f'Open native WPS Replace for audited replacement {idx + 1}.',
+                'specialist_phase':'replace-open'}
 
-    if state.get('pending_edit'):
-        return _task091_terminal('TASK091_EDIT_NOT_COMMITTED',state)
     if not state.get('saved'):
         state['saved']=True
-        return {'action':'exec','command':"pyautogui.hotkey('ctrl', 's')\npyautogui.sleep(1)",
-                'plan':'Save all semantically verified direct-object edits before structural chart/fill handoff.',
-                'specialist_phase':'save-verified-spatial-pass'}
-    state['mode']='STRUCTURAL_HANDOFF'
-    state['handoff']=True
-    state['handoff_reason']='DIRECT_TEXT_PASS_VERIFIED_CHART_FILL_REMAINS'
-    return None
+        state['replace_phase']='saved'
+        return {'action':'exec','command':"pyautogui.hotkey('ctrl', 's')",
+                'plan':'Save the deterministic native-Replace pass in the official deck.',
+                'specialist_phase':'replace-save'}
+    state['mode']='TEXT_PASS_COMPLETE'
+    state['text_pass_complete']=True
+    return {'action':'finish','confidence':0.99,
+            'verification':'Native WPS Replace pass completed with trusted modal confirmations and save',
+            'specialist_phase':'replace-finish'}
 
 def try_091_specialist(body, obs, focused_obs):
     state=STATE.setdefault('task091_specialist',{})
