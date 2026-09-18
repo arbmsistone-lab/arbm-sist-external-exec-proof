@@ -363,6 +363,38 @@ def allow_bounded_wps_escape_repeat(action, active_application, verifier_result,
         break
     return consecutive==1
 
+def allow_bounded_wps_modal_close_repeat(action, active_application, verifier_result, recent_commands):
+    """Allow exactly one retry when the first explicit WPS modal Close click only focused the dialog."""
+    if not isinstance(action,dict) or action.get('action')!='exec':
+        return False
+    if not normalized_target(active_application).startswith('wps'):
+        return False
+    if 'After two bounded Escape attempts' not in str(action.get('compiler_note') or ''):
+        return False
+    target=action.get('target')
+    if not isinstance(target,dict) or str(target.get('source') or '').lower()!='screenshot':
+        return False
+    if normalized_target(target.get('label')) not in {'close','ok','cancel'}:
+        return False
+    command=str(action.get('command') or '')
+    calls=_gui_calls(command)
+    if len(calls)!=1 or calls[0].func.attr not in {'click','doubleClick','rightClick'}:
+        return False
+    result=verifier_result if isinstance(verifier_result,dict) else {}
+    if not (result.get('tree_changed') is False and result.get('visual_changed') is False):
+        return False
+    if str(result.get('reason') or '') not in {'action_no_progress','visual_change_without_semantic_checkpoint'}:
+        return False
+    recent=[str(x or '') for x in (recent_commands or [])]
+    consecutive=0
+    for previous in reversed(recent):
+        if previous==command:
+            consecutive+=1
+            continue
+        break
+    return consecutive==1
+
+
 def ground_action(action, active_application, observation='', verified_milestones=None, allow_canonical=False,
                   verifier_result=None, recent_commands=None):
     """Compile desktop activation and block unsafe source-context abandonment."""
