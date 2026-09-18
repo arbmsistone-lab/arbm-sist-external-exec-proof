@@ -200,12 +200,19 @@ class ForegroundTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'UNAPPROVED'):
             preflight("pyautogui.press('enter')", body)
 
-    def test_system_check_is_authorized_transient_with_only_tab_enter(self):
+    def test_system_check_is_authorized_transient_with_tab_space_and_verified_click(self):
         body = snapshot('System Check', 'wpp wpp', pid=2689)
         body['window']['owner_title'] = DECK + ' - WPS Office'
         self.assertEqual(classify(body['window']), 'wps-transient')
         self.assertEqual(preflight("pyautogui.press('tab')", body), 'wps-transient')
-        self.assertEqual(preflight("pyautogui.press('enter')", body), 'wps-transient')
+        self.assertEqual(preflight("pyautogui.press('space')", body), 'wps-transient')
+        click = copy.deepcopy(body)
+        click['target'] = {'pid':2689,'label':'Close','role':'push button',
+                           'bbox':[650,360,90,32],'showing':True,'enabled':True,
+                           'application':'wps'}
+        click['window']['bbox']=[120,112,699,327]
+        click['hit_owner_id']=click['window']['id']
+        self.assertEqual(preflight("pyautogui.click(695, 376)", click), 'wps-transient')
         with self.assertRaisesRegex(ValueError, 'TRANSIENT'):
             preflight("pyautogui.hotkey('alt', 'tab')", body)
         with self.assertRaisesRegex(ValueError, 'TRANSIENT'):
@@ -217,13 +224,27 @@ class ForegroundTests(unittest.TestCase):
         after_tab = copy.deepcopy(before)
         after_tab['captured_monotonic_ns'] = 11
         self.assertEqual(postflight("pyautogui.press('tab')", before, after_tab), 'wps-transient')
+        after_space = copy.deepcopy(before)
+        after_space['captured_monotonic_ns'] = 12
+        self.assertEqual(postflight("pyautogui.press('space')", before, after_space), 'wps-transient')
         after_deck = snapshot(DECK + ' - WPS Office', 'wpp wpp', pid=2689)
-        after_deck['captured_monotonic_ns'] = 12
-        self.assertEqual(postflight("pyautogui.press('enter')", before, after_deck), 'wps-presentation')
+        after_deck['captured_monotonic_ns'] = 13
+        self.assertEqual(postflight("pyautogui.click(695, 376)", before, after_deck), 'wps-presentation')
         drift = snapshot(WORKBOOK + ' - WPS Spreadsheets', 'et WPS', pid=2566)
-        drift['captured_monotonic_ns'] = 13
+        drift['captured_monotonic_ns'] = 14
         with self.assertRaisesRegex(ValueError, 'WPS_TRANSIENT_CLOSE_UNPROVEN'):
-            postflight("pyautogui.press('enter')", before, drift)
+            postflight("pyautogui.click(695, 376)", before, drift)
+
+    def test_system_check_click_requires_real_close_target(self):
+        body = snapshot('System Check', 'wpp wpp', pid=2689)
+        body['window']['owner_title'] = DECK + ' - WPS Office'
+        body['window']['bbox'] = [120,112,699,327]
+        body['hit_owner_id'] = body['window']['id']
+        body['target'] = {'pid':2689,'label':'Other','role':'push button',
+                          'bbox':[650,360,90,32],'showing':True,'enabled':True,
+                          'application':'wps'}
+        with self.assertRaisesRegex(ValueError, 'CLOSE_TARGET_UNPROVEN'):
+            preflight("pyautogui.click(695, 376)", body)
 
     def test_non_transient_deck_does_not_authorize_destructive_modal_close(self):
         body = snapshot(DECK + ' - WPS Presentation', 'wpp WPS', pid=2689)
