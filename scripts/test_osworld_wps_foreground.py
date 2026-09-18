@@ -82,6 +82,30 @@ class WPSForegroundRegressionTests(unittest.TestCase):
             action,"WPS 2019",{"tree_changed":True,"visual_changed":False},
             ["pyautogui.press('esc')","pyautogui.press('esc')"]))
 
+    def test_bounded_modal_close_repeat_allows_exactly_one_focus_retry(self):
+        action={
+            "action":"exec",
+            "command":"pyautogui.click(774, 416)",
+            "target":{"source":"screenshot","label":"Close"},
+            "compiler_note":"After two bounded Escape attempts, preserved the single visual pointer using the explicitly observed modal control label.",
+        }
+        stalled={"reason":"action_no_progress","tree_changed":False,"visual_changed":False}
+        self.assertTrue(control.allow_bounded_wps_modal_close_repeat(
+            action,"WPS 2019",stalled,["pyautogui.click(774, 416)"]))
+        self.assertFalse(control.allow_bounded_wps_modal_close_repeat(
+            action,"WPS 2019",stalled,["pyautogui.click(774, 416)","pyautogui.click(774, 416)"]))
+
+    def test_bounded_modal_close_repeat_rejects_unrelated_pointer(self):
+        action={
+            "action":"exec",
+            "command":"pyautogui.click(774, 416)",
+            "target":{"source":"screenshot","label":"Open"},
+            "compiler_note":"After two bounded Escape attempts, preserved the single visual pointer using the explicitly observed modal control label.",
+        }
+        stalled={"reason":"action_no_progress","tree_changed":False,"visual_changed":False}
+        self.assertFalse(control.allow_bounded_wps_modal_close_repeat(
+            action,"WPS 2019",stalled,["pyautogui.click(774, 416)"]))
+
     def test_bounded_escape_does_not_apply_without_modal_repair_proof(self):
         action={"action":"exec","command":"pyautogui.press('esc')"}
         self.assertFalse(control.allow_bounded_wps_escape_repeat(
