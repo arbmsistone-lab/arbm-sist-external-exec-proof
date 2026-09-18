@@ -78,7 +78,7 @@ jobs:
       shell: bash
       run: 'set -euo pipefail
 
-        gh api -H ''Accept: application/vnd.github+json'' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10550469277/zip
+        gh api -H ''Accept: application/vnd.github+json'' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10552892356/zip
         > /tmp/091.zip
 
         mkdir -p /tmp/091
@@ -96,10 +96,10 @@ jobs:
         python -m pip install --disable-pip-version-check -q ''torch==2.7.1'' ''transformers==4.52.4'' ''safetensors==0.8.0''
 
         '
-    - name: Replay exact failed Step 2 through PID-isolated selector twice
+    - name: Replay exact WPS 2019 Step 2 through alias-isolated selector twice
       shell: bash
       run: "set -euo pipefail\npython scripts/replay_091_local_contract.py /tmp/091/task-091/shim-observations/step_0002.json\
-        \ \\\n  | tee /tmp/091-local-contract-replay.json\n"
+        \ \\\n  | tee /tmp/091-local-contract-replay.json\n! grep -F "pyautogui.click(35, 884)" /tmp/091-local-contract-replay.json\n"
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       if: always()
       with:
