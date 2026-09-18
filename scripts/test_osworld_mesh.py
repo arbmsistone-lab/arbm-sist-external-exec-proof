@@ -328,8 +328,8 @@ class MeshTests(unittest.TestCase):
         'text\tGrowth Plan Draft\tGrowth Plan Draft\t\t\t(690, 300)\t(100, 40)\n'
         'text\tGrowth Plan Draft\tGrowth Plan Draft\t\t\t(700, 300)\t(100, 40)')
    ambiguous={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
-   self.assertIn('sleep',shim.next_091_specialist_action(task,'WPS Presentation',dup,ambiguous,deck)['command'])
    amb_terminal=shim.next_091_specialist_action(task,'WPS Presentation',dup,ambiguous,deck)
+   self.assertEqual(amb_terminal['action'],'terminal')
    self.assertEqual(amb_terminal['reason'],'TASK091_TARGET_AMBIGUOUS')
 
    no_op_index=next(i for i,row in enumerate(shim.TASK091_SPATIAL_TEXT_EDITS)
