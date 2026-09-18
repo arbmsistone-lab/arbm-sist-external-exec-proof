@@ -292,11 +292,16 @@ def _task091_verify_pending(observation,pending,window_state):
     before_new=int(pending.get('before_new_count') or 0)
     after_old=_task091_text_count(window_state,slide,pending.get('old'))
     after_new=_task091_text_count(window_state,slide,pending.get('new'))
-    disk_verified=(before_old > 0 and after_old < before_old and after_new > before_new)
+    before_sha=str(pending.get('before_deck_sha256') or '')
+    after_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
+    after_sha=str(after_file.get('sha256') or '') if isinstance(after_file,dict) else ''
+    disk_verified=(len(before_sha)==64 and len(after_sha)==64 and after_sha != before_sha
+                   and before_old > 0 and after_old < before_old and after_new > before_new)
     if disk_verified:
         return True,'disk-verified',{'source':'target-pptx','slide':slide,
                                     'old_count_before':before_old,'old_count_after':after_old,
-                                    'new_count_before':before_new,'new_count_after':after_new}
+                                    'new_count_before':before_new,'new_count_after':after_new,
+                                    'sha256_before':before_sha,'sha256_after':after_sha}
     bbox=pending.get('target',{}).get('bbox')
     old_hits=_task091_atspi_candidates(observation,pending.get('old'))
     status,new_hit=_task091_target_resolution(
@@ -450,6 +455,14 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                     'plan':f'Navigate from slide {current} to slide {slide} before editing {old!r}.',
                     'specialist_phase':'navigate-slide'}
 
+        if _task091_norm(old) == _task091_norm(new):
+            state['spatial_index']=index+1
+            state['mode']='TARGET_VERIFIED'
+            return {'action':'checkpoint','checkpoint':'TASK091_TARGET_ALREADY_FINAL',
+                    'slide':slide,'old':old,'new':new,
+                    'target':{'source':'task091-final-state','x':x,'y':y},
+                    'specialist_phase':'skip-already-final-target'}
+
         status,target=_task091_target_resolution(observation,old,x,y)
         source='accessibility'
         before_old=_task091_text_count(window_state,slide,old)
@@ -478,6 +491,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                       'bbox':[target['x'],target['y'],target['w'],target['h']],
                       'cx':target['cx'],'cy':target['cy'],'source':source},
             'before_old_count':before_old,'before_new_count':before_new,
+            'before_deck_sha256':str((window_state.get('deck_file',{}) or {}).get('sha256','')),
             'before_observation_hash':hashlib.sha256(str(observation or '').encode()).hexdigest(),
             'action_command_hash':hashlib.sha256(command.encode()).hexdigest(),
             'verify_attempts':0,
