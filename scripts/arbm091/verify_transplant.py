@@ -17,6 +17,8 @@ LOCAL_VLM = 'scripts/osworld_local_vlm.py'
 LOCAL_VLM_TEST = 'scripts/test_osworld_local_vlm.py'
 TRACE_GATE = 'scripts/arbm091/trace_gate.py'
 TRACE_TEST = 'tests/arbm091/test_score_and_trace.py'
+SHIM = 'scripts/osworld_free_mesh_shim.py'
+MESH_TEST = 'scripts/test_osworld_mesh.py'
 WPS_ALIAS_COMMIT = 'f0a49b84c95808b501cd91aed14bd702e8230a9c'
 WPS_ALIAS_TEST_COMMIT = '51f63478520b3e8fa89152460dc12dd7da446945'
 WPS_SWITCH_COMMIT = '379a7c64fad1b2776a93f578de8d2ca766473e18'
@@ -88,18 +90,19 @@ def main():
             'CLEAN_BASELINE_ANCESTRY_MISMATCH')
     require(git('rev-list', '--count', BASE + '..' + CLEAN_BASELINE) == '3',
             'EXACTLY_THREE_BASELINE_COMMITS_REQUIRED')
-    require(git('rev-list', '--count', BASE + '..HEAD') == '17',
-            'EXACTLY_SEVENTEEN_AUDITED_COMMITS_REQUIRED')
+    require(git('rev-list', '--count', BASE + '..HEAD') == '20',
+            'EXACTLY_TWENTY_AUDITED_COMMITS_REQUIRED')
     require(not git('rev-list', '--merges', BASE + '..HEAD'), 'MERGE_COMMITS_FORBIDDEN')
     overlay = git('rev-list', '--reverse', CLEAN_BASELINE + '..HEAD').splitlines()
-    require(len(overlay) == 14, 'EXACTLY_FOURTEEN_REPAIR_COMMITS_REQUIRED')
+    require(len(overlay) == 17, 'EXACTLY_SEVENTEEN_REPAIR_COMMITS_REQUIRED')
     require(overlay[2] == PID_FILTER_COMMIT and overlay[3] == PID_TEST_COMMIT,
             'PID_REPAIR_COMMIT_IDENTITY_MISMATCH')
     require(overlay[6] == WPS_ALIAS_COMMIT and overlay[7] == WPS_ALIAS_TEST_COMMIT
             and overlay[8] == WPS_SWITCH_COMMIT and overlay[9] == WPS_SWITCH_TEST_COMMIT,
             'WPS_ALIAS_REPAIR_COMMIT_IDENTITY_MISMATCH')
     expected_scopes = (VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST, VERIFIER, WORKFLOW,
-                       LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, VERIFIER, WORKFLOW, VERIFIER, WORKFLOW)
+                       LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, VERIFIER, WORKFLOW, VERIFIER, WORKFLOW,
+                       VERIFIER, SHIM, MESH_TEST)
     for commit, allowed in zip(overlay, expected_scopes):
         require(git('diff-tree', '--no-commit-id', '--name-only', '-r', commit) == allowed,
                 'REPAIR_COMMIT_SCOPE_MISMATCH:' + commit)
@@ -113,7 +116,7 @@ def main():
     changed = set(git('diff', '--name-only', BASE, 'HEAD').splitlines())
     require(changed == set(manifest), 'CHANGED_FILE_ALLOWLIST_MISMATCH')
     require(set(git('diff', '--name-only', CLEAN_BASELINE, 'HEAD').splitlines())
-            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST},
+            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST},
             'REPAIR_TOTAL_SCOPE_MISMATCH')
     exists = subprocess.run(['git', 'cat-file', '-e', PATCH_SOURCE], capture_output=True).returncode == 0
     if exists:
@@ -131,7 +134,8 @@ def main():
     expected.update({row['path']: row['after_sha256'] for row in adjustments})
     expected.update(patch['postimage_sha256'])
     repaired = {LOCAL_VLM: WPS_ALIAS_COMMIT, LOCAL_VLM_TEST: WPS_ALIAS_TEST_COMMIT,
-                TRACE_GATE: WPS_SWITCH_COMMIT, TRACE_TEST: WPS_SWITCH_TEST_COMMIT}
+                TRACE_GATE: WPS_SWITCH_COMMIT, TRACE_TEST: WPS_SWITCH_TEST_COMMIT,
+                SHIM: overlay[15], MESH_TEST: overlay[16]}
     for path, wanted in expected.items():
         if path in repaired:
             source = subprocess.check_output(['git', 'show', repaired[path] + ':' + path])
@@ -142,9 +146,9 @@ def main():
     verify_workflow_delta()
     print(json.dumps({'status': 'CLEAN_HISTORY_AND_SCOPE_PASS', 'base_sha': BASE,
                       'clean_baseline_sha': CLEAN_BASELINE, 'baseline_commits': 3,
-                      'repair_commits': overlay, 'new_commits': 17, 'changed_files': len(changed),
+                      'repair_commits': overlay, 'new_commits': 20, 'changed_files': len(changed),
                       'repair_scope': [VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST,
-                                       TRACE_GATE, TRACE_TEST], 'official_score_claimed': False}))
+                                       TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST], 'official_score_claimed': False}))
 
 
 if __name__ == '__main__':
