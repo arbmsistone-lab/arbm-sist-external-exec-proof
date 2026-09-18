@@ -1,0 +1,58 @@
+name: ARBM 091 Exact Candidate Workspace Proof
+on:
+  push:
+    branches: [chatgpt/arbm-091-transplant-bootstrap-20260918]
+    paths: [.github/workflows/arbm-091-candidate-preflight.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  ZERO_SPEND_MODE: HARD
+  PYTHONDONTWRITEBYTECODE: '1'
+  PYTHONPATH: ${{ github.workspace }}/scripts
+  EXPECTED_CANDIDATE: a3307fd28c0e50634b931692b6bb1049b2c0c5c9
+jobs:
+  exact-candidate-workspace:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: a3307fd28c0e50634b931692b6bb1049b2c0c5c9
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact clean candidate
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$(git rev-parse HEAD)" = "$EXPECTED_CANDIDATE"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          python -m arbm091.verify_transplant
+          git diff --check cf008c04e9bf01e87fca80799dfc25b1de68d888 HEAD
+      - name: Install original verification dependencies
+        run: python -m pip install --disable-pip-version-check -r scripts/requirements-osworld.txt
+      - name: Reproduce unchanged suites and record post-test workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests/arbm091 -p 'test_*.py' -v 2>&1 | tee "$RUNNER_TEMP/arbm091-proof-tests.log"
+          python -m unittest discover -s scripts -p 'test_osworld_*.py' 2>&1 | tee "$RUNNER_TEMP/arbm091-original-tests.log"
+          python scripts/osworld_v32_regression_gate.py
+          git status --porcelain=v1 --untracked-files=all | tee "$RUNNER_TEMP/arbm091-post-test-status.txt"
+          git diff --stat
+          git diff --exit-code
+          git diff --cached --exit-code
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          printf '%s\n' "$EXPECTED_CANDIDATE" > "$RUNNER_TEMP/arbm091-workspace-clean-sha.txt"
+      - name: Preserve exact candidate diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: arbm091-exact-candidate-workspace
+          path: |
+            ${{ runner.temp }}/arbm091-proof-tests.log
+            ${{ runner.temp }}/arbm091-original-tests.log
+            ${{ runner.temp }}/arbm091-post-test-status.txt
+            ${{ runner.temp }}/arbm091-workspace-clean-sha.txt
+          if-no-files-found: warn
+          retention-days: 14
