@@ -1,0 +1,109 @@
+import unittest
+from osworld_v32_policy import DecisionKind, extract_state, enforce_policy, classify_capacity
+
+
+class TestV32Policy(unittest.TestCase):
+    def test_background_file_not_foreground_proof(self):
+        state = extract_state("Google Chrome", "label\tdegree_audit_report.pdf\nlabel\tSyllabus-CS-4Y.pdf")
+        self.assertIn("degree_audit_report.pdf", state.background_elements)
+        self.assertNotIn("degree_audit_report.pdf", state.foreground_visible)
+        with self.assertRaisesRegex(ValueError, "NOOP_REQUIRES_FOREGROUND_PROOF"):
+            enforce_policy(state, {"kind":"NOOP_VERIFIED","checkpoint":{"visible_text":"degree_audit_report.pdf"}})
+
+    def test_desktop_file_can_prove_noop(self):
+        state = extract_state("Desktop", "label\tdegree_audit_report.pdf")
+        result = enforce_policy(state, {"kind":"NOOP_VERIFIED","checkpoint":{"visible_text":"degree_audit_report.pdf"}})
+        self.assertEqual(result["kind"], DecisionKind.NOOP_VERIFIED.value)
+
+    def test_open_archive_locks_context(self):
+        state = extract_state("Archive Manager", "title filter.zip\nlabel city.zip")
+        with self.assertRaisesRegex(ValueError, "SOURCE_CONTEXT_LOCKED"):
+            enforce_policy(state, {"kind":"EXEC","command":"pyautogui.hotkey('ctrl', 'win', 'd')","checkpoint":{"application":"Desktop"}})
+
+    def test_completed_archive_allows_transition(self):
+        milestones=[{"name":"filter.zip read complete","verification":"verified"}]
+        state = extract_state("Archive Manager", "title filter.zip", milestones)
+        result = enforce_policy(state, {"kind":"EXEC","command":"pyautogui.hotkey('ctrl', 'win', 'd')","checkpoint":{"application":"Desktop"}})
+        self.assertEqual(result["kind"], DecisionKind.EXEC.value)
+
+    def test_capacity_is_not_cognitive_wait(self):
+        self.assertEqual(classify_capacity(False), DecisionKind.HOLD_CAPACITY)
+        self.assertEqual(classify_capacity(True), DecisionKind.EXEC)
+
+    def test_finish_blocked_until_prerequisites_complete(self):
+        state = extract_state("Archive Manager", "title filter.zip")
+        with self.assertRaisesRegex(ValueError, "FINISH_WITH_UNMET_PREREQUISITES"):
+            enforce_policy(state, {"kind":"FINISH_CANDIDATE"})
+
+
+    def test_host_workspace_path_is_forbidden(self):
+        state=extract_state('GNU Image Manipulation Program','')
+        action={'action':'exec','command':"pyautogui.write('/home/oai/share/IMG_7328_edited.jpg')"}
+        with self.assertRaisesRegex(ValueError,'HOST_WORKSPACE_PATH_FORBIDDEN'):
+            enforce_policy(state,{'kind':DecisionKind.EXEC.value,'command':action['command']})
+
+    def test_guest_picture_path_remains_allowed(self):
+        state=extract_state('GNU Image Manipulation Program','')
+        action={'action':'exec','command':"pyautogui.write('/home/user/Pictures/IMG_7318_edited.jpg')"}
+        out=enforce_policy(state,{'kind':DecisionKind.EXEC.value,'command':action['command']})
+        self.assertEqual(out['kind'],DecisionKind.EXEC.value)
+
+if __name__ == "__main__":
+    unittest.main()
+
+class TestLegacyBridge(unittest.TestCase):
+    def test_wait_background_is_rejected(self):
+        from osworld_v32_policy import decision_from_agent
+        state = extract_state("Google Chrome", "label\tdegree_audit_report.pdf")
+        with self.assertRaisesRegex(ValueError, "NOOP_REQUIRES_FOREGROUND_PROOF"):
+            decision_from_agent({"action":"wait","checkpoint":{"visible_text":"degree_audit_report.pdf"}}, state)
+
+    def test_wait_foreground_becomes_verified_noop(self):
+        from osworld_v32_policy import decision_from_agent
+        state = extract_state("Desktop", "label\tdegree_audit_report.pdf")
+        result = decision_from_agent({"action":"wait","checkpoint":{"visible_text":"degree_audit_report.pdf"}}, state)
+        self.assertEqual(result["kind"], DecisionKind.NOOP_VERIFIED.value)
+
+    def test_capacity_overrides_agent_output(self):
+        from osworld_v32_policy import decision_from_agent
+        state = extract_state("Desktop", "label\tx.pdf")
+        result = decision_from_agent({"action":"exec","command":"pyautogui.press('enter')"}, state, provider_available=False)
+        self.assertEqual(result["kind"], DecisionKind.HOLD_CAPACITY.value)
+
+
+class TestLivePolicyBridge(unittest.TestCase):
+    def test_live_bridge_blocks_background_wait(self):
+        from osworld_v32_policy import apply_live_policy
+        with self.assertRaisesRegex(ValueError, "NOOP_REQUIRES_FOREGROUND_PROOF"):
+            apply_live_policy({"action":"wait","checkpoint":{"visible_text":"degree_audit_report.pdf"}},
+                              "Google Chrome", "label\tdegree_audit_report.pdf")
+
+    def test_live_bridge_blocks_archive_escape(self):
+        from osworld_v32_policy import apply_live_policy
+        with self.assertRaisesRegex(ValueError, "SOURCE_CONTEXT_LOCKED"):
+            apply_live_policy({"action":"exec","command":"pyautogui.hotkey('ctrl', 'win', 'd')",
+                               "checkpoint":{"application":"Desktop"}},
+                              "Archive Manager", "title filter.zip")
+
+    def test_shim_imports_v32_policy(self):
+        from pathlib import Path
+        text = (Path(__file__).parent / "osworld_free_mesh_shim.py").read_text(encoding="utf-8")
+        self.assertIn("from osworld_v32_policy import DecisionKind, apply_live_policy", text)
+        self.assertIn("decision=apply_live_policy", text)
+
+
+class TestVisualReferenceRecovery(unittest.TestCase):
+    def test_requires_editor_and_repeated_unverified_actions(self):
+        from osworld_control import visual_reference_recovery
+        instruction = "Apply the same style and color grading from a reference image to target.jpg."
+        self.assertEqual(visual_reference_recovery(instruction, "GIMP", 3), "")
+        self.assertEqual(visual_reference_recovery(instruction, "Files", 8), "")
+        guidance = visual_reference_recovery(instruction, "GNU Image Manipulation Program", 4)
+        self.assertIn("Stop repeating file-navigation actions", guidance)
+        self.assertIn("visible editor adjustment", guidance)
+
+    def test_shim_uses_visual_reference_recovery(self):
+        from pathlib import Path
+        text = (Path(__file__).parent / "osworld_free_mesh_shim.py").read_text(encoding="utf-8")
+        self.assertIn("visual_reference_recovery", text)
+        self.assertIn("visual_recovery", text)
