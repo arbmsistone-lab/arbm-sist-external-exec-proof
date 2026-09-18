@@ -12,7 +12,8 @@ ALLOWED_LAUNCHERS = {'google chrome', 'wps presentation', 'wps 2019', 'wps offic
                      'wps spreadsheets', DECK.lower(), WORKBOOK.lower()}
 POINTERS = {'click', 'doubleClick', 'rightClick', 'moveTo', 'mouseDown', 'mouseUp', 'dragTo'}
 NON_EDITING = {'moveTo', 'sleep', 'keyDown', 'keyUp'}
-WPS_TRANSIENT_TITLES = {'presentation', 'replace', 'find', 'find and replace', 'find & replace'}
+WPS_TRANSIENT_TITLES = {'system check', 'wps office', 'set wps office as your default office software',
+                        'presentation', 'replace', 'find', 'find and replace', 'find & replace'}
 
 
 def digest(value: object) -> str:
@@ -25,6 +26,21 @@ def require(ok: bool, message: str) -> None:
         raise ValueError(message)
 
 
+def _is_wps_class(klass: str) -> bool:
+    value=str(klass or '').casefold()
+    return any(x in value for x in ('wps', 'wpp', 'kingsoft'))
+
+
+def is_authorized_wps_transient(window: dict) -> bool:
+    if not isinstance(window, dict):
+        return False
+    title=str(window.get('title', '')).strip().casefold()
+    owner=str(window.get('owner_title', '')).strip().casefold()
+    return (_is_wps_class(window.get('wm_class', ''))
+            and DECK.casefold() in owner
+            and title in WPS_TRANSIENT_TITLES)
+
+
 def classify(window: dict) -> str:
     require(isinstance(window, dict), 'WINDOW_OBJECT_REQUIRED')
     require(type(window.get('pid')) is int and window['pid'] > 0, 'WINDOW_PID_UNPROVEN')
@@ -33,22 +49,15 @@ def classify(window: dict) -> str:
     owner = str(window.get('owner_title', ''))
     klass = str(window.get('wm_class', '')).casefold()
     titles = (title + ' ' + owner).casefold()
-    if DECK.casefold() in titles and any(x in klass for x in ('wps', 'wpp', 'kingsoft')):
-        return 'wps-presentation'
-    klass_tokens = set(klass.replace('.', ' ').replace('-', ' ').split())
-    title_norm = title.strip().casefold()
-    owner_norm = owner.strip().casefold()
-    transient = (title_norm in WPS_TRANSIENT_TITLES
-                 or owner_norm in WPS_TRANSIENT_TITLES
-                 or 'replace' in owner_norm or 'find' in owner_norm)
-    if 'wpp' in klass_tokens and transient:
+    if is_authorized_wps_transient(window):
+        return 'wps-transient'
+    if DECK.casefold() in title.casefold() and _is_wps_class(klass):
         return 'wps-presentation'
     if WORKBOOK.casefold() in titles and any(x in klass for x in ('wps', 'et', 'kingsoft', 'libreoffice', 'soffice')):
         return 'reference-workbook'
     if 'mailhub' in titles and any(x in klass for x in ('chrome', 'chromium')):
         return 'reference-memo'
     return 'unapproved'
-
 
 def parse_atom(command: str):
     tree = ast.parse(command)
