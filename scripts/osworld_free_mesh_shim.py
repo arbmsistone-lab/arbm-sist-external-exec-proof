@@ -163,7 +163,7 @@ def _task091_atspi_candidates(observation, label):
     wanted=' '.join(str(label or '').replace('\\u200b','').casefold().split())
     hits=[]
     for line in str(observation or '').splitlines():
-        cols=line.split('\\t')
+        cols=line.split('\t')
         if len(cols)<7:
             continue
         role=str(cols[0] or '').strip()
@@ -171,7 +171,7 @@ def _task091_atspi_candidates(observation, label):
         norm=' '.join(name.casefold().split())
         if not norm or not wanted or (norm!=wanted and wanted not in norm):
             continue
-        xy=re.findall(r'-?\\d+',cols[-2]); wh=re.findall(r'\\d+',cols[-1])
+        xy=re.findall(r'-?\d+',cols[-2]); wh=re.findall(r'\d+',cols[-1])
         if len(xy)!=2 or len(wh)!=2:
             continue
         x,y=map(int,xy); w,h=map(int,wh)
