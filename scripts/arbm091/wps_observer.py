@@ -15,7 +15,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 import requests
 from osworld_control import canonical_action
-from arbm091.trace_gate import digest, pointer, preflight, require
+from arbm091.trace_gate import digest, pointer, preflight, postflight, require
 
 _LOCK = threading.Lock()
 _PROBE = Path(__file__).with_name('guest_probe.py').read_text()
@@ -129,8 +129,11 @@ def install(environment_class):
                     result = original_execute(atom)
                     require(isinstance(result, dict) and result.get('status') == 'success'
                             and result.get('returncode') == 0, 'GUEST_ACTION_FAILED_OR_UNACKNOWLEDGED')
-                    _, reference = snapshot(controller, root, f'{step:04d}-{substep:02d}-after', None)
+                    after, reference = snapshot(controller, root, f'{step:04d}-{substep:02d}-after', None)
+                    postflight(atom, before, after)
                     row['after'] = reference
+                    row['before_window'] = before.get('window', {})
+                    row['after_window'] = after.get('window', {})
                     row.update(status='executed', returncode=0)
                     append(root, row)
                 except Exception as exc:
