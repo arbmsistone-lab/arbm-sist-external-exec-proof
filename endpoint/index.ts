@@ -33,14 +33,22 @@ async function auth(req: Request) {
   const { payload } = await jwtVerify(m[1], JWKS, { issuer: ISS, audience: AUD, algorithms: ["RS256"] });
   if (payload.repository !== REPO) throw new Error("OIDC_REPOSITORY");
   const ref = String(payload.ref || "");
-  const allowedRefs = new Set([
-    "refs/heads/chatgpt/arbm-agent-elite-v2-20260914",
-  ]);
+  const LEGACY_REF = "refs/heads/chatgpt/arbm-agent-elite-v2-20260914";
+  const RC_REF = "refs/heads/chatgpt/arbm-top3-consolidated-20260917";
+  const allowedRefs = new Set([LEGACY_REF, RC_REF]);
   if (!allowedRefs.has(ref)) throw new Error("OIDC_REF");
-  const allowedWorkflows = new Set([
-    REPO + "/.github/workflows/osworld-v32-official-18.yml@" + ref,
-    REPO + "/.github/workflows/osworld-v32-cloud-matrix.yml@" + ref,
+  const workflowsByRef = new Map([
+    [LEGACY_REF, new Set([
+      REPO + "/.github/workflows/osworld-v32-official-18.yml@" + LEGACY_REF,
+      REPO + "/.github/workflows/osworld-v32-cloud-matrix.yml@" + LEGACY_REF,
+    ])],
+    [RC_REF, new Set([
+      REPO + "/.github/workflows/osworld-v32-focal-091-free.yml@" + RC_REF,
+      REPO + "/.github/workflows/osworld-v32-official-18.yml@" + RC_REF,
+      REPO + "/.github/workflows/osworld-v32-cloud-matrix.yml@" + RC_REF,
+    ])],
   ]);
+  const allowedWorkflows = workflowsByRef.get(ref) || new Set();
   if (!allowedWorkflows.has(String(payload.workflow_ref || ""))) throw new Error("OIDC_WORKFLOW");
   if (!["push", "workflow_dispatch"].includes(String(payload.event_name || ""))) throw new Error("OIDC_EVENT");
   return { runId: String(payload.run_id || ""), sha: String(payload.sha || ""), ref };
