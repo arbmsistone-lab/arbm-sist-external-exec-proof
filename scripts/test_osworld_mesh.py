@@ -203,6 +203,7 @@ class MeshTests(unittest.TestCase):
    self.assertIn((12,1396,705,'214','206'),shim.TASK091_SPATIAL_TEXT_EDITS)
    self.assertIn((7,717,383,'Regional launch readiness','Vendor SLA breach'),shim.TASK091_SPATIAL_TEXT_EDITS)
    self.assertFalse(any("hotkey('ctrl', 'h')" in str(row) for row in shim.TASK091_SPATIAL_TEXT_EDITS))
+   self.assertIsNotNone(shim.re)
    parsed=shim._task091_atspi_candidates(deck_obs,'Growth Plan Draft')
    self.assertEqual(len(parsed),1)
    self.assertEqual(parsed[0]['x'],700)
