@@ -34,6 +34,25 @@ class WPSForegroundRegressionTests(unittest.TestCase):
         self.assertEqual(out["command"],"pyautogui.press('esc')")
         self.assertIn("WPS modal-dismiss",out.get("compiler_note",""))
 
+    def test_bounded_second_escape_requires_verified_ui_change(self):
+        action={
+            "action":"exec",
+            "command":"pyautogui.press('esc')",
+            "compiler_note":"Replaced ungrounded WPS modal-dismiss pointer with deterministic Escape.",
+        }
+        self.assertTrue(control.allow_bounded_wps_escape_repeat(
+            action,"WPS 2019",{"tree_changed":True,"visual_changed":False},["pyautogui.press('esc')"]))
+        self.assertFalse(control.allow_bounded_wps_escape_repeat(
+            action,"WPS 2019",{"tree_changed":False,"visual_changed":False},["pyautogui.press('esc')"]))
+        self.assertFalse(control.allow_bounded_wps_escape_repeat(
+            action,"WPS 2019",{"tree_changed":True,"visual_changed":False},
+            ["pyautogui.press('esc')","pyautogui.press('esc')"]))
+
+    def test_bounded_escape_does_not_apply_without_modal_repair_proof(self):
+        action={"action":"exec","command":"pyautogui.press('esc')"}
+        self.assertFalse(control.allow_bounded_wps_escape_repeat(
+            action,"WPS 2019",{"tree_changed":True},["pyautogui.press('esc')"]))
+
     def test_unrelated_wps_pointer_without_target_remains_fail_closed(self):
         action={
             "action":"exec",
