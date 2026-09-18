@@ -131,7 +131,7 @@ test -s /tmp/091-modal/task-091/wps-observations/0007-01-after.json
         "  | tee /tmp/091-local-contract-replay.json\n"
         "! grep -F 'pyautogui.click(35, 884)' /tmp/091-local-contract-replay.json\n")
     replay.insert(4, RUN35391431490_MODAL_REPLAY)
-    replay[5]['with']['path'] = '/tmp/091-local-contract-replay.json\n/tmp/run35391431490-modal-regression.json'
+    replay[5]['with']['path'] = '/tmp/091-local-contract-replay.json\n/tmp/run35391431490-modal-regression.json\n'
     require(len(re.findall(r'(?m)^\s+TASK_ID: [\'"]091[\'"]\s*$', text)) == 1,
             'TASK091_MUST_BE_QUOTED_YAML_STRING')
     require(normalize(current) == normalize(expected), 'UNEXPECTED_WORKFLOW_SEMANTIC_DELTA')
@@ -146,11 +146,11 @@ def main():
             'CLEAN_BASELINE_ANCESTRY_MISMATCH')
     require(git('rev-list', '--count', BASE + '..' + CLEAN_BASELINE) == '3',
             'EXACTLY_THREE_BASELINE_COMMITS_REQUIRED')
-    require(git('rev-list', '--count', BASE + '..HEAD') == '58',
-            'EXACTLY_FIFTY_EIGHT_AUDITED_COMMITS_REQUIRED')
+    require(git('rev-list', '--count', BASE + '..HEAD') == '59',
+            'EXACTLY_FIFTY_NINE_AUDITED_COMMITS_REQUIRED')
     require(not git('rev-list', '--merges', BASE + '..HEAD'), 'MERGE_COMMITS_FORBIDDEN')
     overlay = git('rev-list', '--reverse', CLEAN_BASELINE + '..HEAD').splitlines()
-    require(len(overlay) == 55, 'EXACTLY_FIFTY_FIVE_REPAIR_COMMITS_REQUIRED')
+    require(len(overlay) == 56, 'EXACTLY_FIFTY_SIX_REPAIR_COMMITS_REQUIRED')
     require(overlay[2] == PID_FILTER_COMMIT and overlay[3] == PID_TEST_COMMIT,
             'PID_REPAIR_COMMIT_IDENTITY_MISMATCH')
     require(overlay[6] == WPS_ALIAS_COMMIT and overlay[7] == WPS_ALIAS_TEST_COMMIT
@@ -160,7 +160,7 @@ def main():
                        LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, VERIFIER, WORKFLOW, VERIFIER, WORKFLOW,
                        VERIFIER, SHIM, MESH_TEST, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, WPS_OBSERVER, TRACE_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST,
                        (SHIM, MESH_TEST), VERIFIER, TRACE_GATE, TRACE_GATE, WPS_OBSERVER, WPS_OBSERVER,
-                       SHIM, TRACE_GATE, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER)
+                       SHIM, TRACE_GATE, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, VERIFIER)
     require(overlay[43] == SUPERSEDED_ALT_F4_COMMIT, 'SUPERSEDED_ALT_F4_COMMIT_IDENTITY_MISMATCH')
     for commit, allowed in zip(overlay, expected_scopes):
         actual=set(git('diff-tree', '--no-commit-id', '--name-only', '-r', commit).splitlines())
@@ -208,7 +208,7 @@ def main():
     verify_workflow_delta()
     print(json.dumps({'status': 'CLEAN_HISTORY_AND_SCOPE_PASS', 'base_sha': BASE,
                       'clean_baseline_sha': CLEAN_BASELINE, 'baseline_commits': 3,
-                      'repair_commits': overlay, 'new_commits': 58, 'changed_files': len(changed),
+                      'repair_commits': overlay, 'new_commits': 59, 'changed_files': len(changed),
                       'repair_scope': [VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST,
                                        TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER], 'official_score_claimed': False}))
 
