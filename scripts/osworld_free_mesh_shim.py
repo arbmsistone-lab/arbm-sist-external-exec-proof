@@ -14,6 +14,119 @@ from osworld_elite_controller import EliteController
 from osworld_gimp_style_transfer import next_recovery_action
 from osworld_061_calibrated_grade import next_calibrated_action, DONE as CAL_DONE
 
+TASK091_REPLACEMENTS = (
+    ('Growth Plan Draft','Stabilize-and-Recover Rebaseline'),
+    ('Planning posture: accelerate growth through H2 scale-up','Planning posture: stabilize and recover with disciplined sequencing'),
+    ('$42.8M','$40.9M'), ('42.8','40.9'),
+    ('$2.6M','$2.8M'), ('2.6','2.8'),
+    ('112%','104%'), ('112','104'),
+    ('74%','71%'), ('74','71'),
+    ('19 mo','17 mo'), ('214','206'),
+    ('18 open roles remain','8 open roles remain'),
+    ('Driven by expansion sprint','Retention recovery remains the focus'),
+    ('+0.4','-0.5'), ('+1.2','+0.7'), ('+0.8','-0.6'), ('+0.6','+0.4'), ('+0.5','+1.6'),
+    ('New logo mix','Renewal saves'), ('Price uplift','Pricing discipline'),
+    ('Usage expansion','Migration delay'), ('Hiring drag','Support credits'),
+    ('Partner channel','Partner stabilization'),
+    ('International pilot','International Pilot stop'),
+    ('Expansion Sprint','Customer Retention Plays'),
+    ('International Pilot','Data Migration'),
+    ('Data Migration stop','International Pilot stop'),
+    ('Platform uplift','Reliability Hardening'),
+    ('Regional launch readiness','Vendor SLA breach'),
+    ('Data privacy review','Data migration cutover failure'),
+    ('Platform & Reliability','Platform / Reliability'),
+    ('growth-focused','recovery-focused'), ('accelerating','stabilizing'),
+    ('ahead of plan','rebaseline underway'), ('scale-up mode','disciplined sequencing'),
+    ('commercial scale-up','recovery plan'),
+    ('H2 Growth Roadmap','H2 Stabilize-and-Recover Roadmap'),
+    ('Customer Retention Plays launch','Incident runbook rollout'),
+    ('Data Migration kickoff','Cutover rehearsal complete'),
+    ('Self-serve pricing release','Renewal intervention playbook'),
+    ('Regional playbook rollout','Wave 1 migration complete'),
+    ('Global launch readiness review','Recovery review with OpCom'),
+    ('Sep 01','Aug 22'), ('Sep 15','Sep 19'), ('Oct 03','Oct 10'),
+    ('Oct 21','Oct 24'), ('Nov 11','Nov 14'), ('Dec 04','Dec 05'),
+    ('Confirm Customer Retention Plays funding','Protect Reliability Hardening capacity'),
+    ('Approve Data Migration launch window','Sequence Data Migration cutover'),
+    ('Maintain current GTM hiring mix','Freeze non-critical hiring'),
+    ('Needed to preserve Q4 upsell upside and Growth Ops hiring plan.','Protect service stability and incident recovery capacity.'),
+    ('Maintains current September sequencing and partner onboarding path.','Stage migration cutover against reliability readiness.'),
+    ('Supports disciplined sequencing assumptions used in the burn plan.','Keep hiring within the rebased cash envelope.'),
+    ('Platform budget still includes reliability capacity as part of one shared pool.','Platform $6.2M and Reliability $3.9M are separate protected pools.'),
+    ('No standalone Reliability function appears in the draft.','Reliability is a standalone function at $3.9M.'),
+    ('Growth Ops remains funded for customer retention plays execution.','Growth Ops is frozen at $2.0M for H2.'),
+    ('Reliability is not split out separately from Platform in either chart or table.','Reliability is standalone with 18 HC and 3 open roles.'),
+)
+
+def _task091_match(instruction):
+    text=str(instruction or '').casefold()
+    return (os.environ.get('TASK_ID')=='091'
+            and 'operating committee' in text and 'rebaseline' in text
+            and 'reforecast_model_h2.xlsx' in text)
+
+def next_091_specialist_action(instruction, active_application, observation, state):
+    if not _task091_match(instruction): return None
+    state['owned']=True
+    low=str(observation or '').casefold(); active=str(active_application or '').casefold()
+    if 'system check' in low:
+        return {'action':'exec','command':"pyautogui.hotkey('alt', 'f4')",
+                'plan':'Close the WPS System Check modal before editing the open deck.',
+                'specialist_phase':'dismiss-system-check'}
+    if not active.startswith('wps'):
+        return {'action':'exec','command':"pyautogui.hotkey('alt', 'tab')",
+                'plan':'Return to the already-open WPS presentation.',
+                'specialist_phase':'return-wps'}
+    index=int(state.get('replace_index') or 0)
+    if index < len(TASK091_REPLACEMENTS):
+        old,new=TASK091_REPLACEMENTS[index]; state['replace_index']=index+1
+        command=("pyautogui.hotkey('ctrl', 'h')\n"
+                 "pyautogui.sleep(0.4)\n"
+                 "pyautogui.hotkey('ctrl', 'a')\n"
+                 +f"pyautogui.write({old!r}, interval=0.001)\n"
+                 +"pyautogui.press('tab')\n"
+                 +"pyautogui.hotkey('ctrl', 'a')\n"
+                 +f"pyautogui.write({new!r}, interval=0.001)\n"
+                 +"pyautogui.hotkey('alt', 'a')")
+        return {'action':'exec','command':command,
+                'plan':f"Replace draft text {old!r} with official rebaseline text {new!r}.",
+                'specialist_phase':'replace-all','expected_change':new}
+    if not state.get('saved'):
+        state['saved']=True
+        return {'action':'exec','command':"pyautogui.press('esc')\npyautogui.hotkey('ctrl', 's')\npyautogui.sleep(1)",
+                'plan':'Save the rebaselined presentation in place.','specialist_phase':'save'}
+    state['complete']=True
+    return {'action':'finish','confidence':0.99,
+            'verification':'Operating_Committee_Rebaseline_Draft.pptx saved after deterministic rebaseline replacements',
+            'specialist_phase':'finish'}
+
+def try_091_specialist(body, obs, focused_obs):
+    state=STATE.setdefault('task091_specialist',{})
+    candidate=next_091_specialist_action(body.get('instruction',''),body.get('active_application','unknown'),focused_obs,state)
+    if not candidate: return None
+    if candidate.get('action')=='finish':
+        STATE['phase']='done'
+        log_event({'status':'TASK091_SPECIALIST_FINISH_CANDIDATE','replacements':state.get('replace_index',0),'saved':state.get('saved',False)})
+        return 'DONE'
+    try:
+        action=ground_action(candidate,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]),
+                             verifier_result=VERIFIER.last_result,recent_commands=[x['command'] for x in STATE['history'][-6:]])
+        decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
+    except ValueError as exc:
+        log_event({'status':'TASK091_SPECIALIST_POLICY_REJECTED','reason':str(exc),'action':candidate})
+        return terminal('TASK091_SPECIALIST_POLICY_REJECTED:'+str(exc))
+    if decision.get('kind')!=DecisionKind.EXEC.value or action.get('action')!='exec':
+        return terminal('TASK091_SPECIALIST_NON_EXEC_DECISION')
+    command=action['command']; STATE['plan']=str(action.get('plan') or STATE['plan'])[:1400]
+    STATE['previous']=command; STATE['executed']+=1; STATE['wait_responses']=0; STATE['provider_waits']=0
+    STATE['history'].append({'command':command,'expected':action.get('expected_change',''),'source':'task091-specialist'})
+    STATE['history']=STATE['history'][-12:]; VERIFIER.issued(command)
+    log_event({'status':'TASK091_SPECIALIST_ACTION_ISSUED','command':command,'phase':action.get('specialist_phase'),'replace_index':state.get('replace_index',0)})
+    log_event({'status':'ACTION_ISSUED','command':command,'source':'task091-specialist'})
+    fence=chr(96)*3
+    return fence+'python\n'+command+'\n'+fence
+
+
 UPSTREAM = 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terminal-agent-v5'
 EXPECTED_PIPELINE = 'arbm-osworld-v32-isolated'
 EXPECTED_BUILD = 'arbm-osworld-v32-master-20260914'
@@ -457,6 +570,8 @@ def call_mesh(messages):
     if visual_recovery:body['recovery_strategy']=visual_recovery
     calibrated_result=try_061_calibrated(body,obs,focused_obs)
     if calibrated_result:return calibrated_result
+    task091_result=try_091_specialist(body,obs,focused_obs)
+    if task091_result:return task091_result
     specialist_result=try_gimp_specialist(body,obs,focused_obs)
     if specialist_result:return specialist_result
     try:body,metrics=pack_payload(body)
