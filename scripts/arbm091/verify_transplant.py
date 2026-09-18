@@ -1,4 +1,4 @@
-"""Verify the immutable three-commit transplant plus two scoped repair commits."""
+"""Verify the immutable transplant and the strictly allowlisted 091 repair chain."""
 import copy
 import hashlib
 import json
@@ -13,6 +13,10 @@ PATCH_SOURCE = '04c15b7d30e6dbae62c831e363bced71240aa075'
 CLEAN_BASELINE = 'a3307fd28c0e50634b931692b6bb1049b2c0c5c9'
 WORKFLOW = '.github/workflows/arbm-091-clean-proof.yml'
 VERIFIER = 'scripts/arbm091/verify_transplant.py'
+LOCAL_VLM = 'scripts/osworld_local_vlm.py'
+LOCAL_VLM_TEST = 'scripts/test_osworld_local_vlm.py'
+PID_FILTER_COMMIT = 'ee7f5df4d82642aa6568f482d00fccf4f70e167a'
+PID_TEST_COMMIT = '6bec66cb19ae5d4a43bb48d75ce209798a28ce60'
 ENVIRONMENT_PREFLIGHT = {
     'name': 'Verify exact 091 observer environment before heavy initialization',
     'shell': 'bash',
@@ -55,6 +59,11 @@ def verify_workflow_delta():
     expected['jobs']['proof-tests']['steps'][1]['run'] = (
         'python -m pip install -r scripts/requirements-osworld.txt\n'
         'python -m pip install PyYAML==6.0.2\n')
+    replay = expected['jobs']['replay']['steps']
+    replay[1]['run'] = replay[1]['run'].replace('10518571201', '10550469277').replace(
+        'step_0001.json', 'step_0002.json')
+    replay[3]['name'] = 'Replay exact failed Step 2 through PID-isolated selector twice'
+    replay[3]['run'] = replay[3]['run'].replace('step_0001.json', 'step_0002.json')
     require(len(re.findall(r'(?m)^\s+TASK_ID: [\'"]091[\'"]\s*$', text)) == 1,
             'TASK091_MUST_BE_QUOTED_YAML_STRING')
     require(normalize(current) == normalize(expected), 'UNEXPECTED_WORKFLOW_SEMANTIC_DELTA')
@@ -69,23 +78,28 @@ def main():
             'CLEAN_BASELINE_ANCESTRY_MISMATCH')
     require(git('rev-list', '--count', BASE + '..' + CLEAN_BASELINE) == '3',
             'EXACTLY_THREE_BASELINE_COMMITS_REQUIRED')
-    require(git('rev-list', '--count', BASE + '..HEAD') == '5',
-            'EXACTLY_FIVE_AUDITED_COMMITS_REQUIRED')
+    require(git('rev-list', '--count', BASE + '..HEAD') == '9',
+            'EXACTLY_NINE_AUDITED_COMMITS_REQUIRED')
     require(not git('rev-list', '--merges', BASE + '..HEAD'), 'MERGE_COMMITS_FORBIDDEN')
     overlay = git('rev-list', '--reverse', CLEAN_BASELINE + '..HEAD').splitlines()
-    require(len(overlay) == 2, 'EXACTLY_TWO_REPAIR_COMMITS_REQUIRED')
-    for commit, allowed in zip(overlay, (VERIFIER, WORKFLOW)):
+    require(len(overlay) == 6, 'EXACTLY_SIX_REPAIR_COMMITS_REQUIRED')
+    require(overlay[2] == PID_FILTER_COMMIT and overlay[3] == PID_TEST_COMMIT,
+            'PID_REPAIR_COMMIT_IDENTITY_MISMATCH')
+    expected_scopes = (VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST, VERIFIER, WORKFLOW)
+    for commit, allowed in zip(overlay, expected_scopes):
         require(git('diff-tree', '--no-commit-id', '--name-only', '-r', commit) == allowed,
                 'REPAIR_COMMIT_SCOPE_MISMATCH:' + commit)
-    require(git('rev-parse', overlay[0] + '^') == CLEAN_BASELINE
-            and git('rev-parse', overlay[1] + '^') == overlay[0], 'REPAIR_HISTORY_NOT_LINEAR')
+    parent = CLEAN_BASELINE
+    for commit in overlay:
+        require(git('rev-parse', commit + '^') == parent, 'REPAIR_HISTORY_NOT_LINEAR')
+        parent = commit
     require(not git('diff', '--name-only', '--diff-filter=D', CLEAN_BASELINE, 'HEAD'),
             'REPAIR_DELETION_FORBIDDEN')
     manifest = json.loads(Path('audit/arbm091-final-files.json').read_text())
     changed = set(git('diff', '--name-only', BASE, 'HEAD').splitlines())
     require(changed == set(manifest), 'CHANGED_FILE_ALLOWLIST_MISMATCH')
     require(set(git('diff', '--name-only', CLEAN_BASELINE, 'HEAD').splitlines())
-            == {WORKFLOW, VERIFIER}, 'REPAIR_TOTAL_SCOPE_MISMATCH')
+            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST}, 'REPAIR_TOTAL_SCOPE_MISMATCH')
     exists = subprocess.run(['git', 'cat-file', '-e', PATCH_SOURCE], capture_output=True).returncode == 0
     if exists:
         require(subprocess.run(['git', 'merge-base', '--is-ancestor', PATCH_SOURCE, 'HEAD']).returncode != 0,
@@ -101,14 +115,19 @@ def main():
     expected = {row['path']: row['sha256'] for row in dependencies['files']}
     expected.update({row['path']: row['after_sha256'] for row in adjustments})
     expected.update(patch['postimage_sha256'])
+    repaired = {LOCAL_VLM: PID_FILTER_COMMIT, LOCAL_VLM_TEST: PID_TEST_COMMIT}
     for path, wanted in expected.items():
+        if path in repaired:
+            source = subprocess.check_output(['git', 'show', repaired[path] + ':' + path])
+            require(Path(path).read_bytes() == source, 'PID_REPAIR_DRIFT:' + path)
+            continue
         require(hashlib.sha256(Path(path).read_bytes()).hexdigest() == wanted,
                 'TRANSPLANTED_DEPENDENCY_HASH_MISMATCH:' + path)
     verify_workflow_delta()
     print(json.dumps({'status': 'CLEAN_HISTORY_AND_SCOPE_PASS', 'base_sha': BASE,
                       'clean_baseline_sha': CLEAN_BASELINE, 'baseline_commits': 3,
-                      'repair_commits': overlay, 'new_commits': 5, 'changed_files': len(changed),
-                      'repair_scope': [VERIFIER, WORKFLOW], 'official_score_claimed': False}))
+                      'repair_commits': overlay, 'new_commits': 9, 'changed_files': len(changed),
+                      'repair_scope': [VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST], 'official_score_claimed': False}))
 
 
 if __name__ == '__main__':
