@@ -1,0 +1,43 @@
+{
+  "manifest_version": "1.0",
+  "product": "ARBM SIST",
+  "scope": "MASTER SUPREME INTERNATIONAL internal technical assurance",
+  "frozen_candidate_sha": "f114c9b1833d5ae5a07af923dae548033078485d",
+  "evidence": [
+    {
+      "requirement_id": "REQ-REG-001",
+      "control_id": "CTRL-V32-POLICY",
+      "component": "OSWorld v32 policy",
+      "test_id": "RUN-35330393913",
+      "environment": "GitHub-hosted Ubuntu 24.04",
+      "expected": "Complete regression + deterministic gate + historical replay + ZERO_SPEND all PASS",
+      "actual": "Workflow conclusion success; all named steps success",
+      "state": "PASS",
+      "commit_sha": "f114c9b1833d5ae5a07af923dae548033078485d",
+      "evidence_reference": "GitHub Actions run 35330393913"
+    },
+    {
+      "requirement_id": "REQ-091-001",
+      "control_id": "CTRL-OFFICIAL-EVALUATOR",
+      "component": "OSWorld task 091",
+      "test_id": "RUN-35330495483",
+      "environment": "GitHub-hosted KVM + pinned OSWorld/VM",
+      "expected": "Official score exactly 1.0 and no fatal shim",
+      "actual": "IN PROGRESS at manifest initialization",
+      "state": "BLOCKED",
+      "commit_sha": "f114c9b1833d5ae5a07af923dae548033078485d",
+      "evidence_reference": "GitHub Actions run 35330495483"
+    },
+    {
+      "requirement_id": "REQ-PROD-IDENTITY",
+      "control_id": "CTRL-PARITY",
+      "component": "release/production identity",
+      "test_id": null,
+      "expected": "source SHA = certified build = artifact digest = deployed version = served version",
+      "actual": "Not yet evidenced",
+      "state": "BLOCKED",
+      "commit_sha": "f114c9b1833d5ae5a07af923dae548033078485d"
+    }
+  ],
+  "certification_state": "BLOCKED"
+}
