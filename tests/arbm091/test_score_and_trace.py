@@ -246,6 +246,19 @@ class ForegroundTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'CLOSE_TARGET_UNPROVEN'):
             preflight("pyautogui.click(695, 376)", body)
 
+    def test_system_check_space_allows_proven_owner_handoff_across_pid(self):
+        before = snapshot('System Check', 'wpp wpp', pid=2719)
+        before['window']['owner_title'] = DECK + ' - WPS Office'
+        after = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2594)
+        self.assertEqual(postflight("pyautogui.press('space')", before, after), 'wps-presentation')
+
+    def test_system_check_space_rejects_cross_pid_non_owner_drift(self):
+        before = snapshot('System Check', 'wpp wpp', pid=2719)
+        before['window']['owner_title'] = DECK + ' - WPS Office'
+        drift = snapshot(WORKBOOK + ' - WPS Spreadsheets', 'et WPS', pid=2594)
+        with self.assertRaisesRegex(ValueError, 'OWNER_HANDOFF_UNPROVEN|CLOSE_UNPROVEN'):
+            postflight("pyautogui.press('space')", before, drift)
+
     def test_non_transient_deck_does_not_authorize_destructive_modal_close(self):
         body = snapshot(DECK + ' - WPS Presentation', 'wpp WPS', pid=2689)
         self.assertEqual(classify(body['window']), 'wps-presentation')
