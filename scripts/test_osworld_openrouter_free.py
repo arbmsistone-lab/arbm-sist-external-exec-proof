@@ -52,6 +52,14 @@ class RouteTests(unittest.TestCase):
                 result,attempts=self.route.call(BODY,'key')
                 self.assertIsNone(result)
                 self.assertFalse(any(a.get('free_plan_proven') for a in attempts))
+                rejected=[a for a in attempts if a.get('status')==200]
+                self.assertTrue(rejected)
+                for attempt in rejected:
+                    self.assertEqual(attempt.get('cost_proof_status'),'unproven')
+                    self.assertEqual(attempt.get('response_admission'),'rejected')
+                    self.assertIs(attempt.get('action_promoted'),False)
+                    self.assertIs(attempt.get('parsed'),False)
+                    self.assertEqual(attempt.get('contract_error'),'RESPONSE_ZERO_COST_UNPROVEN')
 
     def test_429_fails_over_and_recovery_needs_real_probe(self):
         self.replies=[(429,{}, {'Retry-After':'60'}),self.answer()]
