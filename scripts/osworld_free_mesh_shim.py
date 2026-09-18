@@ -66,38 +66,77 @@ def _task091_match(instruction):
             and 'reforecast_model_h2.xlsx' in text)
 
 def next_091_specialist_action(instruction, active_application, observation, state):
-    if not _task091_match(instruction): return None
-    state['owned']=True
-    low=str(observation or '').casefold(); active=str(active_application or '').casefold()
+    if not _task091_match(instruction):
+        return None
+    state['owned'] = True
+    low = str(observation or '').casefold()
+    active = str(active_application or '').casefold()
+
+    # WPS launch-time popups must never be mistaken for editable deck content.
     if 'system check' in low:
         return {'action':'exec','command':"pyautogui.hotkey('alt', 'f4')",
-                'plan':'Close the WPS System Check modal before editing the open deck.',
+                'plan':'Close the native WPS System Check popup, then re-observe.',
                 'specialist_phase':'dismiss-system-check'}
+    if ('set wps office as your default office software' in low
+            or ('wps office' in low and 'default office' in low)):
+        return {'action':'exec','command':"pyautogui.hotkey('alt', 'f4')",
+                'plan':'Close the native WPS default-office popup, then re-observe.',
+                'specialist_phase':'dismiss-default-office'}
+
+    # Replace All produces a modal confirmation. Confirm it before issuing any
+    # further edit so each semantic replacement is observable and attributable.
+    if 'replacements' in low and ('made ' in low or 'wps presentation' in low):
+        state['confirmed_replace_index'] = int(state.get('replace_index') or 0)
+        return {'action':'exec','command':"pyautogui.press('enter')",
+                'plan':'Acknowledge the native Replace All result and re-observe the deck.',
+                'specialist_phase':'confirm-replace-result'}
+
     if not active.startswith('wps'):
         return {'action':'exec','command':"pyautogui.hotkey('alt', 'tab')",
                 'plan':'Return to the already-open WPS presentation.',
                 'specialist_phase':'return-wps'}
-    index=int(state.get('replace_index') or 0)
+
+    index = int(state.get('replace_index') or 0)
+    phase = str(state.get('edit_phase') or 'open')
     if index < len(TASK091_REPLACEMENTS):
-        old,new=TASK091_REPLACEMENTS[index]; state['replace_index']=index+1
-        command=("pyautogui.hotkey('ctrl', 'h')\n"
-                 "pyautogui.sleep(0.4)\n"
-                 "pyautogui.hotkey('ctrl', 'a')\n"
-                 +f"pyautogui.write({old!r}, interval=0.001)\n"
-                 +"pyautogui.press('tab')\n"
-                 +"pyautogui.hotkey('ctrl', 'a')\n"
-                 +f"pyautogui.write({new!r}, interval=0.001)\n"
-                 +"pyautogui.hotkey('alt', 'a')")
-        return {'action':'exec','command':command,
-                'plan':f"Replace draft text {old!r} with official rebaseline text {new!r}.",
-                'specialist_phase':'replace-all','expected_change':new}
+        old, new = TASK091_REPLACEMENTS[index]
+        if phase == 'open':
+            state['edit_phase'] = 'find'
+            return {'action':'exec','command':"pyautogui.hotkey('ctrl', 'h')",
+                    'plan':f'Open WPS Replace for audited replacement {index + 1}.',
+                    'specialist_phase':'replace-open'}
+        if phase == 'find':
+            state['edit_phase'] = 'replace'
+            return {'action':'exec',
+                    'command':"pyautogui.hotkey('ctrl', 'a')\n"+f"pyautogui.write({old!r}, interval=0.001)\npyautogui.press('tab')",
+                    'plan':f'Enter the exact find text {old!r}.',
+                    'specialist_phase':'replace-find'}
+        if phase == 'replace':
+            state['edit_phase'] = 'apply'
+            return {'action':'exec',
+                    'command':"pyautogui.hotkey('ctrl', 'a')\n"+f"pyautogui.write({new!r}, interval=0.001)",
+                    'plan':f'Enter the exact official rebaseline text {new!r}.',
+                    'specialist_phase':'replace-value','expected_change':new}
+        if phase == 'apply':
+            state['edit_phase'] = 'open'
+            state['replace_index'] = index + 1
+            return {'action':'exec','command':"pyautogui.hotkey('alt', 'a')",
+                    'plan':f'Apply Replace All for audited replacement {index + 1} and await native confirmation.',
+                    'specialist_phase':'replace-apply','expected_change':new}
+
+    if not state.get('closed_replace'):
+        state['closed_replace'] = True
+        return {'action':'exec','command':"pyautogui.press('esc')",
+                'plan':'Close the Replace dialog after the deterministic replacement pass.',
+                'specialist_phase':'close-replace'}
     if not state.get('saved'):
-        state['saved']=True
-        return {'action':'exec','command':"pyautogui.press('esc')\npyautogui.hotkey('ctrl', 's')\npyautogui.sleep(1)",
-                'plan':'Save the rebaselined presentation in place.','specialist_phase':'save'}
-    state['complete']=True
+        state['saved'] = True
+        return {'action':'exec','command':"pyautogui.hotkey('ctrl', 's')\npyautogui.sleep(1)",
+                'plan':'Save the rebaselined presentation in place.',
+                'specialist_phase':'save'}
+    state['complete'] = True
     return {'action':'finish','confidence':0.99,
-            'verification':'Operating_Committee_Rebaseline_Draft.pptx saved after deterministic rebaseline replacements',
+            'verification':'WPS replacement pass completed with native result confirmations and save',
             'specialist_phase':'finish'}
 
 def try_091_specialist(body, obs, focused_obs):
