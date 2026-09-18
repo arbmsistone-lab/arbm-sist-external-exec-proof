@@ -1,0 +1,91 @@
+name: ARBM 091 Deck Geometry Diagnostic
+on:
+  push:
+    branches:
+      - chatgpt/arbm-091-input-diagnostic-20260918
+    paths:
+      - .github/workflows/arbm-091-geometry-diagnostic.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+env:
+  ZERO_SPEND_MODE: HARD
+jobs:
+  inspect-geometry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Verify zero-spend runner
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = HARD
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+      - name: Hydrate pinned task 091 assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v2026.08.08 https://github.com/xlang-ai/OSWorld-V2.git osworld
+          test "$(git -C osworld rev-parse HEAD)" = d578d2d4e0dc82b43e270fdaa7fa89d9708cd154
+          python -m pip install --disable-pip-version-check -q uv==0.8.15 huggingface_hub==0.35.3 python-pptx==1.0.2
+          cd osworld
+          uv sync --frozen
+          uv run python scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
+          uv run python - <<'PY' > /tmp/osworld_asset_dirs.txt
+          import os
+          from huggingface_hub import HfApi
+          files = HfApi(token=os.environ['HF_TOKEN']).list_repo_files(
+              repo_id='xlangai/osworld_v2_assets_gated', repo_type='dataset', revision='v2026.08.08')
+          print('\n'.join(sorted({x.split('/')[0] for x in files if x.startswith('task_091') and '/' in x})))
+          PY
+          while IFS= read -r asset_dir; do
+            uv run python scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 \
+              --allow-pattern "${asset_dir}/**" --target-dir cache/osworld_v2_assets
+          done < /tmp/osworld_asset_dirs.txt
+          cd ..
+      - name: Extract geometry and fill
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p diagnostic
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from pptx import Presentation
+          from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+          root=Path('osworld/cache/osworld_v2_assets')
+          pptx=next(root.rglob('Operating_Committee_Rebaseline_Draft.pptx'))
+          prs=Presentation(str(pptx))
+          out={'status':'TASK091_DECK_GEOMETRY','slide_width':prs.slide_width,'slide_height':prs.slide_height,'slides':[]}
+          for idx,slide in enumerate(prs.slides,1):
+              shapes=[]
+              for order,shape in enumerate(slide.shapes):
+                  text=''
+                  if getattr(shape,'has_text_frame',False):
+                      text='\n'.join(p.text for p in shape.text_frame.paragraphs)
+                  fill=None
+                  try:
+                      if shape.fill.type is not None and shape.fill.fore_color.type is not None:
+                          rgb=getattr(shape.fill.fore_color,'rgb',None)
+                          if rgb is not None: fill=str(rgb)
+                  except Exception:
+                      pass
+                  shapes.append({
+                      'order':order,'id':shape.shape_id,'name':shape.name,
+                      'shape_type':int(shape.shape_type),
+                      'left':shape.left,'top':shape.top,'width':shape.width,'height':shape.height,
+                      'text':text,'fill_rgb':fill,
+                  })
+              out['slides'].append({'slide':idx,'shapes':shapes})
+          Path('diagnostic/task091-deck-geometry.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps({'slides':len(out['slides']),'slide_width':out['slide_width'],'slide_height':out['slide_height']}))
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: arbm091-deck-geometry
+          path: diagnostic/task091-deck-geometry.json
+          if-no-files-found: error
+          retention-days: 30
