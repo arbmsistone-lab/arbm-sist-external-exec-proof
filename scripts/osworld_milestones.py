@@ -62,6 +62,13 @@ class Milestones:
             and pending['before']!=after_sig
             and len(new_content)>=2
         )
+        expected_app_reached=(
+            4<=len(name)<=200
+            and normalized(expected)==normalized(app)
+            and app not in ('unknown','Desktop')
+            and app_changed
+            and pending['before']!=after_sig
+        )
         matched=(4<=len(name)<=200 and 4<=len(visible)<=300 and normalized(expected)==normalized(app)
                  and app not in ('unknown','Desktop') and visible in after_text
                  and pending['before']!=after_sig and (anchor_new or semantic_transition))
@@ -72,6 +79,16 @@ class Milestones:
                    'new_content_count':len(new_content)}
             self.verified.append(proof);self.verified=self.verified[-40:];self.stalled=0
             self.last={'status':'VERIFIED','milestone':proof,'stalled_actions':0}
+        elif expected_app_reached:
+            # Reaching the exact expected foreground is independently observable
+            # progress, but it is not proof that the checkpoint content is complete.
+            # Keep verified[] untouched and require a later observation for the
+            # visible_text predicate.
+            partial={'name':name,'application':app,'expected_visible_text':text,
+                     'observation_sha256':after_sig,
+                     'verification_basis':'expected_application_transition'}
+            self.stalled=0
+            self.last={'status':'PARTIAL_PROGRESS','progress':partial,'stalled_actions':0}
         return self.last
     def context(self):return {'last_check':self.last,'verified':self.verified[-10:],'stalled_actions':self.stalled}
 
