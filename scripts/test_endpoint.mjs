@@ -93,12 +93,26 @@ console.log('REVIEW_WAIT_COMMAND_NORMALIZATION_PASS');
 console.log('OPEN_SOURCE_CONTINUITY_PASS');
 console.log('REVIEW_BUDGET_GUARD_PASS');
 console.log('INDEPENDENT_TRANSITION_REVIEW_PASS');
-// Master benchmark branch is the only OIDC ref admitted by the production endpoint.
-const masterPayload={repository:'arbmsistone-lab/arbm-sist-external-exec-proof',ref:'refs/heads/chatgpt/arbm-agent-elite-v2-20260914',event_name:'workflow_dispatch',run_id:'offline',sha:'test',workflow_ref:'arbmsistone-lab/arbm-sist-external-exec-proof/.github/workflows/osworld-v32-official-18.yml@refs/heads/chatgpt/arbm-agent-elite-v2-20260914'};
-const matrixWorkflow='arbmsistone-lab/arbm-sist-external-exec-proof/.github/workflows/osworld-v32-cloud-matrix.yml@'+masterPayload.ref;
-for(const [patch,accepted] of [[{},true],[{workflow_ref:matrixWorkflow},true],[{repository:'other/repo'},false],[{ref:'refs/heads/chatgpt/osworld-v32-rescue-20260912'},false],[{ref:masterPayload.ref+'-other'},false],[{workflow_ref:'other-workflow'},false],[{event_name:'pull_request'},false]]){
- context.jwtVerify=async()=>({payload:{...masterPayload,...patch}});
+// Exact OIDC identities: retain legacy compatibility and admit only the current RC workflows.
+const legacyRef='refs/heads/chatgpt/arbm-agent-elite-v2-20260914';
+const rcRef='refs/heads/chatgpt/arbm-top3-consolidated-20260917';
+const basePayload={repository:'arbmsistone-lab/arbm-sist-external-exec-proof',event_name:'workflow_dispatch',run_id:'offline',sha:'test'};
+const cases=[
+ [{ref:legacyRef,workflow_ref:'arbmsistone-lab/arbm-sist-external-exec-proof/.github/workflows/osworld-v32-official-18.yml@'+legacyRef},true],
+ [{ref:legacyRef,workflow_ref:'arbmsistone-lab/arbm-sist-external-exec-proof/.github/workflows/osworld-v32-cloud-matrix.yml@'+legacyRef},true],
+ [{ref:rcRef,workflow_ref:'arbmsistone-lab/arbm-sist-external-exec-proof/.github/workflows/osworld-v32-focal-091-free.yml@'+rcRef},true],
+ [{ref:rcRef,workflow_ref:'arbmsistone-lab/arbm-sist-external-exec-proof/.github/workflows/osworld-v32-official-18.yml@'+rcRef},true],
+ [{ref:rcRef,workflow_ref:'arbmsistone-lab/arbm-sist-external-exec-proof/.github/workflows/osworld-v32-cloud-matrix.yml@'+rcRef},true],
+ [{ref:rcRef,workflow_ref:'arbmsistone-lab/arbm-sist-external-exec-proof/.github/workflows/osworld-v32-policy-gate.yml@'+rcRef},false],
+ [{ref:'refs/heads/chatgpt/osworld-v32-rescue-20260912',workflow_ref:'arbmsistone-lab/arbm-sist-external-exec-proof/.github/workflows/osworld-v32-focal-091-free.yml@refs/heads/chatgpt/osworld-v32-rescue-20260912'},false],
+ [{ref:rcRef+'-other',workflow_ref:'arbmsistone-lab/arbm-sist-external-exec-proof/.github/workflows/osworld-v32-focal-091-free.yml@'+rcRef+'-other'},false],
+ [{ref:rcRef,workflow_ref:'other-workflow'},false],
+ [{ref:rcRef,workflow_ref:'arbmsistone-lab/arbm-sist-external-exec-proof/.github/workflows/osworld-v32-focal-091-free.yml@'+rcRef,event_name:'pull_request'},false],
+ [{ref:rcRef,workflow_ref:'arbmsistone-lab/arbm-sist-external-exec-proof/.github/workflows/osworld-v32-focal-091-free.yml@'+rcRef,repository:'other/repo'},false],
+];
+for(const [patch,accepted] of cases){
+ context.jwtVerify=async()=>({payload:{...basePayload,...patch}});
  response=await context.handler(new Request('https://offline.test',{method:'POST',headers:{authorization:'Bearer offline'},body:'{}'}));
- assert.equal(response.status,accepted?400:401);
+ assert.equal(response.status,accepted?400:401,JSON.stringify(patch));
 }
-console.log('MASTER_OIDC_EXACT_WORKFLOW_PASS');
+console.log('RC_AND_LEGACY_OIDC_EXACT_WORKFLOW_PASS');
