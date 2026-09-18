@@ -160,8 +160,12 @@ class ForegroundTests(unittest.TestCase):
 
     def test_task091_canonical_spatial_fallback_requires_target_deck_proof(self):
         body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2594)
+        body['window']['bbox'] = [70, 27, 1850, 1053]
+        body['screen'] = [0, 0, 1920, 1080]
         body['target'] = None
         body['deck_slide_text'] = {'1':'Growth Plan Draft'}
+        body['deck_file'] = {'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                             'sha256':'a'*64,'size':1234,'mtime_ns':1}
         self.assertEqual(preflight('pyautogui.doubleClick(745, 335, interval=0.08)', body), 'wps-content')
 
         no_proof = copy.deepcopy(body)
@@ -172,6 +176,21 @@ class ForegroundTests(unittest.TestCase):
         off_allowlist = copy.deepcopy(body)
         with self.assertRaisesRegex(ValueError, 'UI_TARGET_UNAVAILABLE'):
             preflight('pyautogui.doubleClick(746, 335, interval=0.08)', off_allowlist)
+
+        wrong_geometry = copy.deepcopy(body)
+        wrong_geometry['window']['bbox'] = [71, 27, 1849, 1053]
+        with self.assertRaisesRegex(ValueError, 'CANONICAL_DECK_GEOMETRY_UNPROVEN'):
+            preflight('pyautogui.doubleClick(745, 335, interval=0.08)', wrong_geometry)
+
+        wrong_screen = copy.deepcopy(body)
+        wrong_screen['screen'] = [0, 0, 1919, 1080]
+        with self.assertRaisesRegex(ValueError, 'CANONICAL_SCREEN_UNPROVEN'):
+            preflight('pyautogui.doubleClick(745, 335, interval=0.08)', wrong_screen)
+
+        missing_digest = copy.deepcopy(body)
+        missing_digest['deck_file']['sha256'] = ''
+        with self.assertRaisesRegex(ValueError, 'TARGET_DECK_FILE_UNPROVEN'):
+            preflight('pyautogui.doubleClick(745, 335, interval=0.08)', missing_digest)
 
     def test_application_switch_is_not_edit(self):
         self.assertEqual(preflight("pyautogui.hotkey('alt', 'tab')", snapshot()), 'application-switch')
