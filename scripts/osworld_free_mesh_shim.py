@@ -1,5 +1,5 @@
 """OpenAI-compatible OSWorld bridge. All guest execution stays in official OSWorld."""
-import argparse, json, os, time, urllib.request, urllib.error, hashlib, threading
+import argparse, json, os, re, time, urllib.request, urllib.error, hashlib, threading
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from osworld_ingress import project_messages
