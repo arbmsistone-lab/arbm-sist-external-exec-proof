@@ -11,6 +11,33 @@ class EliteControllerTests(unittest.TestCase):
         c.observe(False)
         self.assertFalse(c.before_action(cmd)['allow'])
 
+    def test_failed_action_allows_exactly_one_evidence_bounded_retry(self):
+        c=EliteController()
+        cmd="pyautogui.press('esc')"
+        self.assertTrue(c.before_action(cmd)['allow'])
+        c.observe(False)
+        proof={'fresh_observation':True,'state_changed':True,'bounded_retry':True,
+               'reason':'foreground changed while stacked modal remains'}
+        admitted=c.before_action(cmd,retry_proof=proof)
+        self.assertTrue(admitted['allow'])
+        self.assertEqual(admitted['reason'],'evidence_bounded_retry')
+        c.observe(False)
+        self.assertFalse(c.before_action(cmd,retry_proof=proof)['allow'])
+        self.assertEqual(c.metrics()['evidence_bounded_retries'],1)
+
+    def test_incomplete_retry_proof_never_bypasses_tabu(self):
+        c=EliteController()
+        cmd="pyautogui.press('esc')"
+        c.before_action(cmd); c.observe(False)
+        for proof in (
+            None,
+            {},
+            {'fresh_observation':True,'state_changed':False,'bounded_retry':True,'reason':'x'},
+            {'fresh_observation':True,'state_changed':True,'bounded_retry':False,'reason':'x'},
+            {'fresh_observation':True,'state_changed':True,'bounded_retry':True,'reason':''},
+        ):
+            self.assertFalse(c.before_action(cmd,retry_proof=proof)['allow'])
+
     def test_progress_resets_stall_and_waits(self):
         c=EliteController(max_waits=2,max_stall=3)
         c.note_wait(); c.note_wait()
