@@ -138,6 +138,15 @@ def preflight(command: str, snapshot: dict) -> str:
                         and isinstance(snapshot.get('deck_slide_text'), dict)
                         and bool(snapshot.get('deck_slide_text')))
         if deck_spatial:
+            require(snapshot.get('screen') == [0, 0, 1920, 1080],
+                    'TASK091_CANONICAL_SCREEN_UNPROVEN')
+            require(window.get('bbox') == [70, 27, 1850, 1053],
+                    'TASK091_CANONICAL_DECK_GEOMETRY_UNPROVEN')
+            require(isinstance(snapshot.get('deck_file'), dict)
+                    and str(snapshot['deck_file'].get('path','')) ==
+                    '/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx'
+                    and len(str(snapshot['deck_file'].get('sha256',''))) == 64,
+                    'TASK091_TARGET_DECK_FILE_UNPROVEN')
             require(inside(point, snapshot.get('screen')), 'POINTER_OUTSIDE_SCREEN')
             require(inside(point, window.get('bbox')), 'POINTER_OUTSIDE_FOREGROUND')
             return 'wps-content'
