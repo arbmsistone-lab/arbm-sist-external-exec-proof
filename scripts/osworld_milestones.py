@@ -4,13 +4,39 @@ from osworld_control import foreground_context,tree_signature
 
 def normalized(value):return re.sub(r'\s+',' ',str(value).replace('\u200b','')).strip().casefold()
 
+_CONTENT_ROLES={'heading','paragraph','list-item','static','text','section'}
+
+def meaningful_content_lines(value):
+    """Return substantial foreground content, excluding UI chrome and metadata."""
+    out=set()
+    for raw in str(value or '').splitlines():
+        if raw.startswith(('ACTIVE APPLICATION','BACKGROUND DESKTOP','[Compacted')):
+            continue
+        parts=raw.split('\t')
+        if not parts or normalized(parts[0]) not in _CONTENT_ROLES:
+            continue
+        fields=[normalized(x) for x in parts[1:3] if normalized(x)]
+        if not fields:
+            continue
+        text=max(fields,key=len)
+        if len(text)<24 or set(text)<=set('•-–— .'):
+            continue
+        out.add(text[:700])
+    return out
+
 class Milestones:
     def __init__(self):
         self.pending=None;self.verified=[];self.stalled=0;self.last={'status':'initial'}
     def expect(self,action,observation):
         candidate=action.get('checkpoint')
         focused,app=foreground_context(observation)
-        self.pending={'predicate':candidate,'before':tree_signature(focused),'before_text':normalized(focused),'before_app':app}
+        self.pending={
+            'predicate':candidate,
+            'before':tree_signature(focused),
+            'before_text':normalized(focused),
+            'before_app':app,
+            'before_content':sorted(meaningful_content_lines(focused)),
+        }
     def observe(self,observation):
         if self.pending is None:return {'status':'IDLE','stalled_actions':self.stalled}
         pending=self.pending;self.pending=None;self.stalled+=1
@@ -19,14 +45,31 @@ class Milestones:
         if not isinstance(candidate,dict):return self.last
         name,expected,text=(str(candidate.get(k) or '').strip() for k in ('name','application','visible_text'))
         visible=normalized(text)
-        # A label already present in the same foreground is not a new milestone.
-        newly_visible=visible not in pending['before_text'] or normalized(app)!=normalized(pending['before_app'])
+        after_text=normalized(focused)
+        after_sig=tree_signature(focused)
+        app_changed=normalized(app)!=normalized(pending['before_app'])
+        anchor_new=visible not in pending['before_text'] or app_changed
+        before_content=set(pending.get('before_content') or [])
+        after_content=meaningful_content_lines(focused)
+        new_content=sorted(after_content-before_content)
+        # A pre-existing anchor (for example an inbox subject) is not sufficient by
+        # itself. It may prove navigation only when the same foreground undergoes a
+        # structural change and at least two substantial new content lines appear.
+        semantic_transition=(
+            not anchor_new
+            and normalized(expected)==normalized(app)
+            and visible in after_text
+            and pending['before']!=after_sig
+            and len(new_content)>=2
+        )
         matched=(4<=len(name)<=200 and 4<=len(visible)<=300 and normalized(expected)==normalized(app)
-                 and app not in ('unknown','Desktop') and visible in normalized(focused)
-                 and newly_visible and pending['before']!=tree_signature(focused))
+                 and app not in ('unknown','Desktop') and visible in after_text
+                 and pending['before']!=after_sig and (anchor_new or semantic_transition))
         key=(normalized(expected),visible)
         if matched and not any((normalized(m['application']),normalized(m['visible_text']))==key for m in self.verified):
-            proof={'name':name,'application':app,'visible_text':text,'observation_sha256':tree_signature(focused)}
+            proof={'name':name,'application':app,'visible_text':text,'observation_sha256':after_sig,
+                   'verification_basis':'anchor_new' if anchor_new else 'foreground_content_transition',
+                   'new_content_count':len(new_content)}
             self.verified.append(proof);self.verified=self.verified[-40:];self.stalled=0
             self.last={'status':'VERIFIED','milestone':proof,'stalled_actions':0}
         return self.last
