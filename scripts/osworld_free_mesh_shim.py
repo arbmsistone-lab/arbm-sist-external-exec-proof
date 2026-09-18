@@ -427,14 +427,19 @@ def call_mesh(messages):
     STATE['step']+=1; STATE.setdefault('facts',[])
     obs,screenshot=latest_observation(messages); focused_obs,active_application=foreground_context(obs)
     had_semantic_expectation=MILESTONES.pending is not None
-    verification=VERIFIER.observe(obs,screenshot); semantic=MILESTONES.observe(obs); semantic_progress=semantic.get('status')=='VERIFIED'
+    verification=VERIFIER.observe(obs,screenshot); semantic=MILESTONES.observe(obs)
+    semantic_verified=semantic.get('status')=='VERIFIED'
+    semantic_partial=semantic.get('status')=='PARTIAL_PROGRESS'
+    semantic_progress=semantic_verified or semantic_partial
     if had_semantic_expectation and verification.get('progress') and not semantic_progress:
         VERIFIER.no_progress += 1
         VERIFIER.last_result={**VERIFIER.last_result,'progress':False,'reason':'visual_change_without_semantic_checkpoint','no_progress':VERIFIER.no_progress,'recovery_level':VERIFIER.recovery_level}; verification=VERIFIER.last_result
     elite_decision=ELITE.observe(bool(semantic_progress if had_semantic_expectation else verification.get('progress')))
     if STATE['history'] and 'outcome' not in STATE['history'][-1]:
-        STATE['history'][-1]['outcome']={'progress':bool(verification.get('progress')),'semantic_verified':semantic_progress,'verifier_reason':verification.get('reason'),'no_progress':verification.get('no_progress'),'milestone':semantic.get('milestone')}
-    if semantic.get('status')=='VERIFIED':
+        STATE['history'][-1]['outcome']={'progress':bool(verification.get('progress')),'semantic_verified':semantic_verified,'semantic_partial':semantic_partial,'verifier_reason':verification.get('reason'),'no_progress':verification.get('no_progress'),'milestone':semantic.get('milestone'),'partial_progress':semantic.get('progress')}
+    if semantic_partial:
+        log_event({'status':'SEMANTIC_PARTIAL_PROGRESS','progress':semantic.get('progress')})
+    if semantic_verified:
         STATE['memory'].append('OBSERVED MILESTONE: '+json.dumps(semantic['milestone'],ensure_ascii=False)); STATE['memory']=STATE['memory'][-8:]
         ELITE.checkpoint(semantic['milestone']); log_event({'status':'MILESTONE_VERIFIED','milestone':semantic['milestone'],'backtrack_anchor':ELITE.recovery_anchor()})
         if screenshot and not STATE.get('visual_memory'): STATE['visual_memory']=screenshot; STATE['visual_memory_meta']=semantic['milestone']
