@@ -34,6 +34,40 @@ class WPSForegroundRegressionTests(unittest.TestCase):
         self.assertEqual(out["command"],"pyautogui.press('esc')")
         self.assertIn("WPS modal-dismiss",out.get("compiler_note",""))
 
+    def test_after_two_stalled_escapes_uses_explicit_visual_close_target(self):
+        action={
+            "action":"exec",
+            "command":"pyautogui.click(774, 416)",
+            "plan":"Close the foreground System Check dialog.",
+            "summary":"Close the visible WPS dialog.",
+            "verification":"The dialog remains foreground and Close is visible.",
+            "expected_change":"The System Check dialog should disappear.",
+            "observed_facts":[{"quote":"System Check"},{"quote":"Close"}],
+            "checkpoint":{"name":"system_check_dismissed","application":"WPS Presentation","visible_text":"Slide 1 / 13"},
+        }
+        out=control.ground_action(
+            action,"WPS 2019","",[],
+            verifier_result={"reason":"action_no_progress","tree_changed":False,"visual_changed":False},
+            recent_commands=["pyautogui.press('esc')","pyautogui.press('esc')"])
+        self.assertEqual(out["command"],"pyautogui.click(774, 416)")
+        self.assertEqual(out["target"]["source"],"screenshot")
+        self.assertEqual(out["target"]["label"],"Close")
+        self.assertIn("two bounded Escape",out.get("compiler_note",""))
+
+    def test_after_two_stalled_escapes_without_named_control_remains_fail_closed(self):
+        action={
+            "action":"exec",
+            "command":"pyautogui.click(774, 416)",
+            "plan":"Dismiss the foreground System Check dialog.",
+            "summary":"Dismiss the visible dialog.",
+            "observed_facts":[{"quote":"System Check"}],
+        }
+        with self.assertRaisesRegex(ValueError,"POINTER_TARGET_REQUIRED"):
+            control.ground_action(
+                action,"WPS 2019","",[],
+                verifier_result={"reason":"action_no_progress","tree_changed":False,"visual_changed":False},
+                recent_commands=["pyautogui.press('esc')","pyautogui.press('esc')"])
+
     def test_bounded_second_escape_requires_verified_ui_change(self):
         action={
             "action":"exec",
