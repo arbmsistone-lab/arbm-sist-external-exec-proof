@@ -46,63 +46,72 @@
     {
       "id": "G-091-OFFICIAL",
       "state": "BLOCKED",
-      "evidence": "run 35330495483 in progress at registry creation"
+      "evidence": "run 35330495483 in progress at registry creation",
+      "cause": "Official task 091 has not yet produced exact score 1.0 with intact evidence on frozen RC."
     },
     {
       "id": "G-OFFICIAL-18",
       "state": "BLOCKED",
       "depends_on": [
         "G-091-OFFICIAL"
-      ]
+      ],
+      "cause": "Depends on exact 091 PASS and same-SHA official 18 execution."
     },
     {
       "id": "G-CAPACITY-DR",
       "state": "BLOCKED",
       "depends_on": [
         "G-OFFICIAL-18"
-      ]
+      ],
+      "cause": "Depends on stabilized same-SHA official functional proof before destructive/fault recovery validation."
     },
     {
       "id": "G-SUPPLY-CHAIN",
       "state": "BLOCKED",
       "depends_on": [
         "G-OFFICIAL-18"
-      ]
+      ],
+      "cause": "Final immutable RC is not yet selected after functional gates."
     },
     {
       "id": "G-IVV",
       "state": "BLOCKED",
       "depends_on": [
         "G-SUPPLY-CHAIN"
-      ]
+      ],
+      "cause": "Independent validation begins only after final functional and supply-chain evidence is sealed."
     },
     {
       "id": "G-RED-TEAM",
       "state": "BLOCKED",
       "depends_on": [
         "G-IVV"
-      ]
+      ],
+      "cause": "Final adversarial review depends on IV&V-ready candidate."
     },
     {
       "id": "G-META-AUDIT",
       "state": "BLOCKED",
       "depends_on": [
         "G-RED-TEAM"
-      ]
+      ],
+      "cause": "Meta-audit depends on completed red-team and evidence set."
     },
     {
       "id": "G-PRODUCTION-PARITY",
       "state": "BLOCKED",
       "depends_on": [
         "G-META-AUDIT"
-      ]
+      ],
+      "cause": "Production identity cannot be certified before meta-audit and release promotion."
     },
     {
       "id": "G-FINAL-SIGNOFF",
       "state": "BLOCKED",
       "depends_on": [
         "G-PRODUCTION-PARITY"
-      ]
+      ],
+      "cause": "All mandatory preceding gates are not PASS."
     }
   ]
 }
