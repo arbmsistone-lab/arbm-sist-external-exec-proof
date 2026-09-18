@@ -1,0 +1,193 @@
+"""Validate trusted, read-only UI observations; a UI change is not task success."""
+from __future__ import annotations
+import ast
+import hashlib
+import json
+import io
+from pathlib import Path
+
+DECK = 'Operating_Committee_Rebaseline_Draft.pptx'
+WORKBOOK = 'Reforecast_Model_H2.xlsx'
+ALLOWED_LAUNCHERS = {'google chrome', 'wps presentation', 'wps spreadsheets',
+                     DECK.lower(), WORKBOOK.lower()}
+POINTERS = {'click', 'doubleClick', 'rightClick', 'moveTo', 'mouseDown', 'mouseUp', 'dragTo'}
+NON_EDITING = {'moveTo', 'sleep', 'keyDown', 'keyUp'}
+
+
+def digest(value: object) -> str:
+    return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
+                                    separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+
+
+def require(ok: bool, message: str) -> None:
+    if not ok:
+        raise ValueError(message)
+
+
+def classify(window: dict) -> str:
+    require(isinstance(window, dict), 'WINDOW_OBJECT_REQUIRED')
+    require(type(window.get('pid')) is int and window['pid'] > 0, 'WINDOW_PID_UNPROVEN')
+    require(type(window.get('id')) is int and window['id'] > 0, 'WINDOW_ID_UNPROVEN')
+    title = str(window.get('title', ''))
+    owner = str(window.get('owner_title', ''))
+    klass = str(window.get('wm_class', '')).casefold()
+    titles = (title + ' ' + owner).casefold()
+    if DECK.casefold() in titles and any(x in klass for x in ('wps', 'wpp', 'kingsoft')):
+        return 'wps-presentation'
+    if WORKBOOK.casefold() in titles and any(x in klass for x in ('wps', 'et', 'kingsoft', 'libreoffice', 'soffice')):
+        return 'reference-workbook'
+    if 'mailhub' in titles and any(x in klass for x in ('chrome', 'chromium')):
+        return 'reference-memo'
+    return 'unapproved'
+
+
+def parse_atom(command: str):
+    tree = ast.parse(command)
+    require(len(tree.body) == 1 and isinstance(tree.body[0], ast.Expr), 'ATOMIC_GUI_CALL_REQUIRED')
+    call = tree.body[0].value
+    require(isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+            and isinstance(call.func.value, ast.Name) and call.func.value.id == 'pyautogui',
+            'GUI_CALL_REQUIRED')
+    args = [ast.literal_eval(arg) for arg in call.args]
+    kwargs = {kw.arg: ast.literal_eval(kw.value) for kw in call.keywords}
+    require(None not in kwargs, 'EXPANDED_ARGUMENTS_FORBIDDEN')
+    return call.func.attr, args, kwargs
+
+
+def pointer(command: str):
+    name, args, kwargs = parse_atom(command)
+    if name not in POINTERS:
+        return None
+    if len(args) >= 2:
+        x, y = args[:2]
+    elif 'x' in kwargs and 'y' in kwargs:
+        x, y = kwargs['x'], kwargs['y']
+    else:
+        raise ValueError('EXPLICIT_POINTER_COORDINATES_REQUIRED')
+    require(type(x) in (int, float) and type(y) in (int, float), 'POINTER_COORDINATES_INVALID')
+    require(float(x).is_integer() and float(y).is_integer(), 'PIXEL_COORDINATES_REQUIRED')
+    return int(x), int(y)
+
+
+def inside(point: tuple[int, int], box: list[int]) -> bool:
+    require(isinstance(box, list) and len(box) == 4 and all(type(v) is int for v in box),
+            'BOUNDING_BOX_INVALID')
+    x, y, w, h = box
+    return w > 0 and h > 0 and x <= point[0] < x + w and y <= point[1] < y + h
+
+
+def preflight(command: str, snapshot: dict) -> str:
+    """The snapshot is produced by guest_probe.py, never by model text."""
+    require(snapshot.get('stable') is True, 'FOREGROUND_UNSTABLE')
+    window = snapshot.get('window', {})
+    app = classify(window)
+    name, args, _ = parse_atom(command)
+    point = pointer(command)
+    if point is not None:
+        target = snapshot.get('target')
+        require(isinstance(target, dict), 'UI_TARGET_UNAVAILABLE')
+        require(target.get('showing') is True and target.get('enabled') is True,
+                'UI_TARGET_NOT_INTERACTIVE')
+        require(inside(point, target.get('bbox')), 'POINTER_OUTSIDE_TARGET')
+        require(inside(point, snapshot.get('screen')), 'POINTER_OUTSIDE_SCREEN')
+        label = str(target.get('label', '')).strip().casefold()
+        launcher = (target.get('role') in ('push button', 'push-button', 'button', 'icon')
+                    and label in ALLOWED_LAUNCHERS
+                    and str(target.get('application', '')).casefold() in
+                    ('gnome-shell', 'gnome shell', 'unity', 'ubuntu dock'))
+        if launcher and name in ('click', 'doubleClick'):
+            return 'application-switch'
+        require(app != 'unapproved', 'UNAPPROVED_APPLICATION')
+        require(type(target.get('pid')) is int and target['pid'] == window['pid'],
+                'BACKGROUND_TARGET_PID_MISMATCH')
+        require(inside(point, window.get('bbox')), 'POINTER_OUTSIDE_FOREGROUND')
+        require(snapshot.get('hit_owner_id') == window['id'], 'POINTER_OCCLUDED_OR_FOREIGN_WINDOW')
+    elif name == 'hotkey' and set(args) == {'alt', 'tab'}:
+        return 'application-switch'
+    else:
+        require(app != 'unapproved', 'UNAPPROVED_APPLICATION')
+    return 'wps-content' if app == 'wps-presentation' else 'reference'
+
+
+def is_save(command: str) -> bool:
+    name, args, _ = parse_atom(command)
+    return name == 'hotkey' and set(args) == {'ctrl', 's'}
+
+
+def read_snapshot(root: Path, ref: dict) -> dict:
+    require(isinstance(ref, dict), 'SNAPSHOT_REFERENCE_REQUIRED')
+    def read_safe(name):
+        require(isinstance(name, str) and name, 'EVIDENCE_PATH_REQUIRED')
+        path = root / name
+        require(not path.is_symlink() and path.resolve().is_relative_to(root.resolve()),
+                'UNSAFE_EVIDENCE_PATH')
+        require(path.is_file(), 'MISSING_EVIDENCE:' + name)
+        return path.read_bytes()
+    raw = read_safe(ref.get('metadata'))
+    require(hashlib.sha256(raw).hexdigest() == ref.get('metadata_sha256'), 'SNAPSHOT_HASH_MISMATCH')
+    obj = json.loads(raw)
+    png = read_safe(ref.get('screenshot'))
+    require(png.startswith(b'\x89PNG\r\n\x1a\n'), 'SCREENSHOT_NOT_PNG')
+    require(hashlib.sha256(png).hexdigest() == ref.get('screenshot_sha256'), 'SCREENSHOT_HASH_MISMATCH')
+    from PIL import Image
+    with Image.open(io.BytesIO(png)) as image:
+        require(image.format == 'PNG' and obj.get('screen') == [0, 0, image.width, image.height],
+                'SCREENSHOT_GEOMETRY_MISMATCH')
+        image.verify()
+    return obj
+
+
+def verify_trace(root: Path, sha: str, run_id: str, run_attempt: str) -> dict:
+    trace = root / 'wps-trace.jsonl'
+    require(trace.is_file() and not trace.is_symlink(), 'WPS_TRACE_MISSING')
+    raw = trace.read_bytes()
+    require(bool(raw) and raw.endswith(b'\n'), 'TRACE_EMPTY_OR_TRUNCATED')
+    previous = '0' * 64
+    steps = set()
+    wps = edits = saves = switches = 0
+    for ordinal, line in enumerate(raw.decode().splitlines(), 1):
+        row = json.loads(line)
+        event_hash = row.pop('event_sha256', None)
+        require(row.get('previous_sha256') == previous and digest(row) == event_hash,
+                'TRACE_CHAIN_INVALID')
+        previous = event_hash
+        require(row.get('ordinal') == ordinal, 'TRACE_ORDER_INVALID')
+        require(row.get('candidate_sha') == sha and row.get('task_id') == '091'
+                and str(row.get('run_id')) == run_id and str(row.get('run_attempt')) == run_attempt,
+                'TRACE_PROVENANCE_MISMATCH')
+        require(row.get('kind') == 'action' and row.get('status') == 'executed',
+                'TRACE_ACTION_NOT_EXECUTED')
+        require(type(row.get('returncode')) is int and row['returncode'] == 0,
+                'GUEST_ACTION_FAILED')
+        command = row.get('command')
+        require(isinstance(command, str) and command, 'TRACE_COMMAND_REQUIRED')
+        require(hashlib.sha256(command.encode()).hexdigest() == row.get('command_sha256'),
+                'TRACE_COMMAND_HASH_MISMATCH')
+        key = (row.get('step'), row.get('substep'))
+        require(key not in steps and type(key[0]) is int and key[0] > 0
+                and type(key[1]) is int and key[1] > 0, 'DUPLICATE_OR_INVALID_STEP')
+        steps.add(key)
+        before = read_snapshot(root, row.get('before'))
+        after = read_snapshot(root, row.get('after'))
+        require(after.get('captured_monotonic_ns', 0) > before.get('captured_monotonic_ns', 0),
+                'STALE_OR_REORDERED_FRAME')
+        scope = preflight(command, before)
+        require(scope == row.get('scope'), 'TRACE_SCOPE_MISMATCH')
+        if scope == 'application-switch':
+            switches += 1
+            continue
+        require(classify(after.get('window', {})) != 'unapproved', 'POST_ACTION_APP_DRIFT')
+        if scope == 'wps-content':
+            wps += 1
+            require(classify(after['window']) == 'wps-presentation', 'WPS_CONTEXT_LOST')
+            if is_save(command):
+                saves += 1
+            elif parse_atom(command)[0] not in NON_EDITING:
+                if row['before']['screenshot_sha256'] != row['after']['screenshot_sha256']:
+                    edits += 1
+    require(wps > 0, 'WPS_ACTIONS_UNPROVEN')
+    require(edits > 0, 'WPS_UI_EFFECT_UNPROVEN')
+    require(saves > 0, 'AGENT_WPS_SAVE_UNPROVEN')
+    return {'wps_actions': wps, 'wps_ui_changes': edits, 'agent_save_actions': saves,
+            'application_switches': switches, 'trace_tail_sha256': previous,
+            'note': 'UI effects do not establish semantic task success; official score is separately required.'}

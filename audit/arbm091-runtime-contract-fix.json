@@ -1,0 +1,32 @@
+{
+  "base_sha": "cf008c04e9bf01e87fca80799dfc25b1de68d888",
+  "correction": "Quote TASK_ID as a YAML string; assert environment before preparation and import actual pinned observer before VM download",
+  "failed_artifact": 10548715912,
+  "failed_artifact_sha256": "0ca43bacb34ce14ea1d8122db2d0b9dbb79f8ee31f0e141ef9c9cc00e9dac0da",
+  "failed_job": "105608504205",
+  "failed_run": "35347563672",
+  "heavy_local": 0,
+  "historical_official_score": null,
+  "historical_process_exit_code": 1,
+  "negative_regression": "Original workflow must fail exactly three of ten new tests; observer restrictions remain unchanged",
+  "preserved_sha256": {
+    "scripts/arbm091/score_tracker.py": "c4daec41c780da5997a8b0eea383e197026fcf36b96f11edc0d9552413859d4d",
+    "scripts/arbm091/trace_gate.py": "21d6e4e29ee8af98d3343bcc3c9d305dfd8b5ab92ecee6ed62439588b438063c",
+    "scripts/arbm091/verify_transplant.py": "699070b96d5513ee943aefbaf20a6c427c47d9cb868b51f796d75501e7266ac2",
+    "scripts/arbm091/wps_observer.py": "4c9b9dc35dd0515f28bba252051daaf13307891363c47d24025355dda17a6a6b",
+    "scripts/osworld_local_vlm.py": "924c8fc594df875eb8fe35981d543c95ba43b8da06d7bbd79063a348e17d0b69",
+    "scripts/osworld_v32_gate.py": "6bdd31373a3431cd39966a29a2a11921f7b987090a8c75982f840d616417a788",
+    "scripts/osworld_v32_integrity.py": "e76646bfb07826d53927b600b7dc972d53d07b58ae88fa7c1357cc05e0052908",
+    "scripts/replay_091_local_contract.py": "50ff1e4c3d66c4b429b66b6651e10a5630c2cb63087288ffad9751112689c5bd"
+  },
+  "remote_refs_modified_by_builder": false,
+  "reused_second_commit": "56cc05c7df91769e768bac26fa845a4403a441ea",
+  "root_cause": "GitHub job received TASK_ID=91 from unquoted 091; strict observer requires literal 091",
+  "runtime_error": "OBSERVER_REMOTE_ZERO_SPEND_TASK091_REQUIRED",
+  "schema": 1,
+  "source_candidate_sha": "a3307fd28c0e50634b931692b6bb1049b2c0c5c9",
+  "test_sha256": "aa3996fece5b1cab1d9657ea1b7d63bb51b928c029a4faf2b7eacc9a682c23d0",
+  "workflow_after_sha256": "5fd49cdec9b9dd9a89eed7afbf862c7df1bdcf454e246abbf243f2858d70cd4b",
+  "workflow_before_sha256": "f713bdc5e9ba62ba45f236c9ac8329bf4381367d218f4e601f8a47ee6c9f204f",
+  "zero_spend_mode": "HARD"
+}
