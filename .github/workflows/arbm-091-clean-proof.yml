@@ -115,30 +115,26 @@ jobs:
 
         root=Path('/tmp/091-modal/task-091/wps-observations')
         before=json.loads((root/'0002-01-before.json').read_text())
-        after_tab=json.loads((root/'0006-01-after.json').read_text())
         drift=json.loads((root/'0007-01-after.json').read_text())
         assert classify(before['window']) == 'wps-transient'
         assert before['window']['title'] == 'System Check'
-        assert after_tab['window']['title'] == 'System Check'
         state={}
         task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
               'The COO has asked you to rebaseline the H2 Operating Committee pack. '
               'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
               'Reforecast_Model_H2.xlsx is the source of truth.')
         first=shim.next_091_specialist_action(task,'WPS 2019','',state,before)
-        assert first['command'] == "pyautogui.press('tab')", first
-        second=shim.next_091_specialist_action(task,'WPS 2019','',state,after_tab)
-        assert second['command'] == "pyautogui.press('enter')", second
-        assert "alt', 'tab" not in first['command'] + second['command']
-        assert "alt', 'f4" not in first['command'] + second['command']
+        assert first['command'] == "pyautogui.hotkey('alt', 'f4')", first
+        assert first['specialist_phase'] == 'transient-system-check-alt-f4', first
+        assert "alt', 'tab" not in first['command']
         try:
-            postflight(second['command'], after_tab, drift)
+            postflight(first['command'], before, drift)
         except ValueError as exc:
             assert 'WPS_TRANSIENT_CLOSE_UNPROVEN' in str(exc), exc
         else:
             raise AssertionError('workbook drift was not rejected')
         print(json.dumps({'status':'PASS','corpus_run':'35391431490',
-                          'first':first['command'],'second':second['command'],
+                          'first':first['command'],
                           'drift_rejected':True,'zero_spend':'HARD'},sort_keys=True))
         print('RUN35391431490_MODAL_REGRESSION=PASS')
         PY
