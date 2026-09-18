@@ -15,6 +15,12 @@ WORKFLOW = '.github/workflows/arbm-091-clean-proof.yml'
 VERIFIER = 'scripts/arbm091/verify_transplant.py'
 LOCAL_VLM = 'scripts/osworld_local_vlm.py'
 LOCAL_VLM_TEST = 'scripts/test_osworld_local_vlm.py'
+TRACE_GATE = 'scripts/arbm091/trace_gate.py'
+TRACE_TEST = 'tests/arbm091/test_score_and_trace.py'
+WPS_ALIAS_COMMIT = 'f0a49b84c95808b501cd91aed14bd702e8230a9c'
+WPS_ALIAS_TEST_COMMIT = '51f63478520b3e8fa89152460dc12dd7da446945'
+WPS_SWITCH_COMMIT = '379a7c64fad1b2776a93f578de8d2ca766473e18'
+WPS_SWITCH_TEST_COMMIT = '06c653eeb960cb75cee23026e3d179196384fe16'
 PID_FILTER_COMMIT = 'ee7f5df4d82642aa6568f482d00fccf4f70e167a'
 PID_TEST_COMMIT = '6bec66cb19ae5d4a43bb48d75ce209798a28ce60'
 ENVIRONMENT_PREFLIGHT = {
@@ -60,10 +66,11 @@ def verify_workflow_delta():
         'python -m pip install -r scripts/requirements-osworld.txt\n'
         'python -m pip install PyYAML==6.0.2\n')
     replay = expected['jobs']['replay']['steps']
-    replay[1]['run'] = replay[1]['run'].replace('10518571201', '10550469277').replace(
+    replay[1]['run'] = replay[1]['run'].replace('10518571201', '10552892356').replace(
         'step_0001.json', 'step_0002.json')
-    replay[3]['name'] = 'Replay exact failed Step 2 through PID-isolated selector twice'
+    replay[3]['name'] = 'Replay exact WPS 2019 Step 2 through alias-isolated selector twice'
     replay[3]['run'] = replay[3]['run'].replace('step_0001.json', 'step_0002.json')
+    replay[3]['run'] += "\n! grep -F \"pyautogui.click(35, 884)\" /tmp/091-local-contract-replay.json\n"
     require(len(re.findall(r'(?m)^\s+TASK_ID: [\'"]091[\'"]\s*$', text)) == 1,
             'TASK091_MUST_BE_QUOTED_YAML_STRING')
     require(normalize(current) == normalize(expected), 'UNEXPECTED_WORKFLOW_SEMANTIC_DELTA')
@@ -78,14 +85,18 @@ def main():
             'CLEAN_BASELINE_ANCESTRY_MISMATCH')
     require(git('rev-list', '--count', BASE + '..' + CLEAN_BASELINE) == '3',
             'EXACTLY_THREE_BASELINE_COMMITS_REQUIRED')
-    require(git('rev-list', '--count', BASE + '..HEAD') == '9',
-            'EXACTLY_NINE_AUDITED_COMMITS_REQUIRED')
+    require(git('rev-list', '--count', BASE + '..HEAD') == '15',
+            'EXACTLY_FIFTEEN_AUDITED_COMMITS_REQUIRED')
     require(not git('rev-list', '--merges', BASE + '..HEAD'), 'MERGE_COMMITS_FORBIDDEN')
     overlay = git('rev-list', '--reverse', CLEAN_BASELINE + '..HEAD').splitlines()
-    require(len(overlay) == 6, 'EXACTLY_SIX_REPAIR_COMMITS_REQUIRED')
+    require(len(overlay) == 12, 'EXACTLY_TWELVE_REPAIR_COMMITS_REQUIRED')
     require(overlay[2] == PID_FILTER_COMMIT and overlay[3] == PID_TEST_COMMIT,
             'PID_REPAIR_COMMIT_IDENTITY_MISMATCH')
-    expected_scopes = (VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST, VERIFIER, WORKFLOW)
+    require(overlay[6] == WPS_ALIAS_COMMIT and overlay[7] == WPS_ALIAS_TEST_COMMIT
+            and overlay[8] == WPS_SWITCH_COMMIT and overlay[9] == WPS_SWITCH_TEST_COMMIT,
+            'WPS_ALIAS_REPAIR_COMMIT_IDENTITY_MISMATCH')
+    expected_scopes = (VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST, VERIFIER, WORKFLOW,
+                       LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, VERIFIER, WORKFLOW)
     for commit, allowed in zip(overlay, expected_scopes):
         require(git('diff-tree', '--no-commit-id', '--name-only', '-r', commit) == allowed,
                 'REPAIR_COMMIT_SCOPE_MISMATCH:' + commit)
@@ -99,7 +110,8 @@ def main():
     changed = set(git('diff', '--name-only', BASE, 'HEAD').splitlines())
     require(changed == set(manifest), 'CHANGED_FILE_ALLOWLIST_MISMATCH')
     require(set(git('diff', '--name-only', CLEAN_BASELINE, 'HEAD').splitlines())
-            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST}, 'REPAIR_TOTAL_SCOPE_MISMATCH')
+            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST},
+            'REPAIR_TOTAL_SCOPE_MISMATCH')
     exists = subprocess.run(['git', 'cat-file', '-e', PATCH_SOURCE], capture_output=True).returncode == 0
     if exists:
         require(subprocess.run(['git', 'merge-base', '--is-ancestor', PATCH_SOURCE, 'HEAD']).returncode != 0,
@@ -115,7 +127,8 @@ def main():
     expected = {row['path']: row['sha256'] for row in dependencies['files']}
     expected.update({row['path']: row['after_sha256'] for row in adjustments})
     expected.update(patch['postimage_sha256'])
-    repaired = {LOCAL_VLM: PID_FILTER_COMMIT, LOCAL_VLM_TEST: PID_TEST_COMMIT}
+    repaired = {LOCAL_VLM: WPS_ALIAS_COMMIT, LOCAL_VLM_TEST: WPS_ALIAS_TEST_COMMIT,
+                TRACE_GATE: WPS_SWITCH_COMMIT, TRACE_TEST: WPS_SWITCH_TEST_COMMIT}
     for path, wanted in expected.items():
         if path in repaired:
             source = subprocess.check_output(['git', 'show', repaired[path] + ':' + path])
@@ -126,8 +139,9 @@ def main():
     verify_workflow_delta()
     print(json.dumps({'status': 'CLEAN_HISTORY_AND_SCOPE_PASS', 'base_sha': BASE,
                       'clean_baseline_sha': CLEAN_BASELINE, 'baseline_commits': 3,
-                      'repair_commits': overlay, 'new_commits': 9, 'changed_files': len(changed),
-                      'repair_scope': [VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST], 'official_score_claimed': False}))
+                      'repair_commits': overlay, 'new_commits': 15, 'changed_files': len(changed),
+                      'repair_scope': [VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST,
+                                       TRACE_GATE, TRACE_TEST], 'official_score_claimed': False}))
 
 
 if __name__ == '__main__':
