@@ -71,6 +71,39 @@ class OfficialGateTests(unittest.TestCase):
             d = self.change('shim.jsonl', json.dumps({'commit':'test-sha','task_id':'061',**event}))
             with self.assertRaises(ValueError): audit_task(d,'061','test-sha')
 
+    def test_explicitly_rejected_unproven_200_is_not_promoted(self):
+        event={'commit':'test-sha','task_id':'061','http':200,'mandatory_cost_usd':0,
+            'paid_fallback_used':False,'status':'ACTION_ISSUED','provider_attempts':[
+                {'route':'openrouter-multimodal-free','status':200,'mandatory_cost_usd':0,
+                 'paid_fallback_used':False,'free_plan_proven':False,'cost_proof_status':'unproven',
+                 'response_admission':'rejected','action_promoted':False,'parsed':False,
+                 'contract_error':'RESPONSE_ZERO_COST_UNPROVEN'},
+                {'route':'local-cloud-vlm','status':200,'zero_spend_confirmed':True}]}
+        d=self.change('shim.jsonl',json.dumps(event))
+        row=audit_task(d,'061','test-sha')
+        self.assertEqual(row['score'],1.0)
+
+    def test_unproven_200_cannot_bypass_positive_rejection_proof(self):
+        base={'commit':'test-sha','task_id':'061','http':200,'mandatory_cost_usd':0,
+              'paid_fallback_used':False,'status':'ACTION_ISSUED'}
+        good={'route':'openrouter-multimodal-free','status':200,'mandatory_cost_usd':0,
+              'paid_fallback_used':False,'free_plan_proven':False,'cost_proof_status':'unproven',
+              'response_admission':'rejected','action_promoted':False,'parsed':False,
+              'contract_error':'RESPONSE_ZERO_COST_UNPROVEN'}
+        mutations=(
+            {'response_admission':'accepted'},
+            {'action_promoted':True},
+            {'parsed':True},
+            {'contract_error':''},
+            {'cost_proof_status':'proven_zero'},
+        )
+        for mutation in mutations:
+            with self.subTest(mutation=mutation):
+                attempt={**good,**mutation}
+                d=self.change('shim.jsonl',json.dumps({**base,'provider_attempts':[attempt]}))
+                with self.assertRaisesRegex(ValueError,'FREE_PROVIDER_UNPROVEN'):
+                    audit_task(d,'061','test-sha')
+
     def test_061_evaluator_fallback_cannot_fake_agent_output(self):
         d=self.change('osworld.log','found_edited_photo=0 (path=None)\nAfter GIMP export: edited_photo=cache/061/IMG_7318_edited.jpg')
         with self.assertRaisesRegex(ValueError,'AGENT_OUTPUT_PROVENANCE_UNPROVEN'):
