@@ -1,12 +1,17 @@
-"""Read-only X11/AT-SPI probe. Executed inside the isolated benchmark VM only.
+"""Read-only X11/AT-SPI and target-deck verifier inside the benchmark VM.
 
-The caller sets POINT to a JSON-compatible pixel pair or None. No task files,
-network endpoints, evaluator internals or reference answers are read here.
+The caller sets POINT to a JSON-compatible pixel pair or None. The only file
+content read is the exact active target deck on the guest Desktop, solely to
+verify already-issued GUI edits. Evaluator internals, reference answers and
+network endpoints are never read.
 """
 import base64
 import io
 import json
 import time
+import os
+import zipfile
+import xml.etree.ElementTree as ET
 from Xlib import X, display
 import pyautogui
 
@@ -74,6 +79,32 @@ def capture(point):
             if pid:
                 return int(window.id), int(pid)
         return 0, 0
+
+    def deck_slide_text(window):
+        title_value = str(window.get('title', ''))
+        path = '/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx'
+        if 'Operating_Committee_Rebaseline_Draft.pptx' not in title_value or not os.path.isfile(path):
+            return {}
+        result = {}
+        try:
+            with zipfile.ZipFile(path, 'r') as archive:
+                names = [name for name in archive.namelist()
+                         if name.startswith('ppt/slides/slide') and name.endswith('.xml')]
+                for name in names:
+                    base = name.rsplit('/', 1)[-1]
+                    number = base[len('slide'):-len('.xml')]
+                    if not number.isdigit():
+                        continue
+                    root_xml = ET.fromstring(archive.read(name))
+                    parts = []
+                    for node in root_xml.iter():
+                        if node.tag.endswith('}t') and node.text:
+                            parts.append(str(node.text))
+                    normalized = ' '.join(' '.join(parts).split())
+                    result[str(int(number))] = normalized
+        except Exception:
+            return {}
+        return result
 
     before = window_info()
     target = None
@@ -163,7 +194,8 @@ def capture(point):
     owner_id, owner_pid = hit_owner()
     after = window_info()
     result = {'window': after, 'target': target, 'controls': controls,
-              'focused_control': focused_control, 'hit_owner_id': owner_id,
+              'focused_control': focused_control, 'deck_slide_text': deck_slide_text(after),
+              'hit_owner_id': owner_id,
               'hit_owner_pid': owner_pid, 'screen': [0, 0, image.width, image.height],
               'stable': before == after, 'captured_monotonic_ns': time.monotonic_ns(),
               'screenshot_base64': base64.b64encode(output.getvalue()).decode('ascii')}
