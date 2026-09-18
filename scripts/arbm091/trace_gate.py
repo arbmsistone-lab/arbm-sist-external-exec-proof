@@ -119,10 +119,13 @@ def preflight(command: str, snapshot: dict) -> str:
 
     if app == 'wps-transient':
         title=str(window.get('title', '')).strip().casefold()
-        if name == 'hotkey' and set(args) in ({'alt','tab'},{'alt','f4'}):
+        if name == 'hotkey' and set(args) == {'alt','tab'}:
             raise ValueError('WPS_TRANSIENT_SWITCH_OR_CLOSE_SHORTCUT_FORBIDDEN')
+        if name == 'hotkey' and set(args) == {'alt','f4'}:
+            require(title == 'system check','WPS_TRANSIENT_CLOSE_SHORTCUT_FORBIDDEN')
         if title == 'system check':
-            require(name == 'sleep' or _is_press(name,args,'tab') or _is_press(name,args,'enter'),
+            require(name == 'sleep' or _is_press(name,args,'tab') or _is_press(name,args,'enter')
+                    or (name == 'hotkey' and set(args) == {'alt','f4'}),
                     'SYSTEM_CHECK_ACTION_FORBIDDEN')
         elif title in ('wps office','set wps office as your default office software'):
             require(name == 'sleep' or _is_press(name,args,'esc'),
@@ -173,6 +176,8 @@ def postflight(command: str, before: dict, after: dict) -> str:
             require(after_app == 'wps-transient' and after_title == 'system check',
                     'WPS_TRANSIENT_CLOSE_UNPROVEN')
         if before_title == 'system check' and _is_press(name,args,'enter'):
+            require(after_title != 'system check','WPS_TRANSIENT_CLOSE_UNPROVEN')
+        if before_title == 'system check' and name == 'hotkey' and set(args) == {'alt','f4'}:
             require(after_title != 'system check','WPS_TRANSIENT_CLOSE_UNPROVEN')
         if before_title in ('wps office','set wps office as your default office software') and _is_press(name,args,'esc'):
             require(after_title != before_title,'WPS_TRANSIENT_CLOSE_UNPROVEN')
