@@ -123,7 +123,8 @@ jobs:
         state={}
         task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
               'The COO has asked you to rebaseline the H2 Operating Committee pack. '
-              'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open.')
+              'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
+              'Reforecast_Model_H2.xlsx is the source of truth.')
         first=shim.next_091_specialist_action(task,'WPS 2019','',state,before)
         assert first['command'] == "pyautogui.press('tab')", first
         second=shim.next_091_specialist_action(task,'WPS 2019','',state,after_tab)
