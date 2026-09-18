@@ -9,6 +9,8 @@ import unittest
 from pathlib import Path
 from arbm091.score_tracker import exact_result, scan_fatal
 from arbm091.trace_gate import DECK, WORKBOOK, classify, digest, preflight, verify_trace
+from arbm091 import wps_observer
+from unittest.mock import patch
 
 SHA = 'a' * 40
 
@@ -198,6 +200,26 @@ class ForegroundTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'UNAPPROVED'):
             preflight("pyautogui.press('enter')", body)
 
+
+class ObserverStabilityTests(unittest.TestCase):
+    def test_transient_unstable_probe_retries_until_stable(self):
+        samples=[
+            ({'stable':False,'window':{'pid':2684,'wm_class':'wpp wpp'}},b'a'),
+            ({'stable':True,'window':{'pid':2684,'wm_class':'wpp wpp'}},b'b'),
+        ]
+        with patch.object(wps_observer,'_probe_once',side_effect=samples),              patch.object(wps_observer.time,'sleep',lambda *_:None):
+            payload,png=wps_observer._settled_probe(object(),None,attempts=3,delay=0)
+        self.assertTrue(payload['stable'])
+        self.assertEqual(png,b'b')
+
+    def test_persistently_unstable_probe_stays_fail_closed(self):
+        samples=[
+            ({'stable':False,'window':{'pid':2684,'wm_class':'wpp wpp'}},b'a'),
+            ({'stable':False,'window':{'pid':2684,'wm_class':'wpp wpp'}},b'b'),
+            ({'stable':False,'window':{'pid':2684,'wm_class':'wpp wpp'}},b'c'),
+        ]
+        with patch.object(wps_observer,'_probe_once',side_effect=samples),              patch.object(wps_observer.time,'sleep',lambda *_:None),              self.assertRaisesRegex(ValueError,'FOREGROUND_UNSTABLE'):
+            wps_observer._settled_probe(object(),None,attempts=3,delay=0)
 
 class TraceTests(unittest.TestCase):
     def setUp(self):
