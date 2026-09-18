@@ -1,0 +1,82 @@
+name: ARBM 091 Memo Input Diagnostic
+on:
+  push:
+    branches:
+      - chatgpt/arbm-091-input-diagnostic-20260918
+    paths:
+      - .github/workflows/arbm-091-memo-diagnostic.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+env:
+  ZERO_SPEND_MODE: HARD
+jobs:
+  inspect-memo-input:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Verify zero-spend runner
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = HARD
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+      - name: Download pinned public task metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v2026.08.08 https://github.com/xlang-ai/OSWorld-V2.git osworld
+          test "$(git -C osworld rev-parse HEAD)" = d578d2d4e0dc82b43e270fdaa7fa89d9708cd154
+          python -m pip install --disable-pip-version-check -q uv==0.8.15
+          cd osworld
+          uv sync --frozen
+          uv run python scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
+          cd ..
+      - name: Extract task-input references only
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p diagnostic
+          python - <<'PY'
+          from pathlib import Path
+          import json, re
+          root=Path('osworld/evaluation_examples')
+          hits=[]
+          needles=('Elena Park','mailhub','Operating_Committee_Rebaseline_Draft',
+                   'Reforecast_Model_H2','stabilize','recover')
+          for path in root.rglob('*'):
+              if not path.is_file():
+                  continue
+              rel=str(path.relative_to(root))
+              if 'task_class' in rel:
+                  continue
+              if path.suffix.lower() not in {'.json','.jsonl','.yaml','.yml','.txt'}:
+                  continue
+              try:
+                  text=path.read_text(errors='ignore')
+              except OSError:
+                  continue
+              if not any(n.casefold() in text.casefold() for n in needles):
+                  continue
+              lines=text.splitlines()
+              snippets=[]
+              for i,line in enumerate(lines):
+                  if any(n.casefold() in line.casefold() for n in needles):
+                      snippets.extend(lines[max(0,i-3):min(len(lines),i+7)])
+              dedup=[]
+              for line in snippets:
+                  if line not in dedup:
+                      dedup.append(line)
+              hits.append({'path':rel,'snippets':dedup[:120]})
+          Path('diagnostic/task091-memo-inputs.json').write_text(
+              json.dumps({'status':'TASK091_MEMO_INPUT_SCAN','evaluator_inspected':False,
+                          'zero_spend_mode':'HARD','hits':hits},ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps({'hit_files':[x['path'] for x in hits],
+                            'evaluator_inspected':False},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: arbm091-memo-inputs
+          path: diagnostic/task091-memo-inputs.json
+          if-no-files-found: error
+          retention-days: 30
