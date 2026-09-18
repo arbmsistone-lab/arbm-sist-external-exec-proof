@@ -26,10 +26,22 @@ def _probe_once(controller, point):
     parsed = urlparse(server)
     require(parsed.scheme == 'http' and parsed.hostname in ('localhost', '127.0.0.1'),
             'PROBE_ISOLATED_GUEST_ONLY')
-    payload, png = _settled_probe(controller, point)
+    code = 'POINT = ' + repr(point) + '\n' + _PROBE
+    session = requests.Session()
+    session.trust_env = False
+    try:
+        response = session.post(server.rstrip('/') + '/execute',
+                                json={'command': ['python3', '-c', code], 'shell': False},
+                                timeout=(3, 15))
+        response.raise_for_status()
+        result = response.json()
+    finally:
+        session.close()
+    require(result.get('returncode') == 0 and result.get('status') == 'success',
+            'TRUSTED_GUEST_PROBE_FAILED:' + str(result.get('error', ''))[:160])
+    payload = json.loads(str(result['output']).strip())
+    png = base64.b64decode(payload.pop('screenshot_base64'), validate=True)
     return payload, png
-
-
 def _settled_probe(controller, point, attempts=4, delay=0.12):
     last = None
     for index in range(attempts):
@@ -49,21 +61,7 @@ def snapshot(controller, root: Path, name: str, point):
     parsed = urlparse(server)
     require(parsed.scheme == 'http' and parsed.hostname in ('localhost', '127.0.0.1'),
             'PROBE_ISOLATED_GUEST_ONLY')
-    code = 'POINT = ' + repr(point) + '\n' + _PROBE
-    session = requests.Session()
-    session.trust_env = False
-    try:
-        response = session.post(server.rstrip('/') + '/execute',
-                                json={'command': ['python3', '-c', code], 'shell': False},
-                                timeout=(3, 15))
-        response.raise_for_status()
-        result = response.json()
-    finally:
-        session.close()
-    require(result.get('returncode') == 0 and result.get('status') == 'success',
-            'TRUSTED_GUEST_PROBE_FAILED:' + str(result.get('error', ''))[:160])
-    payload = json.loads(str(result['output']).strip())
-    png = base64.b64decode(payload.pop('screenshot_base64'), validate=True)
+    payload, png = _settled_probe(controller, point)
     raw = (json.dumps(payload, sort_keys=True) + '\n').encode()
     directory = root / 'wps-observations'
     directory.mkdir(parents=True, exist_ok=True)
@@ -82,6 +80,7 @@ def snapshot(controller, root: Path, name: str, point):
         'focused_control': payload.get('focused_control'),
         'deck_slide_text': payload.get('deck_slide_text', {}),
         'deck_slide_runs': payload.get('deck_slide_runs', {}),
+        'deck_file': payload.get('deck_file', {}),
     }
     operational_raw=(json.dumps(operational, sort_keys=True) + '\n').encode()
     operational_path=root / 'window-state.json'
