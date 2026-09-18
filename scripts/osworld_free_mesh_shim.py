@@ -486,7 +486,11 @@ def call_mesh(messages):
         if http==200 and data.get('ok') is True:
             try:
                 allow_canonical=(str(data.get('provider') or '')=='local-cloud-vlm')
-                action=ground_action(data.get('action'),body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]),allow_canonical=allow_canonical)
+                recent_commands=[x['command'] for x in STATE['history'][-6:]]
+                action=ground_action(
+                    data.get('action'),body.get('active_application','unknown'),focused_obs,
+                    body.get('verified_milestones',[]),allow_canonical=allow_canonical,
+                    verifier_result=VERIFIER.last_result,recent_commands=recent_commands)
                 decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
             except ValueError as exc:
                 policy_rejections+=1
@@ -522,7 +526,7 @@ def call_mesh(messages):
                 command=action['command']
                 if rejects_visual_navigation_loop(action, body['instruction'], body.get('active_application','unknown'), MILESTONES.stalled):
                     body['memory']=(body['memory']+'\nVISUAL_NAVIGATION_LOOP_REJECTED: Ctrl+O was already used without a verified visual milestone. Use the visible dialog deliberately or make a target-image edit instead. Do not repeat it.')[-4500:]; body.pop('provider_hint',None); log_event({'status':'VISUAL_NAVIGATION_LOOP_REJECTED','command':command}); continue
-                recent=[x['command'] for x in STATE['history'][-6:]]
+                recent=recent_commands
                 bounded_wps_escape=allow_bounded_wps_escape_repeat(
                     action,body.get('active_application','unknown'),VERIFIER.last_result,recent)
                 if VERIFIER.no_progress and command in recent and bounded_wps_escape:
