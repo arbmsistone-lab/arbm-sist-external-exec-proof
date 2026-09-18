@@ -94,6 +94,11 @@ jobs:
         test -s /tmp/091-current/task-091/wps-observations/0002-01-after.json
         test -s /tmp/091-current/task-091/wps-observations/0003-01-after.json
         test -s /tmp/091-current/task-091/wps-observations/0004-01-after.json
+        gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10572233191/zip > /tmp/091-deck.zip
+        mkdir -p /tmp/091-deck
+        unzip -q /tmp/091-deck.zip -d /tmp/091-deck
+        test -s /tmp/091-deck/task-091/wps-observations/0004-01-before.json
+        test -s /tmp/091-deck/task-091/wps-observations/0004-01-after.json
     - name: Install pinned local VLM runtime
       run: 'set -euo pipefail
 
@@ -183,6 +188,48 @@ jobs:
         print('RUN35400883826_ENTER_REGRESSION=PASS')
         PY
         grep -F 'RUN35400883826_ENTER_REGRESSION=PASS' /tmp/run35400883826-enter-regression.json
+    - name: Replay run 35404537401 AT-SPI-empty deck regression
+      shell: bash
+      run: |
+        set -euo pipefail
+        TASK_ID=091 ZERO_SPEND_MODE=HARD PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35404537401-deck-regression.json
+        import copy, json
+        from pathlib import Path
+        import osworld_free_mesh_shim as shim
+        from arbm091.trace_gate import classify, postflight, preflight
+
+        root=Path('/tmp/091-deck/task-091/wps-observations')
+        before=json.loads((root/'0004-01-before.json').read_text())
+        after=json.loads((root/'0004-01-after.json').read_text())
+        assert before['window']['title'] == 'System Check', before['window']
+        assert classify(after['window']) == 'wps-presentation', after['window']
+        assert after.get('controls',[]) == [], after.get('controls')
+        assert postflight("pyautogui.press('space')", before, after) == 'wps-presentation'
+
+        deck=copy.deepcopy(after)
+        deck['deck_slide_text']={'1':'Growth Plan Draft Planning posture: accelerate growth through H2 scale-up $42.8M $2.6M 214'}
+        deck['deck_slide_runs']={'1':['Growth Plan Draft','Planning posture: accelerate growth through H2 scale-up','$42.8M','$2.6M','214']}
+        deck['deck_file']={'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                           'sha256':'a'*64,'size':1234,'mtime_ns':1}
+        state={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
+        task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
+              'The COO has asked you to rebaseline the H2 Operating Committee pack. '
+              'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
+              'Reforecast_Model_H2.xlsx is the source of truth.')
+        action=shim.next_091_specialist_action(task,'WPS Presentation','',state,deck)
+        assert action['command'] == 'pyautogui.doubleClick(745, 335, interval=0.08)', action
+        assert action['target']['source'] == 'target-pptx-spatial', action
+        probe=copy.deepcopy(deck)
+        probe['screen']=[0,0,1920,1080]
+        probe['window']['bbox']=[70,27,1850,1053]
+        probe['target']=None
+        assert preflight(action['command'],probe) == 'wps-content'
+        print(json.dumps({'status':'PASS','corpus_run':'35404537401',
+                          'atspi_controls':0,'fallback':'target-pptx-spatial',
+                          'zero_spend':'HARD'},sort_keys=True))
+        print('RUN35404537401_DECK_REGRESSION=PASS')
+        PY
+        grep -F 'RUN35404537401_DECK_REGRESSION=PASS' /tmp/run35404537401-deck-regression.json
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       if: always()
       with:
