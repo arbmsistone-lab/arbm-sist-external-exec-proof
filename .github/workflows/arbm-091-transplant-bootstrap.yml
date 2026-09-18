@@ -41,7 +41,8 @@ jobs:
             git -C public-objects update-ref "refs/arbm/pinned/$name" "$sha"
             printf '%s %s\n' "$name" "$sha" >> public-source-export/pinned-commits.txt
           done
-          git -C public-objects symbolic-ref HEAD refs/arbm/pinned/base
+          git -C public-objects update-ref refs/heads/pinned-base "$BASE"
+          git -C public-objects symbolic-ref HEAD refs/heads/pinned-base
           git -C public-objects fsck --full --strict
           if git -C public-objects config --local --list | grep -Eiq 'credential|authorization|extraheader|password|token'; then
             echo 'UNSAFE_GIT_CONFIGURATION' >&2
