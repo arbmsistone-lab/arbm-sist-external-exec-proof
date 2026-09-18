@@ -225,6 +225,30 @@ def _task091_terminal(reason,state):
     state['terminal_reason']=str(reason)
     return {'action':'terminal','reason':str(reason),'specialist_phase':'terminal'}
 
+def _task091_system_check_close(window_state):
+    controls=window_state.get('controls',[]) if isinstance(window_state,dict) else []
+    candidates=[]
+    for row in controls:
+        if not isinstance(row,dict):
+            continue
+        if str(row.get('label','')).strip().casefold() != 'close':
+            continue
+        if str(row.get('role','')).strip().casefold() not in ('push button','push-button','button'):
+            continue
+        if row.get('enabled') is not True or row.get('showing') is not True:
+            continue
+        bbox=row.get('bbox')
+        if not (isinstance(bbox,list) and len(bbox)==4 and all(type(v) is int for v in bbox)):
+            continue
+        x,y,w,h=bbox
+        if w<=0 or h<=0:
+            continue
+        candidates.append({**row,'cx':x+w//2,'cy':y+h//2})
+    if len(candidates) != 1:
+        return None, ('TASK091_TARGET_AMBIGUOUS' if len(candidates)>1 else 'TASK091_TARGET_NOT_VISIBLE')
+    return candidates[0], None
+
+
 def _task091_same_region(hit,bbox):
     if not isinstance(hit,dict) or not isinstance(bbox,list) or len(bbox)!=4:
         return False
@@ -281,10 +305,20 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                         'plan':'Focus the System Check Close control while retaining WPS transient ownership.',
                         'specialist_phase':'transient-system-check-tab'}
             if phase == 'tab-issued':
-                state['transient_phase']='enter-issued'
-                return {'action':'exec','command':"pyautogui.press('enter')",
-                        'plan':'Activate the focused System Check Close control.',
-                        'specialist_phase':'transient-system-check-enter'}
+                state['transient_phase']='space-issued'
+                return {'action':'exec','command':"pyautogui.press('space')",
+                        'plan':'Activate the focused System Check Close button using its native button activation key.',
+                        'specialist_phase':'transient-system-check-space'}
+            if phase == 'space-issued':
+                close,reason=_task091_system_check_close(window_state)
+                if close is None:
+                    return _task091_terminal(reason or 'WPS_TRANSIENT_CLOSE_UNPROVEN',state)
+                state['transient_phase']='click-issued'
+                command=f"pyautogui.click({int(close['cx'])}, {int(close['cy'])})"
+                return {'action':'exec','command':command,
+                        'target':{'source':'accessibility','label':'Close','role':close.get('role')},
+                        'plan':'Fallback only to the unique guest-proven Close button inside the active System Check transient.',
+                        'specialist_phase':'transient-system-check-verified-close-click'}
             return _task091_terminal('WPS_TRANSIENT_CLOSE_UNPROVEN',state)
         if title in ('wps office','set wps office as your default office software'):
             if phase is None:
