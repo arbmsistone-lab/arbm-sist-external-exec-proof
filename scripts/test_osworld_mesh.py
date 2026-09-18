@@ -178,14 +178,19 @@ class MeshTests(unittest.TestCase):
    first_modal=shim.next_091_specialist_action(task,'WPS Presentation','System Check',state)
    second_modal=shim.next_091_specialist_action(
     task,'WPS Presentation','Set WPS Office as your default office software',state)
-   self.assertEqual(first_modal['command'],"pyautogui.press('esc')")
-   self.assertEqual(second_modal['command'],"pyautogui.press('esc')")
+   self.assertEqual(first_modal['command'],"pyautogui.hotkey('alt', 'f4')")
+   self.assertEqual(second_modal['command'],"pyautogui.hotkey('alt', 'f4')")
+   self.assertEqual(state.get('startup_alt_f4'),2)
    self.assertFalse(state.get('anchored'))
-   state={}
    deck_obs=('text\tOperating Committee\tOperating Committee\t\t\t(500, 180)\t(600, 60)\n'
              'text\tGrowth Plan Draft\tGrowth Plan Draft\t\t\t(700, 300)\t(100, 40)')
    anchor=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state)
+   self.assertTrue(state.get('startup_modal_clear_complete'))
    self.assertEqual(anchor['command'],"pyautogui.hotkey('ctrl', 'home')")
+   blocked_state={'startup_alt_f4':2}
+   self.assertIsNone(shim.next_091_specialist_action(
+    task,'WPS Presentation','System Check',blocked_state))
+   self.assertEqual(blocked_state.get('handoff_reason'),'WPS_DECK_NOT_OBSERVED_AFTER_BOUNDED_MODAL_CLEAR')
    required={'$40.9M','$2.8M','104%','71%','17 mo','206','3',
              'Renewal saves','Pricing discipline','Migration delay','Support credits',
              'International Pilot stop','Partner stabilization','Platform','Reliability',
@@ -203,6 +208,7 @@ class MeshTests(unittest.TestCase):
    self.assertIn((12,1396,705,'214','206'),shim.TASK091_SPATIAL_TEXT_EDITS)
    self.assertIn((7,717,383,'Regional launch readiness','Vendor SLA breach'),shim.TASK091_SPATIAL_TEXT_EDITS)
    self.assertFalse(any("hotkey('ctrl', 'h')" in str(row) for row in shim.TASK091_SPATIAL_TEXT_EDITS))
+   self.assertIsNotNone(shim.re)
    parsed=shim._task091_atspi_candidates(deck_obs,'Growth Plan Draft')
    self.assertEqual(len(parsed),1)
    self.assertEqual(parsed[0]['x'],700)
