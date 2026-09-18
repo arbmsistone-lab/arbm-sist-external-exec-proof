@@ -13,8 +13,6 @@ env:
   ZERO_SPEND_MODE: HARD
   PYTHONDONTWRITEBYTECODE: '1'
   PYTHONPATH: ${{ github.workspace }}/candidate/scripts
-  ARBM_OSWORLD_SHIM_LOG: ${{ runner.temp }}/arbm091-env-test-shim.log
-  ARBM_OSWORLD_OBSERVATIONS: ${{ runner.temp }}/arbm091-env-test-observations
 jobs:
   rebuild-and-test:
     runs-on: ubuntu-24.04
@@ -52,6 +50,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          export ARBM_OSWORLD_SHIM_LOG="$RUNNER_TEMP/arbm091-env-test-shim.log"
+          export ARBM_OSWORLD_OBSERVATIONS="$RUNNER_TEMP/arbm091-env-test-observations"
           python "$GITHUB_WORKSPACE/control/audit/rebuild_091_env_contract.py" 2>&1 | tee "$RUNNER_TEMP/arbm091-env-rebuild.log"
           test -s "$RUNNER_TEMP/arbm091-env-candidate-receipt.json"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
