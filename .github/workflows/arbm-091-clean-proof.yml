@@ -1,0 +1,20 @@
+name: ARBM 091 Clean Transplant Proof
+on:
+  push:
+    branches: [chatgpt/arbm-091-transplant-bootstrap-20260918]
+    paths: [.github/workflows/arbm-091-clean-proof.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  registration-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Register workflow name only, no task execution or certification
+        env:
+          ZERO_SPEND_MODE: HARD
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$GITHUB_REF" = refs/heads/chatgpt/arbm-091-transplant-bootstrap-20260918
+          printf '%s\n' 'REGISTRATION_ONLY_NOT_TASK091_PROOF'
