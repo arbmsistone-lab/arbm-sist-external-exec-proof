@@ -200,16 +200,19 @@ class ForegroundTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'UNAPPROVED'):
             preflight("pyautogui.press('enter')", body)
 
-    def test_system_check_is_authorized_transient_with_only_tab_enter(self):
+    def test_system_check_authorizes_only_bounded_native_close(self):
         body = snapshot('System Check', 'wpp wpp', pid=2689)
         body['window']['owner_title'] = DECK + ' - WPS Office'
         self.assertEqual(classify(body['window']), 'wps-transient')
         self.assertEqual(preflight("pyautogui.press('tab')", body), 'wps-transient')
         self.assertEqual(preflight("pyautogui.press('enter')", body), 'wps-transient')
+        self.assertEqual(preflight("pyautogui.hotkey('alt', 'f4')", body), 'wps-transient')
         with self.assertRaisesRegex(ValueError, 'TRANSIENT'):
             preflight("pyautogui.hotkey('alt', 'tab')", body)
-        with self.assertRaisesRegex(ValueError, 'TRANSIENT'):
-            preflight("pyautogui.hotkey('alt', 'f4')", body)
+        other = snapshot('WPS Office', 'wpp wpp', pid=2689)
+        other['window']['owner_title'] = DECK + ' - WPS Office'
+        with self.assertRaisesRegex(ValueError, 'CLOSE_SHORTCUT'):
+            preflight("pyautogui.hotkey('alt', 'f4')", other)
 
     def test_system_check_postflight_requires_same_wps_pid_and_real_close(self):
         before = snapshot('System Check', 'wpp wpp', pid=2689)
@@ -220,6 +223,11 @@ class ForegroundTests(unittest.TestCase):
         after_deck = snapshot(DECK + ' - WPS Office', 'wpp wpp', pid=2689)
         after_deck['captured_monotonic_ns'] = 12
         self.assertEqual(postflight("pyautogui.press('enter')", before, after_deck), 'wps-presentation')
+        self.assertEqual(postflight("pyautogui.hotkey('alt', 'f4')", before, after_deck), 'wps-presentation')
+        same = copy.deepcopy(before)
+        same['captured_monotonic_ns'] = 13
+        with self.assertRaisesRegex(ValueError, 'WPS_TRANSIENT_CLOSE_UNPROVEN'):
+            postflight("pyautogui.hotkey('alt', 'f4')", before, same)
         drift = snapshot(WORKBOOK + ' - WPS Spreadsheets', 'et WPS', pid=2566)
         drift['captured_monotonic_ns'] = 13
         with self.assertRaisesRegex(ValueError, 'WPS_TRANSIENT_CLOSE_UNPROVEN'):
