@@ -17,6 +17,7 @@ LOCAL_VLM = 'scripts/osworld_local_vlm.py'
 LOCAL_VLM_TEST = 'scripts/test_osworld_local_vlm.py'
 TRACE_GATE = 'scripts/arbm091/trace_gate.py'
 TRACE_TEST = 'tests/arbm091/test_score_and_trace.py'
+WPS_OBSERVER = 'scripts/arbm091/wps_observer.py'
 SHIM = 'scripts/osworld_free_mesh_shim.py'
 MESH_TEST = 'scripts/test_osworld_mesh.py'
 WPS_ALIAS_COMMIT = 'f0a49b84c95808b501cd91aed14bd702e8230a9c'
@@ -90,11 +91,11 @@ def main():
             'CLEAN_BASELINE_ANCESTRY_MISMATCH')
     require(git('rev-list', '--count', BASE + '..' + CLEAN_BASELINE) == '3',
             'EXACTLY_THREE_BASELINE_COMMITS_REQUIRED')
-    require(git('rev-list', '--count', BASE + '..HEAD') == '23',
-            'EXACTLY_TWENTY_THREE_AUDITED_COMMITS_REQUIRED')
+    require(git('rev-list', '--count', BASE + '..HEAD') == '26',
+            'EXACTLY_TWENTY_SIX_AUDITED_COMMITS_REQUIRED')
     require(not git('rev-list', '--merges', BASE + '..HEAD'), 'MERGE_COMMITS_FORBIDDEN')
     overlay = git('rev-list', '--reverse', CLEAN_BASELINE + '..HEAD').splitlines()
-    require(len(overlay) == 20, 'EXACTLY_TWENTY_REPAIR_COMMITS_REQUIRED')
+    require(len(overlay) == 23, 'EXACTLY_TWENTY_THREE_REPAIR_COMMITS_REQUIRED')
     require(overlay[2] == PID_FILTER_COMMIT and overlay[3] == PID_TEST_COMMIT,
             'PID_REPAIR_COMMIT_IDENTITY_MISMATCH')
     require(overlay[6] == WPS_ALIAS_COMMIT and overlay[7] == WPS_ALIAS_TEST_COMMIT
@@ -102,7 +103,7 @@ def main():
             'WPS_ALIAS_REPAIR_COMMIT_IDENTITY_MISMATCH')
     expected_scopes = (VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST, VERIFIER, WORKFLOW,
                        LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, VERIFIER, WORKFLOW, VERIFIER, WORKFLOW,
-                       VERIFIER, SHIM, MESH_TEST, VERIFIER, TRACE_GATE, TRACE_TEST)
+                       VERIFIER, SHIM, MESH_TEST, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, WPS_OBSERVER, TRACE_TEST)
     for commit, allowed in zip(overlay, expected_scopes):
         require(git('diff-tree', '--no-commit-id', '--name-only', '-r', commit) == allowed,
                 'REPAIR_COMMIT_SCOPE_MISMATCH:' + commit)
@@ -116,7 +117,7 @@ def main():
     changed = set(git('diff', '--name-only', BASE, 'HEAD').splitlines())
     require(changed == set(manifest), 'CHANGED_FILE_ALLOWLIST_MISMATCH')
     require(set(git('diff', '--name-only', CLEAN_BASELINE, 'HEAD').splitlines())
-            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST},
+            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER},
             'REPAIR_TOTAL_SCOPE_MISMATCH')
     exists = subprocess.run(['git', 'cat-file', '-e', PATCH_SOURCE], capture_output=True).returncode == 0
     if exists:
@@ -134,7 +135,7 @@ def main():
     expected.update({row['path']: row['after_sha256'] for row in adjustments})
     expected.update(patch['postimage_sha256'])
     repaired = {LOCAL_VLM: WPS_ALIAS_COMMIT, LOCAL_VLM_TEST: WPS_ALIAS_TEST_COMMIT,
-                TRACE_GATE: overlay[18], TRACE_TEST: overlay[19],
+                TRACE_GATE: overlay[18], TRACE_TEST: overlay[22], WPS_OBSERVER: overlay[21],
                 SHIM: overlay[15], MESH_TEST: overlay[16]}
     for path, wanted in expected.items():
         if path in repaired:
@@ -146,9 +147,9 @@ def main():
     verify_workflow_delta()
     print(json.dumps({'status': 'CLEAN_HISTORY_AND_SCOPE_PASS', 'base_sha': BASE,
                       'clean_baseline_sha': CLEAN_BASELINE, 'baseline_commits': 3,
-                      'repair_commits': overlay, 'new_commits': 23, 'changed_files': len(changed),
+                      'repair_commits': overlay, 'new_commits': 26, 'changed_files': len(changed),
                       'repair_scope': [VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST,
-                                       TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST], 'official_score_claimed': False}))
+                                       TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER], 'official_score_claimed': False}))
 
 
 if __name__ == '__main__':
