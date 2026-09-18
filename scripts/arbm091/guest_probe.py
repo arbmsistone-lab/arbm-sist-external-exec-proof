@@ -12,6 +12,7 @@ import time
 import os
 import zipfile
 import xml.etree.ElementTree as ET
+import hashlib
 from Xlib import X, display
 import pyautogui
 
@@ -84,11 +85,17 @@ def capture(point):
         title_value = str(window.get('title', ''))
         path = '/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx'
         if 'Operating_Committee_Rebaseline_Draft.pptx' not in title_value or not os.path.isfile(path):
-            return {}, {}
+            return {}, {}, {}
         text_result = {}
         run_result = {}
+        metadata = {}
         try:
-            with zipfile.ZipFile(path, 'r') as archive:
+            raw = open(path, 'rb').read()
+            stat = os.stat(path)
+            metadata = {'path': path, 'size': int(stat.st_size),
+                        'mtime_ns': int(stat.st_mtime_ns),
+                        'sha256': hashlib.sha256(raw).hexdigest()}
+            with zipfile.ZipFile(io.BytesIO(raw), 'r') as archive:
                 names = [name for name in archive.namelist()
                          if name.startswith('ppt/slides/slide') and name.endswith('.xml')]
                 for name in names:
@@ -107,8 +114,8 @@ def capture(point):
                     run_result[key] = parts
                     text_result[key] = ' '.join(parts)
         except Exception:
-            return {}, {}
-        return text_result, run_result
+            return {}, {}, {}
+        return text_result, run_result, metadata
 
     before = window_info()
     target = None
@@ -197,10 +204,11 @@ def capture(point):
     image.save(output, format='PNG')
     owner_id, owner_pid = hit_owner()
     after = window_info()
-    deck_text, deck_runs = deck_slide_content(after)
+    deck_text, deck_runs, deck_file = deck_slide_content(after)
     result = {'window': after, 'target': target, 'controls': controls,
               'focused_control': focused_control, 'deck_slide_text': deck_text,
-              'deck_slide_runs': deck_runs, 'hit_owner_id': owner_id,
+              'deck_slide_runs': deck_runs, 'deck_file': deck_file,
+              'hit_owner_id': owner_id,
               'hit_owner_pid': owner_pid, 'screen': [0, 0, image.width, image.height],
               'stable': before == after, 'captured_monotonic_ns': time.monotonic_ns(),
               'screenshot_base64': base64.b64encode(output.getvalue()).decode('ascii')}
