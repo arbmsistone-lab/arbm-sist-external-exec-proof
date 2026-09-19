@@ -164,33 +164,47 @@ class ForegroundTests(unittest.TestCase):
         body['screen'] = [0, 0, 1920, 1080]
         body['target'] = None
         body['deck_slide_text'] = {'1':'Growth Plan Draft'}
+        body['deck_slide_shapes'] = {'1':[{
+            'id':6,'name':'CoverTitle','text':'Growth Plan Draft',
+            'geometry':{'x':749808,'y':1078992,'w':5852160,'h':1234440}}]}
         body['deck_file'] = {'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
-                             'sha256':'a'*64,'size':1234,'mtime_ns':1}
-        self.assertEqual(preflight('pyautogui.doubleClick(745, 335, interval=0.08)', body), 'wps-content')
+                             'sha256':'a'*64,'size':1234,'mtime_ns':1,
+                             'slide_size':{'w':12192000,'h':6858000}}
+        self.assertEqual(preflight('pyautogui.doubleClick(869, 391, interval=0.08)', body), 'wps-content')
 
         no_proof = copy.deepcopy(body)
         no_proof['deck_slide_text'] = {}
         with self.assertRaisesRegex(ValueError, 'UI_TARGET_UNAVAILABLE'):
-            preflight('pyautogui.doubleClick(745, 335, interval=0.08)', no_proof)
+            preflight('pyautogui.doubleClick(869, 391, interval=0.08)', no_proof)
 
-        off_allowlist = copy.deepcopy(body)
-        with self.assertRaisesRegex(ValueError, 'UI_TARGET_UNAVAILABLE'):
-            preflight('pyautogui.doubleClick(746, 335, interval=0.08)', off_allowlist)
+        off_shape = copy.deepcopy(body)
+        with self.assertRaisesRegex(ValueError, 'SHAPE_POINT_UNPROVEN'):
+            preflight('pyautogui.doubleClick(870, 391, interval=0.08)', off_shape)
+
+        missing_shape = copy.deepcopy(body)
+        missing_shape['deck_slide_shapes'] = {}
+        with self.assertRaisesRegex(ValueError, 'SHAPE_POINT_UNPROVEN'):
+            preflight('pyautogui.doubleClick(869, 391, interval=0.08)', missing_shape)
 
         wrong_geometry = copy.deepcopy(body)
         wrong_geometry['window']['bbox'] = [71, 27, 1849, 1053]
         with self.assertRaisesRegex(ValueError, 'CANONICAL_DECK_GEOMETRY_UNPROVEN'):
-            preflight('pyautogui.doubleClick(745, 335, interval=0.08)', wrong_geometry)
+            preflight('pyautogui.doubleClick(869, 391, interval=0.08)', wrong_geometry)
 
         wrong_screen = copy.deepcopy(body)
         wrong_screen['screen'] = [0, 0, 1919, 1080]
         with self.assertRaisesRegex(ValueError, 'CANONICAL_SCREEN_UNPROVEN'):
-            preflight('pyautogui.doubleClick(745, 335, interval=0.08)', wrong_screen)
+            preflight('pyautogui.doubleClick(869, 391, interval=0.08)', wrong_screen)
 
         missing_digest = copy.deepcopy(body)
         missing_digest['deck_file']['sha256'] = ''
         with self.assertRaisesRegex(ValueError, 'TARGET_DECK_FILE_UNPROVEN'):
-            preflight('pyautogui.doubleClick(745, 335, interval=0.08)', missing_digest)
+            preflight('pyautogui.doubleClick(869, 391, interval=0.08)', missing_digest)
+
+        missing_slide_size = copy.deepcopy(body)
+        missing_slide_size['deck_file'].pop('slide_size', None)
+        with self.assertRaisesRegex(ValueError, 'SHAPE_POINT_UNPROVEN'):
+            preflight('pyautogui.doubleClick(869, 391, interval=0.08)', missing_slide_size)
 
     def test_application_switch_is_not_edit(self):
         self.assertEqual(preflight("pyautogui.hotkey('alt', 'tab')", snapshot()), 'application-switch')
