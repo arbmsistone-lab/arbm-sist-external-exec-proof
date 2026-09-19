@@ -178,12 +178,15 @@ def _task091_canvas_ready(observation, window_state=None):
     deck=window_state.get('deck_slide_text',{}) if isinstance(window_state,dict) else {}
     return isinstance(deck,dict) and bool(deck)
 
-def _task091_write_command(value):
+TASK091_TYPE_INTERVAL=0.02
+TASK091_REPAIR_TYPE_INTERVAL=0.05
+
+def _task091_write_command(value, interval=TASK091_TYPE_INTERVAL):
     lines=str(value).split('\n')
     commands=["pyautogui.hotkey('ctrl', 'a')"]
     for index,line in enumerate(lines):
         if line:
-            commands.append(f"pyautogui.write({line!r}, interval=0.001)")
+            commands.append(f"pyautogui.write({line!r}, interval={float(interval):g})")
         if index + 1 < len(lines):
             commands.append("pyautogui.hotkey('shift', 'enter')")
     return '\n'.join(commands)
@@ -301,13 +304,22 @@ def _task091_verify_pending(observation,pending,window_state):
     before_sha=str(pending.get('before_deck_sha256') or '')
     after_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
     after_sha=str(after_file.get('sha256') or '') if isinstance(after_file,dict) else ''
-    disk_verified=(len(before_sha)==64 and len(after_sha)==64 and after_sha != before_sha
+    repair_before=str(pending.get('repair_before_deck_sha256') or '')
+    repair_persisted=(not repair_before or (len(repair_before)==64 and after_sha != repair_before))
+    disk_mutated=(len(before_sha)==64 and len(after_sha)==64 and after_sha != before_sha)
+    disk_verified=(disk_mutated and repair_persisted
                    and before_old > 0 and after_old < before_old and after_new > before_new)
     if disk_verified:
         return True,'disk-verified',{'source':'target-pptx','slide':slide,
                                     'old_count_before':before_old,'old_count_after':after_old,
                                     'new_count_before':before_new,'new_count_after':after_new,
-                                    'sha256_before':before_sha,'sha256_after':after_sha}
+                                    'sha256_before':before_sha,'sha256_after':after_sha,
+                                    'repair_sha256_before':repair_before or None}
+    if disk_mutated and before_old > 0 and after_old < before_old and after_new <= before_new:
+        return False,'disk-text-mismatch',{'source':'target-pptx','slide':slide,
+                                          'old_count_before':before_old,'old_count_after':after_old,
+                                          'new_count_before':before_new,'new_count_after':after_new,
+                                          'sha256_before':before_sha,'sha256_after':after_sha}
     bbox=pending.get('target',{}).get('bbox')
     old_hits=_task091_atspi_candidates(observation,pending.get('old'))
     status,new_hit=_task091_target_resolution(
@@ -406,8 +418,11 @@ def next_091_specialist_action(instruction, active_application, observation, sta
     if isinstance(pending,dict):
         stage=pending.get('stage')
         state['mode']={'select-issued':'TARGET_VISIBLE','edit-issued':'TARGET_EDITING',
-                       'commit-issued':'TARGET_COMMITTED','save-issued':'TARGET_VERIFYING'}.get(stage,'TARGET_VERIFYING')
+                       'commit-issued':'TARGET_COMMITTED','save-issued':'TARGET_VERIFYING',
+                       'repair-select-issued':'TARGET_VISIBLE','repair-edit-issued':'TARGET_EDITING',
+                       'repair-commit-issued':'TARGET_COMMITTED'}.get(stage,'TARGET_VERIFYING')
         if stage == 'select-issued':
+            pending['selected_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
             pending['stage']='edit-issued'
             command=_task091_write_command(pending['new'])
             pending['action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
@@ -415,12 +430,36 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                     'plan':f"Edit the selected target from {pending['old']!r} to {pending['new']!r}.",
                     'specialist_phase':'edit-pending-target','expected_change':pending['new']}
         if stage == 'edit-issued':
+            pending['edited_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
             pending['stage']='commit-issued'
             command="pyautogui.press('esc')"
             pending['commit_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
                     'plan':'Commit the pending shape edit without advancing its transaction.',
                     'specialist_phase':'commit-pending-target','expected_change':pending['new']}
+        if stage == 'repair-select-issued':
+            pending['repair_selected_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
+            pending['stage']='repair-edit-issued'
+            command=_task091_write_command(pending['new'],TASK091_REPAIR_TYPE_INTERVAL)
+            pending['repair_action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+            return {'action':'exec','command':command,
+                    'plan':'Rewrite the same proven Task 091 text box once at a conservative key interval after an exact saved-text mismatch.',
+                    'specialist_phase':'repair-edit-pending-target','expected_change':pending['new']}
+        if stage == 'repair-edit-issued':
+            pending['repair_edited_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
+            pending['stage']='repair-commit-issued'
+            command="pyautogui.press('esc')"
+            pending['repair_commit_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+            return {'action':'exec','command':command,
+                    'plan':'Commit the single bounded text-input repair without advancing its transaction.',
+                    'specialist_phase':'repair-commit-pending-target','expected_change':pending['new']}
+        if stage == 'repair-commit-issued':
+            pending['stage']='save-issued'
+            command="pyautogui.hotkey('ctrl', 's')\npyautogui.sleep(0.25)"
+            pending['repair_save_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+            return {'action':'exec','command':command,
+                    'plan':'Persist the bounded text-input repair, then require exact target-PPTX verification.',
+                    'specialist_phase':'repair-save-pending-target','expected_change':pending['new']}
         if stage == 'commit-issued':
             pending['stage']='save-issued'
             command="pyautogui.hotkey('ctrl', 's')\npyautogui.sleep(0.25)"
@@ -441,10 +480,43 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 return {'action':'checkpoint','checkpoint':checkpoint,
                         'slide':pending['slide'],'old':pending['old'],'new':pending['new'],
                         'target':new_hit,'specialist_phase':'verify-pending-target'}
+            if status=='disk-text-mismatch' and int(pending.get('repair_attempts') or 0)==0:
+                selected=str(pending.get('selected_screenshot_sha256') or '')
+                edited=str(pending.get('edited_screenshot_sha256') or '')
+                visual_edit_proven=(len(selected)==64 and len(edited)==64 and selected != edited)
+                current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
+                current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
+                target=pending.get('target',{})
+                if not visual_edit_proven or len(current_sha)!=64:
+                    return _task091_terminal('TASK091_EDIT_TEXT_MISMATCH_UNPROVEN',state)
+                cx=int(target.get('cx') or 0); cy=int(target.get('cy') or 0)
+                repaired_target={'source':'task091-pptx-canonical','label':pending['new'],
+                                 'role':'task091-canonical-point','slide':int(pending['slide']),
+                                 'x':cx-1,'y':cy-1,'w':2,'h':2,'cx':cx,'cy':cy,
+                                 'foreground_sha256':_task091_foreground_sha(window_state),
+                                 'deck_sha256':current_sha}
+                repaired_target['proof_sha256']=task091_spatial_target_proof(repaired_target)
+                pending['repair_attempts']=1
+                pending['repair_before_deck_sha256']=current_sha
+                pending['verify_attempts']=0
+                pending['stage']='repair-select-issued'
+                pending['target'].update({
+                    'label':repaired_target['label'],'role':repaired_target['role'],
+                    'bbox':[repaired_target['x'],repaired_target['y'],2,2],
+                    'cx':cx,'cy':cy,'source':repaired_target['source'],
+                    'slide':repaired_target['slide'],
+                    'foreground_sha256':repaired_target['foreground_sha256'],
+                    'deck_sha256':repaired_target['deck_sha256'],
+                    'proof_sha256':repaired_target['proof_sha256']})
+                command=f"pyautogui.doubleClick({cx}, {cy}, interval=0.08)"
+                return {'action':'exec','command':command,'target':repaired_target,
+                        'plan':'The saved PPTX changed but exact text verification failed; reselect the same signed canonical Task 091 target for one bounded slow-input repair.',
+                        'specialist_phase':'repair-select-pending-target'}
             attempts=int(pending.get('verify_attempts') or 0)+1
             pending['verify_attempts']=attempts
             if attempts>=2:
-                return _task091_terminal('TASK091_EDIT_NOT_VERIFIED',state)
+                reason='TASK091_EDIT_TEXT_CORRUPTED' if status=='disk-text-mismatch' else 'TASK091_EDIT_NOT_VERIFIED'
+                return _task091_terminal(reason,state)
             return {'action':'exec','command':"pyautogui.sleep(0.2)",
                     'plan':'Pending edit is not semantically verified yet; re-observe same target without advancing.',
                     'specialist_phase':'reobserve-pending-target'}
@@ -504,6 +576,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                       'deck_sha256':target.get('deck_sha256'),'proof_sha256':target.get('proof_sha256')},
             'before_old_count':before_old,'before_new_count':before_new,
             'before_deck_sha256':str((window_state.get('deck_file',{}) or {}).get('sha256','')),
+            'before_screenshot_sha256':str(window_state.get('screenshot_sha256') or ''),
             'before_observation_hash':hashlib.sha256(str(observation or '').encode()).hexdigest(),
             'action_command_hash':hashlib.sha256(command.encode()).hexdigest(),
             'verify_attempts':0,
