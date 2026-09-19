@@ -20,18 +20,18 @@ TASK091_CANONICAL_WINDOW = [70, 27, 1850, 1053]
 TASK091_CANONICAL_SLIDE_VIEWPORT = [443, 194, 1413, 795]
 
 
-def _task091_shape_points(snapshot: dict) -> set[tuple[int, int]]:
+def _task091_shape_boxes(snapshot: dict) -> list[tuple[int,int,int,int]]:
     deck_file=snapshot.get('deck_file', {}) if isinstance(snapshot, dict) else {}
     slide_size=deck_file.get('slide_size', {}) if isinstance(deck_file, dict) else {}
     sw=int(slide_size.get('w') or 0) if isinstance(slide_size, dict) else 0
     sh=int(slide_size.get('h') or 0) if isinstance(slide_size, dict) else 0
     if sw <= 0 or sh <= 0:
-        return set()
+        return []
     table=snapshot.get('deck_slide_shapes', {}) if isinstance(snapshot, dict) else {}
     if not isinstance(table, dict):
-        return set()
+        return []
     vx,vy,vw,vh=TASK091_CANONICAL_SLIDE_VIEWPORT
-    points=set()
+    boxes=[]
     for rows in table.values():
         if not isinstance(rows, list):
             continue
@@ -45,11 +45,31 @@ def _task091_shape_points(snapshot: dict) -> set[tuple[int, int]]:
             gw=int(geometry.get('w') or 0); gh=int(geometry.get('h') or 0)
             if gx < 0 or gy < 0 or gw <= 0 or gh <= 0:
                 continue
-            cx=round(vx + ((gx + gw/2.0)/sw)*vw)
-            cy=round(vy + ((gy + gh/2.0)/sh)*vh)
-            if vx <= cx < vx+vw and vy <= cy < vy+vh:
-                points.add((int(cx), int(cy)))
+            left=round(vx + (gx/sw)*vw)
+            top=round(vy + (gy/sh)*vh)
+            right=round(vx + ((gx+gw)/sw)*vw)
+            bottom=round(vy + ((gy+gh)/sh)*vh)
+            left=max(vx,int(left)); top=max(vy,int(top))
+            right=min(vx+vw,int(right)); bottom=min(vy+vh,int(bottom))
+            if right-left >= 2 and bottom-top >= 2:
+                boxes.append((left,top,right-left,bottom-top))
+    return boxes
+
+def _task091_shape_points(snapshot: dict) -> set[tuple[int, int]]:
+    points=set()
+    for x,y,w,h in _task091_shape_boxes(snapshot):
+        points.add((x+w//2,y+h//2))
     return points
+
+def _task091_point_inside_unique_text_shape(snapshot: dict, point: tuple[int,int]) -> bool:
+    x,y=point
+    hits=0
+    for bx,by,bw,bh in _task091_shape_boxes(snapshot):
+        if bx <= x < bx+bw and by <= y < by+bh:
+            hits += 1
+            if hits > 1:
+                return False
+    return hits == 1
 
 
 def digest(value: object) -> str:
@@ -181,7 +201,7 @@ def preflight(command: str, snapshot: dict) -> str:
                     '/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx'
                     and len(str(snapshot['deck_file'].get('sha256',''))) == 64,
                     'TASK091_TARGET_DECK_FILE_UNPROVEN')
-            require(point in _task091_shape_points(snapshot),
+            require(_task091_point_inside_unique_text_shape(snapshot, point),
                     'TASK091_SHAPE_POINT_UNPROVEN')
             require(inside(point, snapshot.get('screen')), 'POINTER_OUTSIDE_SCREEN')
             require(inside(point, window.get('bbox')), 'POINTER_OUTSIDE_FOREGROUND')
