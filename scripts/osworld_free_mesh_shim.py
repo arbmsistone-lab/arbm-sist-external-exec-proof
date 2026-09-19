@@ -181,9 +181,24 @@ def _task091_canvas_ready(observation, window_state=None):
 TASK091_TYPE_INTERVAL=0.02
 TASK091_REPAIR_TYPE_INTERVAL=0.05
 
-def _task091_write_command(value, interval=TASK091_TYPE_INTERVAL):
+def _task091_needs_explicit_text_mode(old, new):
+    """WPS compact scalar boxes can highlight text without accepting typing.
+
+    For short single-line values/labels, explicitly enter text-edit mode with F2
+    after the signed shape selection and before Ctrl+A. This preserves the same
+    canonical target proof and the same post-save PPTX verification.
+    """
+    old=str(old or '')
+    new=str(new or '')
+    return ('\n' not in old and '\n' not in new
+            and 0 < len(old) <= 12 and 0 < len(new) <= 12)
+
+def _task091_write_command(value, interval=TASK091_TYPE_INTERVAL, ensure_text_mode=False):
     lines=str(value).split('\n')
-    commands=["pyautogui.hotkey('ctrl', 'a')"]
+    commands=[]
+    if ensure_text_mode:
+        commands.append("pyautogui.press('f2')")
+    commands.append("pyautogui.hotkey('ctrl', 'a')")
     for index,line in enumerate(lines):
         if line:
             commands.append(f"pyautogui.write({line!r}, interval={float(interval):g})")
@@ -667,7 +682,10 @@ def next_091_specialist_action(instruction, active_application, observation, sta
         if stage == 'select-issued':
             pending['selected_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
             pending['stage']='edit-issued'
-            command=_task091_write_command(pending['new'])
+            pending['explicit_text_mode']=_task091_needs_explicit_text_mode(
+                pending.get('old'), pending.get('new'))
+            command=_task091_write_command(
+                pending['new'], ensure_text_mode=pending['explicit_text_mode'])
             pending['action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
                     'plan':f"Edit the selected target from {pending['old']!r} to {pending['new']!r}.",
