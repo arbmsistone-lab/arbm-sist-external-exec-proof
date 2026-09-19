@@ -151,7 +151,7 @@ task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
       'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
       'Reforecast_Model_H2.xlsx is the source of truth.')
 action=shim.next_091_specialist_action(task,'WPS Presentation','',state,deck)
-assert action['command'] == 'pyautogui.click(869, 391)', action
+assert action['command'] == 'pyautogui.doubleClick(745, 335, interval=0.08)', action
 assert action['target']['source'] == 'task091-pptx-canonical', action
 probe=copy.deepcopy(deck)
 probe['screen']=[0,0,1920,1080]
@@ -201,7 +201,7 @@ task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
 action=shim.next_091_specialist_action(task,'WPS Presentation','',state,deck)
 assert action['target']['source']=='task091-pptx-canonical', action
 grounded=shim.ground_action(action,'WPS Presentation','',[],allow_canonical=True)
-assert grounded['command']=='pyautogui.click(869, 391)', grounded
+assert grounded['command']=='pyautogui.doubleClick(745, 335, interval=0.08)', grounded
 assert 'PPTX-backed canonical target' in grounded.get('compiler_note',''), grounded
 bad=copy.deepcopy(action)
 bad['target']['deck_sha256']='b'*64
@@ -331,8 +331,8 @@ else:
 command=shim._task091_restricted_repair_command([plan[0]])
 assert 'pyautogui.write(' not in command, command
 assert "press('delete')" in command, command
-assert len(command.splitlines()) <= 5, command
-assert command.splitlines()[0] == "pyautogui.press('f2')", command
+assert len(command.splitlines()) <= 4, command
+assert command.splitlines()[0] == "pyautogui.hotkey('ctrl', 'a')", command
 verdict=evaluate(actual,expected,plan,shape,
                  '4c9c57567fa8f4bd81175dbd3d1b2ea40f0ad1ff8689ca47e1cbd001da637f5b',
                  snap['deck_file']['sha256'])
@@ -377,10 +377,10 @@ task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
       'Reforecast_Model_H2.xlsx is the source of truth.')
 action=shim.next_091_specialist_action(task,'WPS Presentation','',state,snap)
 assert action['target']['source']=='task091-pptx-canonical', action
-assert action['command']=='pyautogui.click(861, 586)', action
+assert action['command']=='pyautogui.doubleClick(738, 516, interval=0.08)', action
 assert state['pending_edit']['shape_id']==7, state['pending_edit']
 assert state['pending_edit']['shape_name']=='CoverSub', state['pending_edit']
-assert action['command']!='pyautogui.click(738, 503)'
+assert action['command']!='pyautogui.doubleClick(861, 586, interval=0.08)'
 wrong=copy.deepcopy(snap)
 wrong['screen']=[0,0,1919,1080]
 blocked_state={'owned':True,'anchored':True,'slide':1,'spatial_index':1}
@@ -391,8 +391,8 @@ assert second['action']=='terminal' and second['reason']=='TASK091_SHAPE_GEOMETR
 print(json.dumps({'status':'PASS','corpus_run':'35444915125',
                   'old_failure':'TASK091_EDIT_NOT_VERIFIED',
                   'root_cause':'static-point-hit-CoverTitle-instead-of-CoverSub',
-                  'new_target':[861,586],'shape_id':7,'shape_name':'CoverSub',
-                  'old_static_target_rejected':[738,503],
+                  'new_target':[738,516],'shape_id':7,'shape_name':'CoverSub',
+                  'empty_shape_center_rejected':[861,586],
                   'zero_spend':'HARD'},sort_keys=True))
 print('RUN35444915125_SHAPE_TARGET_REGRESSION=PASS')
 PY
@@ -425,8 +425,10 @@ state={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'mode':'TARGET_V
          'new':'H2 Operating Committee Pack\\nStabilize-and-Recover Rebaseline',
          'stage':'save-issued','shape_id':6,'repair_attempts':0,
          'target':{'label':'Growth Plan Draft','role':'task091-canonical-point',
-                   'bbox':[868,390,2,2],'cx':869,'cy':391,
+                   'bbox':[744,334,2,2],'cx':745,'cy':335,
                    'source':'task091-pptx-canonical','slide':1},
+         'text_hit_x':745,'text_hit_y':335,
+         'text_hint_x':745,'text_hint_y':335,
          'before_old_count':1,'before_new_count':0,
          'before_deck_sha256':before['deck_file']['sha256'],
          'selected_screenshot_sha256':'1'*64,
@@ -437,29 +439,29 @@ task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
       'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
       'Reforecast_Model_H2.xlsx is the source of truth.')
 action=shim.next_091_specialist_action(task,'WPS Presentation','',state,snap)
-assert action['command']=='pyautogui.doubleClick(869, 373, interval=0.08)', action
+assert action['command']=='pyautogui.doubleClick(745, 335, interval=0.08)', action
 assert state['pending_edit']['repair_shape_id']==6, state['pending_edit']
-assert state['pending_edit']['repair_target_cy']==373, state['pending_edit']
+assert state['pending_edit']['repair_target_cx']==745, state['pending_edit']
+assert state['pending_edit']['repair_target_cy']==335, state['pending_edit']
 assert state['pending_edit']['repair_shape_geometry']['h']==922020, state['pending_edit']
-assert action['command']!='pyautogui.doubleClick(869, 391, interval=0.08)'
 
 probe=copy.deepcopy(snap)
 probe['target']=None
 assert preflight(action['command'],probe)=='wps-content'
 try:
-    preflight('pyautogui.doubleClick(869, 391, interval=0.08)',probe)
+    preflight('pyautogui.doubleClick(1215, 470, interval=0.08)',probe)
 except ValueError as exc:
     assert 'TASK091_SHAPE_POINT_UNPROVEN' in str(exc), exc
 else:
-    raise AssertionError('stale pre-edit center was not rejected')
+    raise AssertionError('outside-shape text hit was not rejected')
 
 assert blocked['deck_file']['sha256']==snap['deck_file']['sha256']
 print(json.dumps({'status':'PASS','corpus_run':'35448424940',
                   'old_failure':'TASK091_SHAPE_POINT_UNPROVEN',
-                  'root_cause':'repair-reused-pre-edit-shape-center',
-                  'shape_id':6,'old_center':[869,391],
-                  'current_center':[869,373],'current_height':922020,
-                  'stale_center_rejected':True,'zero_spend':'HARD'},sort_keys=True))
+                  'root_cause':'repair-must-reuse-signed-text-hit-not-shape-center',
+                  'shape_id':6,'signed_text_hit':[745,335],
+                  'current_height':922020,
+                  'outside_shape_rejected':True,'zero_spend':'HARD'},sort_keys=True))
 print('RUN35448424940_REPAIR_GEOMETRY_REGRESSION=PASS')
 PY
 grep -F 'RUN35448424940_REPAIR_GEOMETRY_REGRESSION=PASS' /tmp/run35448424940-repair-geometry-regression.json
@@ -605,11 +607,11 @@ def main():
             'CLEAN_BASELINE_ANCESTRY_MISMATCH')
     require(git('rev-list', '--count', BASE + '..' + CLEAN_BASELINE) == '3',
             'EXACTLY_THREE_BASELINE_COMMITS_REQUIRED')
-    require(git('rev-list', '--count', BASE + '..HEAD') == '198',
-            'EXACTLY_ONE_HUNDRED_NINETY_EIGHT_AUDITED_COMMITS_REQUIRED')
+    require(git('rev-list', '--count', BASE + '..HEAD') == '204',
+            'EXACTLY_TWO_HUNDRED_FOUR_AUDITED_COMMITS_REQUIRED')
     require(not git('rev-list', '--merges', BASE + '..HEAD'), 'MERGE_COMMITS_FORBIDDEN')
     overlay = git('rev-list', '--reverse', CLEAN_BASELINE + '..HEAD').splitlines()
-    require(len(overlay) == 195, 'EXACTLY_ONE_HUNDRED_NINETY_FIVE_REPAIR_COMMITS_REQUIRED')
+    require(len(overlay) == 201, 'EXACTLY_TWO_HUNDRED_ONE_REPAIR_COMMITS_REQUIRED')
     require(overlay[2] == PID_FILTER_COMMIT and overlay[3] == PID_TEST_COMMIT,
             'PID_REPAIR_COMMIT_IDENTITY_MISMATCH')
     require(overlay[6] == WPS_ALIAS_COMMIT and overlay[7] == WPS_ALIAS_TEST_COMMIT
@@ -619,7 +621,7 @@ def main():
                        LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, VERIFIER, WORKFLOW, VERIFIER, WORKFLOW,
                        VERIFIER, SHIM, MESH_TEST, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, WPS_OBSERVER, TRACE_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST,
                        (SHIM, MESH_TEST), VERIFIER, TRACE_GATE, TRACE_GATE, WPS_OBSERVER, WPS_OBSERVER,
-                       SHIM, TRACE_GATE, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, VERIFIER, TRACE_GATE, VERIFIER, WORKFLOW, VERIFIER, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, TRACE_TEST, MESH_TEST, WORKFLOW, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, TRACE_TEST, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, VERIFIER, CONTROL, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, VERIFIER, MESH_TEST, VERIFIER, SHIM, REVIEW_BOARD, MESH_TEST, WORKFLOW, MESH_TEST, WORKFLOW, MANIFEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, MESH_TEST, ELITE_BOARD, ELITE_TEST, WORKFLOW, MANIFEST, VERIFIER, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, SHIM, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, WORKFLOW, VERIFIER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, SHIM, VERIFIER, SHIM, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, SHIM, TRACE_TEST, VERIFIER, SHIM, GUEST_PROBE, TRACE_GATE, TRACE_TEST, MESH_TEST, TRACE_TEST, VERIFIER, GUEST_PROBE, TRACE_TEST, VERIFIER, WORKFLOW, VERIFIER, SHIM, MESH_TEST, VERIFIER, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER)
+                       SHIM, TRACE_GATE, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, VERIFIER, TRACE_GATE, VERIFIER, WORKFLOW, VERIFIER, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, TRACE_TEST, MESH_TEST, WORKFLOW, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, TRACE_TEST, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, VERIFIER, CONTROL, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, VERIFIER, MESH_TEST, VERIFIER, SHIM, REVIEW_BOARD, MESH_TEST, WORKFLOW, MESH_TEST, WORKFLOW, MANIFEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, MESH_TEST, ELITE_BOARD, ELITE_TEST, WORKFLOW, MANIFEST, VERIFIER, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, SHIM, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, WORKFLOW, VERIFIER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, SHIM, VERIFIER, SHIM, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, SHIM, TRACE_TEST, VERIFIER, SHIM, GUEST_PROBE, TRACE_GATE, TRACE_TEST, MESH_TEST, TRACE_TEST, VERIFIER, GUEST_PROBE, TRACE_TEST, VERIFIER, WORKFLOW, VERIFIER, SHIM, MESH_TEST, VERIFIER, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, SHIM, TRACE_GATE, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER)
     require(overlay[43] == SUPERSEDED_ALT_F4_COMMIT, 'SUPERSEDED_ALT_F4_COMMIT_IDENTITY_MISMATCH')
     for commit, allowed in zip(overlay, expected_scopes):
         actual=set(git('diff-tree', '--no-commit-id', '--name-only', '-r', commit).splitlines())
@@ -653,8 +655,8 @@ def main():
     expected.update({row['path']: row['after_sha256'] for row in adjustments})
     expected.update(patch['postimage_sha256'])
     repaired = {LOCAL_VLM: WPS_ALIAS_COMMIT, LOCAL_VLM_TEST: WPS_ALIAS_TEST_COMMIT,
-                TRACE_GATE: overlay[178], TRACE_TEST: overlay[184], WPS_OBSERVER: overlay[135],
-                GUEST_PROBE: overlay[183], CONTROL: overlay[95], SHIM: overlay[188], MESH_TEST: overlay[189],
+                TRACE_GATE: overlay[196], TRACE_TEST: overlay[198], WPS_OBSERVER: overlay[135],
+                GUEST_PROBE: overlay[183], CONTROL: overlay[95], SHIM: overlay[195], MESH_TEST: overlay[197],
                 REVIEW_BOARD: overlay[127], MANIFEST: overlay[142], ELITE_BOARD: overlay[139], ELITE_TEST: overlay[140]}
     for path, wanted in expected.items():
         if path in repaired:
@@ -668,7 +670,7 @@ def main():
     verify_workflow_delta()
     print(json.dumps({'status': 'CLEAN_HISTORY_AND_SCOPE_PASS', 'base_sha': BASE,
                       'clean_baseline_sha': CLEAN_BASELINE, 'baseline_commits': 3,
-                      'repair_commits': overlay, 'new_commits': 198, 'changed_files': len(changed),
+                      'repair_commits': overlay, 'new_commits': 204, 'changed_files': len(changed),
                       'repair_scope': [VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST,
                                        TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST], 'official_score_claimed': False}))
 
