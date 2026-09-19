@@ -1,0 +1,42 @@
+name: OSWorld v32 deterministic policy gate
+on:
+  push:
+    branches:
+      - 'chatgpt/arbm-agent-elite-v2-20260914'
+    paths:
+      - 'scripts/osworld_v32_policy.py'
+      - 'scripts/osworld_v32_regression_gate.py'
+      - 'scripts/osworld_v32_historical_gate.py'
+      - 'scripts/test_osworld_v32_policy.py'
+      - 'scripts/osworld_free_mesh_shim.py'
+      - '.github/workflows/osworld-v32-policy-gate.yml'
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  policy-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      ZERO_SPEND_MODE: HARD
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install pinned test dependencies
+        run: python -m pip install -r scripts/requirements-osworld.txt
+      - name: Run complete OSWorld regression suite
+        run: python -m unittest discover -s scripts -p 'test_osworld_*.py'
+      - name: Run v32 deterministic regression gate
+        run: python scripts/osworld_v32_regression_gate.py
+      - name: Download run30 recorded evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 34665245131 --repo arbmsistone-lab/arbm-sist-external-exec-proof --dir run30
+      - name: Download run38 recorded evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 34698877150 --repo arbmsistone-lab/arbm-sist-external-exec-proof --name top3-osworld-task-bundle --dir run38
+      - name: Replay historical v31 evidence through v32 policy
+        run: python scripts/osworld_v32_historical_gate.py run30 run38
+      - name: Prove zero-spend policy gate
+        run: test "$ZERO_SPEND_MODE" = "HARD"
