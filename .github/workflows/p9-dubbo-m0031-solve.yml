@@ -20,6 +20,7 @@ jobs:
       SRS_SHA256: aac87b7e8a66001512c9c54649b3e1571d252777177d52cbed197fc541dd164f
       IMAGE_REF: hyd2apse/swe-milestone__apache_dubbo_dubbo-3.3.3_dubbo-3.3.6__m003.1@sha256:236a1ca0c7560850cca946886d77c64f24adb0c82913bd6299262add5475f5f2
       ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-agent-p9-v1
+      REQUEST_ID: ${{ inputs.request_id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Validate P9 ref
@@ -27,7 +28,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$GITHUB_REF" in refs/heads/p9/*) ;; *) echo 'P9_REF_REQUIRED'; exit 64;; esac
-          test -n '${{ inputs.request_id }}'
+          test -n "$REQUEST_ID"
       - name: Fetch pinned public SRS
         shell: bash
         run: |
@@ -75,7 +76,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TOKEN=$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')
+          oidc_json="$(mktemp)"
+          trap 'rm -f "$oidc_json"' EXIT
+          curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark" -o "$oidc_json"
+          TOKEN="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["value"])' "$oidc_json")"
           echo "::add-mask::$TOKEN"
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
       - name: Request P9 multi-file solution
@@ -191,7 +195,7 @@ jobs:
           python - <<'PY'
           import json,hashlib,os
           sol=json.load(open('solution.json',encoding='utf-8'))
-          ev={'schema':'arbm-p9-solve-v1','requestId':'${{ inputs.request_id }}','task':'dubbo/M003.1','state':'SUCCEEDED','zeroSpendMode':'HARD','executionType':'remote','srsSha256':os.environ['SRS_SHA256'],'imageRef':os.environ['IMAGE_REF'],'pipeline':sol.get('pipeline'),'model':sol.get('model'),'mandatoryCostUsd':sol.get('mandatory_cost_usd'),'authorizedRoots':sol.get('authorized_roots'),'operationCount':len(sol.get('operations') or []),'goldPatchExposed':sol.get('gold_patch_exposed',False)}
+          ev={'schema':'arbm-p9-solve-v1','requestId':os.environ['REQUEST_ID'],'task':'dubbo/M003.1','state':'SUCCEEDED','zeroSpendMode':'HARD','executionType':'remote','srsSha256':os.environ['SRS_SHA256'],'imageRef':os.environ['IMAGE_REF'],'pipeline':sol.get('pipeline'),'model':sol.get('model'),'mandatoryCostUsd':sol.get('mandatory_cost_usd'),'authorizedRoots':sol.get('authorized_roots'),'operationCount':len(sol.get('operations') or []),'goldPatchExposed':sol.get('gold_patch_exposed',False)}
           open('solve-evidence.json','w',encoding='utf-8').write(json.dumps(ev,sort_keys=True,indent=2))
           PY
           sha256sum SRS.md tool-context.txt known-paths.txt solution.json validated-ops.json solution.patch.txt solve-evidence.json > SHA256SUMS.txt
