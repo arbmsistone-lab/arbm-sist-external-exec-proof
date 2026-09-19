@@ -392,6 +392,72 @@ grep -F 'RUN35444915125_SHAPE_TARGET_REGRESSION=PASS' /tmp/run35444915125-shape-
 '''
 }
 
+RUN35448424940_REPAIR_GEOMETRY_REPLAY = {
+    'name': 'Replay run 35448424940 repair-geometry reprojection regression',
+    'shell': 'bash',
+    'run': '''set -euo pipefail
+TASK_ID=091 ZERO_SPEND_MODE=HARD PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35448424940-repair-geometry-regression.json
+import copy, json
+from pathlib import Path
+import osworld_free_mesh_shim as shim
+from arbm091.trace_gate import preflight
+
+root=Path('/tmp/091-repair-geometry/task-091/wps-observations')
+before=json.loads((root/'0009-01-before.json').read_text())
+snap=json.loads((root/'0009-01-after.json').read_text())
+blocked=json.loads((root/'0010-01-before.json').read_text())
+shape=next(row for row in snap['deck_slide_shapes']['1'] if int(row.get('id') or 0)==6)
+assert shape['geometry']['h']==922020, shape
+point=shim._task091_shape_center(snap,shape)
+assert [point['cx'],point['cy']]==[869,373], point
+
+state={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'mode':'TARGET_VERIFYING',
+       'pending_edit':{
+         'slide':1,'old':'Growth Plan Draft',
+         'new':'H2 Operating Committee Pack\\nStabilize-and-Recover Rebaseline',
+         'stage':'save-issued','shape_id':6,'repair_attempts':0,
+         'target':{'label':'Growth Plan Draft','role':'task091-canonical-point',
+                   'bbox':[868,390,2,2],'cx':869,'cy':391,
+                   'source':'task091-pptx-canonical','slide':1},
+         'before_old_count':1,'before_new_count':0,
+         'before_deck_sha256':before['deck_file']['sha256'],
+         'selected_screenshot_sha256':'1'*64,
+         'edited_screenshot_sha256':'2'*64,
+         'verify_attempts':0}}
+task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
+      'The COO has asked you to rebaseline the H2 Operating Committee pack. '
+      'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
+      'Reforecast_Model_H2.xlsx is the source of truth.')
+action=shim.next_091_specialist_action(task,'WPS Presentation','',state,snap)
+assert action['command']=='pyautogui.doubleClick(869, 373, interval=0.08)', action
+assert state['pending_edit']['repair_shape_id']==6, state['pending_edit']
+assert state['pending_edit']['repair_target_cy']==373, state['pending_edit']
+assert state['pending_edit']['repair_shape_geometry']['h']==922020, state['pending_edit']
+assert action['command']!='pyautogui.doubleClick(869, 391, interval=0.08)'
+
+probe=copy.deepcopy(snap)
+probe['target']=None
+assert preflight(action['command'],probe)=='wps-content'
+try:
+    preflight('pyautogui.doubleClick(869, 391, interval=0.08)',probe)
+except ValueError as exc:
+    assert 'TASK091_SHAPE_POINT_UNPROVEN' in str(exc), exc
+else:
+    raise AssertionError('stale pre-edit center was not rejected')
+
+assert blocked['deck_file']['sha256']==snap['deck_file']['sha256']
+print(json.dumps({'status':'PASS','corpus_run':'35448424940',
+                  'old_failure':'TASK091_SHAPE_POINT_UNPROVEN',
+                  'root_cause':'repair-reused-pre-edit-shape-center',
+                  'shape_id':6,'old_center':[869,391],
+                  'current_center':[869,373],'current_height':922020,
+                  'stale_center_rejected':True,'zero_spend':'HARD'},sort_keys=True))
+print('RUN35448424940_REPAIR_GEOMETRY_REGRESSION=PASS')
+PY
+grep -F 'RUN35448424940_REPAIR_GEOMETRY_REGRESSION=PASS' /tmp/run35448424940-repair-geometry-regression.json
+'''
+}
+
 ENVIRONMENT_PREFLIGHT = {
     'name': 'Verify exact 091 observer environment before heavy initialization',
     'shell': 'bash',
@@ -485,6 +551,13 @@ unzip -q /tmp/091-shape-target.zip -d /tmp/091-shape-target
 test -s /tmp/091-shape-target/task-091/wps-observations/0013-01-after.json
 test -s /tmp/091-shape-target/task-091/wps-observations/0017-01-after.json
 test -s /tmp/091-shape-target/task-091/wps-trace.jsonl
+gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10585727439/zip > /tmp/091-repair-geometry.zip
+mkdir -p /tmp/091-repair-geometry
+unzip -q /tmp/091-repair-geometry.zip -d /tmp/091-repair-geometry
+test -s /tmp/091-repair-geometry/task-091/wps-observations/0009-01-before.json
+test -s /tmp/091-repair-geometry/task-091/wps-observations/0009-01-after.json
+test -s /tmp/091-repair-geometry/task-091/wps-observations/0010-01-before.json
+test -s /tmp/091-repair-geometry/task-091/wps-trace.jsonl
 '''
     replay[3]['name'] = 'Replay exact WPS 2019 Step 2 through alias-isolated selector twice'
     replay[3]['run'] = (
@@ -500,7 +573,8 @@ test -s /tmp/091-shape-target/task-091/wps-trace.jsonl
     replay.insert(9, RUN35439821335_DELETE_REPAIR_REPLAY)
     replay.insert(10, RUN35443356294_RESTRICTED_REPAIR_REPLAY)
     replay.insert(11, RUN35444915125_SHAPE_TARGET_REPLAY)
-    replay[12]['with']['path'] = '/tmp/091-local-contract-replay.json\n/tmp/run35391431490-modal-regression.json\n/tmp/run35400883826-enter-regression.json\n/tmp/run35404537401-deck-regression.json\n/tmp/run35407234122-pointer-regression.json\n/tmp/run35411705196-keyrepeat-regression.json\n/tmp/run35439821335-delete-repair-regression.json\n/tmp/run35443356294-restricted-repair-regression.json\n/tmp/run35444915125-shape-target-regression.json\n'
+    replay.insert(12, RUN35448424940_REPAIR_GEOMETRY_REPLAY)
+    replay[13]['with']['path'] = '/tmp/091-local-contract-replay.json\n/tmp/run35391431490-modal-regression.json\n/tmp/run35400883826-enter-regression.json\n/tmp/run35404537401-deck-regression.json\n/tmp/run35407234122-pointer-regression.json\n/tmp/run35411705196-keyrepeat-regression.json\n/tmp/run35439821335-delete-repair-regression.json\n/tmp/run35443356294-restricted-repair-regression.json\n/tmp/run35444915125-shape-target-regression.json\n/tmp/run35448424940-repair-geometry-regression.json\n'
     require(len(re.findall(r'(?m)^\s+TASK_ID: [\'"]091[\'"]\s*$', text)) == 1,
             'TASK091_MUST_BE_QUOTED_YAML_STRING')
     normalized_current = normalize(current)
@@ -522,11 +596,11 @@ def main():
             'CLEAN_BASELINE_ANCESTRY_MISMATCH')
     require(git('rev-list', '--count', BASE + '..' + CLEAN_BASELINE) == '3',
             'EXACTLY_THREE_BASELINE_COMMITS_REQUIRED')
-    require(git('rev-list', '--count', BASE + '..HEAD') == '154',
-            'EXACTLY_ONE_HUNDRED_FIFTY_FOUR_AUDITED_COMMITS_REQUIRED')
+    require(git('rev-list', '--count', BASE + '..HEAD') == '158',
+            'EXACTLY_ONE_HUNDRED_FIFTY_EIGHT_AUDITED_COMMITS_REQUIRED')
     require(not git('rev-list', '--merges', BASE + '..HEAD'), 'MERGE_COMMITS_FORBIDDEN')
     overlay = git('rev-list', '--reverse', CLEAN_BASELINE + '..HEAD').splitlines()
-    require(len(overlay) == 151, 'EXACTLY_ONE_HUNDRED_FIFTY_ONE_REPAIR_COMMITS_REQUIRED')
+    require(len(overlay) == 155, 'EXACTLY_ONE_HUNDRED_FIFTY_FIVE_REPAIR_COMMITS_REQUIRED')
     require(overlay[2] == PID_FILTER_COMMIT and overlay[3] == PID_TEST_COMMIT,
             'PID_REPAIR_COMMIT_IDENTITY_MISMATCH')
     require(overlay[6] == WPS_ALIAS_COMMIT and overlay[7] == WPS_ALIAS_TEST_COMMIT
@@ -536,7 +610,7 @@ def main():
                        LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, VERIFIER, WORKFLOW, VERIFIER, WORKFLOW,
                        VERIFIER, SHIM, MESH_TEST, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, WPS_OBSERVER, TRACE_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST,
                        (SHIM, MESH_TEST), VERIFIER, TRACE_GATE, TRACE_GATE, WPS_OBSERVER, WPS_OBSERVER,
-                       SHIM, TRACE_GATE, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, VERIFIER, TRACE_GATE, VERIFIER, WORKFLOW, VERIFIER, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, TRACE_TEST, MESH_TEST, WORKFLOW, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, TRACE_TEST, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, VERIFIER, CONTROL, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, VERIFIER, MESH_TEST, VERIFIER, SHIM, REVIEW_BOARD, MESH_TEST, WORKFLOW, MESH_TEST, WORKFLOW, MANIFEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, MESH_TEST, ELITE_BOARD, ELITE_TEST, WORKFLOW, MANIFEST, VERIFIER, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER)
+                       SHIM, TRACE_GATE, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, VERIFIER, TRACE_GATE, VERIFIER, WORKFLOW, VERIFIER, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, TRACE_TEST, MESH_TEST, WORKFLOW, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, TRACE_TEST, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, VERIFIER, CONTROL, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, VERIFIER, MESH_TEST, VERIFIER, SHIM, REVIEW_BOARD, MESH_TEST, WORKFLOW, MESH_TEST, WORKFLOW, MANIFEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, MESH_TEST, ELITE_BOARD, ELITE_TEST, WORKFLOW, MANIFEST, VERIFIER, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, SHIM, MESH_TEST, WORKFLOW, VERIFIER)
     require(overlay[43] == SUPERSEDED_ALT_F4_COMMIT, 'SUPERSEDED_ALT_F4_COMMIT_IDENTITY_MISMATCH')
     for commit, allowed in zip(overlay, expected_scopes):
         actual=set(git('diff-tree', '--no-commit-id', '--name-only', '-r', commit).splitlines())
@@ -571,7 +645,7 @@ def main():
     expected.update(patch['postimage_sha256'])
     repaired = {LOCAL_VLM: WPS_ALIAS_COMMIT, LOCAL_VLM_TEST: WPS_ALIAS_TEST_COMMIT,
                 TRACE_GATE: overlay[148], TRACE_TEST: overlay[149], WPS_OBSERVER: overlay[135],
-                GUEST_PROBE: overlay[134], CONTROL: overlay[95], SHIM: overlay[136], MESH_TEST: overlay[146],
+                GUEST_PROBE: overlay[134], CONTROL: overlay[95], SHIM: overlay[151], MESH_TEST: overlay[152],
                 REVIEW_BOARD: overlay[127], MANIFEST: overlay[142], ELITE_BOARD: overlay[139], ELITE_TEST: overlay[140]}
     for path, wanted in expected.items():
         if path in repaired:
@@ -585,7 +659,7 @@ def main():
     verify_workflow_delta()
     print(json.dumps({'status': 'CLEAN_HISTORY_AND_SCOPE_PASS', 'base_sha': BASE,
                       'clean_baseline_sha': CLEAN_BASELINE, 'baseline_commits': 3,
-                      'repair_commits': overlay, 'new_commits': 154, 'changed_files': len(changed),
+                      'repair_commits': overlay, 'new_commits': 158, 'changed_files': len(changed),
                       'repair_scope': [VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST,
                                        TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST], 'official_score_claimed': False}))
 
