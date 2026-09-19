@@ -1,0 +1,111 @@
+name: ZEES P15 Final Provenance Proof
+on:
+  push:
+    branches:
+      - chatgpt/zees-p07-p15-proof-20260919
+    paths:
+      - '.github/workflows/zees-p15-final-provenance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+  attestations: write
+
+env:
+  TARGET_SHA: cf008c04e9bf01e87fca80799dfc25b1de68d888
+
+jobs:
+  provenance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact certified subject
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          path: target
+          fetch-depth: 1
+      - name: Assert exact canonical subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C target rev-parse HEAD)" = "$TARGET_SHA"
+          repo_json="$(curl -fsSL -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/$GITHUB_REPOSITORY")"
+          test "$(jq -r .default_branch <<<"$repo_json")" = "master"
+          default_sha="$(curl -fsSL -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/$GITHUB_REPOSITORY/commits/master" | jq -r .sha)"
+          test "$default_sha" = "$TARGET_SHA"
+          echo "CANONICAL_SHA=PASS"
+      - name: Verify exact prerequisite proof runs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for id in 35449974036 35454406051 35454408536; do
+            j="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id")"
+            test "$(jq -r .head_sha <<<"$j")" = "$TARGET_SHA"
+            test "$(jq -r .conclusion <<<"$j")" = "success"
+            echo "RUN_$id=PASS"
+          done
+          chaos="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/35454406051/artifacts")"
+          test "$(jq -r '.artifacts[]|select(.name=="top3-security-load-failure-proof")|.digest' <<<"$chaos")" = "sha256:baa1b7234e5a4f4c568ecfb87221962bb8b3d6cbab23aa56dcd1e3086df4e497"
+          ready="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/35454408536/artifacts")"
+          test "$(jq -r '.artifacts[]|select(.name=="independent-attestation-readiness")|.digest' <<<"$ready")" = "sha256:d5ec4f7ef164f249cecf0ffbcd6758fc8db78fac38b2ffe588bdf5ea3862c78c"
+          echo "PREREQUISITE_ARTIFACTS=PASS"
+      - name: Build final release provenance subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,pathlib
+          subject={
+            "schema":"zees-p15-final-provenance/v1",
+            "target":"ARBM SIST",
+            "target_sha":"cf008c04e9bf01e87fca80799dfc25b1de68d888",
+            "canonical_branch":"master",
+            "prerequisite_runs":{
+              "continuity":35449974036,
+              "security_load_failure":35454406051,
+              "attestation_readiness":35454408536
+            },
+            "artifact_digests":{
+              "security_load_failure":"baa1b7234e5a4f4c568ecfb87221962bb8b3d6cbab23aa56dcd1e3086df4e497",
+              "attestation_readiness":"d5ec4f7ef164f249cecf0ffbcd6758fc8db78fac38b2ffe588bdf5ea3862c78c"
+            },
+            "policy":{
+              "zero_spend_hard":True,
+              "fail_closed":True,
+              "exact_sha":True,
+              "canonical_default_branch":True
+            },
+            "status":"PASS"
+          }
+          raw=json.dumps(subject,sort_keys=True,indent=2)+"\n"
+          pathlib.Path('zees-p15-final-provenance.json').write_text(raw)
+          pathlib.Path('zees-p15-final-provenance.sha256').write_text(hashlib.sha256(raw.encode()).hexdigest()+"  zees-p15-final-provenance.json\n")
+          print(raw)
+          PY
+      - name: Generate final public provenance attestation
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d
+        with:
+          subject-path: zees-p15-final-provenance.json
+      - name: Verify final attestation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh attestation verify zees-p15-final-provenance.json --repo "$GITHUB_REPOSITORY"
+          sha256sum -c zees-p15-final-provenance.sha256
+          echo "ZEES_P15_FINAL_PROVENANCE=PASS"
+      - name: Upload immutable P15 evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: zees-p15-final-provenance
+          path: |
+            zees-p15-final-provenance.json
+            zees-p15-final-provenance.sha256
+          retention-days: 90
+          if-no-files-found: error
