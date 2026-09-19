@@ -322,9 +322,16 @@ assert plan==[
     {'op':'linebreak','index':27},
     {'op':'delete','index':29,'char':'S'},
     {'op':'delete','index':51,'char':'R'}], plan
-command=shim._task091_restricted_repair_command(plan)
+try:
+    shim._task091_restricted_repair_command(plan)
+except ValueError as exc:
+    assert 'TASK091_REPAIR_ATOMIC_OPERATION_REQUIRED' in str(exc), exc
+else:
+    raise AssertionError('multi-mutation repair was accepted')
+command=shim._task091_restricted_repair_command([plan[0]])
 assert 'pyautogui.write(' not in command, command
-assert "hotkey('shift', 'enter')" in command, command
+assert "press('delete')" in command, command
+assert len(command.splitlines()) <= 4, command
 verdict=evaluate(actual,expected,plan,shape,
                  '4c9c57567fa8f4bd81175dbd3d1b2ea40f0ad1ff8689ca47e1cbd001da637f5b',
                  snap['deck_file']['sha256'])
@@ -596,11 +603,11 @@ def main():
             'CLEAN_BASELINE_ANCESTRY_MISMATCH')
     require(git('rev-list', '--count', BASE + '..' + CLEAN_BASELINE) == '3',
             'EXACTLY_THREE_BASELINE_COMMITS_REQUIRED')
-    require(git('rev-list', '--count', BASE + '..HEAD') == '165',
-            'EXACTLY_ONE_HUNDRED_SIXTY_FIVE_AUDITED_COMMITS_REQUIRED')
+    require(git('rev-list', '--count', BASE + '..HEAD') == '169',
+            'EXACTLY_ONE_HUNDRED_SIXTY_NINE_AUDITED_COMMITS_REQUIRED')
     require(not git('rev-list', '--merges', BASE + '..HEAD'), 'MERGE_COMMITS_FORBIDDEN')
     overlay = git('rev-list', '--reverse', CLEAN_BASELINE + '..HEAD').splitlines()
-    require(len(overlay) == 162, 'EXACTLY_ONE_HUNDRED_SIXTY_TWO_REPAIR_COMMITS_REQUIRED')
+    require(len(overlay) == 166, 'EXACTLY_ONE_HUNDRED_SIXTY_SIX_REPAIR_COMMITS_REQUIRED')
     require(overlay[2] == PID_FILTER_COMMIT and overlay[3] == PID_TEST_COMMIT,
             'PID_REPAIR_COMMIT_IDENTITY_MISMATCH')
     require(overlay[6] == WPS_ALIAS_COMMIT and overlay[7] == WPS_ALIAS_TEST_COMMIT
@@ -610,7 +617,7 @@ def main():
                        LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, VERIFIER, WORKFLOW, VERIFIER, WORKFLOW,
                        VERIFIER, SHIM, MESH_TEST, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, WPS_OBSERVER, TRACE_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST,
                        (SHIM, MESH_TEST), VERIFIER, TRACE_GATE, TRACE_GATE, WPS_OBSERVER, WPS_OBSERVER,
-                       SHIM, TRACE_GATE, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, VERIFIER, TRACE_GATE, VERIFIER, WORKFLOW, VERIFIER, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, TRACE_TEST, MESH_TEST, WORKFLOW, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, TRACE_TEST, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, VERIFIER, CONTROL, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, VERIFIER, MESH_TEST, VERIFIER, SHIM, REVIEW_BOARD, MESH_TEST, WORKFLOW, MESH_TEST, WORKFLOW, MANIFEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, MESH_TEST, ELITE_BOARD, ELITE_TEST, WORKFLOW, MANIFEST, VERIFIER, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, SHIM, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, WORKFLOW, VERIFIER)
+                       SHIM, TRACE_GATE, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, VERIFIER, TRACE_GATE, VERIFIER, WORKFLOW, VERIFIER, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, TRACE_TEST, MESH_TEST, WORKFLOW, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, TRACE_TEST, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, VERIFIER, CONTROL, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, VERIFIER, MESH_TEST, VERIFIER, SHIM, REVIEW_BOARD, MESH_TEST, WORKFLOW, MESH_TEST, WORKFLOW, MANIFEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, MESH_TEST, ELITE_BOARD, ELITE_TEST, WORKFLOW, MANIFEST, VERIFIER, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, SHIM, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, WORKFLOW, VERIFIER, SHIM, MESH_TEST, WORKFLOW, VERIFIER)
     require(overlay[43] == SUPERSEDED_ALT_F4_COMMIT, 'SUPERSEDED_ALT_F4_COMMIT_IDENTITY_MISMATCH')
     for commit, allowed in zip(overlay, expected_scopes):
         actual=set(git('diff-tree', '--no-commit-id', '--name-only', '-r', commit).splitlines())
@@ -645,7 +652,7 @@ def main():
     expected.update(patch['postimage_sha256'])
     repaired = {LOCAL_VLM: WPS_ALIAS_COMMIT, LOCAL_VLM_TEST: WPS_ALIAS_TEST_COMMIT,
                 TRACE_GATE: overlay[148], TRACE_TEST: overlay[149], WPS_OBSERVER: overlay[135],
-                GUEST_PROBE: overlay[134], CONTROL: overlay[95], SHIM: overlay[155], MESH_TEST: overlay[158],
+                GUEST_PROBE: overlay[134], CONTROL: overlay[95], SHIM: overlay[162], MESH_TEST: overlay[163],
                 REVIEW_BOARD: overlay[127], MANIFEST: overlay[142], ELITE_BOARD: overlay[139], ELITE_TEST: overlay[140]}
     for path, wanted in expected.items():
         if path in repaired:
@@ -659,7 +666,7 @@ def main():
     verify_workflow_delta()
     print(json.dumps({'status': 'CLEAN_HISTORY_AND_SCOPE_PASS', 'base_sha': BASE,
                       'clean_baseline_sha': CLEAN_BASELINE, 'baseline_commits': 3,
-                      'repair_commits': overlay, 'new_commits': 165, 'changed_files': len(changed),
+                      'repair_commits': overlay, 'new_commits': 169, 'changed_files': len(changed),
                       'repair_scope': [VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST,
                                        TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST], 'official_score_claimed': False}))
 
