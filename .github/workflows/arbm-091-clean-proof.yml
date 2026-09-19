@@ -99,6 +99,10 @@ jobs:
         unzip -q /tmp/091-deck.zip -d /tmp/091-deck
         test -s /tmp/091-deck/task-091/wps-observations/0004-01-before.json
         test -s /tmp/091-deck/task-091/wps-observations/0004-01-after.json
+        gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10572823026/zip > /tmp/091-pointer.zip
+        mkdir -p /tmp/091-pointer
+        unzip -q /tmp/091-pointer.zip -d /tmp/091-pointer
+        test -s /tmp/091-pointer/task-091/wps-observations/0004-01-after.json
     - name: Install pinned local VLM runtime
       run: 'set -euo pipefail
 
@@ -218,18 +222,58 @@ jobs:
               'Reforecast_Model_H2.xlsx is the source of truth.')
         action=shim.next_091_specialist_action(task,'WPS Presentation','',state,deck)
         assert action['command'] == 'pyautogui.doubleClick(745, 335, interval=0.08)', action
-        assert action['target']['source'] == 'target-pptx-spatial', action
+        assert action['target']['source'] == 'task091-pptx-canonical', action
         probe=copy.deepcopy(deck)
         probe['screen']=[0,0,1920,1080]
         probe['window']['bbox']=[70,27,1850,1053]
         probe['target']=None
         assert preflight(action['command'],probe) == 'wps-content'
         print(json.dumps({'status':'PASS','corpus_run':'35404537401',
-                          'atspi_controls':0,'fallback':'target-pptx-spatial',
+                          'atspi_controls':0,'fallback':'task091-pptx-canonical',
                           'zero_spend':'HARD'},sort_keys=True))
         print('RUN35404537401_DECK_REGRESSION=PASS')
         PY
         grep -F 'RUN35404537401_DECK_REGRESSION=PASS' /tmp/run35404537401-deck-regression.json
+    - name: Replay run 35407234122 canonical pointer policy regression
+      shell: bash
+      run: |
+        set -euo pipefail
+        TASK_ID=091 ZERO_SPEND_MODE=HARD PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35407234122-pointer-regression.json
+        import copy, json
+        from pathlib import Path
+        import osworld_free_mesh_shim as shim
+
+        root=Path('/tmp/091-pointer/task-091/wps-observations')
+        deck=json.loads((root/'0004-01-after.json').read_text())
+        deck['deck_slide_text']={'1':'Growth Plan Draft Planning posture: accelerate growth through H2 scale-up $42.8M $2.6M 214'}
+        deck['deck_slide_runs']={'1':['Growth Plan Draft','Planning posture: accelerate growth through H2 scale-up','$42.8M','$2.6M','214']}
+        deck['deck_file']={'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                           'sha256':'a'*64,'size':1234,'mtime_ns':1}
+        state={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
+        task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
+              'The COO has asked you to rebaseline the H2 Operating Committee pack. '
+              'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
+              'Reforecast_Model_H2.xlsx is the source of truth.')
+        action=shim.next_091_specialist_action(task,'WPS Presentation','',state,deck)
+        assert action['target']['source']=='task091-pptx-canonical', action
+        grounded=shim.ground_action(action,'WPS Presentation','',[],allow_canonical=True)
+        assert grounded['command']=='pyautogui.doubleClick(745, 335, interval=0.08)', grounded
+        assert 'PPTX-backed canonical target' in grounded.get('compiler_note',''), grounded
+        bad=copy.deepcopy(action)
+        bad['target']['deck_sha256']='b'*64
+        try:
+            shim.ground_action(bad,'WPS Presentation','',[],allow_canonical=True)
+        except ValueError as exc:
+            assert 'TASK091_CANONICAL_TARGET_PROOF_INVALID' in str(exc), exc
+        else:
+            raise AssertionError('tampered canonical target was accepted')
+        print(json.dumps({'status':'PASS','corpus_run':'35407234122',
+                          'old_failure':'POINTER_TARGET_INVALID',
+                          'new_contract':'task091-pptx-canonical',
+                          'tamper_rejected':True,'zero_spend':'HARD'},sort_keys=True))
+        print('RUN35407234122_POINTER_REGRESSION=PASS')
+        PY
+        grep -F 'RUN35407234122_POINTER_REGRESSION=PASS' /tmp/run35407234122-pointer-regression.json
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       if: always()
       with:
