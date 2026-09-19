@@ -1,4 +1,4 @@
-name: ZEES P07 Final Security Proof
+name: ZEES P07 Candidate Security Proof
 on:
   push:
     branches:
@@ -13,7 +13,7 @@ permissions:
   actions: read
 
 env:
-  TARGET_SHA: cf008c04e9bf01e87fca80799dfc25b1de68d888
+  BASE_SHA: cf008c04e9bf01e87fca80799dfc25b1de68d888
   PRIOR_RUN_ID: "35454406051"
   PRIOR_ARTIFACT_DIGEST: "sha256:baa1b7234e5a4f4c568ecfb87221962bb8b3d6cbab23aa56dcd1e3086df4e497"
 
@@ -29,19 +29,19 @@ jobs:
       - name: Checkout exact certified subject
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ env.TARGET_SHA }}
+          ref: ${{ github.sha }}
           path: target
           fetch-depth: 1
       - name: Validate exact SHA and security applicability
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C target rev-parse HEAD)" = "$TARGET_SHA"
+          test "$(git -C target rev-parse HEAD)" = "$GITHUB_SHA"
           python3 - <<'PY'
-          import json
+          import json,os
           p=json.load(open('harness/certification/zees-p07-security-profile.json'))
           assert p['schema']=='zees-p07-security-profile/v1'
-          assert p['target_sha']=='cf008c04e9bf01e87fca80799dfc25b1de68d888'
+          assert p['target_sha']==os.environ['BASE_SHA']
           assert p['fail_closed'] is True
           assert p['applicability']['dast']['applicable'] is False and len(p['applicability']['dast']['justification'])>40
           assert p['applicability']['asvs']['applicable'] is False and len(p['applicability']['asvs']['justification'])>40
@@ -121,11 +121,12 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import hashlib,json,pathlib
+          import hashlib,json,os,pathlib
           out={
             "schema":"zees-p07-final-security/v1",
-            "target_sha":"cf008c04e9bf01e87fca80799dfc25b1de68d888",
-            "status":"PASS",
+            "base_sha":"cf008c04e9bf01e87fca80799dfc25b1de68d888",
+            "candidate_sha":os.environ["GITHUB_SHA"],
+            "status":"PASS_CANDIDATE",
             "sast":"PASS_ZERO_FINDINGS",
             "sca_secret_misconfig":"PASS_HIGH_CRITICAL_ZERO",
             "threat_model":"PASS",
