@@ -533,4 +533,32 @@ class Task091CompactEditTests(unittest.TestCase):
         self.assertFalse(shim._task091_needs_explicit_text_mode('', 'x'))
         self.assertFalse(shim._task091_needs_explicit_text_mode('x', ''))
 
+    def test_persisted_extra_paragraph_break_routes_to_atomic_repair(self):
+        pending={
+            'slide':1,
+            'old':'Planning posture: accelerate growth through H2 scale-up',
+            'new':'Northstar Cloud\nPrepared for July Operating Committee review\nPlanning posture: stabilize and recover with disciplined sequencing',
+            'shape_id':7,
+            'before_old_count':1,
+            'before_new_count':0,
+            'before_deck_sha256':'a'*64,
+            'repair_before_deck_sha256':'',
+            'target':{'bbox':[737,515,2,2],'cx':738,'cy':516},
+        }
+        actual='Northstar Cloud\nPrepared for July Operating Committee review\n\nPlanning posture: stabilize and recover with disciplined sequencing'
+        state={
+            'deck_slide_text':{'1':actual},
+            'deck_slide_shapes':{'1':[{'id':7,'name':'CoverSub','text':actual,
+                                      'geometry':{'x':768096,'y':2743200,'w':5669280,'h':1280160}}]},
+            'deck_file':{'sha256':'b'*64},
+        }
+        verified,status,detail=shim._task091_verify_pending('',pending,state)
+        self.assertFalse(verified)
+        self.assertEqual(status,'disk-text-mismatch')
+        self.assertTrue(detail['semantic_target_present'])
+        self.assertFalse(detail['exact_shape_text'])
+        plan=shim._task091_restricted_repair_plan(actual,pending['new'])
+        self.assertEqual(plan,[{'op':'delete','index':62,'char':'\n'}], plan)
+
+
 
