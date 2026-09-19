@@ -563,11 +563,22 @@ def _task091_verify_pending(observation,pending,window_state):
                                     'new_count_before':before_new,'new_count_after':after_new,
                                     'sha256_before':before_sha,'sha256_after':after_sha,
                                     'repair_sha256_before':repair_before or None}
-    if disk_mutated and before_old > 0 and after_old < before_old and after_new <= before_new:
-        return False,'disk-text-mismatch',{'source':'target-pptx','slide':slide,
-                                          'old_count_before':before_old,'old_count_after':after_old,
-                                          'new_count_before':before_new,'new_count_after':after_new,
-                                          'sha256_before':before_sha,'sha256_after':after_sha}
+    if disk_mutated and before_old > 0 and after_old < before_old:
+        # The normalized target can already be present while WPS has persisted
+        # a structurally different textbox (for example one extra paragraph
+        # break). That is not "unverified": it is a proven, bounded text
+        # mismatch and must flow into the existing atomic repair path.
+        semantic_target_present=(after_new > before_new)
+        if not semantic_target_present or not exact_shape_text:
+            return False,'disk-text-mismatch',{'source':'target-pptx','slide':slide,
+                                              'shape_id':expected_shape_id,
+                                              'old_count_before':before_old,'old_count_after':after_old,
+                                              'new_count_before':before_new,'new_count_after':after_new,
+                                              'sha256_before':before_sha,'sha256_after':after_sha,
+                                              'semantic_target_present':semantic_target_present,
+                                              'exact_shape_text':exact_shape_text,
+                                              'actual_shape_text':str(expected_shape.get('text') or '') if isinstance(expected_shape,dict) else None,
+                                              'expected_shape_text':str(pending.get('new') or '')}
     bbox=pending.get('target',{}).get('bbox')
     old_hits=_task091_atspi_candidates(observation,pending.get('old'))
     status,new_hit=_task091_target_resolution(
