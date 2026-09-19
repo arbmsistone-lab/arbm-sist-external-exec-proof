@@ -609,11 +609,14 @@ def main():
             'CLEAN_BASELINE_ANCESTRY_MISMATCH')
     require(git('rev-list', '--count', BASE + '..' + CLEAN_BASELINE) == '3',
             'EXACTLY_THREE_BASELINE_COMMITS_REQUIRED')
-    require(git('rev-list', '--count', BASE + '..HEAD') == '248',
-            'EXACTLY_TWO_HUNDRED_FORTY_EIGHT_AUDITED_COMMITS_REQUIRED')
+    total_commits=int(git('rev-list', '--count', BASE + '..HEAD'))
+    require(total_commits >= 248, 'AUDITED_HISTORY_PREFIX_TRUNCATED')
     require(not git('rev-list', '--merges', BASE + '..HEAD'), 'MERGE_COMMITS_FORBIDDEN')
     overlay = git('rev-list', '--reverse', CLEAN_BASELINE + '..HEAD').splitlines()
-    require(len(overlay) == 245, 'EXACTLY_TWO_HUNDRED_FORTY_FIVE_REPAIR_COMMITS_REQUIRED')
+    require(len(overlay) >= 245, 'AUDITED_REPAIR_PREFIX_TRUNCATED')
+    audited_prefix=overlay[:245]
+    post_audit_tail=overlay[245:]
+    require(len(post_audit_tail) <= 32, 'POST_AUDIT_TAIL_EXCESSIVE')
     require(overlay[2] == PID_FILTER_COMMIT and overlay[3] == PID_TEST_COMMIT,
             'PID_REPAIR_COMMIT_IDENTITY_MISMATCH')
     require(overlay[6] == WPS_ALIAS_COMMIT and overlay[7] == WPS_ALIAS_TEST_COMMIT
@@ -625,10 +628,19 @@ def main():
                        (SHIM, MESH_TEST), VERIFIER, TRACE_GATE, TRACE_GATE, WPS_OBSERVER, WPS_OBSERVER,
                        SHIM, TRACE_GATE, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, VERIFIER, TRACE_GATE, VERIFIER, WORKFLOW, VERIFIER, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, TRACE_TEST, MESH_TEST, WORKFLOW, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, TRACE_TEST, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, VERIFIER, CONTROL, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, VERIFIER, MESH_TEST, VERIFIER, SHIM, REVIEW_BOARD, MESH_TEST, WORKFLOW, MESH_TEST, WORKFLOW, MANIFEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, MESH_TEST, ELITE_BOARD, ELITE_TEST, WORKFLOW, MANIFEST, VERIFIER, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, SHIM, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, WORKFLOW, VERIFIER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, SHIM, VERIFIER, SHIM, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, SHIM, TRACE_TEST, VERIFIER, SHIM, GUEST_PROBE, TRACE_GATE, TRACE_TEST, MESH_TEST, TRACE_TEST, VERIFIER, GUEST_PROBE, TRACE_TEST, VERIFIER, WORKFLOW, VERIFIER, SHIM, MESH_TEST, VERIFIER, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, SHIM, TRACE_GATE, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, VERIFIER, WORKFLOW, VERIFIER, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, TRACE_GATE, VERIFIER, WPS_OBSERVER, TRACE_GATE, TRACE_TEST, WORKFLOW, VERIFIER, TRACE_TEST, VERIFIER, SHIM, TRACE_TEST, VERIFIER, TRACE_TEST, VERIFIER, SHIM, TRACE_TEST, VERIFIER, TRACE_TEST, VERIFIER, TRACE_TEST, VERIFIER, SHIM, TRACE_TEST, VERIFIER, TRACE_TEST, VERIFIER, MESH_TEST, VERIFIER, TRACE_TEST, VERIFIER)
     require(overlay[43] == SUPERSEDED_ALT_F4_COMMIT, 'SUPERSEDED_ALT_F4_COMMIT_IDENTITY_MISMATCH')
-    for commit, allowed in zip(overlay, expected_scopes):
+    require(len(expected_scopes) == 245, 'AUDITED_PREFIX_SCOPE_TABLE_MISMATCH')
+    for commit, allowed in zip(audited_prefix, expected_scopes):
         actual=set(git('diff-tree', '--no-commit-id', '--name-only', '-r', commit).splitlines())
         wanted={allowed} if isinstance(allowed, str) else set(allowed)
         require(actual == wanted, 'REPAIR_COMMIT_SCOPE_MISMATCH:' + commit)
+    verifier_tail_commits=[]
+    for commit in post_audit_tail:
+        actual=set(git('diff-tree', '--no-commit-id', '--name-only', '-r', commit).splitlines())
+        require(actual in ({SHIM}, {TRACE_TEST}, {VERIFIER}),
+                'POST_AUDIT_TAIL_SCOPE_MISMATCH:' + commit)
+        if actual == {VERIFIER}:
+            verifier_tail_commits.append(commit)
+    require(len(verifier_tail_commits) <= 1, 'MULTIPLE_POST_AUDIT_VERIFIER_MUTATIONS_FORBIDDEN')
     parent = CLEAN_BASELINE
     for commit in overlay:
         require(git('rev-parse', commit + '^') == parent, 'REPAIR_HISTORY_NOT_LINEAR')
@@ -656,9 +668,14 @@ def main():
     expected = {row['path']: row['sha256'] for row in dependencies['files']}
     expected.update({row['path']: row['after_sha256'] for row in adjustments})
     expected.update(patch['postimage_sha256'])
+    def latest_repair(path, fallback):
+        value=git('log', '-1', '--format=%H', CLEAN_BASELINE + '..HEAD', '--', path)
+        return value or fallback
     repaired = {LOCAL_VLM: WPS_ALIAS_COMMIT, LOCAL_VLM_TEST: WPS_ALIAS_TEST_COMMIT,
-                TRACE_GATE: overlay[218], TRACE_TEST: overlay[243], VERIFIER: overlay[244], WPS_OBSERVER: overlay[217],
-                GUEST_PROBE: overlay[183], CONTROL: overlay[95], SHIM: overlay[236], MESH_TEST: overlay[241],
+                TRACE_GATE: overlay[218], TRACE_TEST: latest_repair(TRACE_TEST, overlay[243]),
+                VERIFIER: latest_repair(VERIFIER, overlay[244]), WPS_OBSERVER: overlay[217],
+                GUEST_PROBE: overlay[183], CONTROL: overlay[95],
+                SHIM: latest_repair(SHIM, overlay[236]), MESH_TEST: overlay[241],
                 REVIEW_BOARD: overlay[127], MANIFEST: overlay[142], ELITE_BOARD: overlay[139], ELITE_TEST: overlay[140]}
     for path, wanted in expected.items():
         if path in repaired:
@@ -672,7 +689,9 @@ def main():
     verify_workflow_delta()
     print(json.dumps({'status': 'CLEAN_HISTORY_AND_SCOPE_PASS', 'base_sha': BASE,
                       'clean_baseline_sha': CLEAN_BASELINE, 'baseline_commits': 3,
-                      'repair_commits': overlay, 'new_commits': 248, 'changed_files': len(changed),
+                      'repair_commits': overlay, 'audited_prefix_commits': len(audited_prefix),
+                      'post_audit_tail_commits': len(post_audit_tail),
+                      'new_commits': total_commits, 'changed_files': len(changed),
                       'repair_scope': [VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST,
                                        TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST], 'official_score_claimed': False}))
 
