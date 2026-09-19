@@ -219,8 +219,8 @@ def fresh_oidc():
         sep='&' if '?' in url else '?'
         req=urllib.request.Request(url+sep+'audience='+urllib.parse.quote('arbm-sist-benchmark'))
         req.add_header('Authorization','Bearer '+bearer)
-        # Endpoint host/scheme is allowlisted above. nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-        with urllib.request.urlopen(req, timeout=20) as r:
+        # Endpoint host/scheme is allowlisted by _validated_endpoint before Request construction.
+        with urllib.request.urlopen(req, timeout=20) as r:  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
             return str(json.loads(r.read().decode('utf-8'))['value'])
     return os.environ.get('ARBM_BENCHMARK_OIDC','')
 
@@ -240,8 +240,8 @@ def infer(prompt, instance_id):
                 req=urllib.request.Request(endpoint, data=body, method='POST')
                 req.add_header('Authorization', 'Bearer '+token)
                 req.add_header('Content-Type', 'application/json')
-                # Endpoint is validated against the exact ARBM Supabase host/path. nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-                with urllib.request.urlopen(req, timeout=150) as r:
+                # Endpoint is validated against the exact ARBM Supabase host/path.
+                with urllib.request.urlopen(req, timeout=150) as r:  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
                     data=json.loads(r.read().decode('utf-8'))
                 if not data.get('ok'):
                     last_err='REMOTE_STATUS:'+str(data.get('status'))
@@ -276,8 +276,8 @@ def _remote_json_one(endpoint, payload, retries=(0,12)):
             req=urllib.request.Request(endpoint,data=body,method='POST')
             req.add_header('Authorization','Bearer '+token); req.add_header('Content-Type','application/json')
             req.add_header('User-Agent','arbm-sist-benchmark/19'); req.add_header('Accept','application/json')
-            # Endpoint is validated against the exact ARBM Supabase host/path. nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-            with urllib.request.urlopen(req,timeout=150) as r: data=json.loads(r.read().decode('utf-8'))
+            # Endpoint is validated against the exact ARBM Supabase host/path.
+            with urllib.request.urlopen(req,timeout=150) as r: data=json.loads(r.read().decode('utf-8'))  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
             if data.get('ok'): return 0,data,'',False
             last_err='REMOTE_STATUS:'+str(data.get('status'))
         except urllib.error.HTTPError as exc:
@@ -433,8 +433,8 @@ def _sovereign_json(payload):
     try:
         req=urllib.request.Request(endpoint,data=body,method='POST'); req.add_header('Content-Type','application/json')
         sovereign_timeout=max(180,min(600,int(os.environ.get('ARBM_SOVEREIGN_TIMEOUT_SECONDS','420'))))
-        # Sovereign endpoint is constrained to localhost/127.0.0.1. nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-        with urllib.request.urlopen(req,timeout=sovereign_timeout) as r: outer=json.loads(r.read().decode('utf-8'))
+        # Sovereign endpoint is constrained by _validated_endpoint to localhost/127.0.0.1.
+        with urllib.request.urlopen(req,timeout=sovereign_timeout) as r: outer=json.loads(r.read().decode('utf-8'))  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
         content=outer['choices'][0]['message'].get('content','')
         if isinstance(content,list): content=''.join(str(x.get('text','')) if isinstance(x,dict) else str(x) for x in content)
         text=str(content).strip()
