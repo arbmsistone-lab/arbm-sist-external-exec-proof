@@ -64,6 +64,21 @@ jobs:
       run: python -m arbm091.verify_transplant
     - name: Test score and WPS guards, including negative cases
       run: python -m unittest discover -s tests/arbm091 -p 'test_*.py' -v
+    - name: Run 50x10 senior-master review gate
+      shell: bash
+      run: |
+        set -euo pipefail
+        python - <<'PY'
+        from arbm091.review_board_50x10 import evaluate
+        import osworld_free_mesh_shim as shim
+        actual='H2 Operating Committee PPackSStabilize-and-Recover RRebaseline'
+        expected='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
+        plan=shim._task091_restricted_repair_plan(actual,expected)
+        shape={'id':6,'name':'CoverTitle','text':actual}
+        verdict=evaluate(actual,expected,plan,shape,'a'*64,'b'*64)
+        assert verdict['senior_pass']==50 and verdict['master_pass']==10, verdict
+        print('TASK091_REVIEW_BOARD_50X10_PASS senior=50/50 master=10/10')
+        PY
   replay:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -113,6 +128,11 @@ jobs:
         unzip -q /tmp/091-delete-repair.zip -d /tmp/091-delete-repair
         test -s /tmp/091-delete-repair/task-091/wps-observations/0013-01-after.json
         test -s /tmp/091-delete-repair/task-091/wps-trace.jsonl
+        gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10584667099/zip > /tmp/091-restricted-repair.zip
+        mkdir -p /tmp/091-restricted-repair
+        unzip -q /tmp/091-restricted-repair.zip -d /tmp/091-restricted-repair
+        test -s /tmp/091-restricted-repair/task-091/wps-observations/0009-01-after.json
+        test -s /tmp/091-restricted-repair/task-091/wps-trace.jsonl
     - name: Install pinned local VLM runtime
       run: 'set -euo pipefail
 
@@ -339,6 +359,43 @@ jobs:
         print('RUN35439821335_DELETE_REPAIR_REGRESSION=PASS')
         PY
         grep -F 'RUN35439821335_DELETE_REPAIR_REGRESSION=PASS' /tmp/run35439821335-delete-repair-regression.json
+    - name: Replay run 35443356294 restricted repair regression
+      shell: bash
+      run: |
+        set -euo pipefail
+        TASK_ID=091 ZERO_SPEND_MODE=HARD PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35443356294-restricted-repair-regression.json
+        import json
+        from pathlib import Path
+        import osworld_free_mesh_shim as shim
+        from arbm091.review_board_50x10 import evaluate
+
+        root=Path('/tmp/091-restricted-repair/task-091/wps-observations')
+        snap=json.loads((root/'0009-01-after.json').read_text())
+        shape=next(row for row in snap['deck_slide_shapes']['1'] if row.get('id')==6)
+        actual=shape['text']
+        expected='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
+        assert actual=='H2 Operating Committee PPackSStabilize-and-Recover RRebaseline', actual
+        plan=shim._task091_restricted_repair_plan(actual,expected)
+        assert plan==[
+            {'op':'delete','index':24,'char':'P'},
+            {'op':'linebreak','index':27},
+            {'op':'delete','index':29,'char':'S'},
+            {'op':'delete','index':51,'char':'R'}], plan
+        command=shim._task091_restricted_repair_command(plan)
+        assert 'pyautogui.write(' not in command, command
+        assert "hotkey('shift', 'enter')" in command, command
+        verdict=evaluate(actual,expected,plan,shape,
+                         '4c9c57567fa8f4bd81175dbd3d1b2ea40f0ad1ff8689ca47e1cbd001da637f5b',
+                         snap['deck_file']['sha256'])
+        assert verdict['senior_pass']==50 and verdict['master_pass']==10, verdict
+        print(json.dumps({'status':'PASS','corpus_run':'35443356294',
+                          'old_failure':'TASK091_EDIT_TEXT_MISMATCH_UNPROVEN',
+                          'repair':'delete-plus-linebreak-only',
+                          'senior':'50/50','master':'10/10',
+                          'text_injection':False,'zero_spend':'HARD'},sort_keys=True))
+        print('RUN35443356294_RESTRICTED_REPAIR_REGRESSION=PASS')
+        PY
+        grep -F 'RUN35443356294_RESTRICTED_REPAIR_REGRESSION=PASS' /tmp/run35443356294-restricted-repair-regression.json
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       if: always()
       with:
@@ -351,6 +408,7 @@ jobs:
           /tmp/run35407234122-pointer-regression.json
           /tmp/run35411705196-keyrepeat-regression.json
           /tmp/run35439821335-delete-repair-regression.json
+          /tmp/run35443356294-restricted-repair-regression.json
         if-no-files-found: warn
         retention-days: 30
     permissions:
