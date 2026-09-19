@@ -1,6 +1,6 @@
 {
   "schema": "arbm-global-release-readiness-v1",
-  "capturedAt": "2026-09-08T00:09:19.345616Z",
+  "capturedAt": "2026-09-19T18:03:04Z",
   "policy": {
     "zeroSpendHard": true,
     "heavyExecution": "REMOTE_ONLY",
@@ -43,14 +43,15 @@
       }
     },
     "osworldV2Content": {
-      "status": "BLOCKED_EXTERNAL_AUTH",
-      "runId": 34166685912,
-      "artifactId": 10034371645,
-      "artifactSha256": "9a2b52b31662f6d0d38926b4f36e25f467e1895b689d27483804a86b16c0e97f",
-      "hfTokenPresent": false,
-      "tasksHttp": 401,
-      "assetsHttp": 401,
-      "release": "osworld-v2-2026.08.08"
+      "status": "PASS",
+      "runId": 35459950257,
+      "artifactId": 10589238181,
+      "artifactSha256": "a2e2bfe61412d5482e2db8f5c231a60819569492ba4188ec19ad9458e44a6219",
+      "hfTokenPresent": true,
+      "tasksHttp": 206,
+      "assetsHttp": 206,
+      "release": "osworld-v2-2026.08.08",
+      "note": "Authenticated live range download from both gated repositories succeeded with 32 bytes read from each candidate object."
     },
     "swefficiency": {
       "status": "BLOCKED_CPU_TOPOLOGY",
