@@ -218,6 +218,69 @@ def canonical_target_proof(target):
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
+def task091_spatial_target_proof(target):
+    if not isinstance(target,dict):
+        return ''
+    payload='|'.join((
+        str(target.get('source') or ''),
+        normalized_target(target.get('role')),
+        normalized_target(target.get('label')),
+        str(int(target.get('slide') or 0)),
+        str(int(target.get('x') or 0)),
+        str(int(target.get('y') or 0)),
+        str(int(target.get('w') or 0)),
+        str(int(target.get('h') or 0)),
+        str(int(target.get('cx') or 0)),
+        str(int(target.get('cy') or 0)),
+        str(target.get('foreground_sha256') or ''),
+        str(target.get('deck_sha256') or ''),
+    ))
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _validate_task091_pptx_pointer(action):
+    target=action.get('target') if isinstance(action,dict) else None
+    if not isinstance(target,dict):
+        raise ValueError('TASK091_CANONICAL_TARGET_REQUIRED')
+    required=('label','role','slide','x','y','w','h','cx','cy',
+              'foreground_sha256','deck_sha256','proof_sha256')
+    if any(target.get(key) in (None,'') for key in required):
+        raise ValueError('TASK091_CANONICAL_TARGET_INCOMPLETE')
+    if str(target.get('source') or '').lower()!='task091-pptx-canonical':
+        raise ValueError('TASK091_CANONICAL_TARGET_SOURCE_INVALID')
+    if normalized_target(target.get('role'))!='task091-canonical-point':
+        raise ValueError('TASK091_CANONICAL_TARGET_ROLE_INVALID')
+    slide=int(target.get('slide') or 0)
+    if not 1 <= slide <= 13:
+        raise ValueError('TASK091_CANONICAL_SLIDE_INVALID')
+    for key in ('foreground_sha256','deck_sha256'):
+        value=str(target.get(key) or '')
+        if not re.fullmatch(r'[0-9a-f]{64}',value):
+            raise ValueError('TASK091_CANONICAL_DIGEST_INVALID')
+    expected=task091_spatial_target_proof(target)
+    if not expected or expected!=str(target.get('proof_sha256') or ''):
+        raise ValueError('TASK091_CANONICAL_TARGET_PROOF_INVALID')
+    x=int(target.get('x')); y=int(target.get('y')); w=int(target.get('w')); h=int(target.get('h'))
+    cx=int(target.get('cx')); cy=int(target.get('cy'))
+    if w != 2 or h != 2 or x != cx-1 or y != cy-1:
+        raise ValueError('TASK091_CANONICAL_TARGET_GEOMETRY_INVALID')
+    calls=_gui_calls(action.get('command',''))
+    if len(calls)!=1 or calls[0].func.attr not in {'click','doubleClick','rightClick'}:
+        raise ValueError('TASK091_CANONICAL_POINTER_ATOMIC_REQUIRED')
+    call=calls[0]
+    try:
+        if len(call.args)>=2:
+            px=float(ast.literal_eval(call.args[0])); py=float(ast.literal_eval(call.args[1]))
+        else:
+            kwargs={kw.arg:ast.literal_eval(kw.value) for kw in call.keywords if kw.arg}
+            px=float(kwargs['x']); py=float(kwargs['y'])
+    except (ValueError,TypeError,KeyError):
+        raise ValueError('TASK091_CANONICAL_POINTER_COORDINATES_INVALID')
+    if abs(px-cx)>0.5 or abs(py-cy)>0.5:
+        raise ValueError('TASK091_CANONICAL_POINTER_COORDINATES_MISMATCH')
+    return action
+
+
 def _validate_canonical_pointer(action):
     target=action.get('target') if isinstance(action,dict) else None
     if not isinstance(target,dict):
@@ -410,13 +473,18 @@ def ground_action(action, active_application, observation='', verified_milestone
     if a.get('action')=='exec' and re.search(r'pyautogui\.(?:click|doubleClick|rightClick)\s*\(',a.get('command','')):
         target=a.get('target')
         source=str(target.get('source') or '').lower() if isinstance(target,dict) else ''
-        if source=='accessibility-canonical':
+        if source in {'accessibility-canonical','task091-pptx-canonical'}:
             if not allow_canonical:
                 raise ValueError('CANONICAL_TARGET_UNTRUSTED')
-            a=_validate_canonical_pointer(a)
+            if source=='accessibility-canonical':
+                a=_validate_canonical_pointer(a)
+                note='Trusted local canonical accessibility target accepted without secondary re-resolution.'
+            else:
+                a=_validate_task091_pptx_pointer(a)
+                note='Trusted Task 091 PPTX-backed canonical target accepted with signed foreground/deck proof.'
             canonical_pointer=True
             a=dict(a)
-            a['compiler_note']='Trusted local canonical accessibility target accepted without secondary re-resolution.'
+            a['compiler_note']=note
         else:
             a=_repair_single_pointer_target(a,observation)
             target=a.get('target')
