@@ -58,9 +58,12 @@ jobs:
           test "$free_mb" -ge 10240
           echo "free_mb_before_model=$free_mb"
       - name: Download pinned official model
+        env:
+          MODEL_URL: ${{ steps.model.outputs.url }}
+          MODEL_SHA: ${{ steps.model.outputs.sha }}
         run: |
-          curl -L --fail --retry 3 -o model.gguf "${{ steps.model.outputs.url }}"
-          echo "${{ steps.model.outputs.sha }}  model.gguf" | sha256sum -c -
+          curl -L --fail --retry 3 -o model.gguf "$MODEL_URL"
+          echo "$MODEL_SHA  model.gguf" | sha256sum -c -
       - name: Run shadow laboratory
         env:
           LLAMA_CLI: ./llama-cli
