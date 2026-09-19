@@ -432,6 +432,9 @@ class Task091CompactEditTests(unittest.TestCase):
         self.assertIn("graphicFrame", source)
         self.assertIn("tblGrid", source)
         self.assertIn("'kind':'table-cell'", source)
+        for token in ("gridSpan", "rowSpan", "hMerge", "vMerge"):
+            self.assertIn(token, source)
+        self.assertIn("grid_index += grid_span", source)
 
     def test_all_task091_spatial_replacements_are_text_mode_guarded(self):
         checked=0
