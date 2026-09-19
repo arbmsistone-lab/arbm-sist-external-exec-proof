@@ -252,6 +252,60 @@ def _task091_dynamic_target(observation, label, hint_x, hint_y):
     status,target=_task091_target_resolution(observation,label,hint_x,hint_y)
     return target if status=='visible' else None
 
+TASK091_CANONICAL_SCREEN=[0,0,1920,1080]
+TASK091_CANONICAL_WINDOW=[70,27,1850,1053]
+TASK091_CANONICAL_SLIDE_VIEWPORT=[443,194,1413,795]
+
+def _task091_shape_rows(window_state, slide):
+    if not isinstance(window_state,dict):
+        return []
+    table=window_state.get('deck_slide_shapes',{})
+    rows=table.get(str(int(slide)),[]) if isinstance(table,dict) else []
+    return rows if isinstance(rows,list) else []
+
+def _task091_shape_by_id(window_state, slide, shape_id):
+    matches=[row for row in _task091_shape_rows(window_state,slide)
+             if int(row.get('id') or 0)==int(shape_id or 0)]
+    return matches[0] if len(matches)==1 else None
+
+def _task091_shape_for_old(window_state, slide, old):
+    wanted=_task091_norm(old)
+    matches=[]
+    for row in _task091_shape_rows(window_state,slide):
+        text=_task091_norm(row.get('text'))
+        geometry=row.get('geometry')
+        if (wanted and wanted in text and isinstance(geometry,dict)
+                and int(geometry.get('w') or 0)>0 and int(geometry.get('h') or 0)>0):
+            matches.append(row)
+    return matches[0] if len(matches)==1 else None
+
+def _task091_shape_point(window_state, slide, old):
+    if not isinstance(window_state,dict):
+        return None
+    if window_state.get('screen') != TASK091_CANONICAL_SCREEN:
+        return None
+    if (window_state.get('window') or {}).get('bbox') != TASK091_CANONICAL_WINDOW:
+        return None
+    deck_file=window_state.get('deck_file') or {}
+    slide_size=deck_file.get('slide_size') if isinstance(deck_file,dict) else None
+    if not isinstance(slide_size,dict):
+        return None
+    sw=int(slide_size.get('w') or 0); sh=int(slide_size.get('h') or 0)
+    if sw<=0 or sh<=0:
+        return None
+    row=_task091_shape_for_old(window_state,slide,old)
+    if row is None:
+        return None
+    geometry=row.get('geometry') or {}
+    gx=int(geometry.get('x') or 0); gy=int(geometry.get('y') or 0)
+    gw=int(geometry.get('w') or 0); gh=int(geometry.get('h') or 0)
+    vx,vy,vw,vh=TASK091_CANONICAL_SLIDE_VIEWPORT
+    cx=round(vx + ((gx + gw/2.0)/sw)*vw)
+    cy=round(vy + ((gy + gh/2.0)/sh)*vh)
+    if not (vx <= cx < vx+vw and vy <= cy < vy+vh):
+        return None
+    return {'shape':row,'cx':int(cx),'cy':int(cy)}
+
 def _task091_nav_command(current_slide, target_slide):
     delta=int(target_slide)-int(current_slide)
     if delta == 0:
@@ -392,10 +446,16 @@ def _task091_verify_pending(observation,pending,window_state):
     repair_before=str(pending.get('repair_before_deck_sha256') or '')
     repair_persisted=(not repair_before or (len(repair_before)==64 and after_sha != repair_before))
     disk_mutated=(len(before_sha)==64 and len(after_sha)==64 and after_sha != before_sha)
+    expected_shape_id=int(pending.get('shape_id') or 0)
+    expected_shape=_task091_shape_by_id(window_state,slide,expected_shape_id)
+    exact_shape_text=(isinstance(expected_shape,dict)
+                      and str(expected_shape.get('text') or '')==str(pending.get('new') or ''))
     disk_verified=(disk_mutated and repair_persisted
-                   and before_old > 0 and after_old < before_old and after_new > before_new)
+                   and before_old > 0 and after_old < before_old and after_new > before_new
+                   and exact_shape_text)
     if disk_verified:
         return True,'disk-verified',{'source':'target-pptx','slide':slide,
+                                    'shape_id':expected_shape_id,
                                     'old_count_before':before_old,'old_count_after':after_old,
                                     'new_count_before':before_new,'new_count_after':after_new,
                                     'sha256_before':before_sha,'sha256_after':after_sha,
@@ -641,28 +701,26 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                     'target':{'source':'task091-final-state','x':x,'y':y},
                     'specialist_phase':'skip-already-final-target'}
 
-        status,target=_task091_target_resolution(observation,old,x,y)
-        source='accessibility'
         before_old=_task091_text_count(window_state,slide,old)
         before_new=_task091_text_count(window_state,slide,new)
-        if status != 'visible':
-            if status == 'ambiguous':
-                return _task091_terminal('TASK091_TARGET_AMBIGUOUS',state)
-            if before_old <= 0:
-                retries=int(state.get('target_retries') or 0)
-                if retries<1:
-                    state['target_retries']=retries+1
-                    return {'action':'exec','command':"pyautogui.sleep(0.2)",
-                            'plan':f'Re-observe the proven target deck once for {old!r}.',
-                            'specialist_phase':'reobserve-target'}
-                return _task091_terminal('TASK091_TARGET_NOT_VISIBLE',state)
-            source='task091-pptx-canonical'
-            target={'source':source,'label':old,'role':'task091-canonical-point',
-                    'slide':int(slide),'x':int(x)-1,'y':int(y)-1,'w':2,'h':2,
-                    'cx':int(x),'cy':int(y),
-                    'foreground_sha256':_task091_foreground_sha(window_state),
-                    'deck_sha256':str((window_state.get('deck_file',{}) or {}).get('sha256',''))}
-            target['proof_sha256']=task091_spatial_target_proof(target)
+        shape_target=_task091_shape_point(window_state,slide,old)
+        if shape_target is None:
+            retries=int(state.get('target_retries') or 0)
+            if retries<1:
+                state['target_retries']=retries+1
+                return {'action':'exec','command':"pyautogui.sleep(0.2)",
+                        'plan':f'Re-observe exact PPTX shape geometry once for {old!r}.',
+                        'specialist_phase':'reobserve-shape-geometry'}
+            return _task091_terminal('TASK091_SHAPE_GEOMETRY_UNPROVEN',state)
+        source='task091-pptx-canonical'
+        shape=shape_target['shape']
+        x=int(shape_target['cx']); y=int(shape_target['cy'])
+        target={'source':source,'label':old,'role':'task091-canonical-point',
+                'slide':int(slide),'x':x-1,'y':y-1,'w':2,'h':2,
+                'cx':x,'cy':y,
+                'foreground_sha256':_task091_foreground_sha(window_state),
+                'deck_sha256':str((window_state.get('deck_file',{}) or {}).get('sha256',''))}
+        target['proof_sha256']=task091_spatial_target_proof(target)
 
         state['target_retries']=0
         state['mode']='TARGET_VISIBLE'
@@ -674,6 +732,9 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                       'cx':target['cx'],'cy':target['cy'],'source':source,
                       'slide':target.get('slide'),'foreground_sha256':target.get('foreground_sha256'),
                       'deck_sha256':target.get('deck_sha256'),'proof_sha256':target.get('proof_sha256')},
+            'shape_id':int(shape.get('id') or 0),
+            'shape_name':str(shape.get('name') or ''),
+            'shape_geometry':dict(shape.get('geometry') or {}),
             'before_old_count':before_old,'before_new_count':before_new,
             'before_deck_sha256':str((window_state.get('deck_file',{}) or {}).get('sha256','')),
             'before_screenshot_sha256':str(window_state.get('screenshot_sha256') or ''),
@@ -688,9 +749,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                                    'deck_sha256','proof_sha256')})
         return {'action':'exec','command':command,
                 'target':action_target,
-                'plan':(f'Select the unique visible AT-SPI target on slide {slide} containing {old!r}.'
-                        if source=='accessibility' else
-                        f'Select the signed canonical Task 091 point only after target-PPTX proof of {old!r} on slide {slide}.'),
+                'plan':f'Select the signed Task 091 point derived from the unique target-PPTX shape geometry for {old!r} on slide {slide}.',
                 'specialist_phase':'select-pending-target'}
 
     if state.get('pending_edit'):
