@@ -172,6 +172,7 @@ class ForegroundTests(unittest.TestCase):
                              'sha256':'a'*64,'size':1234,'mtime_ns':1,
                              'slide_size':{'w':12192000,'h':6858000}}
         self.assertEqual(preflight('pyautogui.doubleClick(869, 391, interval=0.08)', body), 'wps-content')
+        self.assertEqual(preflight('pyautogui.click(869, 391)', body), 'wps-content')
 
         no_proof = copy.deepcopy(body)
         no_proof['deck_slide_text'] = {}
@@ -408,23 +409,36 @@ if __name__ == '__main__':
 
 
 class Task091CompactEditTests(unittest.TestCase):
-    def test_short_scalar_requires_explicit_text_mode(self):
-        self.assertTrue(shim._task091_needs_explicit_text_mode('$42.8M', '$40.9M'))
-        self.assertTrue(shim._task091_needs_explicit_text_mode('214', '206'))
-        self.assertTrue(shim._task091_needs_explicit_text_mode('GTM', 'Ops'))
-        command=shim._task091_write_command('$40.9M', ensure_text_mode=True)
-        self.assertEqual(command.splitlines()[0], "pyautogui.press('f2')")
-        self.assertIn("pyautogui.hotkey('ctrl', 'a')", command)
-        self.assertIn("pyautogui.write('$40.9M'", command)
+    def test_every_nonempty_replacement_requires_explicit_text_mode(self):
+        samples=[
+            ('$42.8M', '$40.9M'),
+            ('214', '206'),
+            ('GTM', 'Data Migration'),
+            ('Planning posture: accelerate growth through H2 scale-up',
+             'Planning posture: stabilize and recover with disciplined sequencing'),
+            ('Growth Plan Draft',
+             'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'),
+        ]
+        for old,new in samples:
+            self.assertTrue(shim._task091_needs_explicit_text_mode(old,new))
+            command=shim._task091_write_command(new, ensure_text_mode=True)
+            self.assertEqual(command.splitlines()[0], "pyautogui.press('f2')")
+            self.assertIn("pyautogui.hotkey('ctrl', 'a')", command)
 
-    def test_long_narrative_keeps_existing_edit_path(self):
-        old='Planning posture: accelerate growth through H2 scale-up'
-        new='Planning posture: stabilize and recover with disciplined sequencing'
-        self.assertFalse(shim._task091_needs_explicit_text_mode(old, new))
-        command=shim._task091_write_command(new, ensure_text_mode=False)
-        self.assertNotIn("press('f2')", command)
-        self.assertEqual(command.splitlines()[0], "pyautogui.hotkey('ctrl', 'a')")
+    def test_all_task091_spatial_replacements_are_text_mode_guarded(self):
+        checked=0
+        for _slide,_x,_y,old,new in shim.TASK091_SPATIAL_TEXT_EDITS:
+            if shim._task091_norm(old)==shim._task091_norm(new):
+                continue
+            checked += 1
+            self.assertTrue(shim._task091_needs_explicit_text_mode(old,new), (old,new))
+            command=shim._task091_write_command(new, ensure_text_mode=True)
+            self.assertEqual(command.splitlines()[0], "pyautogui.press('f2')")
+            self.assertLessEqual(len(command.splitlines()), 8)
+        self.assertGreaterEqual(checked, 70)
 
-    def test_multiline_title_keeps_existing_edit_path(self):
-        new='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
-        self.assertFalse(shim._task091_needs_explicit_text_mode('Growth Plan Draft', new))
+    def test_empty_replacement_is_not_authorized_as_text_mode(self):
+        self.assertFalse(shim._task091_needs_explicit_text_mode('', 'x'))
+        self.assertFalse(shim._task091_needs_explicit_text_mode('x', ''))
+
+
