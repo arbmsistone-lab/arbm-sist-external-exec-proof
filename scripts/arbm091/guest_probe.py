@@ -85,9 +85,10 @@ def capture(point):
         title_value = str(window.get('title', ''))
         path = '/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx'
         if 'Operating_Committee_Rebaseline_Draft.pptx' not in title_value or not os.path.isfile(path):
-            return {}, {}, {}
+            return {}, {}, {}, {}
         text_result = {}
         run_result = {}
+        shape_result = {}
         metadata = {}
         try:
             raw = open(path, 'rb').read()
@@ -105,17 +106,61 @@ def capture(point):
                         continue
                     root_xml = ET.fromstring(archive.read(name))
                     parts = []
+                    shapes = []
                     for node in root_xml.iter():
                         if node.tag.endswith('}t') and node.text is not None:
                             value = ' '.join(str(node.text).split())
                             if value:
                                 parts.append(value)
+                    for shape in root_xml.iter():
+                        if not shape.tag.endswith('}sp'):
+                            continue
+                        c_nv_pr = next((node for node in shape.iter()
+                                      if node.tag.endswith('}cNvPr')), None)
+                        shape_id = int(c_nv_pr.attrib.get('id', '0')) if c_nv_pr is not None else 0
+                        shape_name = str(c_nv_pr.attrib.get('name', '')) if c_nv_pr is not None else ''
+                        paragraphs = []
+                        for paragraph in shape.iter():
+                            if not paragraph.tag.endswith('}p'):
+                                continue
+                            chunks = []
+                            for text_node in paragraph.iter():
+                                if text_node.tag.endswith('}t') and text_node.text is not None:
+                                    chunks.append(str(text_node.text))
+                            if chunks:
+                                paragraphs.append(''.join(chunks))
+                        shape_text = '\n'.join(paragraphs)
+                        if not shape_text:
+                            continue
+                        off = ext = None
+                        sp_pr = next((node for node in shape
+                                     if node.tag.endswith('}spPr')), None)
+                        if sp_pr is not None:
+                            xfrm = next((node for node in sp_pr.iter()
+                                         if node.tag.endswith('}xfrm')), None)
+                            if xfrm is not None:
+                                off = next((node for node in xfrm
+                                            if node.tag.endswith('}off')), None)
+                                ext = next((node for node in xfrm
+                                            if node.tag.endswith('}ext')), None)
+                        geometry = {}
+                        if off is not None and ext is not None:
+                            geometry = {
+                                'x': int(off.attrib.get('x', '0')),
+                                'y': int(off.attrib.get('y', '0')),
+                                'w': int(ext.attrib.get('cx', '0')),
+                                'h': int(ext.attrib.get('cy', '0')),
+                            }
+                        shapes.append({'id': shape_id, 'name': shape_name,
+                                       'text': shape_text, 'paragraphs': paragraphs,
+                                       'geometry': geometry})
                     key = str(int(number))
                     run_result[key] = parts
+                    shape_result[key] = shapes
                     text_result[key] = ' '.join(parts)
         except Exception:
-            return {}, {}, {}
-        return text_result, run_result, metadata
+            return {}, {}, {}, {}
+        return text_result, run_result, shape_result, metadata
 
     before = window_info()
     target = None
@@ -204,10 +249,11 @@ def capture(point):
     image.save(output, format='PNG')
     owner_id, owner_pid = hit_owner()
     after = window_info()
-    deck_text, deck_runs, deck_file = deck_slide_content(after)
+    deck_text, deck_runs, deck_shapes, deck_file = deck_slide_content(after)
     result = {'window': after, 'target': target, 'controls': controls,
               'focused_control': focused_control, 'deck_slide_text': deck_text,
-              'deck_slide_runs': deck_runs, 'deck_file': deck_file,
+              'deck_slide_runs': deck_runs, 'deck_slide_shapes': deck_shapes,
+              'deck_file': deck_file,
               'hit_owner_id': owner_id,
               'hit_owner_pid': owner_pid, 'screen': [0, 0, image.width, image.height],
               'stable': before == after, 'captured_monotonic_ns': time.monotonic_ns(),
