@@ -270,6 +270,73 @@ class ForegroundTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'ACTIVE_SLIDE_SHAPES_UNPROVEN'):
             preflight('pyautogui.doubleClick(738, 516, interval=0.08)', wrong)
 
+    def test_task091_geometry_authority_board_10_audits(self):
+        body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2588)
+        body['window']['bbox'] = [70, 27, 1850, 1053]
+        body['screen'] = [0, 0, 1920, 1080]
+        body['active_slide'] = 1
+        body['deck_file'] = {
+            'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+            'sha256':'3'*64,
+            'slide_size':{'w':12191365,'h':6858000},
+        }
+        body['deck_slide_text'] = {
+            '1':'ARR exit target $42.8M Net burn / month $2.6M Headcount plan 214'
+        }
+        body['deck_slide_shapes'] = {'1':[
+            {'id':13,'name':'CoverStatValue_0','text':'$42.8M',
+             'geometry':{'x':8339327,'y':2167128,'w':2560320,'h':219456}},
+            {'id':16,'name':'CoverStatValue_1','text':'$2.6M',
+             'geometry':{'x':8339327,'y':3358896,'w':2560320,'h':210312}},
+            {'id':19,'name':'CoverStatValue_2','text':'214',
+             'geometry':{'x':8339327,'y':4550664,'w':2560320,'h':210312}},
+        ]}
+
+        # Audit 01: exact PPTX text uniquely identifies the target shape.
+        p1=shim._task091_shape_point(body,1,'$42.8M',1338,393)
+        self.assertIsNotNone(p1)
+        self.assertEqual(p1['shape']['id'],13)
+
+        # Audit 02: EMU -> canonical viewport projection matches the focal artifact.
+        self.assertEqual(p1['shape_bbox'],[1410,445,296,26])
+
+        # Audit 03: the stale hint is explicitly measured rather than silently trusted.
+        self.assertEqual(p1['hint_drift'],72)
+        self.assertGreater(p1['hint_drift'],32)
+
+        # Audit 04: unique exact PPTX geometry is the explicit authority.
+        self.assertEqual(p1['selection_basis'],'unique-exact-pptx-geometry')
+
+        # Audit 05: the derived click remains strictly inside the proven shape.
+        x,y,w,h=p1['shape_bbox']
+        self.assertTrue(x <= p1['cx'] < x+w and y <= p1['cy'] < y+h)
+
+        # Audit 06: second KPI survives the same 72px historical-hint drift.
+        p2=shim._task091_shape_point(body,1,'$2.6M',1338,511)
+        self.assertEqual(p2['shape']['id'],16)
+        self.assertEqual(p2['hint_drift'],72)
+
+        # Audit 07: third KPI survives the larger 91px drift without weakening identity.
+        p3=shim._task091_shape_point(body,1,'214',1338,630)
+        self.assertEqual(p3['shape']['id'],19)
+        self.assertEqual(p3['hint_drift'],91)
+
+        # Audit 08: duplicate exact shapes remain fail-closed under ambiguous geometry.
+        dup=copy.deepcopy(body)
+        dup['deck_slide_shapes']['1'].append(copy.deepcopy(dup['deck_slide_shapes']['1'][0]))
+        dup['deck_slide_shapes']['1'][-1]['id']=113
+        self.assertIsNone(shim._task091_shape_point(dup,1,'$42.8M',1338,393))
+
+        # Audit 09: missing/invalid PPTX geometry is never replaced by a guessed point.
+        missing=copy.deepcopy(body)
+        missing['deck_slide_shapes']['1'][0]['geometry']={}
+        self.assertIsNone(shim._task091_shape_point(missing,1,'$42.8M',1338,393))
+
+        # Audit 10: non-canonical WPS geometry stays rejected.
+        wrong_window=copy.deepcopy(body)
+        wrong_window['window']['bbox']=[71,27,1849,1053]
+        self.assertIsNone(shim._task091_shape_point(wrong_window,1,'$42.8M',1338,393))
+
     def test_task091_text_hitpoint_must_belong_to_exactly_one_shape(self):
         body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2594)
         body['window']['bbox'] = [70, 27, 1850, 1053]
