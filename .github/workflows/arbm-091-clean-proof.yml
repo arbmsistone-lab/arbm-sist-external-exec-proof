@@ -108,6 +108,11 @@ jobs:
         unzip -q /tmp/091-keyrepeat.zip -d /tmp/091-keyrepeat
         test -s /tmp/091-keyrepeat/task-091/wps-observations/0009-01-after.json
         test -s /tmp/091-keyrepeat/task-091/wps-trace.jsonl
+        gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10583941746/zip > /tmp/091-delete-repair.zip
+        mkdir -p /tmp/091-delete-repair
+        unzip -q /tmp/091-delete-repair.zip -d /tmp/091-delete-repair
+        test -s /tmp/091-delete-repair/task-091/wps-observations/0013-01-after.json
+        test -s /tmp/091-delete-repair/task-091/wps-trace.jsonl
     - name: Install pinned local VLM runtime
       run: 'set -euo pipefail
 
@@ -334,6 +339,37 @@ jobs:
         print('RUN35411705196_KEYREPEAT_REGRESSION=PASS')
         PY
         grep -F 'RUN35411705196_KEYREPEAT_REGRESSION=PASS' /tmp/run35411705196-keyrepeat-regression.json
+    - name: Replay run 35439821335 delete-only repair regression
+      shell: bash
+      run: |
+        set -euo pipefail
+        TASK_ID=091 ZERO_SPEND_MODE=HARD PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35439821335-delete-repair-regression.json
+        import json
+        from pathlib import Path
+        import osworld_free_mesh_shim as shim
+
+        root=Path('/tmp/091-delete-repair/task-091')
+        snap=json.loads((root/'wps-observations/0013-01-after.json').read_text())
+        slide1=snap['deck_slide_text']['1']
+        assert 'SStabilize-and-Recover Rebaseline' in slide1, slide1
+        actual='H2 Operating Committee Pack\nSStabilize-and-Recover Rebaseline'
+        expected='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
+        deletes=shim._task091_delete_only_plan(actual,expected)
+        assert deletes == [28], deletes
+        command=shim._task091_delete_repair_command(deletes)
+        assert "hotkey('ctrl', 'a')" in command, command
+        assert "press('delete')" in command, command
+        assert 'pyautogui.write(' not in command, command
+        assert shim._task091_delete_only_plan(
+            'H2 Operating Committee Pack\nBroken Rebaseline',expected) is None
+        print(json.dumps({'status':'PASS','corpus_run':'35439821335',
+                          'old_failure':'TASK091_EDIT_TEXT_CORRUPTED',
+                          'actual_corruption':'SStabilize',
+                          'repair':'delete-only','delete_indices':deletes,
+                          'text_injection':False,'zero_spend':'HARD'},sort_keys=True))
+        print('RUN35439821335_DELETE_REPAIR_REGRESSION=PASS')
+        PY
+        grep -F 'RUN35439821335_DELETE_REPAIR_REGRESSION=PASS' /tmp/run35439821335-delete-repair-regression.json
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       if: always()
       with:
