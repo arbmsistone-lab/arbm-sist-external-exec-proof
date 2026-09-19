@@ -182,23 +182,21 @@ TASK091_TYPE_INTERVAL=0.02
 TASK091_REPAIR_TYPE_INTERVAL=0.05
 
 def _task091_needs_explicit_text_mode(old, new):
-    """Every signed object/cell edit must enter WPS text mode explicitly.
+    """Text mode is established only by a signed text-hit doubleClick.
 
-    A pointer selection only proves the target object/cell. WPS may leave the
-    object selected without a caret, in which case Ctrl+A would select slide
-    objects instead of target text. F2 is therefore mandatory for every
-    non-empty replacement before Ctrl+A, regardless of text length.
+    WPS 2019 does not reliably enter text editing with F2 after selecting a
+    shape. The focal artifact proved F2 left the object selected and Ctrl+A
+    then selected the whole slide. Destructive text keys are therefore emitted
+    only after the prior atomic action double-clicked a signed point inside the
+    target shape's text region.
     """
-    old=str(old or '')
-    new=str(new or '')
-    return bool(old and new)
+    return False
 
 def _task091_write_command(value, interval=TASK091_TYPE_INTERVAL, ensure_text_mode=False):
-    lines=str(value).split('\n')
-    commands=[]
     if ensure_text_mode:
-        commands.append("pyautogui.press('f2')")
-    commands.append("pyautogui.hotkey('ctrl', 'a')")
+        raise ValueError('TASK091_TEXT_MODE_MUST_BE_POINTER_ESTABLISHED')
+    lines=str(value).split('\n')
+    commands=["pyautogui.hotkey('ctrl', 'a')"]
     for index,line in enumerate(lines):
         if line:
             commands.append(f"pyautogui.write({line!r}, interval={float(interval):g})")
@@ -312,7 +310,7 @@ def _task091_shape_for_old(window_state, slide, old, hint_x=None, hint_y=None):
         return None
     return scored[0][3]
 
-def _task091_shape_center(window_state, row):
+def _task091_shape_bbox(window_state, row):
     if not isinstance(window_state,dict) or not isinstance(row,dict):
         return None
     if window_state.get('screen') != TASK091_CANONICAL_SCREEN:
@@ -332,15 +330,53 @@ def _task091_shape_center(window_state, row):
     if gx<0 or gy<0 or gw<=0 or gh<=0:
         return None
     vx,vy,vw,vh=TASK091_CANONICAL_SLIDE_VIEWPORT
-    cx=round(vx + ((gx + gw/2.0)/sw)*vw)
-    cy=round(vy + ((gy + gh/2.0)/sh)*vh)
-    if not (vx <= cx < vx+vw and vy <= cy < vy+vh):
+    left=round(vx + (gx/sw)*vw)
+    top=round(vy + (gy/sh)*vh)
+    right=round(vx + ((gx+gw)/sw)*vw)
+    bottom=round(vy + ((gy+gh)/sh)*vh)
+    left=max(vx,int(left)); top=max(vy,int(top))
+    right=min(vx+vw,int(right)); bottom=min(vy+vh,int(bottom))
+    if right-left < 2 or bottom-top < 2:
         return None
-    return {'shape':row,'cx':int(cx),'cy':int(cy)}
+    return {'shape':row,'x':left,'y':top,'w':right-left,'h':bottom-top,
+            'cx':left+(right-left)//2,'cy':top+(bottom-top)//2}
+
+def _task091_shape_center(window_state, row):
+    box=_task091_shape_bbox(window_state,row)
+    if box is None:
+        return None
+    return {'shape':row,'cx':int(box['cx']),'cy':int(box['cy']),
+            'shape_bbox':[int(box['x']),int(box['y']),int(box['w']),int(box['h'])]}
+
+def _task091_shape_text_point(window_state, row, hint_x, hint_y, tolerance=32):
+    box=_task091_shape_bbox(window_state,row)
+    if box is None or hint_x is None or hint_y is None:
+        return None
+    hx=int(hint_x); hy=int(hint_y)
+    left=int(box['x']); top=int(box['y'])
+    right=left+int(box['w'])-1; bottom=top+int(box['h'])-1
+    dx=(left-hx) if hx<left else ((hx-right) if hx>right else 0)
+    dy=(top-hy) if hy<top else ((hy-bottom) if hy>bottom else 0)
+    if max(dx,dy) > int(tolerance):
+        return None
+    inset_x=min(4,max(0,(int(box['w'])-1)//4))
+    inset_y=min(4,max(0,(int(box['h'])-1)//4))
+    lo_x=left+inset_x; hi_x=right-inset_x
+    lo_y=top+inset_y; hi_y=bottom-inset_y
+    if lo_x>hi_x or lo_y>hi_y:
+        return None
+    tx=min(max(hx,lo_x),hi_x)
+    ty=min(max(hy,lo_y),hi_y)
+    return {'shape':row,'cx':int(tx),'cy':int(ty),
+            'shape_bbox':[left,top,int(box['w']),int(box['h'])],
+            'shape_center_cx':int(box['cx']),'shape_center_cy':int(box['cy']),
+            'hint_x':hx,'hint_y':hy}
 
 def _task091_shape_point(window_state, slide, old, hint_x=None, hint_y=None):
     row=_task091_shape_for_old(window_state,slide,old,hint_x,hint_y)
-    return _task091_shape_center(window_state,row)
+    if row is None:
+        return None
+    return _task091_shape_text_point(window_state,row,hint_x,hint_y)
 
 def _task091_nav_command(current_slide, target_slide):
     delta=int(target_slide)-int(current_slide)
@@ -481,7 +517,7 @@ def _task091_restricted_repair_command(plan):
     target=int(row.get('index') if row.get('index') is not None else -1)
     if target < 0:
         raise ValueError('TASK091_REPAIR_OPERATION_INDEX_INVALID')
-    commands=["pyautogui.press('f2')","pyautogui.hotkey('ctrl', 'a')","pyautogui.press('left')"]
+    commands=["pyautogui.hotkey('ctrl', 'a')","pyautogui.press('left')"]
     remaining=target
     while remaining:
         chunk=min(30,remaining)
@@ -558,7 +594,9 @@ def _task091_prepare_atomic_repair(pending, window_state, state):
     steps=int(pending.get('repair_steps') or 0)
     if steps>=8:
         return _task091_terminal('TASK091_EDIT_TEXT_CORRUPTION_EXCESSIVE',state)
-    repair_point=_task091_shape_center(window_state,corrupt_shape)
+    hint_x=pending.get('text_hit_x',pending.get('target',{}).get('cx'))
+    hint_y=pending.get('text_hit_y',pending.get('target',{}).get('cy'))
+    repair_point=_task091_shape_text_point(window_state,corrupt_shape,hint_x,hint_y)
     if repair_point is None:
         return _task091_terminal('TASK091_RESTRICTED_REPAIR_GEOMETRY_UNPROVEN',state)
     current_text=str(corrupt_shape.get('text') or '')
@@ -700,10 +738,8 @@ def next_091_specialist_action(instruction, active_application, observation, sta
         if stage == 'select-issued':
             pending['selected_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
             pending['stage']='edit-issued'
-            pending['explicit_text_mode']=_task091_needs_explicit_text_mode(
-                pending.get('old'), pending.get('new'))
-            command=_task091_write_command(
-                pending['new'], ensure_text_mode=pending['explicit_text_mode'])
+            pending['explicit_text_mode']=False
+            command=_task091_write_command(pending['new'], ensure_text_mode=False)
             pending['action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
                     'plan':f"Edit the selected target from {pending['old']!r} to {pending['new']!r}.",
@@ -856,6 +892,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             return _task091_terminal('TASK091_SHAPE_GEOMETRY_UNPROVEN',state)
         source='task091-pptx-canonical'
         shape=shape_target['shape']
+        text_hint_x=int(x); text_hint_y=int(y)
         x=int(shape_target['cx']); y=int(shape_target['cy'])
         target={'source':source,'label':old,'role':'task091-canonical-point',
                 'slide':int(slide),'x':x-1,'y':y-1,'w':2,'h':2,
@@ -866,7 +903,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
 
         state['target_retries']=0
         state['mode']='TARGET_VISIBLE'
-        command=f"pyautogui.click({int(target['cx'])}, {int(target['cy'])})"
+        command=f"pyautogui.doubleClick({int(target['cx'])}, {int(target['cy'])}, interval=0.08)"
         state['pending_edit']={
             'slide':slide,'old':old,'new':new,'stage':'select-issued',
             'target':{'label':target['label'],'role':target['role'],
@@ -877,6 +914,11 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             'shape_id':int(shape.get('id') or 0),
             'shape_name':str(shape.get('name') or ''),
             'shape_geometry':dict(shape.get('geometry') or {}),
+            'shape_bbox':list(shape_target.get('shape_bbox') or []),
+            'shape_center_cx':shape_target.get('shape_center_cx'),
+            'shape_center_cy':shape_target.get('shape_center_cy'),
+            'text_hit_x':target['cx'],'text_hit_y':target['cy'],
+            'text_hint_x':text_hint_x,'text_hint_y':text_hint_y,
             'before_old_count':before_old,'before_new_count':before_new,
             'before_deck_sha256':str((window_state.get('deck_file',{}) or {}).get('sha256','')),
             'before_screenshot_sha256':str(window_state.get('screenshot_sha256') or ''),
