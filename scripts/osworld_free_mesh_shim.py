@@ -408,45 +408,62 @@ def _task091_corrupt_shape(window_state, slide, expected):
         return None,None
     return matches[0]
 
+def _task091_apply_repair_operation(text, operation):
+    text=str(text or '')
+    if not isinstance(operation,dict) or operation.get('op') not in ('delete','linebreak'):
+        raise ValueError('TASK091_REPAIR_OPERATION_INVALID')
+    index=int(operation.get('index') if operation.get('index') is not None else -1)
+    if index < 0 or index > len(text):
+        raise ValueError('TASK091_REPAIR_OPERATION_INDEX_INVALID')
+    if operation['op']=='delete':
+        if index >= len(text):
+            raise ValueError('TASK091_REPAIR_DELETE_INDEX_INVALID')
+        expected_char=operation.get('char')
+        if expected_char is not None and str(expected_char) != text[index]:
+            raise ValueError('TASK091_REPAIR_DELETE_CHAR_MISMATCH')
+        return text[:index] + text[index+1:]
+    return text[:index] + '\n' + text[index:]
+
+
+def _task091_other_shapes_signature(window_state, slide, target_shape_id):
+    rows=[]
+    for row in _task091_shape_rows(window_state,slide):
+        if int(row.get('id') or 0)==int(target_shape_id or 0):
+            continue
+        rows.append({'id':int(row.get('id') or 0),
+                     'name':str(row.get('name') or ''),
+                     'text':str(row.get('text') or ''),
+                     'geometry':dict(row.get('geometry') or {})})
+    rows.sort(key=lambda row:(row['id'],row['name']))
+    payload=json.dumps(rows,sort_keys=True,separators=(',',':'),ensure_ascii=False)
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
 def _task091_restricted_repair_command(plan):
-    if not isinstance(plan,list) or not plan:
+    if not isinstance(plan,list) or len(plan)!=1:
+        raise ValueError('TASK091_REPAIR_ATOMIC_OPERATION_REQUIRED')
+    row=plan[0]
+    if not isinstance(row,dict) or row.get('op') not in ('delete','linebreak'):
         raise ValueError('TASK091_REPAIR_PLAN_INVALID')
+    target=int(row.get('index') if row.get('index') is not None else -1)
+    if target < 0:
+        raise ValueError('TASK091_REPAIR_OPERATION_INDEX_INVALID')
     commands=["pyautogui.hotkey('ctrl', 'a')","pyautogui.press('left')"]
-    pending_keys=[]
-    cursor=0
-    def flush_keys():
-        nonlocal pending_keys
-        while pending_keys:
-            chunk=pending_keys[:30]
-            pending_keys=pending_keys[30:]
-            commands.append(f"pyautogui.press({chunk!r}, interval=0.02)")
-    for row in plan:
-        if not isinstance(row,dict) or row.get('op') not in ('delete','linebreak'):
-            raise ValueError('TASK091_REPAIR_PLAN_INVALID')
-        target=int(row.get('index') if row.get('index') is not None else -1)
-        delta=target-cursor
-        if target < 0 or delta < 0:
-            raise ValueError('TASK091_REPAIR_PLAN_NON_MONOTONIC')
-        if delta:
-            pending_keys.extend(['right'] * delta)
-            cursor += delta
-        if row['op']=='delete':
-            pending_keys.append('delete')
-        else:
-            flush_keys()
-            commands.append("pyautogui.hotkey('shift', 'enter')")
-            cursor += 1
-    flush_keys()
+    if target:
+        commands.append(f"pyautogui.press('right', presses={target}, interval=0.02)")
+    if row['op']=='delete':
+        commands.append("pyautogui.press('delete')")
+    else:
+        commands.append("pyautogui.hotkey('shift', 'enter')")
     if len(commands) > 8:
         raise ValueError('TASK091_REPAIR_ACTION_COUNT_UNBOUNDED')
     return '\n'.join(commands)
 
 def _task091_delete_repair_command(delete_indices):
     indices=[int(value) for value in delete_indices]
-    if not indices or indices != sorted(indices):
-        raise ValueError('TASK091_DELETE_PLAN_INVALID')
-    plan=[{'op':'delete','index':value} for value in indices]
-    return _task091_restricted_repair_command(plan)
+    if len(indices)!=1:
+        raise ValueError('TASK091_REPAIR_ATOMIC_OPERATION_REQUIRED')
+    return _task091_restricted_repair_command([{'op':'delete','index':indices[0]}])
 
 def _task091_verify_pending(observation,pending,window_state):
     slide=int(pending.get('slide') or 0)
@@ -487,6 +504,70 @@ def _task091_verify_pending(observation,pending,window_state):
     old_same=any(_task091_same_region(hit,bbox) for hit in old_hits) if bbox else bool(old_hits)
     new_same=(status=='visible' and (not bbox or _task091_same_region(new_hit,bbox)))
     return bool(new_same and not old_same),status,new_hit
+
+def _task091_prepare_atomic_repair(pending, window_state, state):
+    current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
+    current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
+    corrupt_shape,repair_plan=_task091_corrupt_shape(window_state,pending['slide'],pending['new'])
+    if len(current_sha)!=64 or corrupt_shape is None or not repair_plan:
+        return _task091_terminal('TASK091_EDIT_TEXT_MISMATCH_UNPROVEN',state)
+    if int(corrupt_shape.get('id') or 0) != int(pending.get('shape_id') or 0):
+        return _task091_terminal('TASK091_RESTRICTED_REPAIR_SHAPE_DRIFT',state)
+    delete_count=sum(1 for row in repair_plan if row.get('op')=='delete')
+    linebreak_count=sum(1 for row in repair_plan if row.get('op')=='linebreak')
+    if len(repair_plan)>8 or delete_count>8 or linebreak_count>2:
+        return _task091_terminal('TASK091_EDIT_TEXT_CORRUPTION_EXCESSIVE',state)
+    if any(row.get('op') not in ('delete','linebreak') for row in repair_plan):
+        return _task091_terminal('TASK091_EDIT_TEXT_MISMATCH_UNPROVEN',state)
+    steps=int(pending.get('repair_steps') or 0)
+    if steps>=8:
+        return _task091_terminal('TASK091_EDIT_TEXT_CORRUPTION_EXCESSIVE',state)
+    repair_point=_task091_shape_center(window_state,corrupt_shape)
+    if repair_point is None:
+        return _task091_terminal('TASK091_RESTRICTED_REPAIR_GEOMETRY_UNPROVEN',state)
+    current_text=str(corrupt_shape.get('text') or '')
+    operation=dict(repair_plan[0])
+    try:
+        expected_after=_task091_apply_repair_operation(current_text,operation)
+    except ValueError:
+        return _task091_terminal('TASK091_REPAIR_OPERATION_INVALID',state)
+    cx=int(repair_point['cx']); cy=int(repair_point['cy'])
+    repaired_target={'source':'task091-pptx-canonical','label':current_text,
+                     'role':'task091-canonical-point','slide':int(pending['slide']),
+                     'x':cx-1,'y':cy-1,'w':2,'h':2,'cx':cx,'cy':cy,
+                     'foreground_sha256':_task091_foreground_sha(window_state),
+                     'deck_sha256':current_sha}
+    repaired_target['proof_sha256']=task091_spatial_target_proof(repaired_target)
+    pending['repair_steps']=steps+1
+    pending['repair_attempts']=steps+1
+    pending['repair_before_deck_sha256']=current_sha
+    pending['repair_before_text']=current_text
+    pending['repair_expected_text']=expected_after
+    pending['repair_operation']=operation
+    pending['repair_shape_id']=int(corrupt_shape.get('id') or 0)
+    pending['repair_shape_text']=current_text
+    pending['repair_shape_geometry']=dict(corrupt_shape.get('geometry') or {})
+    pending['repair_target_cx']=cx
+    pending['repair_target_cy']=cy
+    pending['repair_plan']=list(repair_plan)
+    pending['repair_sibling_signature']=_task091_other_shapes_signature(
+        window_state,pending['slide'],pending['repair_shape_id'])
+    pending['repair_verify_attempts']=0
+    pending['verify_attempts']=0
+    pending['stage']='repair-select-issued'
+    pending['target'].update({
+        'label':repaired_target['label'],'role':repaired_target['role'],
+        'bbox':[repaired_target['x'],repaired_target['y'],2,2],
+        'cx':cx,'cy':cy,'source':repaired_target['source'],
+        'slide':repaired_target['slide'],
+        'foreground_sha256':repaired_target['foreground_sha256'],
+        'deck_sha256':repaired_target['deck_sha256'],
+        'proof_sha256':repaired_target['proof_sha256']})
+    command=f"pyautogui.doubleClick({cx}, {cy}, interval=0.08)"
+    return {'action':'exec','command':command,'target':repaired_target,
+            'plan':'Select the freshly observed signed textbox for exactly one atomic repair mutation; the next mutation is forbidden until this delta is persisted and verified.',
+            'specialist_phase':'repair-select-pending-target'}
+
 
 def next_091_specialist_action(instruction, active_application, observation, state, window_state=None):
     if not _task091_match(instruction):
@@ -579,7 +660,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
         state['mode']={'select-issued':'TARGET_VISIBLE','edit-issued':'TARGET_EDITING',
                        'commit-issued':'TARGET_COMMITTED','save-issued':'TARGET_VERIFYING',
                        'repair-select-issued':'TARGET_VISIBLE','repair-edit-issued':'TARGET_EDITING',
-                       'repair-commit-issued':'TARGET_COMMITTED'}.get(stage,'TARGET_VERIFYING')
+                       'repair-commit-issued':'TARGET_COMMITTED','repair-save-issued':'TARGET_VERIFYING'}.get(stage,'TARGET_VERIFYING')
         if stage == 'select-issued':
             pending['selected_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
             pending['stage']='edit-issued'
@@ -598,32 +679,75 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                     'specialist_phase':'commit-pending-target','expected_change':pending['new']}
         if stage == 'repair-select-issued':
             pending['repair_selected_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
-            shape,repair_plan=_task091_corrupt_shape(window_state,pending['slide'],pending['new'])
-            if shape is None or list(repair_plan or []) != list(pending.get('repair_plan') or []):
+            shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('repair_shape_id'))
+            if shape is None or str(shape.get('text') or '') != str(pending.get('repair_before_text') or ''):
                 return _task091_terminal('TASK091_RESTRICTED_REPAIR_PROOF_DRIFT',state)
-            if int(shape.get('id') or 0) != int(pending.get('repair_shape_id') or 0):
-                return _task091_terminal('TASK091_RESTRICTED_REPAIR_SHAPE_DRIFT',state)
+            if _task091_other_shapes_signature(window_state,pending['slide'],pending.get('repair_shape_id')) != str(pending.get('repair_sibling_signature') or ''):
+                return _task091_terminal('TASK091_RESTRICTED_REPAIR_SIBLING_DRIFT',state)
+            repair_plan=_task091_restricted_repair_plan(str(shape.get('text') or ''),pending['new'])
+            operation=dict(pending.get('repair_operation') or {})
+            if not repair_plan or dict(repair_plan[0]) != operation:
+                return _task091_terminal('TASK091_RESTRICTED_REPAIR_PROOF_DRIFT',state)
             pending['stage']='repair-edit-issued'
-            command=_task091_restricted_repair_command(repair_plan)
+            command=_task091_restricted_repair_command([operation])
             pending['repair_action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
-                    'plan':'Apply only the uniquely proven restricted repair to the same Task 091 textbox: delete surplus characters and restore missing soft line breaks; inject no printable replacement text.',
-                    'specialist_phase':'repair-restricted-pending-target','expected_change':pending['new']}
+                    'plan':'Apply exactly one freshly proven repair mutation from a deterministic text origin; no second destructive mutation is allowed in this action.',
+                    'specialist_phase':'repair-atomic-pending-target','expected_change':pending['repair_expected_text']}
         if stage == 'repair-edit-issued':
             pending['repair_edited_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
             pending['stage']='repair-commit-issued'
             command="pyautogui.press('esc')"
             pending['repair_commit_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
-                    'plan':'Commit the single bounded text-input repair without advancing its transaction.',
-                    'specialist_phase':'repair-commit-pending-target','expected_change':pending['new']}
+                    'plan':'Commit the one-operation repair without issuing any further text mutation.',
+                    'specialist_phase':'repair-commit-pending-target','expected_change':pending['repair_expected_text']}
         if stage == 'repair-commit-issued':
-            pending['stage']='save-issued'
+            pending['stage']='repair-save-issued'
             command="pyautogui.hotkey('ctrl', 's')\npyautogui.sleep(0.25)"
             pending['repair_save_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
-                    'plan':'Persist the bounded text-input repair, then require exact target-PPTX verification.',
-                    'specialist_phase':'repair-save-pending-target','expected_change':pending['new']}
+                    'plan':'Persist exactly one repair mutation before any replan is permitted.',
+                    'specialist_phase':'repair-save-pending-target','expected_change':pending['repair_expected_text']}
+        if stage == 'repair-save-issued':
+            current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
+            after_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
+            before_sha=str(pending.get('repair_before_deck_sha256') or '')
+            if len(after_sha)!=64 or len(before_sha)!=64:
+                return _task091_terminal('TASK091_REPAIR_PERSISTENCE_UNPROVEN',state)
+            if after_sha == before_sha:
+                attempts=int(pending.get('repair_verify_attempts') or 0)+1
+                pending['repair_verify_attempts']=attempts
+                if attempts>=2:
+                    return _task091_terminal('TASK091_REPAIR_NOT_PERSISTED',state)
+                return {'action':'exec','command':"pyautogui.sleep(0.2)",
+                        'plan':'The atomic repair save is not visible on disk yet; re-observe without any destructive input.',
+                        'specialist_phase':'repair-reobserve-pending-target'}
+            shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('repair_shape_id'))
+            if shape is None:
+                return _task091_terminal('TASK091_REPAIR_DELTA_MISMATCH',state)
+            actual_text=str(shape.get('text') or '')
+            expected_text=str(pending.get('repair_expected_text') or '')
+            if actual_text != expected_text:
+                return _task091_terminal('TASK091_REPAIR_DELTA_MISMATCH',state)
+            if _task091_other_shapes_signature(window_state,pending['slide'],pending.get('repair_shape_id')) != str(pending.get('repair_sibling_signature') or ''):
+                return _task091_terminal('TASK091_REPAIR_SIBLING_MUTATION',state)
+            pending['repair_verify_attempts']=0
+            if actual_text == str(pending.get('new') or ''):
+                verified,status,new_hit=_task091_verify_pending(observation,pending,window_state)
+                if not verified:
+                    return _task091_terminal('TASK091_REPAIR_FINAL_PROOF_MISMATCH',state)
+                state['mode']='TARGET_VERIFIED'
+                state['spatial_index']=int(state.get('spatial_index') or 0)+1
+                state['pending_edit']=None
+                state['target_retries']=0
+                checkpoint='TASK091_FIRST_STRUCTURAL_EDIT_VERIFIED' if state['spatial_index']==1 else 'TASK091_STRUCTURAL_EDIT_VERIFIED'
+                if state['spatial_index']==1:
+                    state['first_structural_edit_verified']=True
+                return {'action':'checkpoint','checkpoint':checkpoint,
+                        'slide':pending['slide'],'old':pending['old'],'new':pending['new'],
+                        'target':new_hit,'specialist_phase':'verify-atomic-repair-target'}
+            return _task091_prepare_atomic_repair(pending,window_state,state)
         if stage == 'commit-issued':
             pending['stage']='save-issued'
             command="pyautogui.hotkey('ctrl', 's')\npyautogui.sleep(0.25)"
@@ -644,55 +768,13 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 return {'action':'checkpoint','checkpoint':checkpoint,
                         'slide':pending['slide'],'old':pending['old'],'new':pending['new'],
                         'target':new_hit,'specialist_phase':'verify-pending-target'}
-            if status=='disk-text-mismatch' and int(pending.get('repair_attempts') or 0)==0:
+            if status=='disk-text-mismatch' and int(pending.get('repair_steps') or 0)==0:
                 selected=str(pending.get('selected_screenshot_sha256') or '')
                 edited=str(pending.get('edited_screenshot_sha256') or '')
                 visual_edit_proven=(len(selected)==64 and len(edited)==64 and selected != edited)
-                current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
-                current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
-                corrupt_shape,repair_plan=_task091_corrupt_shape(window_state,pending['slide'],pending['new'])
-                if not visual_edit_proven or len(current_sha)!=64 or corrupt_shape is None or not repair_plan:
+                if not visual_edit_proven:
                     return _task091_terminal('TASK091_EDIT_TEXT_MISMATCH_UNPROVEN',state)
-                if int(corrupt_shape.get('id') or 0) != int(pending.get('shape_id') or 0):
-                    return _task091_terminal('TASK091_RESTRICTED_REPAIR_SHAPE_DRIFT',state)
-                repair_point=_task091_shape_center(window_state,corrupt_shape)
-                if repair_point is None:
-                    return _task091_terminal('TASK091_RESTRICTED_REPAIR_GEOMETRY_UNPROVEN',state)
-                delete_count=sum(1 for row in repair_plan if row.get('op')=='delete')
-                linebreak_count=sum(1 for row in repair_plan if row.get('op')=='linebreak')
-                if len(repair_plan) > 8 or delete_count > 8 or linebreak_count > 2:
-                    return _task091_terminal('TASK091_EDIT_TEXT_CORRUPTION_EXCESSIVE',state)
-                if any(row.get('op') not in ('delete','linebreak') for row in repair_plan):
-                    return _task091_terminal('TASK091_EDIT_TEXT_MISMATCH_UNPROVEN',state)
-                cx=int(repair_point['cx']); cy=int(repair_point['cy'])
-                repaired_target={'source':'task091-pptx-canonical','label':str(corrupt_shape.get('text') or ''),
-                                 'role':'task091-canonical-point','slide':int(pending['slide']),
-                                 'x':cx-1,'y':cy-1,'w':2,'h':2,'cx':cx,'cy':cy,
-                                 'foreground_sha256':_task091_foreground_sha(window_state),
-                                 'deck_sha256':current_sha}
-                repaired_target['proof_sha256']=task091_spatial_target_proof(repaired_target)
-                pending['repair_attempts']=1
-                pending['repair_before_deck_sha256']=current_sha
-                pending['repair_shape_id']=int(corrupt_shape.get('id') or 0)
-                pending['repair_shape_text']=str(corrupt_shape.get('text') or '')
-                pending['repair_shape_geometry']=dict(corrupt_shape.get('geometry') or {})
-                pending['repair_target_cx']=cx
-                pending['repair_target_cy']=cy
-                pending['repair_plan']=list(repair_plan)
-                pending['verify_attempts']=0
-                pending['stage']='repair-select-issued'
-                pending['target'].update({
-                    'label':repaired_target['label'],'role':repaired_target['role'],
-                    'bbox':[repaired_target['x'],repaired_target['y'],2,2],
-                    'cx':cx,'cy':cy,'source':repaired_target['source'],
-                    'slide':repaired_target['slide'],
-                    'foreground_sha256':repaired_target['foreground_sha256'],
-                    'deck_sha256':repaired_target['deck_sha256'],
-                    'proof_sha256':repaired_target['proof_sha256']})
-                command=f"pyautogui.doubleClick({cx}, {cy}, interval=0.08)"
-                return {'action':'exec','command':command,'target':repaired_target,
-                        'plan':'The saved PPTX contains one uniquely proven restricted corruption; reselect the same signed textbox for bounded surplus-character deletion and missing-linebreak restoration.',
-                        'specialist_phase':'repair-select-pending-target'}
+                return _task091_prepare_atomic_repair(pending,window_state,state)
             attempts=int(pending.get('verify_attempts') or 0)+1
             pending['verify_attempts']=attempts
             if attempts>=2:
