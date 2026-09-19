@@ -1,0 +1,139 @@
+name: OSWorld GIMP Sample Colorize probe
+on:
+  push:
+    branches: [chatgpt/arbm-agent-elite-v2-20260914]
+    paths:
+      - .github/workflows/osworld-gimp-sample-probe.yml
+      - scripts/osworld_gimp_sample_probe.py
+      - scripts/osworld_061_calibrated_grade.py
+      - scripts/osworld_061_calibrated_probe.py
+      - scripts/osworld_local_vlm.py
+      - scripts/osworld_free_mesh_shim.py
+      - scripts/osworld_gimp_style_transfer.py
+permissions:
+  contents: read
+concurrency:
+  group: osworld-gimp-sample-probe-${{ github.sha }}
+  cancel-in-progress: false
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      ZERO_SPEND_MODE: HARD
+      ARBM_VM_VOLUME_GB: '50'
+      OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
+      WEBSITE_HOST_SUFFIX: site.hku.icu
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Prove free cloud KVM
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$ZERO_SPEND_MODE" = HARD
+          test -c /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - name: Hydrate pinned OSWorld task 061
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v2026.08.08 https://github.com/xlang-ai/OSWorld-V2.git osworld
+          test "$(git -C osworld rev-parse HEAD)" = d578d2d4e0dc82b43e270fdaa7fa89d9708cd154
+          python -m pip install --disable-pip-version-check -q uv==0.8.15 huggingface_hub==0.35.3
+          cd osworld
+          uv sync --frozen
+          uv run python scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
+          test -f evaluation_examples/task_class/task_061.py
+          uv run python - <<'PY' > /tmp/task061-assets.txt
+          import os
+          from huggingface_hub import HfApi
+          files=HfApi(token=os.environ['HF_TOKEN']).list_repo_files(
+              repo_id='xlangai/osworld_v2_assets_gated',repo_type='dataset',revision='v2026.08.08')
+          for d in sorted({x.split('/')[0] for x in files if x.startswith('task_061') and '/' in x}):print(d)
+          PY
+          while IFS= read -r d; do
+            test -n "$d"
+            uv run python scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 --allow-pattern "${d}/**" --target-dir cache/osworld_v2_assets
+          done < /tmp/task061-assets.txt
+      - name: Patch pinned Docker runtime
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('osworld/scripts/python/run_multienv.py');s=p.read_text()
+          old='''        from desktop_env.providers.aws.manager import IMAGE_ID_MAP\n        REGION = args.region\n        screen_size = (args.screen_width, args.screen_height)\n        ami_id = IMAGE_ID_MAP[REGION].get(screen_size, IMAGE_ID_MAP[REGION][(1920, 1080)])\n'''
+          new='''        REGION = args.region\n        screen_size = (args.screen_width, args.screen_height)\n        if args.provider_name == "aws":\n            from desktop_env.providers.aws.manager import IMAGE_ID_MAP\n            ami_id = IMAGE_ID_MAP[REGION].get(screen_size, IMAGE_ID_MAP[REGION][(1920, 1080)])\n        else:\n            ami_id = "init_state"\n'''
+          assert old in s
+          p.write_text(s.replace(old,new,1))
+          PY
+          python scripts/osworld_docker_volume.py osworld
+          python scripts/osworld_vm_upload.py osworld/desktop_env/controllers/setup.py
+          docker pull happysixd/osworld-docker@sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9
+          docker tag happysixd/osworld-docker@sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9 happysixd/osworld-docker:latest
+      - name: Download pinned official VM
+        run: |
+          set -euo pipefail
+          export HF_XET_HIGH_PERFORMANCE=1
+          hf download xlangai/v2-image osworld-v2-ubuntu-x86.qcow2.zip --repo-type dataset --revision 8213366932c553e5fe758d0f2c8c8b81ffc3be8c --local-dir hf-vm
+          echo 'eb737ae70b49849e24af407de6a518439a23de05a8497096a948334ce0a909aa  hf-vm/osworld-v2-ubuntu-x86.qcow2.zip' | sha256sum -c -
+          unzip -q hf-vm/osworld-v2-ubuntu-x86.qcow2.zip -d vm
+          rm -f hf-vm/osworld-v2-ubuntu-x86.qcow2.zip
+          QCOW=$(find vm -type f -name '*.qcow2' | head -1)
+          test -n "$QCOW"
+          python scripts/osworld_docker_volume.py --check-image "$QCOW"
+          echo "QCOW_PATH=$PWD/$QCOW" >> "$GITHUB_ENV"
+          sha256sum "$QCOW" | cut -d' ' -f1 > qcow-base.sha256
+      - name: Probe Sample Colorize dialog without evaluator
+        run: |
+          set -euo pipefail
+          mkdir -p gimp-sample-probe
+          (cd osworld && PYTHONPATH="$GITHUB_WORKSPACE/scripts:$PWD" uv run python ../scripts/osworld_gimp_sample_probe.py "$QCOW_PATH" "$GITHUB_WORKSPACE/gimp-sample-probe") 2>&1 | tee gimp-sample-probe/probe-run.log
+          test "$(sha256sum "$QCOW_PATH" | cut -d' ' -f1)" = "$(cat qcow-base.sha256)"
+          python - <<'PY'
+          import json
+          p=json.load(open('gimp-sample-probe/probe-result.json'))
+          assert p['status']=='EXPORT_PROVEN' and p.get('output_visible_in_chooser') is True,p
+          assert int(p.get('output_bytes') or 0)>1024,p
+          assert len(str(p.get('output_sha256') or ''))==64,p
+          assert p['zero_spend_mode']=='HARD' and p['heavy_local']==0,p
+          proof=json.load(open('gimp-sample-probe/profile-convert-proof.json'))
+          assert proof['status']=='PROFILE_CONVERT_SPECIALIST_PROVEN',proof
+          assert proof['target']=={'source':'accessibility','label':'Convert','role':'push-button'},proof
+          assert proof['modal_before'] is True and proof['modal_after'] is False,proof
+          assert proof['attempts']==1 and proof['zero_spend_mode']=='HARD' and proof['heavy_local']==0,proof
+          print('GIMP_STYLE_EXPORT_PROVEN')
+          print('PROFILE_CONVERT_SPECIALIST_PROVEN')
+          PY
+          test -s gimp-sample-probe/profile-convert-proof.json
+          test -s gimp-sample-probe/IMG_7318_edited.jpg
+          test -s gimp-sample-probe/exported-output.sha256
+          test -s gimp-sample-probe/probe-run.log
+      - name: Probe calibrated champion without evaluator
+        run: |
+          set -euo pipefail
+          mkdir -p calibrated-probe
+          (cd osworld && PYTHONPATH="$GITHUB_WORKSPACE/scripts:$PWD" uv run python ../scripts/osworld_061_calibrated_probe.py "$QCOW_PATH" "$GITHUB_WORKSPACE/calibrated-probe") 2>&1 | tee calibrated-probe/probe-run.log
+          test "$(sha256sum "$QCOW_PATH" | cut -d' ' -f1)" = "$(cat qcow-base.sha256)"
+          python - <<'PY'
+          import json
+          p=json.load(open('calibrated-probe/calibrated-probe-result.json'))
+          assert p['status']=='CALIBRATED_EXPORT_PROVEN' and float(p['reference_rmse'])<=20,p
+          assert int(p['output_bytes'])>1024 and len(p['output_sha256'])==64,p
+          print('CALIBRATED_061_EXPORT_PROVEN')
+          PY
+      - name: Preserve calibrated diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: osworld-061-calibrated-probe
+          path: calibrated-probe
+          if-no-files-found: error
+          retention-days: 90
+      - name: Preserve diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: osworld-gimp-sample-colorize-probe
+          path: gimp-sample-probe
+          if-no-files-found: error
+          retention-days: 90

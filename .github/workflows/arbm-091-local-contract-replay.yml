@@ -1,0 +1,60 @@
+name: ARBM 091 Local Contract Replay
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - chatgpt/arbm-top3-consolidated-20260917
+    paths:
+      - scripts/replay_091_local_contract.py
+      - .github/workflows/arbm-091-local-contract-replay.yml
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: arbm-091-local-contract-replay-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      ZERO_SPEND_MODE: HARD
+      ARBM_ENABLE_LOCAL_VLM: '1'
+      ARBM_VALIDATION_SPEND_MODE: zero
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Download exact failed 091 artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10518571201/zip > /tmp/091.zip
+          mkdir -p /tmp/091
+          unzip -q /tmp/091.zip -d /tmp/091
+          test -s /tmp/091/task-091/shim-observations/step_0001.json
+
+      - name: Install pinned local VLM runtime
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
+          python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
+
+      - name: Replay exact Step 1 through promoted selector route twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/replay_091_local_contract.py /tmp/091/task-091/shim-observations/step_0001.json \
+            | tee /tmp/091-local-contract-replay.json
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: arbm-091-local-contract-replay
+          path: /tmp/091-local-contract-replay.json
+          if-no-files-found: warn
+          retention-days: 30

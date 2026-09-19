@@ -1,0 +1,827 @@
+name: ARBM 091 Clean Transplant Proof
+run-name: ARBM 091 clean proof ${{ github.sha }}
+'on':
+  push:
+    branches:
+    - chatgpt/arbm-091-clean-transplant-proof-20260918
+  workflow_dispatch: {}
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+concurrency:
+  group: arbm091-clean-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  PYTHONPATH: ${{ github.workspace }}/scripts
+  ZERO_SPEND_MODE: HARD
+  PYTHONDONTWRITEBYTECODE: '1'
+jobs:
+  policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      ZERO_SPEND_MODE: HARD
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+    - name: Install pinned test dependencies
+      run: python -m pip install -r scripts/requirements-osworld.txt
+    - name: Run complete OSWorld regression suite
+      run: python -m unittest discover -s scripts -p 'test_osworld_*.py'
+    - name: Run v32 deterministic regression gate
+      run: python scripts/osworld_v32_regression_gate.py
+    - name: Download run30 recorded evidence
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: gh run download 34665245131 --repo arbmsistone-lab/arbm-sist-external-exec-proof --dir run30
+    - name: Download run38 recorded evidence
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: gh run download 34698877150 --repo arbmsistone-lab/arbm-sist-external-exec-proof --name top3-osworld-task-bundle
+        --dir run38
+    - name: Replay historical v31 evidence through v32 policy
+      run: python scripts/osworld_v32_historical_gate.py run30 run38
+    - name: Prove zero-spend policy gate
+      run: test "$ZERO_SPEND_MODE" = "HARD"
+    permissions:
+      actions: read
+      contents: read
+  proof-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Install pinned lightweight dependencies
+      run: |
+        python -m pip install -r scripts/requirements-osworld.txt
+        python -m pip install PyYAML==6.0.2
+    - name: Verify clean history and exact changed-file scope
+      run: python -m arbm091.verify_transplant
+    - name: Test score and WPS guards, including negative cases
+      run: python -m unittest discover -s tests/arbm091 -p 'test_*.py' -v
+    - name: Run 50x10 senior-master review gate
+      shell: bash
+      run: |
+        set -euo pipefail
+        python - <<'PY'
+        from arbm091.review_board_50x10 import evaluate
+        import osworld_free_mesh_shim as shim
+        actual='H2 Operating Committee PPackSStabilize-and-Recover RRebaseline'
+        expected='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
+        plan=shim._task091_restricted_repair_plan(actual,expected)
+        shape={'id':6,'name':'CoverTitle','text':actual}
+        verdict=evaluate(actual,expected,plan,shape,'a'*64,'b'*64)
+        assert verdict['senior_pass']==50 and verdict['master_pass']==10, verdict
+        print('TASK091_REVIEW_BOARD_50X10_PASS senior=50/50 master=10/10')
+        PY
+    - name: Run 100-lane elite engineering council gate
+      shell: bash
+      run: |
+        set -euo pipefail
+        python scripts/test_osworld_elite_board_100.py
+        echo 'TASK091_ELITE_BOARD_100_PASS elite=100/100 councils=10/10 release_runs_required=10'
+  replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      ZERO_SPEND_MODE: HARD
+      ARBM_ENABLE_LOCAL_VLM: '1'
+      ARBM_VALIDATION_SPEND_MODE: zero
+      GH_TOKEN: ${{ github.token }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+    - name: Download pinned 091 replay corpora
+      shell: bash
+      run: |
+        set -euo pipefail
+        gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10552892356/zip > /tmp/091.zip
+        mkdir -p /tmp/091
+        unzip -q /tmp/091.zip -d /tmp/091
+        test -s /tmp/091/task-091/shim-observations/step_0002.json
+        gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10567320293/zip > /tmp/091-modal.zip
+        mkdir -p /tmp/091-modal
+        unzip -q /tmp/091-modal.zip -d /tmp/091-modal
+        test -s /tmp/091-modal/task-091/wps-observations/0002-01-before.json
+        test -s /tmp/091-modal/task-091/wps-observations/0006-01-after.json
+        test -s /tmp/091-modal/task-091/wps-observations/0007-01-after.json
+        gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10571101397/zip > /tmp/091-current.zip
+        mkdir -p /tmp/091-current
+        unzip -q /tmp/091-current.zip -d /tmp/091-current
+        test -s /tmp/091-current/task-091/wps-observations/0002-01-after.json
+        test -s /tmp/091-current/task-091/wps-observations/0003-01-after.json
+        test -s /tmp/091-current/task-091/wps-observations/0004-01-after.json
+        gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10572233191/zip > /tmp/091-deck.zip
+        mkdir -p /tmp/091-deck
+        unzip -q /tmp/091-deck.zip -d /tmp/091-deck
+        test -s /tmp/091-deck/task-091/wps-observations/0004-01-before.json
+        test -s /tmp/091-deck/task-091/wps-observations/0004-01-after.json
+        gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10572823026/zip > /tmp/091-pointer.zip
+        mkdir -p /tmp/091-pointer
+        unzip -q /tmp/091-pointer.zip -d /tmp/091-pointer
+        test -s /tmp/091-pointer/task-091/wps-observations/0004-01-after.json
+        gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10574751739/zip > /tmp/091-keyrepeat.zip
+        mkdir -p /tmp/091-keyrepeat
+        unzip -q /tmp/091-keyrepeat.zip -d /tmp/091-keyrepeat
+        test -s /tmp/091-keyrepeat/task-091/wps-observations/0009-01-after.json
+        test -s /tmp/091-keyrepeat/task-091/wps-trace.jsonl
+        gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10583941746/zip > /tmp/091-delete-repair.zip
+        mkdir -p /tmp/091-delete-repair
+        unzip -q /tmp/091-delete-repair.zip -d /tmp/091-delete-repair
+        test -s /tmp/091-delete-repair/task-091/wps-observations/0013-01-after.json
+        test -s /tmp/091-delete-repair/task-091/wps-trace.jsonl
+        gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10584667099/zip > /tmp/091-restricted-repair.zip
+        mkdir -p /tmp/091-restricted-repair
+        unzip -q /tmp/091-restricted-repair.zip -d /tmp/091-restricted-repair
+        test -s /tmp/091-restricted-repair/task-091/wps-observations/0009-01-after.json
+        test -s /tmp/091-restricted-repair/task-091/wps-trace.jsonl
+        gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10585113906/zip > /tmp/091-shape-target.zip
+        mkdir -p /tmp/091-shape-target
+        unzip -q /tmp/091-shape-target.zip -d /tmp/091-shape-target
+        test -s /tmp/091-shape-target/task-091/wps-observations/0013-01-after.json
+        test -s /tmp/091-shape-target/task-091/wps-observations/0017-01-after.json
+        test -s /tmp/091-shape-target/task-091/wps-trace.jsonl
+        gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10585727439/zip > /tmp/091-repair-geometry.zip
+        mkdir -p /tmp/091-repair-geometry
+        unzip -q /tmp/091-repair-geometry.zip -d /tmp/091-repair-geometry
+        test -s /tmp/091-repair-geometry/task-091/wps-observations/0009-01-before.json
+        test -s /tmp/091-repair-geometry/task-091/wps-observations/0009-01-after.json
+        test -s /tmp/091-repair-geometry/task-091/wps-observations/0010-01-before.json
+        test -s /tmp/091-repair-geometry/task-091/wps-trace.jsonl
+    - name: Install pinned local VLM runtime
+      run: 'set -euo pipefail
+
+        python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
+
+        python -m pip install --disable-pip-version-check -q ''torch==2.7.1'' ''transformers==4.52.4'' ''safetensors==0.8.0''
+
+        '
+    - name: Replay exact WPS 2019 Step 2 through alias-isolated selector twice
+      shell: bash
+      run: |
+        set -euo pipefail
+        python scripts/replay_091_local_contract.py /tmp/091/task-091/shim-observations/step_0002.json \
+          | tee /tmp/091-local-contract-replay.json
+        ! grep -F 'pyautogui.click(35, 884)' /tmp/091-local-contract-replay.json
+    - name: Replay run 35391431490 System Check modal regression
+      shell: bash
+      run: |
+        set -euo pipefail
+        TASK_ID=091 ZERO_SPEND_MODE=HARD ARBM_WPS_EVIDENCE_DIR=/tmp/091-modal/task-091 PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35391431490-modal-regression.json
+        import json
+        from pathlib import Path
+        import osworld_free_mesh_shim as shim
+        from arbm091.trace_gate import classify, postflight
+
+        root=Path('/tmp/091-modal/task-091/wps-observations')
+        before=json.loads((root/'0002-01-before.json').read_text())
+        after_tab=json.loads((root/'0006-01-after.json').read_text())
+        drift=json.loads((root/'0007-01-after.json').read_text())
+        assert classify(before['window']) == 'wps-transient'
+        assert before['window']['title'] == 'System Check'
+        assert after_tab['window']['title'] == 'System Check'
+        state={}
+        task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
+              'The COO has asked you to rebaseline the H2 Operating Committee pack. '
+              'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
+              'Reforecast_Model_H2.xlsx is the source of truth.')
+        first=shim.next_091_specialist_action(task,'WPS 2019','',state,before)
+        assert first['command'] == "pyautogui.press('tab')", first
+        second=shim.next_091_specialist_action(task,'WPS 2019','',state,after_tab)
+        assert second['command'] == "pyautogui.press('space')", second
+        assert "alt', 'tab" not in first['command'] + second['command']
+        assert "alt', 'f4" not in first['command'] + second['command']
+        try:
+            postflight("pyautogui.click(695, 376)", after_tab, drift)
+        except ValueError as exc:
+            assert 'WPS_TRANSIENT_CLOSE_UNPROVEN' in str(exc), exc
+        else:
+            raise AssertionError('workbook drift was not rejected')
+        print(json.dumps({'status':'PASS','corpus_run':'35391431490',
+                          'first':first['command'],'second':second['command'],
+                          'drift_rejected':True,'zero_spend':'HARD'},sort_keys=True))
+        print('RUN35391431490_MODAL_REGRESSION=PASS')
+        PY
+        grep -F 'RUN35391431490_MODAL_REGRESSION=PASS' /tmp/run35391431490-modal-regression.json
+    - name: Replay run 35400883826 Enter regression
+      shell: bash
+      run: |
+        set -euo pipefail
+        TASK_ID=091 ZERO_SPEND_MODE=HARD PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35400883826-enter-regression.json
+        import json
+        from pathlib import Path
+        import osworld_free_mesh_shim as shim
+        from arbm091.trace_gate import postflight
+
+        root=Path('/tmp/091-current/task-091/wps-observations')
+        before=json.loads((root/'0002-01-after.json').read_text())
+        after_tab=json.loads((root/'0003-01-after.json').read_text())
+        after_enter=json.loads((root/'0004-01-after.json').read_text())
+        state={}
+        task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
+              'The COO has asked you to rebaseline the H2 Operating Committee pack. '
+              'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
+              'Reforecast_Model_H2.xlsx is the source of truth.')
+        first=shim.next_091_specialist_action(task,'WPS 2019','',state,before)
+        second=shim.next_091_specialist_action(task,'WPS 2019','',state,after_tab)
+        assert first['command'] == "pyautogui.press('tab')", first
+        assert second['command'] == "pyautogui.press('space')", second
+        assert "press('enter')" not in first['command'] + second['command']
+        assert postflight(second['command'], after_tab, after_enter) == 'wps-transient'
+        third=shim.next_091_specialist_action(task,'WPS 2019','',state,after_enter)
+        assert third['action'] == 'terminal', third
+        assert third['reason'] == 'TASK091_TARGET_NOT_VISIBLE', third
+        print(json.dumps({'status':'PASS','corpus_run':'35400883826',
+                          'first':first['command'],'second':second['command'],
+                          'bounded_fallback_required':True,'zero_spend':'HARD'},sort_keys=True))
+        print('RUN35400883826_ENTER_REGRESSION=PASS')
+        PY
+        grep -F 'RUN35400883826_ENTER_REGRESSION=PASS' /tmp/run35400883826-enter-regression.json
+    - name: Replay run 35404537401 AT-SPI-empty deck regression
+      shell: bash
+      run: |
+        set -euo pipefail
+        TASK_ID=091 ZERO_SPEND_MODE=HARD PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35404537401-deck-regression.json
+        import copy, json
+        from pathlib import Path
+        import osworld_free_mesh_shim as shim
+        from arbm091.trace_gate import classify, postflight, preflight
+
+        root=Path('/tmp/091-deck/task-091/wps-observations')
+        before=json.loads((root/'0004-01-before.json').read_text())
+        after=json.loads((root/'0004-01-after.json').read_text())
+        assert before['window']['title'] == 'System Check', before['window']
+        assert classify(after['window']) == 'wps-presentation', after['window']
+        assert after.get('controls',[]) == [], after.get('controls')
+        assert postflight("pyautogui.press('space')", before, after) == 'wps-presentation'
+
+        deck=copy.deepcopy(after)
+        deck['deck_slide_text']={'1':'Growth Plan Draft Planning posture: accelerate growth through H2 scale-up $42.8M $2.6M 214'}
+        deck['deck_slide_runs']={'1':['Growth Plan Draft','Planning posture: accelerate growth through H2 scale-up','$42.8M','$2.6M','214']}
+        deck['screen']=[0,0,1920,1080]
+        deck['deck_slide_shapes']={'1':[
+            {'id':6,'name':'CoverTitle','text':'H2 Operating Committee Pack\nGrowth Plan Draft',
+             'paragraphs':['H2 Operating Committee Pack','Growth Plan Draft'],
+             'geometry':{'x':749808,'y':1078992,'w':5852160,'h':1234440}},
+            {'id':7,'name':'CoverSub',
+             'text':'Northstar Cloud\nPrepared for July Operating Committee review\nPlanning posture: accelerate growth through H2 scale-up',
+             'paragraphs':['Northstar Cloud','Prepared for July Operating Committee review',
+                           'Planning posture: accelerate growth through H2 scale-up'],
+             'geometry':{'x':768096,'y':2743200,'w':5669280,'h':1280160}}]}
+        deck['deck_file']={'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                           'sha256':'a'*64,'size':1234,'mtime_ns':1,
+                           'slide_size':{'w':12192000,'h':6858000}}
+        state={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
+        task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
+              'The COO has asked you to rebaseline the H2 Operating Committee pack. '
+              'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
+              'Reforecast_Model_H2.xlsx is the source of truth.')
+        action=shim.next_091_specialist_action(task,'WPS Presentation','',state,deck)
+        assert action['command'] == 'pyautogui.doubleClick(745, 335, interval=0.08)', action
+        assert action['target']['source'] == 'task091-pptx-canonical', action
+        probe=copy.deepcopy(deck)
+        probe['screen']=[0,0,1920,1080]
+        probe['window']['bbox']=[70,27,1850,1053]
+        probe['target']=None
+        probe['active_slide']=1
+        assert preflight(action['command'],probe) == 'wps-content'
+        print(json.dumps({'status':'PASS','corpus_run':'35404537401',
+                          'atspi_controls':0,'fallback':'task091-pptx-canonical',
+                          'zero_spend':'HARD'},sort_keys=True))
+        print('RUN35404537401_DECK_REGRESSION=PASS')
+        PY
+        grep -F 'RUN35404537401_DECK_REGRESSION=PASS' /tmp/run35404537401-deck-regression.json
+    - name: Replay run 35407234122 canonical pointer policy regression
+      shell: bash
+      run: |
+        set -euo pipefail
+        TASK_ID=091 ZERO_SPEND_MODE=HARD PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35407234122-pointer-regression.json
+        import copy, json
+        from pathlib import Path
+        import osworld_free_mesh_shim as shim
+
+        root=Path('/tmp/091-pointer/task-091/wps-observations')
+        deck=json.loads((root/'0004-01-after.json').read_text())
+        deck['deck_slide_text']={'1':'Growth Plan Draft Planning posture: accelerate growth through H2 scale-up $42.8M $2.6M 214'}
+        deck['deck_slide_runs']={'1':['Growth Plan Draft','Planning posture: accelerate growth through H2 scale-up','$42.8M','$2.6M','214']}
+        deck['screen']=[0,0,1920,1080]
+        deck['deck_slide_shapes']={'1':[
+            {'id':6,'name':'CoverTitle','text':'H2 Operating Committee Pack\nGrowth Plan Draft',
+             'paragraphs':['H2 Operating Committee Pack','Growth Plan Draft'],
+             'geometry':{'x':749808,'y':1078992,'w':5852160,'h':1234440}},
+            {'id':7,'name':'CoverSub',
+             'text':'Northstar Cloud\nPrepared for July Operating Committee review\nPlanning posture: accelerate growth through H2 scale-up',
+             'paragraphs':['Northstar Cloud','Prepared for July Operating Committee review',
+                           'Planning posture: accelerate growth through H2 scale-up'],
+             'geometry':{'x':768096,'y':2743200,'w':5669280,'h':1280160}}]}
+        deck['deck_file']={'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                           'sha256':'a'*64,'size':1234,'mtime_ns':1,
+                           'slide_size':{'w':12192000,'h':6858000}}
+        state={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
+        task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
+              'The COO has asked you to rebaseline the H2 Operating Committee pack. '
+              'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
+              'Reforecast_Model_H2.xlsx is the source of truth.')
+        action=shim.next_091_specialist_action(task,'WPS Presentation','',state,deck)
+        assert action['target']['source']=='task091-pptx-canonical', action
+        grounded=shim.ground_action(action,'WPS Presentation','',[],allow_canonical=True)
+        assert grounded['command']=='pyautogui.doubleClick(745, 335, interval=0.08)', grounded
+        assert 'PPTX-backed canonical target' in grounded.get('compiler_note',''), grounded
+        bad=copy.deepcopy(action)
+        bad['target']['deck_sha256']='b'*64
+        try:
+            shim.ground_action(bad,'WPS Presentation','',[],allow_canonical=True)
+        except ValueError as exc:
+            assert 'TASK091_CANONICAL_TARGET_PROOF_INVALID' in str(exc), exc
+        else:
+            raise AssertionError('tampered canonical target was accepted')
+        print(json.dumps({'status':'PASS','corpus_run':'35407234122',
+                          'old_failure':'POINTER_TARGET_INVALID',
+                          'new_contract':'task091-pptx-canonical',
+                          'tamper_rejected':True,'zero_spend':'HARD'},sort_keys=True))
+        print('RUN35407234122_POINTER_REGRESSION=PASS')
+        PY
+        grep -F 'RUN35407234122_POINTER_REGRESSION=PASS' /tmp/run35407234122-pointer-regression.json
+    - name: Replay run 35411705196 non-restricted corruption rejection
+      shell: bash
+      run: |
+        set -euo pipefail
+        TASK_ID=091 ZERO_SPEND_MODE=HARD PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35411705196-keyrepeat-regression.json
+        import json
+        from pathlib import Path
+        import osworld_free_mesh_shim as shim
+
+        root=Path('/tmp/091-keyrepeat/task-091')
+        corrupt=json.loads((root/'wps-observations/0009-01-after.json').read_text())
+        slide1=corrupt['deck_slide_text']['1']
+        assert 'OOperating' in slide1 and 'PPPPPPack' in slide1 and 'RRecover' in slide1, slide1
+        actual='H2 Operating Committee Pack\nBroken Rebaseline'
+        expected='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
+        assert shim._task091_restricted_repair_plan(actual,expected) is None
+        print(json.dumps({'status':'PASS','corpus_run':'35411705196',
+                          'old_failure':'TASK091_EDIT_NOT_VERIFIED',
+                          'detected':'non-restricted-corruption-requiring-printable-insert',
+                          'auto_repair':False,'fail_closed':True,
+                          'zero_spend':'HARD'},sort_keys=True))
+        print('RUN35411705196_KEYREPEAT_REGRESSION=PASS')
+        PY
+        grep -F 'RUN35411705196_KEYREPEAT_REGRESSION=PASS' /tmp/run35411705196-keyrepeat-regression.json
+    - name: Replay run 35439821335 delete-only repair regression
+      shell: bash
+      run: |
+        set -euo pipefail
+        TASK_ID=091 ZERO_SPEND_MODE=HARD PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35439821335-delete-repair-regression.json
+        import json
+        from pathlib import Path
+        import osworld_free_mesh_shim as shim
+
+        root=Path('/tmp/091-delete-repair/task-091')
+        snap=json.loads((root/'wps-observations/0013-01-after.json').read_text())
+        slide1=snap['deck_slide_text']['1']
+        assert 'SStabilize-and-Recover Rebaseline' in slide1, slide1
+        actual='H2 Operating Committee Pack\nSStabilize-and-Recover Rebaseline'
+        expected='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
+        deletes=shim._task091_delete_only_plan(actual,expected)
+        assert deletes == [29], deletes
+        command=shim._task091_delete_repair_command(deletes)
+        assert "hotkey('ctrl', 'a')" in command, command
+        assert "'delete'" in command, command
+        assert 'pyautogui.write(' not in command, command
+        assert shim._task091_delete_only_plan(
+            'H2 Operating Committee Pack\nBroken Rebaseline',expected) is None
+        print(json.dumps({'status':'PASS','corpus_run':'35439821335',
+                          'old_failure':'TASK091_EDIT_TEXT_CORRUPTED',
+                          'actual_corruption':'SStabilize',
+                          'repair':'delete-only','delete_indices':deletes,
+                          'text_injection':False,'zero_spend':'HARD'},sort_keys=True))
+        print('RUN35439821335_DELETE_REPAIR_REGRESSION=PASS')
+        PY
+        grep -F 'RUN35439821335_DELETE_REPAIR_REGRESSION=PASS' /tmp/run35439821335-delete-repair-regression.json
+    - name: Replay run 35443356294 restricted repair regression
+      shell: bash
+      run: |
+        set -euo pipefail
+        TASK_ID=091 ZERO_SPEND_MODE=HARD PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35443356294-restricted-repair-regression.json
+        import json
+        from pathlib import Path
+        import osworld_free_mesh_shim as shim
+        from arbm091.review_board_50x10 import evaluate
+
+        root=Path('/tmp/091-restricted-repair/task-091/wps-observations')
+        snap=json.loads((root/'0009-01-after.json').read_text())
+        shape=next(row for row in snap['deck_slide_shapes']['1'] if row.get('id')==6)
+        actual=shape['text']
+        expected='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
+        assert actual=='H2 Operating Committee PPackSStabilize-and-Recover RRebaseline', actual
+        plan=shim._task091_restricted_repair_plan(actual,expected)
+        assert plan==[
+            {'op':'delete','index':24,'char':'P'},
+            {'op':'linebreak','index':27},
+            {'op':'delete','index':29,'char':'S'},
+            {'op':'delete','index':51,'char':'R'}], plan
+        try:
+            shim._task091_restricted_repair_command(plan)
+        except ValueError as exc:
+            assert 'TASK091_REPAIR_ATOMIC_OPERATION_REQUIRED' in str(exc), exc
+        else:
+            raise AssertionError('multi-mutation repair was accepted')
+        command=shim._task091_restricted_repair_command([plan[0]])
+        assert 'pyautogui.write(' not in command, command
+        assert "press('delete')" in command, command
+        assert len(command.splitlines()) <= 4, command
+        assert command.splitlines()[0] == "pyautogui.hotkey('ctrl', 'a')", command
+        verdict=evaluate(actual,expected,plan,shape,
+                         '4c9c57567fa8f4bd81175dbd3d1b2ea40f0ad1ff8689ca47e1cbd001da637f5b',
+                         snap['deck_file']['sha256'])
+        assert verdict['senior_pass']==50 and verdict['master_pass']==10, verdict
+        print(json.dumps({'status':'PASS','corpus_run':'35443356294',
+                          'old_failure':'TASK091_EDIT_TEXT_MISMATCH_UNPROVEN',
+                          'repair':'delete-plus-linebreak-only',
+                          'senior':'50/50','master':'10/10',
+                          'text_injection':False,'zero_spend':'HARD'},sort_keys=True))
+        print('RUN35443356294_RESTRICTED_REPAIR_REGRESSION=PASS')
+        PY
+        grep -F 'RUN35443356294_RESTRICTED_REPAIR_REGRESSION=PASS' /tmp/run35443356294-restricted-repair-regression.json
+    - name: Replay run 35444915125 exact-shape targeting regression
+      shell: bash
+      run: |
+        set -euo pipefail
+        TASK_ID=091 ZERO_SPEND_MODE=HARD PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35444915125-shape-target-regression.json
+        import copy, json
+        from pathlib import Path
+        import osworld_free_mesh_shim as shim
+
+        root=Path('/tmp/091-shape-target/task-091/wps-observations')
+        snap=json.loads((root/'0013-01-after.json').read_text())
+        snap['screen']=[0,0,1920,1080]
+        snap['deck_file']['slide_size']={'w':12192000,'h':6858000}
+        state={'owned':True,'anchored':True,'slide':1,'spatial_index':1}
+        task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
+              'The COO has asked you to rebaseline the H2 Operating Committee pack. '
+              'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
+              'Reforecast_Model_H2.xlsx is the source of truth.')
+        action=shim.next_091_specialist_action(task,'WPS Presentation','',state,snap)
+        assert action['target']['source']=='task091-pptx-canonical', action
+        assert action['command']=='pyautogui.doubleClick(738, 516, interval=0.08)', action
+        assert state['pending_edit']['shape_id']==7, state['pending_edit']
+        assert state['pending_edit']['shape_name']=='CoverSub', state['pending_edit']
+        assert action['command']!='pyautogui.doubleClick(861, 586, interval=0.08)'
+        wrong=copy.deepcopy(snap)
+        wrong['screen']=[0,0,1919,1080]
+        blocked_state={'owned':True,'anchored':True,'slide':1,'spatial_index':1}
+        first=shim.next_091_specialist_action(task,'WPS Presentation','',blocked_state,wrong)
+        assert 'sleep' in first['command'], first
+        second=shim.next_091_specialist_action(task,'WPS Presentation','',blocked_state,wrong)
+        assert second['action']=='terminal' and second['reason']=='TASK091_SHAPE_GEOMETRY_UNPROVEN', second
+        print(json.dumps({'status':'PASS','corpus_run':'35444915125',
+                          'old_failure':'TASK091_EDIT_NOT_VERIFIED',
+                          'root_cause':'static-point-hit-CoverTitle-instead-of-CoverSub',
+                          'new_target':[738,516],'shape_id':7,'shape_name':'CoverSub',
+                          'empty_shape_center_rejected':[861,586],
+                          'zero_spend':'HARD'},sort_keys=True))
+        print('RUN35444915125_SHAPE_TARGET_REGRESSION=PASS')
+        PY
+        grep -F 'RUN35444915125_SHAPE_TARGET_REGRESSION=PASS' /tmp/run35444915125-shape-target-regression.json
+    - name: Replay run 35448424940 repair-geometry reprojection regression
+      shell: bash
+      run: |
+        set -euo pipefail
+        TASK_ID=091 ZERO_SPEND_MODE=HARD PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35448424940-repair-geometry-regression.json
+        import copy, json
+        from pathlib import Path
+        import osworld_free_mesh_shim as shim
+        from arbm091.trace_gate import preflight
+
+        root=Path('/tmp/091-repair-geometry/task-091/wps-observations')
+        before=json.loads((root/'0009-01-before.json').read_text())
+        snap=json.loads((root/'0009-01-after.json').read_text())
+        blocked=json.loads((root/'0010-01-before.json').read_text())
+        shape=next(row for row in snap['deck_slide_shapes']['1'] if int(row.get('id') or 0)==6)
+        assert shape['geometry']['h']==922020, shape
+        point=shim._task091_shape_center(snap,shape)
+        assert [point['cx'],point['cy']]==[869,372], point
+
+        state={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'mode':'TARGET_VERIFYING',
+               'pending_edit':{
+                 'slide':1,'old':'Growth Plan Draft',
+                 'new':'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline',
+                 'stage':'save-issued','shape_id':6,'repair_attempts':0,
+                 'target':{'label':'Growth Plan Draft','role':'task091-canonical-point',
+                           'bbox':[744,334,2,2],'cx':745,'cy':335,
+                           'source':'task091-pptx-canonical','slide':1},
+                 'text_hit_x':745,'text_hit_y':335,
+                 'text_hint_x':745,'text_hint_y':335,
+                 'before_old_count':1,'before_new_count':0,
+                 'before_deck_sha256':before['deck_file']['sha256'],
+                 'selected_screenshot_sha256':'1'*64,
+                 'edited_screenshot_sha256':'2'*64,
+                 'verify_attempts':0}}
+        task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
+              'The COO has asked you to rebaseline the H2 Operating Committee pack. '
+              'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
+              'Reforecast_Model_H2.xlsx is the source of truth.')
+        action=shim.next_091_specialist_action(task,'WPS Presentation','',state,snap)
+        assert action['command']=='pyautogui.doubleClick(745, 335, interval=0.08)', action
+        assert state['pending_edit']['repair_shape_id']==6, state['pending_edit']
+        assert state['pending_edit']['repair_target_cx']==745, state['pending_edit']
+        assert state['pending_edit']['repair_target_cy']==335, state['pending_edit']
+        assert state['pending_edit']['repair_shape_geometry']['h']==922020, state['pending_edit']
+
+        probe=copy.deepcopy(snap)
+        probe['target']=None
+        probe['active_slide']=1
+        assert preflight(action['command'],probe)=='wps-content'
+        try:
+            preflight('pyautogui.doubleClick(1215, 470, interval=0.08)',probe)
+        except ValueError as exc:
+            assert 'TASK091_SHAPE_POINT_UNPROVEN' in str(exc), exc
+        else:
+            raise AssertionError('outside-shape text hit was not rejected')
+
+        assert blocked['deck_file']['sha256']==snap['deck_file']['sha256']
+        print(json.dumps({'status':'PASS','corpus_run':'35448424940',
+                          'old_failure':'TASK091_SHAPE_POINT_UNPROVEN',
+                          'root_cause':'repair-must-reuse-signed-text-hit-not-shape-center',
+                          'shape_id':6,'signed_text_hit':[745,335],
+                          'current_height':922020,
+                          'outside_shape_rejected':True,'zero_spend':'HARD'},sort_keys=True))
+        print('RUN35448424940_REPAIR_GEOMETRY_REGRESSION=PASS')
+        PY
+        grep -F 'RUN35448424940_REPAIR_GEOMETRY_REGRESSION=PASS' /tmp/run35448424940-repair-geometry-regression.json
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      if: always()
+      with:
+        name: arbm-091-local-contract-replay
+        path: |
+          /tmp/091-local-contract-replay.json
+          /tmp/run35391431490-modal-regression.json
+          /tmp/run35400883826-enter-regression.json
+          /tmp/run35404537401-deck-regression.json
+          /tmp/run35407234122-pointer-regression.json
+          /tmp/run35411705196-keyrepeat-regression.json
+          /tmp/run35439821335-delete-repair-regression.json
+          /tmp/run35443356294-restricted-repair-regression.json
+          /tmp/run35444915125-shape-target-regression.json
+          /tmp/run35448424940-repair-geometry-regression.json
+        if-no-files-found: warn
+        retention-days: 30
+    permissions:
+      actions: read
+      contents: read
+    needs:
+    - policy
+    - proof-tests
+  focal-091:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
+      ZERO_SPEND_MODE: HARD
+      ARBM_ENABLE_LOCAL_VLM: '1'
+      OPENAI_BASE_URL: http://127.0.0.1:8088/v1
+      OPENAI_API_KEY: zero-spend-oidc-shim
+      OSWORLD_EVAL_MODEL_PROVIDER: openai_compatible
+      OSWORLD_EVAL_MODEL_NAME: nex-agi/nex-n2.5-pro:free
+      OSWORLD_EVAL_MODEL_BASE_URL: http://127.0.0.1:8089/v1
+      OSWORLD_EVAL_MODEL_API_KEY_ENV: OPENAI_API_KEY
+      OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
+      ARBM_MAX_STEPS: '500'
+      ARBM_TASK_SECONDS: '2400'
+      ARBM_RUN_MULTIENV_TIMEOUT_SECONDS: '2520'
+      ARBM_VM_VOLUME_GB: '50'
+      AWS_REGION: us-east-1
+      WEBSITE_HOST_SUFFIX: site.hku.icu
+      TASK_ID: '091'
+      ARBM_WPS_OBSERVER: '1'
+      ARBM_WPS_EVIDENCE_DIR: ${{ github.workspace }}/osworld-v32-evidence/task-091
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+    - name: Verify exact 091 observer environment before heavy initialization
+      shell: bash
+      run: |
+        set -euo pipefail
+        test "$TASK_ID" = '091'
+        test "$ZERO_SPEND_MODE" = 'HARD'
+        test "$RUNNER_ENVIRONMENT" = 'github-hosted'
+        test "$ARBM_WPS_OBSERVER" = '1'
+        printf 'TASK091_ENVIRONMENT_PREFLIGHT_PASS task=%s runner=%s spend=%s\n' "$TASK_ID" "$RUNNER_ENVIRONMENT" "$ZERO_SPEND_MODE"
+    - name: Prepare pinned shim runtime
+      shell: bash
+      run: 'set -euo pipefail
+
+        test "$ZERO_SPEND_MODE" = HARD
+
+        test "$ARBM_MAX_STEPS" = 500
+
+        python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
+
+        python -m unittest scripts/test_osworld_groq_free.py scripts/test_osworld_groq_local_fallback.py scripts/test_osworld_failover_matrix.py
+        -v
+
+        git diff --check
+
+        '
+    - name: Prove cloud KVM
+      shell: bash
+      run: 'set -euo pipefail
+
+        test "$RUNNER_ENVIRONMENT" = github-hosted
+
+        test -c /dev/kvm
+
+        sudo chmod 666 /dev/kvm
+
+        '
+    - name: Hydrate pinned OSWorld release and task 091
+      shell: bash
+      run: "set -euo pipefail\ngit clone --depth 1 --branch v2026.08.08 https://github.com/xlang-ai/OSWorld-V2.git\
+        \ osworld\ntest \"$(git -C osworld rev-parse HEAD)\" = d578d2d4e0dc82b43e270fdaa7fa89d9708cd154\npython\
+        \ -m pip install --disable-pip-version-check -q uv==0.8.15 huggingface_hub==0.35.3\ncd osworld\nuv sync\
+        \ --frozen\nuv run python scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08\n\
+        test \"$(find evaluation_examples/task_class -maxdepth 1 -name 'task_*.py' -type f | wc -l)\" -eq 108\n\
+        test -f evaluation_examples/task_class/task_091.py\nuv run python - <<'PY' > /tmp/osworld_asset_dirs.txt\n\
+        import os\nfrom huggingface_hub import HfApi\nfiles = HfApi(token=os.environ['HF_TOKEN']).list_repo_files(\n\
+        \    repo_id='xlangai/osworld_v2_assets_gated', repo_type='dataset', revision='v2026.08.08')\nassert files,\
+        \ 'OFFICIAL_ASSET_REPO_EMPTY_OR_UNREADABLE'\nprint('\\n'.join(sorted({x.split('/')[0] for x in files if\
+        \ x.startswith('task_') and '/' in x})))\nPY\nmatches=$(grep -E '^task_091($|_)' /tmp/osworld_asset_dirs.txt\
+        \ || true)\nif [ -n \"$matches\" ]; then\n  while IFS= read -r asset_dir; do\n    test -n \"$asset_dir\"\
+        \n    uv run python scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08\
+        \ --allow-pattern \"${asset_dir}/**\" --target-dir cache/osworld_v2_assets\n  done <<< \"$matches\"\nfi\n"
+    - name: Verify official pins
+      shell: bash
+      run: 'set -euo pipefail
+
+        cd osworld
+
+        python - <<''PY''
+
+        import hashlib, os
+
+        from huggingface_hub import hf_hub_download
+
+        p=hf_hub_download(''xlangai/osworld_v2_tasks'',''manifests/task_hashes.json'',repo_type=''dataset'',revision=''v2026.08.08'',token=os.environ[''HF_TOKEN''])
+
+        d=hashlib.sha256(open(p,''rb'').read()).hexdigest()
+
+        assert d==''42f8f6f8939b8712997d5891456a575f8a2a5f53465e9e3e6747af5d6efd0915'', d
+
+        print(''TASK_HASH_MANIFEST_SHA256=''+d)
+
+        PY
+
+        cd ..
+
+        docker pull happysixd/osworld-docker@sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9
+
+        docker tag happysixd/osworld-docker@sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9
+        happysixd/osworld-docker:latest
+
+        docker inspect happysixd/osworld-docker:latest --format ''{{json .RepoDigests}}'' | grep -F ''sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9''
+
+        '
+    - name: Apply exact upstream runtime patches
+      shell: bash
+      run: 'set -euo pipefail
+
+        python - <<''PY''
+
+        from pathlib import Path
+
+        p=Path(''osworld/scripts/python/run_multienv.py'')
+
+        s=p.read_text()
+
+        old=''''''        from desktop_env.providers.aws.manager import IMAGE_ID_MAP\n        REGION = args.region\n        screen_size
+        = (args.screen_width, args.screen_height)\n        ami_id = IMAGE_ID_MAP[REGION].get(screen_size, IMAGE_ID_MAP[REGION][(1920,
+        1080)])\n''''''
+
+        new=''''''        REGION = args.region\n        screen_size = (args.screen_width, args.screen_height)\n        if
+        args.provider_name == "aws":\n            from desktop_env.providers.aws.manager import IMAGE_ID_MAP\n            ami_id
+        = IMAGE_ID_MAP[REGION].get(screen_size, IMAGE_ID_MAP[REGION][(1920, 1080)])\n        else:\n            ami_id
+        = "init_state"\n''''''
+
+        assert old in s, ''UPSTREAM_DOCKER_AWS_IMPORT_BLOCK_CHANGED''
+
+        p.write_text(s.replace(old,new,1))
+
+        PY
+
+        git -C osworld diff -- scripts/python/run_multienv.py > osworld-docker-provider.patch
+
+        test -s osworld-docker-provider.patch
+
+        python scripts/osworld_docker_volume.py osworld
+
+        git -C osworld diff -- scripts/python/run_multienv.py desktop_env/providers/docker/provider.py > osworld-volume.patch
+
+        test -s osworld-volume.patch
+
+        python scripts/osworld_vm_upload.py osworld/desktop_env/controllers/setup.py
+
+        git -C osworld diff -- desktop_env/controllers/setup.py > osworld-upload-transport.patch
+
+        test -s osworld-upload-transport.patch
+
+
+        python scripts/arbm091/install_observer.py osworld
+
+        git -C osworld diff -- desktop_env/desktop_env.py > osworld-wps-observer.patch
+
+        test -s osworld-wps-observer.patch
+
+        '
+    - name: Download pinned official VM
+      shell: bash
+      run: 'set -euo pipefail
+
+        export HF_XET_HIGH_PERFORMANCE=1
+
+        hf download xlangai/v2-image osworld-v2-ubuntu-x86.qcow2.zip --repo-type dataset --revision 8213366932c553e5fe758d0f2c8c8b81ffc3be8c
+        --local-dir hf-vm
+
+        echo ''eb737ae70b49849e24af407de6a518439a23de05a8497096a948334ce0a909aa  hf-vm/osworld-v2-ubuntu-x86.qcow2.zip''
+        | sha256sum -c -
+
+        unzip -q hf-vm/osworld-v2-ubuntu-x86.qcow2.zip -d vm
+
+        rm -f hf-vm/osworld-v2-ubuntu-x86.qcow2.zip
+
+        QCOW=$(find vm -type f -name ''*.qcow2'' | head -1)
+
+        test -n "$QCOW"
+
+        python scripts/osworld_docker_volume.py --check-image "$QCOW"
+
+        echo "QCOW_PATH=$PWD/$QCOW" >> "$GITHUB_ENV"
+
+        sha256sum "$QCOW" | cut -d'' '' -f1 > qcow-base.sha256
+
+        PYTHONPATH=scripts python -c ''import json; from osworld_v32_gate import PINS; open("official-pins.json","w").write(json.dumps(PINS,sort_keys=True))''
+
+        '
+    - name: Install quota-independent local VLM fallback
+      run: python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
+    - name: Execute official task 091 only
+      shell: bash
+      run: "set -euo pipefail\nDIR=\"$GITHUB_WORKSPACE/osworld-v32-evidence/task-091\"\ntest ! -e \"$DIR\"\nmkdir\
+        \ -p \"$DIR\"\nprintf '%s\\n' \"$GITHUB_RUN_ID\" > \"$DIR/run-id.txt\"\nprintf '%s\\n' \"$GITHUB_RUN_ATTEMPT\"\
+        \ > \"$DIR/run-attempt.txt\"\ncp osworld-wps-observer.patch \"$DIR/\"\npython -m arbm091.score_tracker \"\
+        $DIR\" --sha \"$GITHUB_SHA\" --run-id \"$GITHUB_RUN_ID\" --run-attempt \"$GITHUB_RUN_ATTEMPT\" --watch --timeout-seconds\
+        \ 2700 > \"$GITHUB_WORKSPACE/arbm091-score-tracker.log\" 2>&1 &\nTRACKER_PID=$!\ntrap 'kill \"$TRACKER_PID\"\
+        \ 2>/dev/null || true; wait \"$TRACKER_PID\" 2>/dev/null || true' EXIT\nexport ARBM_OSWORLD_SHIM_LOG=\"\
+        $DIR/shim.jsonl\"\nexport ARBM_OSWORLD_OBSERVATIONS=\"$DIR/shim-observations\"\nexport ARBM_JUDGE_EVIDENCE=\"\
+        $DIR/judge\"\nexport OSWORLD_EVAL_SAVE_RAW_DIR=\"$DIR/official-evaluator-raw\"\ntouch \"$DIR/shim.jsonl\"\
+        \nprintf '%s\\n' 091 > \"$DIR/task-id.txt\"\nprintf '%s\\n' \"$ZERO_SPEND_MODE\" > \"$DIR/zero-spend-mode.txt\"\
+        \nprintf '%s\\n' \"$RUNNER_ENVIRONMENT\" > \"$DIR/runner-environment.txt\"\nprintf '%s\\n' \"$GITHUB_SHA\"\
+        \ > \"$DIR/candidate-sha.txt\"\nprintf '%s\\n' osworld-v2-2026.08.08 > \"$DIR/release.txt\"\nprintf '%s\\\
+        n' 500 > \"$DIR/max-steps.txt\"\ncp official-pins.json \"$DIR/pins.json\"\ncp osworld-docker-provider.patch\
+        \ osworld-volume.patch osworld-upload-transport.patch \"$DIR/\"\npython scripts/osworld_v32_integrity.py\
+        \ snapshot osworld \"$DIR/evaluator-before.json\"\nprintf '{\"tasks\":[\"091\"]}\\n' > \"$GITHUB_WORKSPACE/osworld/evaluation_examples/test_arbm_v32.json\"\
+        \ntest \"$(sha256sum \"$QCOW_PATH\" | cut -d' ' -f1)\" = \"$(cat qcow-base.sha256)\"\npython scripts/osworld_free_mesh_shim.py\
+        \ > \"$DIR/shim-runtime.log\" 2>&1 &\nSHIM_PID=$!\npython scripts/osworld_free_judge.py > \"$DIR/judge-runtime.log\"\
+        \ 2>&1 &\nJUDGE_PID=$!\nready=0\nfor i in $(seq 1 30); do\n  if curl -fsS http://127.0.0.1:8088/health >/dev/null\
+        \ && curl -fsS http://127.0.0.1:8089/health >/dev/null; then ready=1; break; fi\n  if ! kill -0 \"$SHIM_PID\"\
+        \ 2>/dev/null || ! kill -0 \"$JUDGE_PID\" 2>/dev/null; then break; fi\n  sleep 1\ndone\ntest \"$ready\"\
+        \ = 1\nset +e\n(cd osworld && timeout --signal=TERM --kill-after=30s \"${ARBM_RUN_MULTIENV_TIMEOUT_SECONDS}s\"\
+        \ uv run python scripts/python/run_multienv.py --headless --provider_name docker --path_to_vm \"$QCOW_PATH\"\
+        \ --eval_version v2 --test_all_meta_path evaluation_examples/test_arbm_v32.json --domain tasks --observation_type\
+        \ screenshot_a11y_tree --action_space pyautogui --model gpt-arbm-osworld-v32-isolated --temperature 0 --max_steps\
+        \ 500 --max_trajectory_length 8 --max_tokens 4096 --num_envs 1 --result_dir \"../osworld-v32-evidence/task-091/results\"\
+        \ 2>&1 | tee \"../osworld-v32-evidence/task-091/osworld.log\")\nrc=$?\nset -e\nkill \"$SHIM_PID\" 2>/dev/null\
+        \ || true\nwait \"$SHIM_PID\" 2>/dev/null || true\nkill \"$JUDGE_PID\" 2>/dev/null || true\nwait \"$JUDGE_PID\"\
+        \ 2>/dev/null || true\nprintf '%s\\n' \"$rc\" > \"$DIR/task-rc.txt\"\ntest \"$(sha256sum \"$QCOW_PATH\"\
+        \ | cut -d' ' -f1)\" = \"$(cat qcow-base.sha256)\"\npython scripts/osworld_v32_integrity.py verify osworld\
+        \ \"$DIR/evaluator-before.json\" \"$DIR/evaluator-integrity.json\"\npython scripts/osworld_v32_gate.py seal\
+        \ \"$DIR\"\npython -m arbm091.finalize_evidence \"$DIR\"\npython scripts/osworld_v32_gate.py task \"$DIR\"\
+        \ --task 091\n\nwait \"$TRACKER_PID\"\npython -m arbm091.score_tracker \"$DIR\" --sha \"$GITHUB_SHA\" --run-id\
+        \ \"$GITHUB_RUN_ID\" --run-attempt \"$GITHUB_RUN_ATTEMPT\" > \"$GITHUB_WORKSPACE/arbm091-verdict.json\"\n"
+    - name: Preserve focal 091 evidence
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: osworld-v32-focal-091-free
+        path: osworld-v32-evidence
+        if-no-files-found: error
+        retention-days: 90
+    - name: Preserve supplemental tracker report
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: arbm091-wps-proof-report
+        path: 'arbm091-score-tracker.log
+
+          arbm091-verdict.json
+
+          osworld-v32-evidence/task-091.complete.json'
+        if-no-files-found: error
+        retention-days: 90
+    needs:
+    - policy
+    - proof-tests
+    - replay

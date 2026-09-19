@@ -1,0 +1,991 @@
+{
+  "base_sha": "cf008c04e9bf01e87fca80799dfc25b1de68d888",
+  "source_sha": "1e7ef74fc83b715a9bb23dd8db334cc63ead5fde",
+  "historical_commits_imported": 0,
+  "files": [
+    {
+      "path": ".github/workflows/arbm-091-local-contract-replay.yml",
+      "blob_sha": "fdffa31d06ea4ba178ef1e64e0d18c45a432c864",
+      "sha256": "856c7bab2fd98649bef8d7154bcb76d4d60aa6c974851457983158692f737f7d",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": ".github/workflows/osworld-061-world-audit.yml",
+      "blob_sha": "b0d3c2df89362552a1c80d49decc043d99514f34",
+      "sha256": "ca3c9e571ceabf600a6b7444a455d7f36edf1d3f3b0c486950d2aed31e788e5e",
+      "mode": "100644",
+      "required_by": [
+        "scripts/osworld_061_3d_audit.py",
+        "scripts/test_osworld_workflow_watchdog.py"
+      ]
+    },
+    {
+      "path": ".github/workflows/osworld-gimp-sample-probe.yml",
+      "blob_sha": "b4dd573652693a3438aa7746364729748aaad16b",
+      "sha256": "84881164eb4368c5d4e47ea93457fc45930db0eff779216220f4a4d82f101846",
+      "mode": "100644",
+      "required_by": [
+        "scripts/osworld_061_blindspot_audit.py"
+      ]
+    },
+    {
+      "path": ".github/workflows/osworld-v32-cloud-matrix.yml",
+      "blob_sha": "9f6f0f839464f68483fc301bcdd90c2cdf67980a",
+      "sha256": "1ea4ca56cc3085eea019a844e890d0cd69647efb1c43be35d204fde32d98b6cc",
+      "mode": "100644",
+      "required_by": [
+        "endpoint/index.ts",
+        "scripts/test_endpoint.mjs"
+      ]
+    },
+    {
+      "path": ".github/workflows/osworld-v32-focal-091-free.yml",
+      "blob_sha": "8ba8313a2087ed29b5d2eba343d2f3104631beee",
+      "sha256": "8828d0b1c4599a0d404e060af2c48156a71e9aa3083c75715bc9b89ca9810986",
+      "mode": "100644",
+      "required_by": [
+        "endpoint/index.ts",
+        "entrypoint-or-preserved-regression-test",
+        "scripts/test_endpoint.mjs"
+      ]
+    },
+    {
+      "path": ".github/workflows/osworld-v32-official-18.yml",
+      "blob_sha": "7509f113fba284627b3f60373d5fe31e38fb214f",
+      "sha256": "9cce0961a8352964dad2a21f9dcb1075d5055472dfb57e5e22a1ba28f3a090c6",
+      "mode": "100644",
+      "required_by": [
+        "endpoint/index.ts",
+        "scripts/osworld_061_3d_audit.py",
+        "scripts/osworld_061_blindspot_audit.py",
+        "scripts/osworld_061_champion_audit.py",
+        "scripts/test_endpoint.mjs",
+        "scripts/test_osworld_master_invariants.py",
+        "scripts/test_osworld_workflow_watchdog.py"
+      ]
+    },
+    {
+      "path": ".github/workflows/osworld-v32-policy-gate.yml",
+      "blob_sha": "ecbe152e19a0690ce4890a1e65936c3b929814d8",
+      "sha256": "1e2caed60069d43b2fdceb57b2e96170d2ec829e7243cad9290fc5c6ee67eb39",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test",
+        "scripts/test_endpoint.mjs"
+      ]
+    },
+    {
+      "path": "endpoint/index.ts",
+      "blob_sha": "dfb12c4c196a44064da2888b9c8f96f6dc91b792",
+      "sha256": "c91f6ef9e15dde53221874c55a240e40b58829c6dc599100d5d0d6d010e2f1b0",
+      "mode": "100644",
+      "required_by": [
+        "scripts/test_osworld_master_invariants.py"
+      ]
+    },
+    {
+      "path": "reports/historical-workflows/osworld-sovereign-e2e-v31.yml",
+      "blob_sha": "ba117c5dcbb2d5191b2a3789dbd6bd52fc6f4590",
+      "sha256": "0cac98fbb6faf1700c6d1cf3a674a26a1a5b33030f4e26e26c68bb34349c8290",
+      "mode": "100644",
+      "required_by": [
+        "scripts/test_osworld_master_invariants.py"
+      ]
+    },
+    {
+      "path": "reports/historical-workflows/osworld-v31-official-108.yml",
+      "blob_sha": "bb68bf1ffe432bfb89e20556604b90ad5243bc4e",
+      "sha256": "3855dbc105814eb341fd27c6799500430459670182c33fd80b68481d85db5a94",
+      "mode": "100644",
+      "required_by": [
+        "scripts/test_osworld_master_invariants.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_061_3d_audit.py",
+      "blob_sha": "be577d9b3979985658d0fc6e56e00afcd0863fdd",
+      "sha256": "fb07c671e02f757670fb4cd3d0858385307f26f7baa099f5f7cc39a37fa4bf9b",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-061-world-audit.yml",
+        ".github/workflows/osworld-v32-official-18.yml",
+        "scripts/test_osworld_workflow_watchdog.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_061_blindspot_audit.py",
+      "blob_sha": "a5cfded02cf316703147a27e41e1ed88f29353c2",
+      "sha256": "0178e2a28c4d1fcd79c9160af52e9a6a950004d8bfab4576c6a824ac039edac2",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-v32-official-18.yml"
+      ]
+    },
+    {
+      "path": "scripts/osworld_061_calibrated_grade.py",
+      "blob_sha": "8072deeb0f3be1d9e17ad26929204865d20bab37",
+      "sha256": "5076cfd7106449841bc7b57440e139d31ba82a724eb93cd079844cc6a5eaf272",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-061-world-audit.yml",
+        ".github/workflows/osworld-gimp-sample-probe.yml",
+        "scripts/osworld_061_3d_audit.py",
+        "scripts/osworld_061_calibrated_probe.py",
+        "scripts/osworld_061_champion_audit.py",
+        "scripts/osworld_061_specialist_swarm.py",
+        "scripts/osworld_free_mesh_shim.py",
+        "scripts/test_osworld_061_calibrated_grade.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_061_calibrated_probe.py",
+      "blob_sha": "b496742160ef50e4de7a6d1ac3ff96fd728bb907",
+      "sha256": "7fe9e363b86349aeb62a22d378210af2a8825720514b0abb74878289db4c5ad1",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-gimp-sample-probe.yml"
+      ]
+    },
+    {
+      "path": "scripts/osworld_061_champion.py",
+      "blob_sha": "2e093d8c87bad41c681da5e2c159430d54329edb",
+      "sha256": "3fc0517f16ef6d0fe7665c1f9be10b5a810681d7ba8308623fd5c2dd83939914",
+      "mode": "100644",
+      "required_by": [
+        "scripts/osworld_061_blindspot_audit.py",
+        "scripts/osworld_061_champion_audit.py",
+        "scripts/osworld_gimp_style_transfer.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_061_champion_audit.py",
+      "blob_sha": "78b380556d16d316bc7664009adc3dc0ee6b3170",
+      "sha256": "55d55a29356e44932f692ef6b43720e0a134b46cdddce8c2ae7bcc813aebf66e",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-061-world-audit.yml",
+        ".github/workflows/osworld-v32-official-18.yml",
+        "scripts/osworld_061_3d_audit.py",
+        "scripts/test_osworld_workflow_watchdog.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_061_evidence_aware_swarm.py",
+      "blob_sha": "c39a45bcbdb198328e3917d6f9ce7e65510210f1",
+      "sha256": "fd551395428a1ceb26e93712f9e5c31191cc43bf72747ab4571bb6ba6be7b31f",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-061-world-audit.yml",
+        "scripts/osworld_061_3d_audit.py",
+        "scripts/osworld_061_performance_swarm.py",
+        "scripts/test_osworld_workflow_watchdog.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_061_evidence_bundle.py",
+      "blob_sha": "729632f5b29bfde82e96fb31156d04fd6172aca3",
+      "sha256": "69e9b832c8b160b848d698e3b31ba361521a62691e2595f9c32bd9faecc83783",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-061-world-audit.yml",
+        "scripts/test_osworld_061_evidence_bundle.py",
+        "scripts/test_osworld_workflow_watchdog.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_061_heavy_runtime_preflight.py",
+      "blob_sha": "b03246aaae4c8d93f5b6df5d682a19ba99c3dcc5",
+      "sha256": "27e6003f08c137078722f6ed292c786394a63163c32be2e876bc618bcc2fbc5a",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-061-world-audit.yml",
+        "scripts/test_osworld_061_heavy_runtime_preflight.py",
+        "scripts/test_osworld_workflow_watchdog.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_061_lane_receipt.py",
+      "blob_sha": "56706eca6da17baafe47335034f2b53c6d29c3c4",
+      "sha256": "b90366e62639c5d0a7d30c313cb6372aba097a1b0a36495a0040c9c5f46022a4",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-061-world-audit.yml",
+        "scripts/test_osworld_061_lane_receipt.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_061_performance_swarm.py",
+      "blob_sha": "027b98376c1d65f9dffac4dd058cbc87f16df96a",
+      "sha256": "aa7c53e3778b6f233c604f666b59e169ce0cfbe48dc2ce0d8f09e2b0bdbe27e4",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-061-world-audit.yml",
+        "scripts/test_osworld_061_performance_swarm.py",
+        "scripts/test_osworld_workflow_watchdog.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_061_specialist_swarm.py",
+      "blob_sha": "745673e7da0cac6351ad38f7639c4ce4cbc2c2b9",
+      "sha256": "a255d92880c41c509c0e89a970c4004a7b40fe8ab508c9db1d2baf0971e76548",
+      "mode": "100644",
+      "required_by": [
+        "scripts/osworld_061_evidence_aware_swarm.py",
+        "scripts/osworld_061_performance_swarm.py",
+        "scripts/test_osworld_061_performance_swarm.py",
+        "scripts/test_osworld_061_specialist_swarm.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_061_trusted_replay.py",
+      "blob_sha": "9414513a49997b83e3ff91f4c3f4c2c06c725a3c",
+      "sha256": "12cac0d82443cb3c854294b2999485676474bcb4bd9cea476932bef242dc9ad2",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-061-world-audit.yml"
+      ]
+    },
+    {
+      "path": "scripts/osworld_control.py",
+      "blob_sha": "c4d79b223b013409bcc599f539db7bb14509a4b3",
+      "sha256": "d84e9ea8e8aba362d3378a8d6f7693ee04aeadbfb8cac2aa22c67331406b88b5",
+      "mode": "100644",
+      "required_by": [
+        "scripts/osworld_free_mesh_shim.py",
+        "scripts/osworld_gimp_sample_probe.py",
+        "scripts/osworld_groq_free.py",
+        "scripts/osworld_local_vlm.py",
+        "scripts/osworld_mesh_preflight.py",
+        "scripts/osworld_milestones.py",
+        "scripts/osworld_openrouter_free.py",
+        "scripts/osworld_v32_preflight.py",
+        "scripts/replay_osworld_run30.py",
+        "scripts/test_osworld_gimp_specialist_integration.py",
+        "scripts/test_osworld_local_vlm.py",
+        "scripts/test_osworld_mesh.py",
+        "scripts/test_osworld_regressions.py",
+        "scripts/test_osworld_v32_policy.py",
+        "scripts/test_osworld_wps_foreground.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_docker_volume.py",
+      "blob_sha": "0a1a3dca4a55c64d78f44164b952f352c4178d89",
+      "sha256": "7281107652359be8e70c28f19a425842a4b711455218a29a647ad17af153bdae",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-gimp-sample-probe.yml",
+        ".github/workflows/osworld-v32-focal-091-free.yml",
+        ".github/workflows/osworld-v32-official-18.yml",
+        "scripts/osworld_vm_reset_probe.py",
+        "scripts/test_osworld_docker_volume.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_elite_controller.py",
+      "blob_sha": "b9141bfa0f662861e2ce397dd8854cfdfdb0cab2",
+      "sha256": "560252ba4eab7cb29dcd59a1d14acde91575bacdf0b60bb0222a80f04d3cdec5",
+      "mode": "100644",
+      "required_by": [
+        "scripts/osworld_free_mesh_shim.py",
+        "scripts/test_osworld_elite_controller.py",
+        "scripts/test_osworld_gimp_specialist_integration.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_evidence.py",
+      "blob_sha": "b0d96960bd1be8cc6a65d1333f2fed7e1602a82d",
+      "sha256": "867b1e31f64ade63e9b2304b01503c9692e65198062f6414fade168aa0e9424e",
+      "mode": "100644",
+      "required_by": [
+        "reports/historical-workflows/osworld-sovereign-e2e-v31.yml",
+        "scripts/osworld_v32_gate.py",
+        "scripts/osworld_vm_reset_probe.py",
+        "scripts/test_osworld_evidence.py",
+        "scripts/test_osworld_v32_gate.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_free_judge.py",
+      "blob_sha": "50826d1234291ea1856b83b7e11804577afb84ff",
+      "sha256": "3695350e753c696b2738aaa03b07ee3763f1a2af7430691f66fe3826ceaa0eb2",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-v32-focal-091-free.yml",
+        ".github/workflows/osworld-v32-official-18.yml",
+        "scripts/test_osworld_free_judge.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_free_mesh_shim.py",
+      "blob_sha": "fde9567a060bc07836a6ef15d38e05d574101dba",
+      "sha256": "71795ef8fbc1edfb5b1b5ff9d6e2e67badd3e530be801f7066f65305ab4e091d",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-061-world-audit.yml",
+        ".github/workflows/osworld-gimp-sample-probe.yml",
+        ".github/workflows/osworld-v32-cloud-matrix.yml",
+        ".github/workflows/osworld-v32-focal-091-free.yml",
+        ".github/workflows/osworld-v32-official-18.yml",
+        ".github/workflows/osworld-v32-policy-gate.yml",
+        "reports/historical-workflows/osworld-sovereign-e2e-v31.yml",
+        "reports/historical-workflows/osworld-v31-official-108.yml",
+        "scripts/osworld_061_3d_audit.py",
+        "scripts/osworld_061_champion_audit.py",
+        "scripts/osworld_061_specialist_swarm.py",
+        "scripts/osworld_mesh_preflight.py",
+        "scripts/osworld_v32_cloud_matrix.py",
+        "scripts/osworld_v32_preflight.py",
+        "scripts/test_osworld_failover_matrix.py",
+        "scripts/test_osworld_gimp_specialist_integration.py",
+        "scripts/test_osworld_master_invariants.py",
+        "scripts/test_osworld_mesh.py",
+        "scripts/test_osworld_v32_policy.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_gimp_sample_probe.py",
+      "blob_sha": "651414ee6d792cd0fd4ac66a6c5b089d679b8e3d",
+      "sha256": "66003e5ed1cfbc3b4f9ea3ad52e11a0968c06c5ee9aa84fac2a85abd42484c8c",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-gimp-sample-probe.yml",
+        "scripts/osworld_061_3d_audit.py",
+        "scripts/osworld_061_blindspot_audit.py",
+        "scripts/test_osworld_gimp_sample_probe.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_gimp_style_transfer.py",
+      "blob_sha": "2ddeafeecc2c668baa913e0eb963a7ed81b0bf86",
+      "sha256": "8ae3cee1bfe15323808c477c52639b824ab459b2070b4415f5252e8ca3e74c05",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-061-world-audit.yml",
+        ".github/workflows/osworld-gimp-sample-probe.yml",
+        "scripts/osworld_061_3d_audit.py",
+        "scripts/osworld_061_blindspot_audit.py",
+        "scripts/osworld_061_calibrated_grade.py",
+        "scripts/osworld_061_champion_audit.py",
+        "scripts/osworld_061_specialist_swarm.py",
+        "scripts/osworld_free_mesh_shim.py",
+        "scripts/osworld_gimp_sample_probe.py",
+        "scripts/test_osworld_gimp_style_transfer.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_groq_free.py",
+      "blob_sha": "60c917be561ccd2d67aece4379c48af82539fb69",
+      "sha256": "70adb38b270247004f975defbc88cfcf09b41b8105d7b8aff4228d5a5a505954",
+      "mode": "100644",
+      "required_by": [
+        "scripts/osworld_061_performance_swarm.py",
+        "scripts/osworld_061_specialist_swarm.py",
+        "scripts/osworld_free_judge.py",
+        "scripts/osworld_free_mesh_shim.py",
+        "scripts/osworld_incident_consensus.py",
+        "scripts/test_osworld_groq_free.py",
+        "scripts/test_osworld_groq_local_fallback.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_incident_consensus.py",
+      "blob_sha": "eab44281ca2ab89f6a086676c10111ca4ed6cbf0",
+      "sha256": "dae3654e1ff0d42bade368c036200d241c586b96a1b0f15ad2244e7120c90809",
+      "mode": "100644",
+      "required_by": [
+        "scripts/osworld_061_specialist_swarm.py",
+        "scripts/test_osworld_incident_consensus.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_ingress.py",
+      "blob_sha": "8fcb94915d501c3de74a1fcd43faa9870263c9e0",
+      "sha256": "ba22f19e71180837fcc5fb6acb1fe0c1dc373ffbd40a9b0cf497bb5e32bd4a89",
+      "mode": "100644",
+      "required_by": [
+        "scripts/osworld_free_mesh_shim.py",
+        "scripts/test_osworld_ingress.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_judge_audit.py",
+      "blob_sha": "283efce9b6d1d4d80dea2a45321e999f98d0cfa0",
+      "sha256": "fe02d96d0addfd2f942fb52d4cbc39a81d79563177eda0a2c163bfce5f357550",
+      "mode": "100644",
+      "required_by": [
+        "scripts/osworld_v32_gate.py",
+        "scripts/test_osworld_judge_audit.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_local_text_review.py",
+      "blob_sha": "459d846c094cefff7bfb2a3a967f870ea3cbe3cb",
+      "sha256": "080f81a67c846d70f336bf668fc0c314125b20a4ac19eabe19932312516fe9c8",
+      "mode": "100644",
+      "required_by": [
+        "scripts/osworld_061_specialist_swarm.py",
+        "scripts/osworld_incident_consensus.py",
+        "scripts/test_osworld_local_text_review.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_local_vlm.py",
+      "blob_sha": "70e757a67dec2c81a84411b5c0a2d1c7ae9d9812",
+      "sha256": "07ecbe36e6f0a7ee5b1cd8845c43ecf5ff6c18647bfc5ec160ffe45c6b60e97c",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-gimp-sample-probe.yml",
+        "scripts/osworld_061_specialist_swarm.py",
+        "scripts/osworld_free_judge.py",
+        "scripts/osworld_free_mesh_shim.py",
+        "scripts/osworld_groq_free.py",
+        "scripts/osworld_incident_consensus.py",
+        "scripts/osworld_local_vlm_smoke.py",
+        "scripts/osworld_v32_preflight.py",
+        "scripts/replay_091_local_contract.py",
+        "scripts/test_osworld_local_vlm.py",
+        "scripts/test_osworld_master_invariants.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_local_vlm_smoke.py",
+      "blob_sha": "c2df6eb93942267fde86717f46f4a418d9c5b7a0",
+      "sha256": "e0ac31e7fca9f3e38ef20e1d7cf7f885e114b9a1cf17287fd63aae0096f77b8d",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-v32-official-18.yml"
+      ]
+    },
+    {
+      "path": "scripts/osworld_mesh_preflight.py",
+      "blob_sha": "88058fe7a08e68772b26d8d59dfa03a2fe9523e4",
+      "sha256": "af85be1304b362f4295181979c481471a702cb70e2634d776484a40a045ddcfa",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-v32-cloud-matrix.yml",
+        "reports/historical-workflows/osworld-sovereign-e2e-v31.yml",
+        "reports/historical-workflows/osworld-v31-official-108.yml",
+        "scripts/osworld_v32_cloud_matrix.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_milestones.py",
+      "blob_sha": "2124de041e24f3a70429c44c530da9109c60347e",
+      "sha256": "0b0b040bbdcc6e8a4fb3b10baf4ff76050806a05d66968189be768f9eabc4c6f",
+      "mode": "100644",
+      "required_by": [
+        "scripts/osworld_free_mesh_shim.py",
+        "scripts/test_osworld_gimp_specialist_integration.py",
+        "scripts/test_osworld_milestones.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_openrouter_free.py",
+      "blob_sha": "dad0f6c86893fefc78b39529199f22ebd38a46d3",
+      "sha256": "57d78d2249d4c0880e1ada76c2ca76b4923d6a8e884d9b8fdfe437d19c177c34",
+      "mode": "100644",
+      "required_by": [
+        "scripts/osworld_061_performance_swarm.py",
+        "scripts/osworld_061_specialist_swarm.py",
+        "scripts/osworld_free_judge.py",
+        "scripts/osworld_free_mesh_shim.py",
+        "scripts/osworld_groq_free.py",
+        "scripts/osworld_incident_consensus.py",
+        "scripts/osworld_judge_audit.py",
+        "scripts/osworld_v32_preflight.py",
+        "scripts/test_osworld_free_judge.py",
+        "scripts/test_osworld_openrouter_free.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_recovery.py",
+      "blob_sha": "6adf0d55667dc8a571bab5a13c574671a78452fe",
+      "sha256": "57483d0e88c8f118cb63e9b3b4ca7cd11dd6618d60baf9fc7368e0355affab72",
+      "mode": "100644",
+      "required_by": [
+        "scripts/osworld_free_mesh_shim.py",
+        "scripts/test_osworld_recovery.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_v32_cloud_matrix.py",
+      "blob_sha": "8235c593a24cc437446be092835305a44cb522df",
+      "sha256": "0a29ed1f391261715acc35ee48b935830cc43e3c38ca80d82ddc64ef8fb33e4b",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-v32-cloud-matrix.yml"
+      ]
+    },
+    {
+      "path": "scripts/osworld_v32_gate.py",
+      "blob_sha": "bd91d9097ce0583235eec881498abbca9d69069f",
+      "sha256": "6bdd31373a3431cd39966a29a2a11921f7b987090a8c75982f840d616417a788",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-v32-focal-091-free.yml",
+        ".github/workflows/osworld-v32-official-18.yml",
+        "scripts/osworld_061_3d_audit.py",
+        "scripts/osworld_061_blindspot_audit.py",
+        "scripts/osworld_061_champion_audit.py",
+        "scripts/test_osworld_v32_gate.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_v32_historical_gate.py",
+      "blob_sha": "51383308f2e4a9b5d4cd008193f03eacc2f93c3c",
+      "sha256": "582e93d869cac1fdc03500c0f33a815f4c2d71a5e7f906c53e315fa181b1e7d3",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-v32-policy-gate.yml"
+      ]
+    },
+    {
+      "path": "scripts/osworld_v32_integrity.py",
+      "blob_sha": "544c7534b49a12e2a1637d587113933f9b9f2882",
+      "sha256": "e76646bfb07826d53927b600b7dc972d53d07b58ae88fa7c1357cc05e0052908",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-v32-focal-091-free.yml",
+        ".github/workflows/osworld-v32-official-18.yml"
+      ]
+    },
+    {
+      "path": "scripts/osworld_v32_matrix_aggregate.py",
+      "blob_sha": "4d49cefe4feba8d9b81dfb85307422d426f15d36",
+      "sha256": "4e7d70ad86d893d67100366f1e2eecbd46634d0da7b3198b7571e2f156a455cd",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-v32-cloud-matrix.yml"
+      ]
+    },
+    {
+      "path": "scripts/osworld_v32_policy.py",
+      "blob_sha": "d6ca0c89de65a871df305495f075f6c77c2c93fd",
+      "sha256": "ec4ca2d0794a56ec378acb0d030a5147a3949cdce6560b1a3158fe70561809ac",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-v32-policy-gate.yml",
+        "scripts/osworld_free_mesh_shim.py",
+        "scripts/osworld_mesh_preflight.py",
+        "scripts/osworld_v32_cloud_matrix.py",
+        "scripts/osworld_v32_historical_gate.py",
+        "scripts/osworld_v32_regression_gate.py",
+        "scripts/test_osworld_v32_policy.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_v32_preflight.py",
+      "blob_sha": "0e433a6b5948b257b9cfecd81ea8c9c5bf0a1862",
+      "sha256": "ae462502450882c859ded2f1d5ceb381d9124b002ea695ae6e5254c138fa8c78",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-v32-official-18.yml",
+        "scripts/test_osworld_master_invariants.py",
+        "scripts/test_osworld_v32_preflight.py"
+      ]
+    },
+    {
+      "path": "scripts/osworld_v32_regression_gate.py",
+      "blob_sha": "9280fc4a959490e977c9675cd22d0a70aff9a7f4",
+      "sha256": "df13ffebfaecc6b264d647ac6c1576681f8c027cc45a11feef2fdad3ec5a9865",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-v32-policy-gate.yml"
+      ]
+    },
+    {
+      "path": "scripts/osworld_vm_reset_probe.py",
+      "blob_sha": "263b96c879abea6e372d545a78f6bacc9db62ac1",
+      "sha256": "1a2369fb7dc8034fbaa0ee1a2f46db49d5ccf064832f846b5a96a2fe74bee19a",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-v32-official-18.yml"
+      ]
+    },
+    {
+      "path": "scripts/osworld_vm_upload.py",
+      "blob_sha": "dd5dc79bc31d5693956af91566379252bed37047",
+      "sha256": "60137a07db799ed3b3949f5f8931d5f8af6ac83747f0cb34f651a232a1aaecb1",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-gimp-sample-probe.yml",
+        ".github/workflows/osworld-v32-focal-091-free.yml",
+        ".github/workflows/osworld-v32-official-18.yml",
+        "scripts/osworld_vm_reset_probe.py",
+        "scripts/test_osworld_vm_upload.py"
+      ]
+    },
+    {
+      "path": "scripts/replay_091_local_contract.py",
+      "blob_sha": "b6fb1edb739c70a268b954baff31fadfeb2037b0",
+      "sha256": "3d4acab5feb38c3b8b97daec32ef74829350753adb5e1f0d7a6325926ffa6c3a",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/arbm-091-local-contract-replay.yml",
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/replay_osworld_run30.py",
+      "blob_sha": "c7887a7ad6ca79a52744a8b764d2d55e1607b597",
+      "sha256": "7dd112c8fd80c1cb3e45af3f9061c0952b4bf745b20f3c2215902eff2026965c",
+      "mode": "100644",
+      "required_by": [
+        "reports/historical-workflows/osworld-sovereign-e2e-v31.yml",
+        "scripts/osworld_mesh_preflight.py",
+        "scripts/osworld_v32_historical_gate.py"
+      ]
+    },
+    {
+      "path": "scripts/requirements-osworld.txt",
+      "blob_sha": "07e2e78b0848fd63efe311c65df581d68fa78af2",
+      "sha256": "cf2c2e62d3020187b5858768fab00b2a9a21b6d394bf2e83fc517e612d8278cc",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/arbm-091-local-contract-replay.yml",
+        ".github/workflows/osworld-061-world-audit.yml",
+        ".github/workflows/osworld-v32-cloud-matrix.yml",
+        ".github/workflows/osworld-v32-focal-091-free.yml",
+        ".github/workflows/osworld-v32-official-18.yml",
+        ".github/workflows/osworld-v32-policy-gate.yml",
+        "entrypoint-or-preserved-regression-test",
+        "reports/historical-workflows/osworld-sovereign-e2e-v31.yml"
+      ]
+    },
+    {
+      "path": "scripts/test_endpoint.mjs",
+      "blob_sha": "5a2df93d79f2d8a66ce789d5511b21456bc9dca0",
+      "sha256": "4ba7df1ca91db1175c414877b348073366373eb45d305a1c90a05a429c8d3441",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-v32-official-18.yml",
+        "reports/historical-workflows/osworld-sovereign-e2e-v31.yml"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_061_calibrated_grade.py",
+      "blob_sha": "a680c3595e2ad3a0c4a76c127cd710cee879347b",
+      "sha256": "c0bd06d1566d75a036e2a4e9494e2474ec4f8474427dc809a034834603412eb5",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_061_evidence_bundle.py",
+      "blob_sha": "97aff4394d717453187190ed44e3f7e7f80622b5",
+      "sha256": "1416cb212cebac7ccf0ae97698cf0e33158da5ed23bfce8225f035e2cfbeac17",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_061_heavy_runtime_preflight.py",
+      "blob_sha": "727a71764d7090b81651f79108f5dd9c90ce1e35",
+      "sha256": "7b622ab76feba1c5db7e6e5b2efbb00391577abbaf037df4c23f8ee84e3c2cf7",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_061_lane_receipt.py",
+      "blob_sha": "c3f0850b9aeea923196293014f4b7468401d1a2e",
+      "sha256": "a4ec4a53beef1f21df6c5ed61dc8cddb9afb521fbe7ece1844d543c3ca6d4142",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_061_performance_swarm.py",
+      "blob_sha": "7f44b93490d3624b2e37fc9de2c1ac41ba5c9fed",
+      "sha256": "ebc09448ab37766453fe6dca16a5ffe18977164cd3c13c44fb2047bcb3157f4a",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_061_specialist_swarm.py",
+      "blob_sha": "a780e7708f90e97c8e019678a8be96c0003de8e0",
+      "sha256": "fc4998c6df18e1f2979080ce661a15812f2cb50842f332245bf8af8e22ee691b",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_contract_dynamic_v31l.py",
+      "blob_sha": "2b83306e19dfbe84ecc09d0387370a295ddaa681",
+      "sha256": "efa8ce62ed4a0e0c0b0e5a99ce48288d6a7e25491ef5d79942d934ae32476e02",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_contract_v31l.py",
+      "blob_sha": "dbad6897589acdf760b874456ace43af420b449c",
+      "sha256": "69751fa4e17815190e29dbd51defbb2075117407be77f1ec879e78731ccc8773",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_docker_volume.py",
+      "blob_sha": "c8729660d3c8a0417891c36536f6ab4fc4fabe4e",
+      "sha256": "f65a0fe1260907e41f29291c2915d413bf9847adfafa0e680ae36d7e667ea5f6",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_elite_controller.py",
+      "blob_sha": "812828616e6dd2daa1659cf6197cdabac4046025",
+      "sha256": "dbfd2266138b2c281d9d9c0e5de1b4413718018640cb2d3fe35c1c6b874379e6",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_evidence.py",
+      "blob_sha": "1f53836a3772662ab83481c51491d86f0dfc90e1",
+      "sha256": "917fd808ebc6bd7abb419f6cebe388c894e10e478b57c23c78358d037033f61c",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_failover_matrix.py",
+      "blob_sha": "fa572a0a4881a2535d4f41a1ef2c248fa0d2067e",
+      "sha256": "a736c30bb9cc51058e37861148a86377183591c438f8e434cc16de1c1265bf0e",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-v32-focal-091-free.yml",
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_free_judge.py",
+      "blob_sha": "e903f8b7e420722b63d72c903f0f99bdd4d4b82c",
+      "sha256": "b989d8c869b4974a2f8ae23efb60ba30ecbd81381a21c00884f468f2b53c3721",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_gimp_sample_probe.py",
+      "blob_sha": "9ea14952403c1028a795c57e6d901a6927a15a3e",
+      "sha256": "8425ea3dbff82028197c1ef645e71e3ee69da455e630987647e7c402d31228a9",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_gimp_specialist_integration.py",
+      "blob_sha": "a486c689bf17f58292880561407567dd701b845a",
+      "sha256": "a78f29ea3ab41c0dfbb451d663b0bc2845917b8db42b6e3f4c7e3c29817f1a9e",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test",
+        "scripts/osworld_061_champion_audit.py"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_gimp_style_transfer.py",
+      "blob_sha": "29309a42f808b9bc362fceb2efa74865979f8462",
+      "sha256": "802f6407a8caa0f0f8041b375b13ea49e5b24c43697f63876b6205ea2c480de3",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test",
+        "scripts/osworld_061_champion_audit.py"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_groq_free.py",
+      "blob_sha": "bab9ec1a489b3a32aa1337ee9588ba14c0dcf6ad",
+      "sha256": "f5ffd5b71dcbad39a7901bf62ab0adaafe10e485b7ccecc5584517260dca7b4f",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-v32-focal-091-free.yml",
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_groq_local_fallback.py",
+      "blob_sha": "47912d5b1760cfe19becd8fa748500e7c4fb0272",
+      "sha256": "e3ac629b4b2afe6d7685ebf1c40627f3389e66a9ea5385a256d87e6d6e16ff46",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-v32-focal-091-free.yml",
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_incident_consensus.py",
+      "blob_sha": "1bfc0d9c151b2f9ac593dd4f48d2a635e2cc71d6",
+      "sha256": "4335db3daba94cf25d55731947074e25f738ae25ff35e10cbe75a03d7481faf7",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_ingress.py",
+      "blob_sha": "6fdd05cb55238bf2d395b803617e31a0c579bc61",
+      "sha256": "f81052942614c6e65d02a468524004e6fd011cdcfb89ede300bf6845e99b9e69",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_judge_audit.py",
+      "blob_sha": "c76cdfa0aee72ece6fa49c3192af8b12bbca3ad6",
+      "sha256": "752f8e6d04f7ef0cfba8d36259d72ff2ad6ae2aeba04bbac1e248aeb4678899b",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_local_text_review.py",
+      "blob_sha": "ea926f29c3010b26cb856c3e18ead67eff67d77e",
+      "sha256": "6e184a2c9c7c4e08644bb36d14e1096bc5eb8575bbcc5880f3477cb0003ff5be",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_local_vlm.py",
+      "blob_sha": "5ecbeda31dfcde1c436294a01b16a8b795b4b574",
+      "sha256": "4e682b2bd54aa31e732bee69d4437c34fdb99292c939e558247ed9300d080297",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_master_invariants.py",
+      "blob_sha": "650e57be250bcd7c04b5c4f4046fc2ac840120cf",
+      "sha256": "dbda4e1deddb064191ee362df3c8261f2fed10b4238f38a0839fe0f947d3feab",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_mesh.py",
+      "blob_sha": "864f1efa7364cdc6635c054ede9f20329fba57dc",
+      "sha256": "bc23e134ce0e39aec8b2dd08651651e06263c0b4ec6fd932f5eede1eebc67e5a",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_milestones.py",
+      "blob_sha": "99beaef6aec1c96ad00ab626100778e861ec7ca5",
+      "sha256": "c513e0d192f00d73e762fcca262413d9db33575aa51ceb5b3d9e9c6974ef1737",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_openrouter_free.py",
+      "blob_sha": "3b407832011d7bb98a09c6ed85c989b3967fb631",
+      "sha256": "e631c0963216662cfd2c481aa2c2a10d422c2c82a5457184e11c38e4ea628cd4",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_recovery.py",
+      "blob_sha": "cd7f605a9e04f851b83d9d1004571f6c0b285b9e",
+      "sha256": "67a393c3f0dd7c9f664ff12a9a84230d8ba207fc61cfae63dec686f10cd42399",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_regressions.py",
+      "blob_sha": "5146afd0f6adef206989554bc1f1a635d69e9bd4",
+      "sha256": "d78efd9a5c3fee030df8580e2b2408489a4e3eeb603a3022990eace0b67e61c1",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_v32_gate.py",
+      "blob_sha": "9beb8fd27ffb1e4afbe2062e806463ae82e461fe",
+      "sha256": "d556746246ec96410acd8f236c96cb911af967fbc4b14cef10bcab7d32b2e966",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_v32_policy.py",
+      "blob_sha": "97f1c55bc1e6d84701dc9e59ed87ca91c1087094",
+      "sha256": "841a4a45d56ada4548f7dcfbb33e67c9c1b35bcd9905fd245bee2afc937a2af8",
+      "mode": "100644",
+      "required_by": [
+        ".github/workflows/osworld-v32-policy-gate.yml",
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_v32_preflight.py",
+      "blob_sha": "ec23e13a7bda0574a9a4668462bec3584138ce28",
+      "sha256": "cfb96c5a4ea4cae0ea69359608176fc3e6219df1fbae7d495cc5adfe98aee6c6",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_vm_upload.py",
+      "blob_sha": "486a6aca3d065037e9fd71d5101378fe6ac321dd",
+      "sha256": "73a2fe2fa97d8bb0b9ada3e57f67f7f92f65631c8f759cf1787d3916a194e2cf",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_workflow_watchdog.py",
+      "blob_sha": "94c37c6a00bd1f4c5fc243d802da7efc58db5477",
+      "sha256": "366c13e103c8852ebecb4768e44486d1546bdf32860591ba974bdc6dd6942816",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    },
+    {
+      "path": "scripts/test_osworld_wps_foreground.py",
+      "blob_sha": "7b36b8161020ba5c707a6c0ec56d8a396b5bf827",
+      "sha256": "7e2cfeedc4c5a70e24cb57be0d8dfca1407520196196e2978ed1ab160fdf5865",
+      "mode": "100644",
+      "required_by": [
+        "entrypoint-or-preserved-regression-test"
+      ]
+    }
+  ]
+}
