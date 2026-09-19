@@ -115,6 +115,34 @@ class ForegroundTests(unittest.TestCase):
         body = snapshot(WORKBOOK + ' - LibreOffice Calc', 'soffice.Soffice')
         self.assertEqual(preflight("pyautogui.press('down')", body), 'reference')
 
+    def test_exact_wps_bootstrap_root_allows_only_nondestructive_wait_or_escape(self):
+        body = snapshot('WPS Office', 'wpsoffice wpsoffice', pid=3019)
+        body['window']['owner_title'] = ''
+        body['window']['bbox'] = [70, 27, 1850, 1053]
+        body['target'] = None
+        body['deck_file'] = {}
+        body['deck_slide_text'] = {}
+        body['deck_slide_shapes'] = {}
+        self.assertEqual(classify(body['window']), 'wps-transient')
+        self.assertEqual(preflight('pyautogui.sleep(0.2)', body), 'wps-transient')
+        self.assertEqual(preflight("pyautogui.press('esc')", body), 'wps-transient')
+        with self.assertRaisesRegex(ValueError, 'DEFAULT_OFFICE_ACTION_FORBIDDEN'):
+            preflight("pyautogui.press('enter')", body)
+
+    def test_wps_bootstrap_root_requires_exact_class_and_geometry(self):
+        body = snapshot('WPS Office', 'wpsoffice wpsoffice', pid=3019)
+        body['window']['owner_title'] = ''
+        body['window']['bbox'] = [70, 27, 1850, 1053]
+        body['target'] = None
+        wrong_box = copy.deepcopy(body)
+        wrong_box['window']['bbox'] = [71, 27, 1849, 1053]
+        with self.assertRaisesRegex(ValueError, 'UNAPPROVED_APPLICATION'):
+            preflight('pyautogui.sleep(0.2)', wrong_box)
+        wrong_class = copy.deepcopy(body)
+        wrong_class['window']['wm_class'] = 'chrome chrome'
+        with self.assertRaisesRegex(ValueError, 'UNAPPROVED_APPLICATION'):
+            preflight('pyautogui.sleep(0.2)', wrong_class)
+
     def test_blank_libreoffice_impress_is_not_wps(self):
         body = snapshot('Untitled 1 - LibreOffice Impress', 'soffice.Soffice')
         with self.assertRaisesRegex(ValueError, 'UNAPPROVED'):
