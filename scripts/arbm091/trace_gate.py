@@ -92,9 +92,15 @@ def is_authorized_wps_transient(window: dict) -> bool:
         return False
     title=str(window.get('title', '')).strip().casefold()
     owner=str(window.get('owner_title', '')).strip().casefold()
-    return (_is_wps_class(window.get('wm_class', ''))
-            and DECK.casefold() in owner
-            and title in {'system check','wps office','set wps office as your default office software'})
+    klass=str(window.get('wm_class', '')).strip().casefold()
+    deck_owned=(_is_wps_class(klass)
+                and DECK.casefold() in owner
+                and title in {'system check','wps office','set wps office as your default office software'})
+    bootstrap_root=(title == 'wps office'
+                    and owner == ''
+                    and klass == 'wpsoffice wpsoffice'
+                    and window.get('bbox') == TASK091_CANONICAL_WINDOW)
+    return deck_owned or bootstrap_root
 
 
 def _is_legacy_wps_modal(window: dict) -> bool:
