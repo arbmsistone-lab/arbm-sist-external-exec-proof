@@ -47,7 +47,7 @@ jobs:
         working-directory: target
         run: |
           set -euo pipefail
-          python3 arbm-control-isolation-tests.py | tee /tmp/p06-python-isolation.log
+          python3 arbm-control-isolation-tests.py 2>&1 | tee /tmp/p06-python-isolation.log
           grep -F "OK" /tmp/p06-python-isolation.log
           echo "P06_CONTROL_ISOLATION=PASS"
 
@@ -56,7 +56,7 @@ jobs:
         working-directory: target
         run: |
           set -euo pipefail
-          python3 arbm-evidence-fault-tests.py | tee /tmp/p06-python-faults.log
+          python3 arbm-evidence-fault-tests.py 2>&1 | tee /tmp/p06-python-faults.log
           grep -F "OK" /tmp/p06-python-faults.log
           echo "P06_EVIDENCE_FAULTS=PASS"
 
