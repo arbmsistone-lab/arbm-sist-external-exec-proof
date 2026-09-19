@@ -599,7 +599,7 @@ def _task091_prepare_atomic_repair(pending, window_state, state):
         'foreground_sha256':repaired_target['foreground_sha256'],
         'deck_sha256':repaired_target['deck_sha256'],
         'proof_sha256':repaired_target['proof_sha256']})
-    command=f"pyautogui.click({cx}, {cy})"
+    command=f"pyautogui.doubleClick({cx}, {cy}, interval=0.08)"
     return {'action':'exec','command':command,'target':repaired_target,
             'plan':'Select the freshly observed signed textbox for exactly one atomic repair mutation; the next mutation is forbidden until this delta is persisted and verified.',
             'specialist_phase':'repair-select-pending-target'}
