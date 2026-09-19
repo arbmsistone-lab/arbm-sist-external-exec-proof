@@ -100,6 +100,7 @@ def catalog_admission(model):
     agent = load_agent()
     if model not in agent.ALLOWED_MODELS:
         raise RuntimeError('MODEL_NOT_ALLOWLISTED')
+    # URL is a fixed source literal with no external/user influence. nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
     with urllib.request.urlopen('https://openrouter.ai/api/v1/models', timeout=20) as response:
         models = json.load(response)['data']
     item = next((r for r in models if r['id'] == model), None)
