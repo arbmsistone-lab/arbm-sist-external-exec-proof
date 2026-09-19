@@ -408,6 +408,101 @@ class ForegroundTests(unittest.TestCase):
         lanes.append(('S10_ambiguous_partial_rejected',ap is None))
         self.assertEqual([name for name,ok in lanes if not ok],[],lanes)
 
+    def test_task091_selection_transaction_board_10(self):
+        task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
+              'The COO has asked you to rebaseline the H2 Operating Committee pack. '
+              'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
+              'Reforecast_Model_H2.xlsx is the source of truth.')
+        deck={
+          'schema':1,'stable':True,
+          'window':{'id':50331680,'pid':2689,
+                    'title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Office',
+                    'owner_title':'','wm_class':'wpsoffice wpsoffice','bbox':[70,27,1850,1053]},
+          'screen':[0,0,1920,1080],
+          'active_slide':1,
+          'screenshot_sha256':'1'*64,
+          'deck_slide_text':{'1':'Growth Plan Draft'},
+          'deck_slide_shapes':{'1':[{
+              'id':6,'name':'CoverTitle','text':'H2 Operating Committee Pack\nGrowth Plan Draft',
+              'geometry':{'x':749808,'y':1078992,'w':5852160,'h':1234440}}]},
+          'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                       'sha256':'a'*64,'size':1234,'mtime_ns':1,
+                       'slide_size':{'w':12192000,'h':6858000}},
+        }
+        transient={
+          'schema':1,'stable':True,
+          'window':{'id':50331694,'pid':2689,'title':'System Check',
+                    'owner_title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Office',
+                    'wm_class':'wpp wpp','bbox':[120,112,699,327]},
+          'screen':[0,0,1920,1080],
+          'active_slide':1,
+          'screenshot_sha256':'2'*64,
+        }
+        obs='text\tGrowth Plan Draft\tGrowth Plan Draft\t\t\t(700,300)\t(100,40)'
+
+        state={'anchored':True,'slide':1}
+        first=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,copy.deepcopy(deck))
+        self.assertIn('doubleClick',first['command'])
+        pending=state['pending_edit']
+
+        # T01: initial selection is a request, not proof of text mode.
+        self.assertEqual(pending['stage'],'select-issued')
+        self.assertFalse(bool(pending.get('selection_ack_foreground_sha256')))
+
+        # T02: modal foreground invalidates the unacknowledged selection.
+        a=shim.next_091_specialist_action(task,'WPS 2019','',state,copy.deepcopy(transient))
+        self.assertEqual(a['command'],"pyautogui.press('tab')")
+        self.assertEqual(state['pending_edit']['stage'],'reselect-required')
+
+        # T03: modal interruption is counted and bounded.
+        self.assertEqual(state['pending_edit']['selection_interrupts'],1)
+
+        # T04: modal close path never emits destructive text input.
+        b=shim.next_091_specialist_action(task,'WPS 2019','',state,copy.deepcopy(transient))
+        self.assertEqual(b['command'],"pyautogui.press('space')")
+        self.assertNotIn("ctrl', 'a",a['command']+b['command'])
+
+        # T05: after modal closes, exact same deck/slide/shape must be reselected.
+        deck2=copy.deepcopy(deck)
+        deck2['screenshot_sha256']='3'*64
+        reselection=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,deck2)
+        self.assertEqual(reselection['specialist_phase'],'reselect-pending-target')
+        self.assertIn('doubleClick',reselection['command'])
+        self.assertEqual(state['pending_edit']['stage'],'select-issued')
+
+        # T06: unchanged screenshot cannot acknowledge selection.
+        same=copy.deepcopy(deck2)
+        wait=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,same)
+        self.assertEqual(wait['specialist_phase'],'reobserve-unacknowledged-selection')
+        self.assertEqual(state['pending_edit']['stage'],'reselect-required')
+
+        # T07: second reselect with visual delta reaches ACK.
+        reselection2=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,deck2)
+        self.assertEqual(reselection2['specialist_phase'],'reselect-pending-target')
+        ack=copy.deepcopy(deck2)
+        ack['screenshot_sha256']='4'*64
+        edit=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,ack)
+        self.assertEqual(edit['specialist_phase'],'edit-pending-target')
+        self.assertIn("pyautogui.hotkey('ctrl', 'a')",edit['command'])
+        self.assertEqual(state['pending_edit']['stage'],'edit-issued')
+
+        # T08: ACK is bound to the same foreground identity.
+        self.assertEqual(state['pending_edit']['selection_ack_foreground_sha256'],
+                         shim._task091_foreground_sha(ack))
+
+        # T09: slide drift during reselect fails closed.
+        drift_state={'anchored':True,'slide':1}
+        shim.next_091_specialist_action(task,'WPS Presentation',obs,drift_state,copy.deepcopy(deck))
+        shim.next_091_specialist_action(task,'WPS 2019','',drift_state,copy.deepcopy(transient))
+        drift=copy.deepcopy(deck); drift['active_slide']=2
+        terminal=shim.next_091_specialist_action(task,'WPS Presentation',obs,drift_state,drift)
+        self.assertEqual(terminal['reason'],'TASK091_RESELECT_SLIDE_DRIFT')
+
+        # T10: transient appearing after editing starts is fatal, never resumed optimistically.
+        interrupted_state=state
+        fatal=shim.next_091_specialist_action(task,'WPS 2019','',interrupted_state,copy.deepcopy(transient))
+        self.assertEqual(fatal['reason'],'TASK091_EDIT_INTERRUPTED_BY_TRANSIENT')
+
     def test_task091_text_hitpoint_must_belong_to_exactly_one_shape(self):
         body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2594)
         body['window']['bbox'] = [70, 27, 1850, 1053]
