@@ -4,7 +4,7 @@ from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from osworld_ingress import project_messages
 from osworld_milestones import Milestones, verified_facts
-from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response, visual_reference_recovery, foreground_context, allow_bounded_wps_escape_repeat, allow_bounded_wps_modal_close_repeat
+from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response, visual_reference_recovery, foreground_context, allow_bounded_wps_escape_repeat, allow_bounded_wps_modal_close_repeat, task091_spatial_target_proof
 from arbm091.trace_gate import classify as classify_wps_window
 from osworld_v32_policy import DecisionKind, apply_live_policy
 from osworld_openrouter_free import FREE_ROUTE, prompt as openrouter_prompt
@@ -187,6 +187,12 @@ def _task091_write_command(value):
         if index + 1 < len(lines):
             commands.append("pyautogui.hotkey('shift', 'enter')")
     return '\n'.join(commands)
+
+def _task091_foreground_sha(window_state):
+    window=window_state.get('window',{}) if isinstance(window_state,dict) else {}
+    payload=json.dumps(window,sort_keys=True,separators=(',',':'),ensure_ascii=False)
+    return hashlib.sha256(payload.encode()).hexdigest() if window else ''
+
 
 def _task091_window_state():
     root=os.environ.get('ARBM_WPS_EVIDENCE_DIR')
@@ -478,9 +484,13 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                             'plan':f'Re-observe the proven target deck once for {old!r}.',
                             'specialist_phase':'reobserve-target'}
                 return _task091_terminal('TASK091_TARGET_NOT_VISIBLE',state)
-            source='target-pptx-spatial'
-            target={'label':old,'role':'task091-canonical-point',
-                    'x':int(x)-1,'y':int(y)-1,'w':2,'h':2,'cx':int(x),'cy':int(y)}
+            source='task091-pptx-canonical'
+            target={'source':source,'label':old,'role':'task091-canonical-point',
+                    'slide':int(slide),'x':int(x)-1,'y':int(y)-1,'w':2,'h':2,
+                    'cx':int(x),'cy':int(y),
+                    'foreground_sha256':_task091_foreground_sha(window_state),
+                    'deck_sha256':str((window_state.get('deck_file',{}) or {}).get('sha256',''))}
+            target['proof_sha256']=task091_spatial_target_proof(target)
 
         state['target_retries']=0
         state['mode']='TARGET_VISIBLE'
@@ -489,18 +499,25 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             'slide':slide,'old':old,'new':new,'stage':'select-issued',
             'target':{'label':target['label'],'role':target['role'],
                       'bbox':[target['x'],target['y'],target['w'],target['h']],
-                      'cx':target['cx'],'cy':target['cy'],'source':source},
+                      'cx':target['cx'],'cy':target['cy'],'source':source,
+                      'slide':target.get('slide'),'foreground_sha256':target.get('foreground_sha256'),
+                      'deck_sha256':target.get('deck_sha256'),'proof_sha256':target.get('proof_sha256')},
             'before_old_count':before_old,'before_new_count':before_new,
             'before_deck_sha256':str((window_state.get('deck_file',{}) or {}).get('sha256','')),
             'before_observation_hash':hashlib.sha256(str(observation or '').encode()).hexdigest(),
             'action_command_hash':hashlib.sha256(command.encode()).hexdigest(),
             'verify_attempts':0,
         }
+        action_target={'source':source,'label':target['label'],'role':target['role']}
+        if source=='task091-pptx-canonical':
+            action_target.update({key:target[key] for key in
+                                  ('slide','x','y','w','h','cx','cy','foreground_sha256',
+                                   'deck_sha256','proof_sha256')})
         return {'action':'exec','command':command,
-                'target':{'source':source,'label':target['label'],'role':target['role']},
+                'target':action_target,
                 'plan':(f'Select the unique visible AT-SPI target on slide {slide} containing {old!r}.'
                         if source=='accessibility' else
-                        f'Select the canonical Task 091 point only after target-PPTX proof of {old!r} on slide {slide}.'),
+                        f'Select the signed canonical Task 091 point only after target-PPTX proof of {old!r} on slide {slide}.'),
                 'specialist_phase':'select-pending-target'}
 
     if state.get('pending_edit'):
@@ -542,7 +559,8 @@ def try_091_specialist(body, obs, focused_obs):
         return None
     try:
         action=ground_action(candidate,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]),
-                             verifier_result=VERIFIER.last_result,recent_commands=[x['command'] for x in STATE['history'][-6:]])
+                             allow_canonical=True,verifier_result=VERIFIER.last_result,
+                             recent_commands=[x['command'] for x in STATE['history'][-6:]])
         decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
     except ValueError as exc:
         log_event({'status':'TASK091_SPECIALIST_POLICY_REJECTED','reason':str(exc),'action':candidate,
