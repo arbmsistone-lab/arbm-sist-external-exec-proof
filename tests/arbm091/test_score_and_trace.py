@@ -153,6 +153,17 @@ class ForegroundTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'UNAPPROVED'):
             preflight("pyautogui.press('enter')", body)
 
+    def test_neutral_wait_is_allowed_before_approved_app(self):
+        body = snapshot('Desktop', 'gnome-shell')
+        self.assertEqual(preflight("pyautogui.sleep(0.2)", body), 'neutral-wait')
+
+    def test_neutral_wait_is_bounded_and_cannot_authorize_interaction(self):
+        body = snapshot('Desktop', 'gnome-shell')
+        with self.assertRaisesRegex(ValueError, 'UNBOUNDED'):
+            preflight("pyautogui.sleep(2.1)", body)
+        with self.assertRaisesRegex(ValueError, 'UNAPPROVED'):
+            preflight("pyautogui.press('enter')", body)
+
     def test_background_pid_rejected(self):
         body = snapshot()
         body['target']['pid'] = 999
