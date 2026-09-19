@@ -536,6 +536,10 @@ class MeshTests(unittest.TestCase):
   command=shim._task091_restricted_repair_command(plan)
   self.assertNotIn('pyautogui.write(',command)
   self.assertIn("hotkey('shift', 'enter')",command)
+  self.assertEqual(len(command.splitlines()),5)
+  from osworld_control import canonical_action
+  compiled=canonical_action({'action':'exec','command':command})
+  self.assertEqual(compiled['command'],command)
   shape={'id':6,'name':'CoverTitle','text':actual}
   verdict=evaluate(actual,expected,plan,shape,'a'*64,'b'*64)
   self.assertEqual(verdict['status'],'PASS')
