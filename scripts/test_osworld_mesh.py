@@ -334,7 +334,8 @@ class MeshTests(unittest.TestCase):
    self.assertEqual(corrupt_state['pending_edit']['repair_attempts'],1)
    self.assertEqual(corrupt_state['pending_edit']['repair_before_deck_sha256'],'c'*64)
    self.assertEqual(corrupt_state['pending_edit']['repair_shape_id'],7)
-   self.assertGreater(len(corrupt_state['pending_edit']['repair_delete_indices']),0)
+   self.assertGreater(len(corrupt_state['pending_edit']['repair_plan']),0)
+   self.assertTrue(all(row['op'] in ('delete','linebreak') for row in corrupt_state['pending_edit']['repair_plan']))
 
    repair_selected={**corrupt_deck,'screenshot_sha256':'4'*64}
    repair_edit=shim.next_091_specialist_action(task,'WPS Presentation','',corrupt_state,repair_selected)
