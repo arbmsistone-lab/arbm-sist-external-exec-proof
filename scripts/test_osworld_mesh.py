@@ -365,7 +365,7 @@ class MeshTests(unittest.TestCase):
 
    latest_corrupt='H2 Operating Committee Pack\nSStabilize-and-Recover Rebaseline'
    self.assertEqual(shim._task091_delete_only_plan(
-       latest_corrupt,'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'),[28])
+       latest_corrupt,'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'),[29])
    self.assertIsNone(shim._task091_delete_only_plan(
        'H2 Operating Committee Pack\nBroken Rebaseline',
        'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'))
