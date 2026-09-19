@@ -2,6 +2,7 @@
 import copy
 import hashlib
 import json
+import os
 import io
 from PIL import Image
 import tempfile
