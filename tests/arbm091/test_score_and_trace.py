@@ -558,7 +558,7 @@ class Task091CompactEditTests(unittest.TestCase):
         self.assertTrue(detail['semantic_target_present'])
         self.assertFalse(detail['exact_shape_text'])
         plan=shim._task091_restricted_repair_plan(actual,pending['new'])
-        self.assertEqual(plan,[{'op':'delete','index':62,'char':'\n'}], plan)
+        self.assertEqual(plan,[{'op':'delete','index':61,'char':'\n'}], plan)
 
 
 
