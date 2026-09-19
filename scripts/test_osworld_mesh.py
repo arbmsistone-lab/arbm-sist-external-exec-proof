@@ -471,18 +471,23 @@ class MeshTests(unittest.TestCase):
    # Missing and ambiguous targets never click blindly.
    missing_obs='text\tOperating Committee\tOperating Committee\t\t\t(500, 180)\t(600, 60)'
    missing_deck={**deck,'deck_slide_text':{'1':'Already finalized content without draft marker'},
-                 'deck_slide_runs':{'1':['Already finalized content without draft marker']}}
+                 'deck_slide_runs':{'1':['Already finalized content without draft marker']},
+                 'deck_slide_shapes':{'1':[deck['deck_slide_shapes']['1'][1]]}}
    missing={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
    self.assertIn('sleep',shim.next_091_specialist_action(task,'WPS Presentation',missing_obs,missing,missing_deck)['command'])
    miss_terminal=shim.next_091_specialist_action(task,'WPS Presentation',missing_obs,missing,missing_deck)
-   self.assertEqual(miss_terminal['reason'],'TASK091_TARGET_NOT_VISIBLE')
-   dup=('text\tOperating Committee\tOperating Committee\t\t\t(500, 180)\t(600, 60)\n'
-        'text\tGrowth Plan Draft\tGrowth Plan Draft\t\t\t(690, 300)\t(100, 40)\n'
-        'text\tGrowth Plan Draft\tGrowth Plan Draft\t\t\t(700, 300)\t(100, 40)')
+   self.assertEqual(miss_terminal['reason'],'TASK091_SHAPE_GEOMETRY_UNPROVEN')
+
+   # Duplicate PPTX shapes containing the same old text are fail-closed.
+   dup_shape=copy.deepcopy(deck['deck_slide_shapes']['1'][0])
+   dup_shape['id']=106
+   ambiguous_deck={**deck,'deck_slide_shapes':{'1':deck['deck_slide_shapes']['1']+[dup_shape]}}
    ambiguous={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
-   amb_terminal=shim.next_091_specialist_action(task,'WPS Presentation',dup,ambiguous,deck)
+   amb_retry=shim.next_091_specialist_action(task,'WPS Presentation','',ambiguous,ambiguous_deck)
+   self.assertIn('sleep',amb_retry['command'])
+   amb_terminal=shim.next_091_specialist_action(task,'WPS Presentation','',ambiguous,ambiguous_deck)
    self.assertEqual(amb_terminal['action'],'terminal')
-   self.assertEqual(amb_terminal['reason'],'TASK091_TARGET_AMBIGUOUS')
+   self.assertEqual(amb_terminal['reason'],'TASK091_SHAPE_GEOMETRY_UNPROVEN')
 
    no_op_index=next(i for i,row in enumerate(shim.TASK091_SPATIAL_TEXT_EDITS)
                     if shim._task091_norm(row[3]) == shim._task091_norm(row[4]))
