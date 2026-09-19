@@ -317,13 +317,13 @@ class MeshTests(unittest.TestCase):
                                   'selected_screenshot_sha256':'1'*64,
                                   'edited_screenshot_sha256':'2'*64,
                                   'verify_attempts':0}}
-   corrupt_text='H2 OOperating CCommitPPPPPPack\nStabilize-and-RRecover RRebaseline'
+   corrupt_text='H2 Operating Committee Pack\nSStabilize-and-Recover Rebaseline'
    corrupt_deck={**deck,
                  'deck_slide_text':{'1':corrupt_text.replace('\n',' ')},
-                 'deck_slide_runs':{'1':['H2 OOperating CCommitPPPPPPack','Stabilize-and-RRecover RRebaseline']},
+                 'deck_slide_runs':{'1':['H2 Operating Committee Pack','SStabilize-and-Recover Rebaseline']},
                  'deck_slide_shapes':{'1':[{'id':7,'name':'Title 1','text':corrupt_text,
-                                            'paragraphs':['H2 OOperating CCommitPPPPPPack',
-                                                          'Stabilize-and-RRecover RRebaseline'],
+                                            'paragraphs':['H2 Operating Committee Pack',
+                                                          'SStabilize-and-Recover Rebaseline'],
                                             'geometry':{'x':1,'y':2,'w':3,'h':4}}]},
                  'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
                               'sha256':'c'*64,'size':110431,'mtime_ns':3},
