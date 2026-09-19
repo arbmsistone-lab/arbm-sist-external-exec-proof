@@ -15,7 +15,41 @@ NON_EDITING = {'moveTo', 'sleep', 'keyDown', 'keyUp'}
 WPS_TRANSIENT_TITLES = {'system check', 'wps office', 'set wps office as your default office software',
                         'presentation', 'replace', 'find', 'find and replace', 'find & replace'}
 
-TASK091_VERIFIED_POINTS = {(745, 335), (738, 503), (1338, 393), (1338, 511), (1338, 630), (558, 364), (792, 364), (1026, 364), (1245, 364), (1439, 364), (843, 404), (843, 465), (843, 525), (843, 586), (843, 646), (843, 707), (617, 360), (615, 752), (728, 360), (727, 752), (839, 360), (838, 752), (950, 360), (949, 752), (1062, 360), (1060, 752), (1173, 360), (1171, 752), (1284, 360), (1198, 400), (1322, 400), (1447, 400), (1198, 450), (1322, 450), (1447, 450), (1198, 500), (1322, 500), (1447, 500), (717, 383), (571, 499), (576, 408), (850, 408), (1123, 408), (800, 195), (505, 455), (901, 453), (505, 535), (1013, 533), (234, 391), (609, 391), (984, 391), (1396, 466), (1396, 526), (1396, 586), (1396, 646), (1396, 705), (1396, 765), (544, 536), (804, 536), (1064, 536), (1323, 536), (544, 581), (804, 581), (1064, 581), (1323, 581), (544, 627), (1064, 627), (544, 672), (1064, 672), (544, 718), (804, 718), (1064, 718), (544, 763), (1064, 763), (1323, 763)}
+TASK091_CANONICAL_SCREEN = [0, 0, 1920, 1080]
+TASK091_CANONICAL_WINDOW = [70, 27, 1850, 1053]
+TASK091_CANONICAL_SLIDE_VIEWPORT = [443, 194, 1413, 795]
+
+
+def _task091_shape_points(snapshot: dict) -> set[tuple[int, int]]:
+    deck_file=snapshot.get('deck_file', {}) if isinstance(snapshot, dict) else {}
+    slide_size=deck_file.get('slide_size', {}) if isinstance(deck_file, dict) else {}
+    sw=int(slide_size.get('w') or 0) if isinstance(slide_size, dict) else 0
+    sh=int(slide_size.get('h') or 0) if isinstance(slide_size, dict) else 0
+    if sw <= 0 or sh <= 0:
+        return set()
+    table=snapshot.get('deck_slide_shapes', {}) if isinstance(snapshot, dict) else {}
+    if not isinstance(table, dict):
+        return set()
+    vx,vy,vw,vh=TASK091_CANONICAL_SLIDE_VIEWPORT
+    points=set()
+    for rows in table.values():
+        if not isinstance(rows, list):
+            continue
+        for row in rows:
+            if not isinstance(row, dict) or not str(row.get('text') or '').strip():
+                continue
+            geometry=row.get('geometry', {})
+            if not isinstance(geometry, dict):
+                continue
+            gx=int(geometry.get('x') or 0); gy=int(geometry.get('y') or 0)
+            gw=int(geometry.get('w') or 0); gh=int(geometry.get('h') or 0)
+            if gx < 0 or gy < 0 or gw <= 0 or gh <= 0:
+                continue
+            cx=round(vx + ((gx + gw/2.0)/sw)*vw)
+            cy=round(vy + ((gy + gh/2.0)/sh)*vh)
+            if vx <= cx < vx+vw and vy <= cy < vy+vh:
+                points.add((int(cx), int(cy)))
+    return points
 
 
 def digest(value: object) -> str:
@@ -134,19 +168,21 @@ def preflight(command: str, snapshot: dict) -> str:
     if point is not None:
         target = snapshot.get('target')
         deck_spatial = (target is None and app == 'wps-presentation'
-                        and name == 'doubleClick' and point in TASK091_VERIFIED_POINTS
+                        and name == 'doubleClick'
                         and isinstance(snapshot.get('deck_slide_text'), dict)
                         and bool(snapshot.get('deck_slide_text')))
         if deck_spatial:
-            require(snapshot.get('screen') == [0, 0, 1920, 1080],
+            require(snapshot.get('screen') == TASK091_CANONICAL_SCREEN,
                     'TASK091_CANONICAL_SCREEN_UNPROVEN')
-            require(window.get('bbox') == [70, 27, 1850, 1053],
+            require(window.get('bbox') == TASK091_CANONICAL_WINDOW,
                     'TASK091_CANONICAL_DECK_GEOMETRY_UNPROVEN')
             require(isinstance(snapshot.get('deck_file'), dict)
                     and str(snapshot['deck_file'].get('path','')) ==
                     '/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx'
                     and len(str(snapshot['deck_file'].get('sha256',''))) == 64,
                     'TASK091_TARGET_DECK_FILE_UNPROVEN')
+            require(point in _task091_shape_points(snapshot),
+                    'TASK091_SHAPE_POINT_UNPROVEN')
             require(inside(point, snapshot.get('screen')), 'POINTER_OUTSIDE_SCREEN')
             require(inside(point, window.get('bbox')), 'POINTER_OUTSIDE_FOREGROUND')
             return 'wps-content'
