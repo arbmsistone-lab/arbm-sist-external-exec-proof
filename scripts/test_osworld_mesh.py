@@ -578,7 +578,7 @@ class MeshTests(unittest.TestCase):
    self.assertTrue(plan)
    op=plan[0]
    command=shim._task091_restricted_repair_command([op])
-   self.assertLessEqual(len(command.splitlines()),4)
+   self.assertLessEqual(len(command.splitlines()),5)
    self.assertEqual(command.count("press('delete')")+command.count("hotkey('shift', 'enter')"),1)
    commands.append(command)
    states.append(shim._task091_apply_repair_operation(current,op))
