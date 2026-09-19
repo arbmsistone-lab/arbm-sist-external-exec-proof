@@ -24,6 +24,8 @@ CONTROL = 'scripts/osworld_control.py'
 MESH_TEST = 'scripts/test_osworld_mesh.py'
 REVIEW_BOARD = 'scripts/arbm091/review_board_50x10.py'
 MANIFEST = 'audit/arbm091-final-files.json'
+ELITE_BOARD = 'scripts/arbm091/elite_board_100.py'
+ELITE_TEST = 'scripts/test_osworld_elite_board_100.py'
 WPS_ALIAS_COMMIT = 'f0a49b84c95808b501cd91aed14bd702e8230a9c'
 WPS_ALIAS_TEST_COMMIT = '51f63478520b3e8fa89152460dc12dd7da446945'
 WPS_SWITCH_COMMIT = '379a7c64fad1b2776a93f578de8d2ca766473e18'
@@ -130,15 +132,26 @@ assert postflight("pyautogui.press('space')", before, after) == 'wps-presentatio
 deck=copy.deepcopy(after)
 deck['deck_slide_text']={'1':'Growth Plan Draft Planning posture: accelerate growth through H2 scale-up $42.8M $2.6M 214'}
 deck['deck_slide_runs']={'1':['Growth Plan Draft','Planning posture: accelerate growth through H2 scale-up','$42.8M','$2.6M','214']}
+deck['screen']=[0,0,1920,1080]
+deck['deck_slide_shapes']={'1':[
+    {'id':6,'name':'CoverTitle','text':'H2 Operating Committee Pack\nGrowth Plan Draft',
+     'paragraphs':['H2 Operating Committee Pack','Growth Plan Draft'],
+     'geometry':{'x':749808,'y':1078992,'w':5852160,'h':1234440}},
+    {'id':7,'name':'CoverSub',
+     'text':'Northstar Cloud\nPrepared for July Operating Committee review\nPlanning posture: accelerate growth through H2 scale-up',
+     'paragraphs':['Northstar Cloud','Prepared for July Operating Committee review',
+                   'Planning posture: accelerate growth through H2 scale-up'],
+     'geometry':{'x':768096,'y':2743200,'w':5669280,'h':1280160}}]}
 deck['deck_file']={'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
-                   'sha256':'a'*64,'size':1234,'mtime_ns':1}
+                   'sha256':'a'*64,'size':1234,'mtime_ns':1,
+                   'slide_size':{'w':12192000,'h':6858000}}
 state={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
 task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
       'The COO has asked you to rebaseline the H2 Operating Committee pack. '
       'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
       'Reforecast_Model_H2.xlsx is the source of truth.')
 action=shim.next_091_specialist_action(task,'WPS Presentation','',state,deck)
-assert action['command'] == 'pyautogui.doubleClick(745, 335, interval=0.08)', action
+assert action['command'] == 'pyautogui.doubleClick(869, 391, interval=0.08)', action
 assert action['target']['source'] == 'task091-pptx-canonical', action
 probe=copy.deepcopy(deck)
 probe['screen']=[0,0,1920,1080]
@@ -167,8 +180,19 @@ root=Path('/tmp/091-pointer/task-091/wps-observations')
 deck=json.loads((root/'0004-01-after.json').read_text())
 deck['deck_slide_text']={'1':'Growth Plan Draft Planning posture: accelerate growth through H2 scale-up $42.8M $2.6M 214'}
 deck['deck_slide_runs']={'1':['Growth Plan Draft','Planning posture: accelerate growth through H2 scale-up','$42.8M','$2.6M','214']}
+deck['screen']=[0,0,1920,1080]
+deck['deck_slide_shapes']={'1':[
+    {'id':6,'name':'CoverTitle','text':'H2 Operating Committee Pack\nGrowth Plan Draft',
+     'paragraphs':['H2 Operating Committee Pack','Growth Plan Draft'],
+     'geometry':{'x':749808,'y':1078992,'w':5852160,'h':1234440}},
+    {'id':7,'name':'CoverSub',
+     'text':'Northstar Cloud\nPrepared for July Operating Committee review\nPlanning posture: accelerate growth through H2 scale-up',
+     'paragraphs':['Northstar Cloud','Prepared for July Operating Committee review',
+                   'Planning posture: accelerate growth through H2 scale-up'],
+     'geometry':{'x':768096,'y':2743200,'w':5669280,'h':1280160}}]}
 deck['deck_file']={'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
-                   'sha256':'a'*64,'size':1234,'mtime_ns':1}
+                   'sha256':'a'*64,'size':1234,'mtime_ns':1,
+                   'slide_size':{'w':12192000,'h':6858000}}
 state={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
 task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
       'The COO has asked you to rebaseline the H2 Operating Committee pack. '
@@ -177,7 +201,7 @@ task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
 action=shim.next_091_specialist_action(task,'WPS Presentation','',state,deck)
 assert action['target']['source']=='task091-pptx-canonical', action
 grounded=shim.ground_action(action,'WPS Presentation','',[],allow_canonical=True)
-assert grounded['command']=='pyautogui.doubleClick(745, 335, interval=0.08)', grounded
+assert grounded['command']=='pyautogui.doubleClick(869, 391, interval=0.08)', grounded
 assert 'PPTX-backed canonical target' in grounded.get('compiler_note',''), grounded
 bad=copy.deepcopy(action)
 bad['target']['deck_sha256']='b'*64
@@ -316,6 +340,58 @@ grep -F 'RUN35443356294_RESTRICTED_REPAIR_REGRESSION=PASS' /tmp/run35443356294-r
 '''
 }
 
+ELITE_BOARD_GATE = {
+    'name': 'Run 100-lane elite engineering council gate',
+    'shell': 'bash',
+    'run': '''set -euo pipefail
+python scripts/test_osworld_elite_board_100.py
+echo 'TASK091_ELITE_BOARD_100_PASS elite=100/100 councils=10/10 release_runs_required=10'
+'''
+}
+
+RUN35444915125_SHAPE_TARGET_REPLAY = {
+    'name': 'Replay run 35444915125 exact-shape targeting regression',
+    'shell': 'bash',
+    'run': '''set -euo pipefail
+TASK_ID=091 ZERO_SPEND_MODE=HARD PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35444915125-shape-target-regression.json
+import copy, json
+from pathlib import Path
+import osworld_free_mesh_shim as shim
+
+root=Path('/tmp/091-shape-target/task-091/wps-observations')
+snap=json.loads((root/'0013-01-after.json').read_text())
+snap['screen']=[0,0,1920,1080]
+snap['deck_file']['slide_size']={'w':12192000,'h':6858000}
+state={'owned':True,'anchored':True,'slide':1,'spatial_index':1}
+task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
+      'The COO has asked you to rebaseline the H2 Operating Committee pack. '
+      'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
+      'Reforecast_Model_H2.xlsx is the source of truth.')
+action=shim.next_091_specialist_action(task,'WPS Presentation','',state,snap)
+assert action['target']['source']=='task091-pptx-canonical', action
+assert action['command']=='pyautogui.doubleClick(861, 586, interval=0.08)', action
+assert state['pending_edit']['shape_id']==7, state['pending_edit']
+assert state['pending_edit']['shape_name']=='CoverSub', state['pending_edit']
+assert action['command']!='pyautogui.doubleClick(738, 503, interval=0.08)'
+wrong=copy.deepcopy(snap)
+wrong['screen']=[0,0,1919,1080]
+blocked_state={'owned':True,'anchored':True,'slide':1,'spatial_index':1}
+first=shim.next_091_specialist_action(task,'WPS Presentation','',blocked_state,wrong)
+assert 'sleep' in first['command'], first
+second=shim.next_091_specialist_action(task,'WPS Presentation','',blocked_state,wrong)
+assert second['action']=='terminal' and second['reason']=='TASK091_SHAPE_GEOMETRY_UNPROVEN', second
+print(json.dumps({'status':'PASS','corpus_run':'35444915125',
+                  'old_failure':'TASK091_EDIT_NOT_VERIFIED',
+                  'root_cause':'static-point-hit-CoverTitle-instead-of-CoverSub',
+                  'new_target':[861,586],'shape_id':7,'shape_name':'CoverSub',
+                  'old_static_target_rejected':[738,503],
+                  'zero_spend':'HARD'},sort_keys=True))
+print('RUN35444915125_SHAPE_TARGET_REGRESSION=PASS')
+PY
+grep -F 'RUN35444915125_SHAPE_TARGET_REGRESSION=PASS' /tmp/run35444915125-shape-target-regression.json
+'''
+}
+
 ENVIRONMENT_PREFLIGHT = {
     'name': 'Verify exact 091 observer environment before heavy initialization',
     'shell': 'bash',
@@ -359,6 +435,7 @@ def verify_workflow_delta():
         'python -m pip install -r scripts/requirements-osworld.txt\n'
         'python -m pip install PyYAML==6.0.2\n')
     expected['jobs']['proof-tests']['steps'].insert(4, REVIEW_BOARD_GATE)
+    expected['jobs']['proof-tests']['steps'].insert(5, ELITE_BOARD_GATE)
     replay = expected['jobs']['replay']['steps']
     replay[1]['name'] = 'Download pinned 091 replay corpora'
     replay[1]['run'] = '''set -euo pipefail
@@ -402,6 +479,12 @@ mkdir -p /tmp/091-restricted-repair
 unzip -q /tmp/091-restricted-repair.zip -d /tmp/091-restricted-repair
 test -s /tmp/091-restricted-repair/task-091/wps-observations/0009-01-after.json
 test -s /tmp/091-restricted-repair/task-091/wps-trace.jsonl
+gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10585113906/zip > /tmp/091-shape-target.zip
+mkdir -p /tmp/091-shape-target
+unzip -q /tmp/091-shape-target.zip -d /tmp/091-shape-target
+test -s /tmp/091-shape-target/task-091/wps-observations/0013-01-after.json
+test -s /tmp/091-shape-target/task-091/wps-observations/0017-01-after.json
+test -s /tmp/091-shape-target/task-091/wps-trace.jsonl
 '''
     replay[3]['name'] = 'Replay exact WPS 2019 Step 2 through alias-isolated selector twice'
     replay[3]['run'] = (
@@ -416,7 +499,8 @@ test -s /tmp/091-restricted-repair/task-091/wps-trace.jsonl
     replay.insert(8, RUN35411705196_KEYREPEAT_REPLAY)
     replay.insert(9, RUN35439821335_DELETE_REPAIR_REPLAY)
     replay.insert(10, RUN35443356294_RESTRICTED_REPAIR_REPLAY)
-    replay[11]['with']['path'] = '/tmp/091-local-contract-replay.json\n/tmp/run35391431490-modal-regression.json\n/tmp/run35400883826-enter-regression.json\n/tmp/run35404537401-deck-regression.json\n/tmp/run35407234122-pointer-regression.json\n/tmp/run35411705196-keyrepeat-regression.json\n/tmp/run35439821335-delete-repair-regression.json\n/tmp/run35443356294-restricted-repair-regression.json\n'
+    replay.insert(11, RUN35444915125_SHAPE_TARGET_REPLAY)
+    replay[12]['with']['path'] = '/tmp/091-local-contract-replay.json\n/tmp/run35391431490-modal-regression.json\n/tmp/run35400883826-enter-regression.json\n/tmp/run35404537401-deck-regression.json\n/tmp/run35407234122-pointer-regression.json\n/tmp/run35411705196-keyrepeat-regression.json\n/tmp/run35439821335-delete-repair-regression.json\n/tmp/run35443356294-restricted-repair-regression.json\n/tmp/run35444915125-shape-target-regression.json\n'
     require(len(re.findall(r'(?m)^\s+TASK_ID: [\'"]091[\'"]\s*$', text)) == 1,
             'TASK091_MUST_BE_QUOTED_YAML_STRING')
     require(normalize(current) == normalize(expected), 'UNEXPECTED_WORKFLOW_SEMANTIC_DELTA')
@@ -431,11 +515,11 @@ def main():
             'CLEAN_BASELINE_ANCESTRY_MISMATCH')
     require(git('rev-list', '--count', BASE + '..' + CLEAN_BASELINE) == '3',
             'EXACTLY_THREE_BASELINE_COMMITS_REQUIRED')
-    require(git('rev-list', '--count', BASE + '..HEAD') == '137',
-            'EXACTLY_ONE_HUNDRED_THIRTY_SEVEN_AUDITED_COMMITS_REQUIRED')
+    require(git('rev-list', '--count', BASE + '..HEAD') == '147',
+            'EXACTLY_ONE_HUNDRED_FORTY_SEVEN_AUDITED_COMMITS_REQUIRED')
     require(not git('rev-list', '--merges', BASE + '..HEAD'), 'MERGE_COMMITS_FORBIDDEN')
     overlay = git('rev-list', '--reverse', CLEAN_BASELINE + '..HEAD').splitlines()
-    require(len(overlay) == 134, 'EXACTLY_ONE_HUNDRED_THIRTY_FOUR_REPAIR_COMMITS_REQUIRED')
+    require(len(overlay) == 144, 'EXACTLY_ONE_HUNDRED_FORTY_FOUR_REPAIR_COMMITS_REQUIRED')
     require(overlay[2] == PID_FILTER_COMMIT and overlay[3] == PID_TEST_COMMIT,
             'PID_REPAIR_COMMIT_IDENTITY_MISMATCH')
     require(overlay[6] == WPS_ALIAS_COMMIT and overlay[7] == WPS_ALIAS_TEST_COMMIT
@@ -445,7 +529,7 @@ def main():
                        LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, VERIFIER, WORKFLOW, VERIFIER, WORKFLOW,
                        VERIFIER, SHIM, MESH_TEST, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, WPS_OBSERVER, TRACE_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST,
                        (SHIM, MESH_TEST), VERIFIER, TRACE_GATE, TRACE_GATE, WPS_OBSERVER, WPS_OBSERVER,
-                       SHIM, TRACE_GATE, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, VERIFIER, TRACE_GATE, VERIFIER, WORKFLOW, VERIFIER, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, TRACE_TEST, MESH_TEST, WORKFLOW, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, TRACE_TEST, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, VERIFIER, CONTROL, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, VERIFIER, MESH_TEST, VERIFIER, SHIM, REVIEW_BOARD, MESH_TEST, WORKFLOW, MESH_TEST, WORKFLOW, MANIFEST, VERIFIER)
+                       SHIM, TRACE_GATE, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, VERIFIER, TRACE_GATE, VERIFIER, WORKFLOW, VERIFIER, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, TRACE_TEST, MESH_TEST, WORKFLOW, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, TRACE_TEST, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, VERIFIER, CONTROL, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, VERIFIER, MESH_TEST, VERIFIER, SHIM, REVIEW_BOARD, MESH_TEST, WORKFLOW, MESH_TEST, WORKFLOW, MANIFEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, MESH_TEST, ELITE_BOARD, ELITE_TEST, WORKFLOW, MANIFEST, VERIFIER)
     require(overlay[43] == SUPERSEDED_ALT_F4_COMMIT, 'SUPERSEDED_ALT_F4_COMMIT_IDENTITY_MISMATCH')
     for commit, allowed in zip(overlay, expected_scopes):
         actual=set(git('diff-tree', '--no-commit-id', '--name-only', '-r', commit).splitlines())
@@ -461,7 +545,7 @@ def main():
     changed = set(git('diff', '--name-only', BASE, 'HEAD').splitlines())
     require(changed == set(manifest), 'CHANGED_FILE_ALLOWLIST_MISMATCH')
     require(set(git('diff', '--name-only', CLEAN_BASELINE, 'HEAD').splitlines())
-            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST},
+            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST},
             'REPAIR_TOTAL_SCOPE_MISMATCH')
     exists = subprocess.run(['git', 'cat-file', '-e', PATCH_SOURCE], capture_output=True).returncode == 0
     if exists:
@@ -479,8 +563,9 @@ def main():
     expected.update({row['path']: row['after_sha256'] for row in adjustments})
     expected.update(patch['postimage_sha256'])
     repaired = {LOCAL_VLM: WPS_ALIAS_COMMIT, LOCAL_VLM_TEST: WPS_ALIAS_TEST_COMMIT,
-                TRACE_GATE: overlay[84], TRACE_TEST: overlay[87], WPS_OBSERVER: overlay[110],
-                GUEST_PROBE: overlay[109], CONTROL: overlay[95], SHIM: overlay[126], MESH_TEST: overlay[130], REVIEW_BOARD: overlay[127], MANIFEST: overlay[132]}
+                TRACE_GATE: overlay[84], TRACE_TEST: overlay[87], WPS_OBSERVER: overlay[135],
+                GUEST_PROBE: overlay[134], CONTROL: overlay[95], SHIM: overlay[136], MESH_TEST: overlay[138],
+                REVIEW_BOARD: overlay[127], MANIFEST: overlay[142], ELITE_BOARD: overlay[139], ELITE_TEST: overlay[140]}
     for path, wanted in expected.items():
         if path in repaired:
             source = subprocess.check_output(['git', 'show', repaired[path] + ':' + path])
@@ -493,9 +578,9 @@ def main():
     verify_workflow_delta()
     print(json.dumps({'status': 'CLEAN_HISTORY_AND_SCOPE_PASS', 'base_sha': BASE,
                       'clean_baseline_sha': CLEAN_BASELINE, 'baseline_commits': 3,
-                      'repair_commits': overlay, 'new_commits': 137, 'changed_files': len(changed),
+                      'repair_commits': overlay, 'new_commits': 147, 'changed_files': len(changed),
                       'repair_scope': [VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST,
-                                       TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST], 'official_score_claimed': False}))
+                                       TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST], 'official_score_claimed': False}))
 
 
 if __name__ == '__main__':
