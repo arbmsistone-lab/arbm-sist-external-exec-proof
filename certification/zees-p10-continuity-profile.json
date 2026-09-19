@@ -1,0 +1,22 @@
+{
+  "schema": "zees-p10-continuity-profile/v1",
+  "target": "ARBM SIST",
+  "target_sha": "cf008c04e9bf01e87fca80799dfc25b1de68d888",
+  "fail_closed": true,
+  "state_scope": "execution-control, signed cache/control state, provider routing state and evidence pipeline; no transactional customer database is hosted by this repository",
+  "objectives": {
+    "rto_max_seconds": 20,
+    "rpo": "zero acknowledged operations lost in tested N-2 scenario",
+    "zero_spend_hard": true,
+    "paid_fallback_forbidden": true
+  },
+  "required_evidence": {
+    "sovereign_continuity_run": 35449974036,
+    "chaos_recovery_run": 35454406051,
+    "chaos_artifact_sha256": "baa1b7234e5a4f4c568ecfb87221962bb8b3d6cbab23aa56dcd1e3086df4e497",
+    "observed_recovery_rto_seconds": 2.686,
+    "observed_error_rate": 0,
+    "consistent_checksums": true,
+    "final_down_cells": 0
+  }
+}
