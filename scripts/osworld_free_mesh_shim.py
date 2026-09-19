@@ -412,7 +412,14 @@ def _task091_restricted_repair_command(plan):
     if not isinstance(plan,list) or not plan:
         raise ValueError('TASK091_REPAIR_PLAN_INVALID')
     commands=["pyautogui.hotkey('ctrl', 'a')","pyautogui.press('left')"]
+    pending_keys=[]
     cursor=0
+    def flush_keys():
+        nonlocal pending_keys
+        while pending_keys:
+            chunk=pending_keys[:30]
+            pending_keys=pending_keys[30:]
+            commands.append(f"pyautogui.press({chunk!r}, interval=0.02)")
     for row in plan:
         if not isinstance(row,dict) or row.get('op') not in ('delete','linebreak'):
             raise ValueError('TASK091_REPAIR_PLAN_INVALID')
@@ -421,13 +428,17 @@ def _task091_restricted_repair_command(plan):
         if target < 0 or delta < 0:
             raise ValueError('TASK091_REPAIR_PLAN_NON_MONOTONIC')
         if delta:
-            commands.append(f"pyautogui.press('right', presses={delta}, interval=0.02)")
+            pending_keys.extend(['right'] * delta)
             cursor += delta
         if row['op']=='delete':
-            commands.append("pyautogui.press('delete')")
+            pending_keys.append('delete')
         else:
+            flush_keys()
             commands.append("pyautogui.hotkey('shift', 'enter')")
             cursor += 1
+    flush_keys()
+    if len(commands) > 8:
+        raise ValueError('TASK091_REPAIR_ACTION_COUNT_UNBOUNDED')
     return '\n'.join(commands)
 
 def _task091_delete_repair_command(delete_indices):
