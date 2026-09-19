@@ -32,7 +32,7 @@ jobs:
   global_blocker_capacity_probe:
     machine:
       image: ubuntu-2404:current
-    resource_class: arm.2xlarge
+    resource_class: arm.xlarge
     steps:
       - checkout
       - run:
