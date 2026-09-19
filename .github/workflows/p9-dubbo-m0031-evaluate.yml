@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 55
     env:
+      REQUEST_ID: ${{ inputs.request_id }}
       TASK_ID: M003.1
       REPO_ID: apache_dubbo_dubbo-3.3.3_dubbo-3.3.6
       BENCHMARK_COMMIT: 6d8b31168fd0e2ad57c0d1daa3df1556df014320
@@ -165,12 +166,12 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json, pathlib
+          import json, os, pathlib
           p=pathlib.Path('evaluation_result.json')
           data=json.loads(p.read_text()) if p.exists() else {}
           summary={
             'schema':'arbm-p9-official-diagnostic-v1',
-            'requestId':'${{ inputs.request_id }}',
+            'requestId':os.environ['REQUEST_ID'],
             'solveRunId':34003310061,
             'task':'dubbo/M003.1',
             'benchmarkCommit':'6d8b31168fd0e2ad57c0d1daa3df1556df014320',
