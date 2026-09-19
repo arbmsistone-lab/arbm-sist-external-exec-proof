@@ -372,11 +372,19 @@ class MeshTests(unittest.TestCase):
    ambiguous_shapes={**corrupt_deck,'deck_slide_shapes':{'1':[
        {'id':7,'name':'Title 1','text':corrupt_text,'paragraphs':[],'geometry':{}},
        {'id':8,'name':'Title 2','text':corrupt_text,'paragraphs':[],'geometry':{}}]}}
-   ambiguous_repair_state=copy.deepcopy(corrupt_state)
-   ambiguous_repair_state['pending_edit']['stage']='save-issued'
-   ambiguous_repair_state['pending_edit']['repair_attempts']=0
-   ambiguous_repair_state['pending_edit'].pop('repair_shape_id',None)
-   ambiguous_repair_state['pending_edit'].pop('repair_delete_indices',None)
+   ambiguous_repair_state={'owned':True,'anchored':True,'slide':1,'spatial_index':0,
+                           'pending_edit':{'slide':1,'old':'Growth Plan Draft',
+                                           'new':'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline',
+                                           'stage':'save-issued','repair_attempts':0,
+                                           'target':{'label':'Growth Plan Draft',
+                                                     'role':'task091-canonical-point',
+                                                     'bbox':[744,334,2,2],'cx':745,'cy':335,
+                                                     'source':'task091-pptx-canonical','slide':1},
+                                           'before_old_count':1,'before_new_count':0,
+                                           'before_deck_sha256':'a'*64,
+                                           'selected_screenshot_sha256':'1'*64,
+                                           'edited_screenshot_sha256':'2'*64,
+                                           'verify_attempts':0}}
    ambiguous_repair=shim.next_091_specialist_action(
        task,'WPS Presentation','',ambiguous_repair_state,ambiguous_shapes)
    self.assertEqual(ambiguous_repair['action'],'terminal')
