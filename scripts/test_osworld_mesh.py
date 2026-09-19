@@ -260,7 +260,7 @@ class MeshTests(unittest.TestCase):
    # First edit is a two-phase transaction and index cannot advance early.
    select=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck)
    self.assertEqual(select['target']['source'],'task091-pptx-canonical')
-   self.assertEqual(select['command'],'pyautogui.click(869, 391)')
+   self.assertEqual(select['command'],'pyautogui.doubleClick(745, 335, interval=0.08)')
    self.assertEqual(state['pending_edit']['shape_id'],6)
    self.assertEqual(state['spatial_index'],0)
    self.assertEqual(state['pending_edit']['stage'],'select-issued')
@@ -300,7 +300,7 @@ class MeshTests(unittest.TestCase):
 
    # Shape-bound targeting must move to CoverSub and never re-edit CoverTitle.
    second_select=shim.next_091_specialist_action(task,'WPS Presentation','',state,deck_after)
-   self.assertEqual(second_select['command'],'pyautogui.click(861, 586)')
+   self.assertEqual(second_select['command'],'pyautogui.doubleClick(738, 516, interval=0.08)')
    self.assertEqual(state['pending_edit']['shape_id'],7)
    wrong_shape_after={**deck_after,
       'deck_slide_text':{'1':'Northstar Cloud Prepared for July Operating Committee review Planning posture: stabilize and recover with disciplined sequencing Planning posture: accelerate growth through H2 scale-up'},
@@ -559,8 +559,8 @@ class MeshTests(unittest.TestCase):
    self.assertNotIn('presses=43',command)
    self.assertNotIn('presses=51',command)
    self.assertIn("presses=30",command)
-   self.assertLessEqual(len(command.splitlines()),6)
-   self.assertEqual(command.splitlines()[0], "pyautogui.press('f2')")
+   self.assertLessEqual(len(command.splitlines()),5)
+   self.assertEqual(command.splitlines()[0], "pyautogui.hotkey('ctrl', 'a')")
    from osworld_control import canonical_action
    compiled=canonical_action({'action':'exec','command':command})
    self.assertEqual(compiled['command'],command)
@@ -579,8 +579,8 @@ class MeshTests(unittest.TestCase):
    self.assertTrue(plan)
    op=plan[0]
    command=shim._task091_restricted_repair_command([op])
-   self.assertLessEqual(len(command.splitlines()),6)
-   self.assertEqual(command.splitlines()[0], "pyautogui.press('f2')")
+   self.assertLessEqual(len(command.splitlines()),5)
+   self.assertEqual(command.splitlines()[0], "pyautogui.hotkey('ctrl', 'a')")
    self.assertEqual(command.count("press('delete')")+command.count("hotkey('shift', 'enter')"),1)
    commands.append(command)
    states.append(shim._task091_apply_repair_operation(current,op))
@@ -615,9 +615,40 @@ class MeshTests(unittest.TestCase):
  def test_task091_repair_always_enters_text_mode_before_destructive_keys(self):
   command=shim._task091_restricted_repair_command([{'op':'delete','index':51,'char':'R'}])
   lines=command.splitlines()
-  self.assertEqual(lines[0],"pyautogui.press('f2')")
-  self.assertEqual(lines[1],"pyautogui.hotkey('ctrl', 'a')")
+  self.assertEqual(lines[0],"pyautogui.hotkey('ctrl', 'a')")
+  self.assertEqual(lines[1],"pyautogui.press('left')")
   self.assertLessEqual(len(lines),6)
+
+
+ def test_task091_focal_artifact_uses_signed_text_hit_not_empty_shape_center(self):
+  deck={
+   'schema':1,'stable':True,
+   'screen':[0,0,1920,1080],
+   'window':{'id':1,'pid':1,'title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Office',
+             'owner_title':'','wm_class':'wpp wpp','bbox':[70,27,1850,1053]},
+   'deck_slide_text':{'1':'H2 Operating Committee Pack Growth Plan Draft'},
+   'deck_slide_shapes':{'1':[{
+      'id':6,'name':'CoverTitle','text':'H2 Operating Committee Pack\nGrowth Plan Draft',
+      'geometry':{'x':749808,'y':1078992,'w':5852160,'h':1234440}}]},
+   'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                'sha256':'4c9c57567fa8f4bd81175dbd3d1b2ea40f0ad1ff8689ca47e1cbd001da637f5b',
+                'slide_size':{'w':12192000,'h':6858000}}
+  }
+  center=shim._task091_shape_center(deck,deck['deck_slide_shapes']['1'][0])
+  hit=shim._task091_shape_point(deck,1,'Growth Plan Draft',745,335)
+  self.assertIsNotNone(center)
+  self.assertIsNotNone(hit)
+  self.assertEqual([hit['cx'],hit['cy']],[745,335])
+  self.assertNotEqual([hit['cx'],hit['cy']],[center['cx'],center['cy']])
+  self.assertEqual([center['cx'],center['cy']],[869,390])
+  self.assertIsNone(shim._task091_shape_point(deck,1,'Growth Plan Draft',1400,800))
+
+ def test_task091_writer_never_uses_f2_after_signed_text_hit(self):
+  command=shim._task091_write_command('H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline')
+  self.assertNotIn("press('f2')",command)
+  self.assertEqual(command.splitlines()[0],"pyautogui.hotkey('ctrl', 'a')")
+  with self.assertRaisesRegex(ValueError,'TASK091_TEXT_MODE_MUST_BE_POINTER_ESTABLISHED'):
+   shim._task091_write_command('x',ensure_text_mode=True)
 
 
 if __name__=='__main__':unittest.main()
