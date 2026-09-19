@@ -425,6 +425,14 @@ class Task091CompactEditTests(unittest.TestCase):
             self.assertEqual(command.splitlines()[0], "pyautogui.press('f2')")
             self.assertIn("pyautogui.hotkey('ctrl', 'a')", command)
 
+
+    def test_guest_probe_keeps_signed_table_cell_extraction_contract(self):
+        source=Path('scripts/arbm091/guest_probe.py').read_text(encoding='utf-8')
+        compile(source, 'guest_probe.py', 'exec')
+        self.assertIn("graphicFrame", source)
+        self.assertIn("tblGrid", source)
+        self.assertIn("'kind':'table-cell'", source)
+
     def test_all_task091_spatial_replacements_are_text_mode_guarded(self):
         checked=0
         for _slide,_x,_y,old,new in shim.TASK091_SPATIAL_TEXT_EDITS:
