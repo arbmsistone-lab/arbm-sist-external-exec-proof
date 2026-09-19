@@ -225,7 +225,7 @@ class ForegroundTests(unittest.TestCase):
 
         missing_shape = copy.deepcopy(body)
         missing_shape['deck_slide_shapes'] = {}
-        with self.assertRaisesRegex(ValueError, 'SHAPE_POINT_UNPROVEN'):
+        with self.assertRaisesRegex(ValueError, 'ACTIVE_SLIDE_SHAPES_UNPROVEN'):
             preflight('pyautogui.doubleClick(869, 391, interval=0.08)', missing_shape)
 
         wrong_geometry = copy.deepcopy(body)
