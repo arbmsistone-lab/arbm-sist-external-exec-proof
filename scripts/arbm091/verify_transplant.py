@@ -22,6 +22,8 @@ GUEST_PROBE = 'scripts/arbm091/guest_probe.py'
 SHIM = 'scripts/osworld_free_mesh_shim.py'
 CONTROL = 'scripts/osworld_control.py'
 MESH_TEST = 'scripts/test_osworld_mesh.py'
+REVIEW_BOARD = 'scripts/arbm091/review_board_50x10.py'
+MANIFEST = 'audit/arbm091-final-files.json'
 WPS_ALIAS_COMMIT = 'f0a49b84c95808b501cd91aed14bd702e8230a9c'
 WPS_ALIAS_TEST_COMMIT = '51f63478520b3e8fa89152460dc12dd7da446945'
 WPS_SWITCH_COMMIT = '379a7c64fad1b2776a93f578de8d2ca766473e18'
@@ -196,7 +198,7 @@ grep -F 'RUN35407234122_POINTER_REGRESSION=PASS' /tmp/run35407234122-pointer-reg
 }
 
 RUN35411705196_KEYREPEAT_REPLAY = {
-    'name': 'Replay run 35411705196 non-delete-only corruption rejection',
+    'name': 'Replay run 35411705196 non-restricted corruption rejection',
     'shell': 'bash',
     'run': '''set -euo pipefail
 TASK_ID=091 ZERO_SPEND_MODE=HARD PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35411705196-keyrepeat-regression.json
@@ -208,12 +210,12 @@ root=Path('/tmp/091-keyrepeat/task-091')
 corrupt=json.loads((root/'wps-observations/0009-01-after.json').read_text())
 slide1=corrupt['deck_slide_text']['1']
 assert 'OOperating' in slide1 and 'PPPPPPack' in slide1 and 'RRecover' in slide1, slide1
-actual='H2 OOperating CCommitPPPPPPack\\nStabilize-and-RRecover RRebaseline'
+actual='H2 Operating Committee Pack\\nBroken Rebaseline'
 expected='H2 Operating Committee Pack\\nStabilize-and-Recover Rebaseline'
-assert shim._task091_delete_only_plan(actual,expected) is None
+assert shim._task091_restricted_repair_plan(actual,expected) is None
 print(json.dumps({'status':'PASS','corpus_run':'35411705196',
                   'old_failure':'TASK091_EDIT_NOT_VERIFIED',
-                  'detected':'non-delete-only-key-repeat-corruption',
+                  'detected':'non-restricted-corruption-requiring-printable-insert',
                   'auto_repair':False,'fail_closed':True,
                   'zero_spend':'HARD'},sort_keys=True))
 print('RUN35411705196_KEYREPEAT_REGRESSION=PASS')
@@ -253,6 +255,64 @@ print(json.dumps({'status':'PASS','corpus_run':'35439821335',
 print('RUN35439821335_DELETE_REPAIR_REGRESSION=PASS')
 PY
 grep -F 'RUN35439821335_DELETE_REPAIR_REGRESSION=PASS' /tmp/run35439821335-delete-repair-regression.json
+'''
+}
+
+REVIEW_BOARD_GATE = {
+    'name': 'Run 50x10 senior-master review gate',
+    'shell': 'bash',
+    'run': '''set -euo pipefail
+python - <<'PY'
+from arbm091.review_board_50x10 import evaluate
+import osworld_free_mesh_shim as shim
+actual='H2 Operating Committee PPackSStabilize-and-Recover RRebaseline'
+expected='H2 Operating Committee Pack\\nStabilize-and-Recover Rebaseline'
+plan=shim._task091_restricted_repair_plan(actual,expected)
+shape={'id':6,'name':'CoverTitle','text':actual}
+verdict=evaluate(actual,expected,plan,shape,'a'*64,'b'*64)
+assert verdict['senior_pass']==50 and verdict['master_pass']==10, verdict
+print('TASK091_REVIEW_BOARD_50X10_PASS senior=50/50 master=10/10')
+PY
+'''
+}
+
+RUN35443356294_RESTRICTED_REPAIR_REPLAY = {
+    'name': 'Replay run 35443356294 restricted repair regression',
+    'shell': 'bash',
+    'run': '''set -euo pipefail
+TASK_ID=091 ZERO_SPEND_MODE=HARD PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35443356294-restricted-repair-regression.json
+import json
+from pathlib import Path
+import osworld_free_mesh_shim as shim
+from arbm091.review_board_50x10 import evaluate
+
+root=Path('/tmp/091-restricted-repair/task-091/wps-observations')
+snap=json.loads((root/'0009-01-after.json').read_text())
+shape=next(row for row in snap['deck_slide_shapes']['1'] if row.get('id')==6)
+actual=shape['text']
+expected='H2 Operating Committee Pack\\nStabilize-and-Recover Rebaseline'
+assert actual=='H2 Operating Committee PPackSStabilize-and-Recover RRebaseline', actual
+plan=shim._task091_restricted_repair_plan(actual,expected)
+assert plan==[
+    {'op':'delete','index':24,'char':'P'},
+    {'op':'linebreak','index':27},
+    {'op':'delete','index':29,'char':'S'},
+    {'op':'delete','index':51,'char':'R'}], plan
+command=shim._task091_restricted_repair_command(plan)
+assert 'pyautogui.write(' not in command, command
+assert "hotkey('shift', 'enter')" in command, command
+verdict=evaluate(actual,expected,plan,shape,
+                 '4c9c57567fa8f4bd81175dbd3d1b2ea40f0ad1ff8689ca47e1cbd001da637f5b',
+                 snap['deck_file']['sha256'])
+assert verdict['senior_pass']==50 and verdict['master_pass']==10, verdict
+print(json.dumps({'status':'PASS','corpus_run':'35443356294',
+                  'old_failure':'TASK091_EDIT_TEXT_MISMATCH_UNPROVEN',
+                  'repair':'delete-plus-linebreak-only',
+                  'senior':'50/50','master':'10/10',
+                  'text_injection':False,'zero_spend':'HARD'},sort_keys=True))
+print('RUN35443356294_RESTRICTED_REPAIR_REGRESSION=PASS')
+PY
+grep -F 'RUN35443356294_RESTRICTED_REPAIR_REGRESSION=PASS' /tmp/run35443356294-restricted-repair-regression.json
 '''
 }
 
@@ -298,6 +358,7 @@ def verify_workflow_delta():
     expected['jobs']['proof-tests']['steps'][1]['run'] = (
         'python -m pip install -r scripts/requirements-osworld.txt\n'
         'python -m pip install PyYAML==6.0.2\n')
+    expected['jobs']['proof-tests']['steps'].insert(4, REVIEW_BOARD_GATE)
     replay = expected['jobs']['replay']['steps']
     replay[1]['name'] = 'Download pinned 091 replay corpora'
     replay[1]['run'] = '''set -euo pipefail
@@ -336,6 +397,11 @@ mkdir -p /tmp/091-delete-repair
 unzip -q /tmp/091-delete-repair.zip -d /tmp/091-delete-repair
 test -s /tmp/091-delete-repair/task-091/wps-observations/0013-01-after.json
 test -s /tmp/091-delete-repair/task-091/wps-trace.jsonl
+gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10584667099/zip > /tmp/091-restricted-repair.zip
+mkdir -p /tmp/091-restricted-repair
+unzip -q /tmp/091-restricted-repair.zip -d /tmp/091-restricted-repair
+test -s /tmp/091-restricted-repair/task-091/wps-observations/0009-01-after.json
+test -s /tmp/091-restricted-repair/task-091/wps-trace.jsonl
 '''
     replay[3]['name'] = 'Replay exact WPS 2019 Step 2 through alias-isolated selector twice'
     replay[3]['run'] = (
@@ -349,7 +415,8 @@ test -s /tmp/091-delete-repair/task-091/wps-trace.jsonl
     replay.insert(7, RUN35407234122_POINTER_REPLAY)
     replay.insert(8, RUN35411705196_KEYREPEAT_REPLAY)
     replay.insert(9, RUN35439821335_DELETE_REPAIR_REPLAY)
-    replay[10]['with']['path'] = '/tmp/091-local-contract-replay.json\n/tmp/run35391431490-modal-regression.json\n/tmp/run35400883826-enter-regression.json\n/tmp/run35404537401-deck-regression.json\n/tmp/run35407234122-pointer-regression.json\n/tmp/run35411705196-keyrepeat-regression.json\n/tmp/run35439821335-delete-repair-regression.json\n'
+    replay.insert(10, RUN35443356294_RESTRICTED_REPAIR_REPLAY)
+    replay[11]['with']['path'] = '/tmp/091-local-contract-replay.json\n/tmp/run35391431490-modal-regression.json\n/tmp/run35400883826-enter-regression.json\n/tmp/run35404537401-deck-regression.json\n/tmp/run35407234122-pointer-regression.json\n/tmp/run35411705196-keyrepeat-regression.json\n/tmp/run35439821335-delete-repair-regression.json\n/tmp/run35443356294-restricted-repair-regression.json\n'
     require(len(re.findall(r'(?m)^\s+TASK_ID: [\'"]091[\'"]\s*$', text)) == 1,
             'TASK091_MUST_BE_QUOTED_YAML_STRING')
     require(normalize(current) == normalize(expected), 'UNEXPECTED_WORKFLOW_SEMANTIC_DELTA')
@@ -364,11 +431,11 @@ def main():
             'CLEAN_BASELINE_ANCESTRY_MISMATCH')
     require(git('rev-list', '--count', BASE + '..' + CLEAN_BASELINE) == '3',
             'EXACTLY_THREE_BASELINE_COMMITS_REQUIRED')
-    require(git('rev-list', '--count', BASE + '..HEAD') == '129',
-            'EXACTLY_ONE_HUNDRED_TWENTY_NINE_AUDITED_COMMITS_REQUIRED')
+    require(git('rev-list', '--count', BASE + '..HEAD') == '137',
+            'EXACTLY_ONE_HUNDRED_THIRTY_SEVEN_AUDITED_COMMITS_REQUIRED')
     require(not git('rev-list', '--merges', BASE + '..HEAD'), 'MERGE_COMMITS_FORBIDDEN')
     overlay = git('rev-list', '--reverse', CLEAN_BASELINE + '..HEAD').splitlines()
-    require(len(overlay) == 126, 'EXACTLY_ONE_HUNDRED_TWENTY_SIX_REPAIR_COMMITS_REQUIRED')
+    require(len(overlay) == 134, 'EXACTLY_ONE_HUNDRED_THIRTY_FOUR_REPAIR_COMMITS_REQUIRED')
     require(overlay[2] == PID_FILTER_COMMIT and overlay[3] == PID_TEST_COMMIT,
             'PID_REPAIR_COMMIT_IDENTITY_MISMATCH')
     require(overlay[6] == WPS_ALIAS_COMMIT and overlay[7] == WPS_ALIAS_TEST_COMMIT
@@ -378,7 +445,7 @@ def main():
                        LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, VERIFIER, WORKFLOW, VERIFIER, WORKFLOW,
                        VERIFIER, SHIM, MESH_TEST, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, WPS_OBSERVER, TRACE_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST,
                        (SHIM, MESH_TEST), VERIFIER, TRACE_GATE, TRACE_GATE, WPS_OBSERVER, WPS_OBSERVER,
-                       SHIM, TRACE_GATE, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, VERIFIER, TRACE_GATE, VERIFIER, WORKFLOW, VERIFIER, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, TRACE_TEST, MESH_TEST, WORKFLOW, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, TRACE_TEST, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, VERIFIER, CONTROL, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, VERIFIER, MESH_TEST, VERIFIER)
+                       SHIM, TRACE_GATE, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, VERIFIER, TRACE_GATE, VERIFIER, WORKFLOW, VERIFIER, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, TRACE_TEST, MESH_TEST, WORKFLOW, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, TRACE_TEST, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, VERIFIER, CONTROL, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, VERIFIER, MESH_TEST, VERIFIER, SHIM, REVIEW_BOARD, MESH_TEST, WORKFLOW, MESH_TEST, WORKFLOW, MANIFEST, VERIFIER)
     require(overlay[43] == SUPERSEDED_ALT_F4_COMMIT, 'SUPERSEDED_ALT_F4_COMMIT_IDENTITY_MISMATCH')
     for commit, allowed in zip(overlay, expected_scopes):
         actual=set(git('diff-tree', '--no-commit-id', '--name-only', '-r', commit).splitlines())
@@ -394,7 +461,7 @@ def main():
     changed = set(git('diff', '--name-only', BASE, 'HEAD').splitlines())
     require(changed == set(manifest), 'CHANGED_FILE_ALLOWLIST_MISMATCH')
     require(set(git('diff', '--name-only', CLEAN_BASELINE, 'HEAD').splitlines())
-            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL},
+            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST},
             'REPAIR_TOTAL_SCOPE_MISMATCH')
     exists = subprocess.run(['git', 'cat-file', '-e', PATCH_SOURCE], capture_output=True).returncode == 0
     if exists:
@@ -413,7 +480,7 @@ def main():
     expected.update(patch['postimage_sha256'])
     repaired = {LOCAL_VLM: WPS_ALIAS_COMMIT, LOCAL_VLM_TEST: WPS_ALIAS_TEST_COMMIT,
                 TRACE_GATE: overlay[84], TRACE_TEST: overlay[87], WPS_OBSERVER: overlay[110],
-                GUEST_PROBE: overlay[109], CONTROL: overlay[95], SHIM: overlay[111], MESH_TEST: overlay[124]}
+                GUEST_PROBE: overlay[109], CONTROL: overlay[95], SHIM: overlay[126], MESH_TEST: overlay[130], REVIEW_BOARD: overlay[127], MANIFEST: overlay[132]}
     for path, wanted in expected.items():
         if path in repaired:
             source = subprocess.check_output(['git', 'show', repaired[path] + ':' + path])
@@ -426,9 +493,9 @@ def main():
     verify_workflow_delta()
     print(json.dumps({'status': 'CLEAN_HISTORY_AND_SCOPE_PASS', 'base_sha': BASE,
                       'clean_baseline_sha': CLEAN_BASELINE, 'baseline_commits': 3,
-                      'repair_commits': overlay, 'new_commits': 129, 'changed_files': len(changed),
+                      'repair_commits': overlay, 'new_commits': 137, 'changed_files': len(changed),
                       'repair_scope': [VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST,
-                                       TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL], 'official_score_claimed': False}))
+                                       TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST], 'official_score_claimed': False}))
 
 
 if __name__ == '__main__':
