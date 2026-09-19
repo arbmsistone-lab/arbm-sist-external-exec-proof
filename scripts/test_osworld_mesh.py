@@ -306,9 +306,18 @@ class MeshTests(unittest.TestCase):
    # the expected old value on the expected slide.
    spatial_state={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
    spatial=shim.next_091_specialist_action(task,'WPS Presentation','',spatial_state,deck)
-   self.assertEqual(spatial['target']['source'],'target-pptx-spatial')
+   self.assertEqual(spatial['target']['source'],'task091-pptx-canonical')
    self.assertEqual(spatial['command'],'pyautogui.doubleClick(745, 335, interval=0.08)')
    self.assertEqual(spatial_state['pending_edit']['before_old_count'],1)
+   self.assertEqual(spatial['target']['proof_sha256'],shim.task091_spatial_target_proof(spatial['target']))
+   grounded=shim.ground_action(spatial,'WPS Presentation','',[],allow_canonical=True)
+   self.assertEqual(grounded['command'],spatial['command'])
+   self.assertIn('PPTX-backed canonical target',grounded.get('compiler_note',''))
+   with self.assertRaisesRegex(ValueError,'CANONICAL_TARGET_UNTRUSTED'):
+    shim.ground_action(spatial,'WPS Presentation','',[],allow_canonical=False)
+   tampered=copy.deepcopy(spatial); tampered['target']['deck_sha256']='b'*64
+   with self.assertRaisesRegex(ValueError,'TASK091_CANONICAL_TARGET_PROOF_INVALID'):
+    shim.ground_action(tampered,'WPS Presentation','',[],allow_canonical=True)
    no_old={**deck,'deck_slide_text':{'1':'Already changed'}}
    no_old_state={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
    retry_no_old=shim.next_091_specialist_action(task,'WPS Presentation','',no_old_state,no_old)
