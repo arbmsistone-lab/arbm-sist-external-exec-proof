@@ -28,6 +28,21 @@ def runtime_identity():
 def run(cmd, cwd=None, timeout=600):
     return subprocess.run(cmd, cwd=cwd, text=True, capture_output=True, timeout=timeout)
 
+def _validated_endpoint(value, kind):
+    parsed=urllib.parse.urlparse(str(value))
+    host=(parsed.hostname or '').lower()
+    if kind=='github_oidc':
+        ok=(parsed.scheme=='https' and host=='token.actions.githubusercontent.com')
+    elif kind=='arbm_benchmark':
+        ok=(parsed.scheme=='https' and host=='pvkpkqwdnnpkgvllwqbc.supabase.co' and parsed.path.startswith('/functions/v1/arbm-benchmark-agent'))
+    elif kind=='sovereign_local':
+        ok=(parsed.scheme=='http' and host in {'127.0.0.1','localhost'})
+    else:
+        ok=False
+    if not ok:
+        raise ValueError(f'UNTRUSTED_ENDPOINT:{kind}:{parsed.scheme}://{host}{parsed.path}')
+    return value
+
 def clean_diff(text):
     text = re.sub(r'^```(?:diff)?\s*', '', text.strip(), flags=re.I)
     text = re.sub(r'\s*```$', '', text.strip())
@@ -200,9 +215,11 @@ def fresh_oidc():
     url=os.environ.get('ACTIONS_ID_TOKEN_REQUEST_URL','')
     bearer=os.environ.get('ACTIONS_ID_TOKEN_REQUEST_TOKEN','')
     if url and bearer:
+        url=_validated_endpoint(url,'github_oidc')
         sep='&' if '?' in url else '?'
         req=urllib.request.Request(url+sep+'audience='+urllib.parse.quote('arbm-sist-benchmark'))
         req.add_header('Authorization','Bearer '+bearer)
+        # Endpoint host/scheme is allowlisted above. nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
         with urllib.request.urlopen(req, timeout=20) as r:
             return str(json.loads(r.read().decode('utf-8'))['value'])
     return os.environ.get('ARBM_BENCHMARK_OIDC','')
@@ -210,6 +227,7 @@ def fresh_oidc():
 def infer(prompt, instance_id):
     endpoint=os.environ.get('ARBM_BENCHMARK_ENDPOINT','')
     if endpoint:
+        endpoint=_validated_endpoint(endpoint,'arbm_benchmark')
         body=json.dumps({'task':prompt,'task_class':'swe-rebench-v2','instance_id':instance_id}).encode('utf-8')
         last_err=''
         for attempt, delay in enumerate((0, 15), start=1):
@@ -222,6 +240,7 @@ def infer(prompt, instance_id):
                 req=urllib.request.Request(endpoint, data=body, method='POST')
                 req.add_header('Authorization', 'Bearer '+token)
                 req.add_header('Content-Type', 'application/json')
+                # Endpoint is validated against the exact ARBM Supabase host/path. nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
                 with urllib.request.urlopen(req, timeout=150) as r:
                     data=json.loads(r.read().decode('utf-8'))
                 if not data.get('ok'):
@@ -247,6 +266,7 @@ def infer(prompt, instance_id):
 
 
 def _remote_json_one(endpoint, payload, retries=(0,12)):
+    endpoint=_validated_endpoint(endpoint,'arbm_benchmark')
     body=json.dumps(payload).encode('utf-8'); last_err=''
     for delay in retries:
         if delay: time.sleep(delay)
@@ -256,6 +276,7 @@ def _remote_json_one(endpoint, payload, retries=(0,12)):
             req=urllib.request.Request(endpoint,data=body,method='POST')
             req.add_header('Authorization','Bearer '+token); req.add_header('Content-Type','application/json')
             req.add_header('User-Agent','arbm-sist-benchmark/19'); req.add_header('Accept','application/json')
+            # Endpoint is validated against the exact ARBM Supabase host/path. nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
             with urllib.request.urlopen(req,timeout=150) as r: data=json.loads(r.read().decode('utf-8'))
             if data.get('ok'): return 0,data,'',False
             last_err='REMOTE_STATUS:'+str(data.get('status'))
@@ -369,6 +390,7 @@ def _extract_public_constraint_ledger(raw, existing=None, max_items=16):
 def _sovereign_json(payload):
     endpoint=os.environ.get('ARBM_SOVEREIGN_ENDPOINT','')
     if not endpoint: return 126,None,'NO_SOVEREIGN_ENDPOINT',False
+    endpoint=_validated_endpoint(endpoint,'sovereign_local')
     phase=str(payload.get('phase',''))
     if phase=='plan':
         return 0,{'plan':{'paths':[],'queries':[]},'model':'deterministic-public-lexical-planner','pipeline':'sovereign-lexical'},'',False
@@ -411,6 +433,7 @@ def _sovereign_json(payload):
     try:
         req=urllib.request.Request(endpoint,data=body,method='POST'); req.add_header('Content-Type','application/json')
         sovereign_timeout=max(180,min(600,int(os.environ.get('ARBM_SOVEREIGN_TIMEOUT_SECONDS','420'))))
+        # Sovereign endpoint is constrained to localhost/127.0.0.1. nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
         with urllib.request.urlopen(req,timeout=sovereign_timeout) as r: outer=json.loads(r.read().decode('utf-8'))
         content=outer['choices'][0]['message'].get('content','')
         if isinstance(content,list): content=''.join(str(x.get('text','')) if isinstance(x,dict) else str(x) for x in content)
