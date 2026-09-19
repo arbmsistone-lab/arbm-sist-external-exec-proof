@@ -97,6 +97,15 @@ def capture(point):
                         'mtime_ns': int(stat.st_mtime_ns),
                         'sha256': hashlib.sha256(raw).hexdigest()}
             with zipfile.ZipFile(io.BytesIO(raw), 'r') as archive:
+                if 'ppt/presentation.xml' in archive.namelist():
+                    presentation = ET.fromstring(archive.read('ppt/presentation.xml'))
+                    slide_size = next((node for node in presentation.iter()
+                                       if node.tag.endswith('}sldSz')), None)
+                    if slide_size is not None:
+                        metadata['slide_size'] = {
+                            'w': int(slide_size.attrib.get('cx', '0')),
+                            'h': int(slide_size.attrib.get('cy', '0')),
+                        }
                 names = [name for name in archive.namelist()
                          if name.startswith('ppt/slides/slide') and name.endswith('.xml')]
                 for name in names:
@@ -127,6 +136,8 @@ def capture(point):
                             for text_node in paragraph.iter():
                                 if text_node.tag.endswith('}t') and text_node.text is not None:
                                     chunks.append(str(text_node.text))
+                                elif text_node.tag.endswith('}br'):
+                                    chunks.append('\n')
                             if chunks:
                                 paragraphs.append(''.join(chunks))
                         shape_text = '\n'.join(paragraphs)
