@@ -237,6 +237,13 @@ def preflight(command: str, snapshot: dict) -> str:
     elif name == 'hotkey' and set(args) == {'alt', 'tab'}:
         require(app != 'wps-transient', 'WPS_TRANSIENT_APP_SWITCH_FORBIDDEN')
         return 'application-switch'
+    elif name == 'sleep':
+        # A bounded sleep is a non-interacting timing no-op. It is allowed even
+        # before an approved application is foregrounded, but it cannot count
+        # as WPS activity, editing, saving, or application switching.
+        require(len(args) == 1 and type(args[0]) in (int, float), 'NEUTRAL_WAIT_DURATION_REQUIRED')
+        require(0 <= float(args[0]) <= 2.0, 'NEUTRAL_WAIT_DURATION_UNBOUNDED')
+        return 'neutral-wait'
     else:
         require(app != 'unapproved', 'UNAPPROVED_APPLICATION')
     return 'wps-transient' if app == 'wps-transient' else ('wps-content' if app == 'wps-presentation' else 'reference')
@@ -343,6 +350,11 @@ def verify_trace(root: Path, sha: str, run_id: str, run_attempt: str) -> dict:
         after_app = postflight(command, before, after)
         if scope == 'application-switch':
             switches += 1
+            continue
+        if scope == 'neutral-wait':
+            name, args, _ = parse_atom(command)
+            require(name == 'sleep' and len(args) == 1 and 0 <= float(args[0]) <= 2.0,
+                    'NEUTRAL_WAIT_SCOPE_INVALID')
             continue
         require(after_app != 'unapproved', 'POST_ACTION_APP_DRIFT')
         if scope == 'wps-transient':
