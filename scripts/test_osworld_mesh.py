@@ -260,7 +260,7 @@ class MeshTests(unittest.TestCase):
    # First edit is a two-phase transaction and index cannot advance early.
    select=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck)
    self.assertEqual(select['target']['source'],'task091-pptx-canonical')
-   self.assertEqual(select['command'],'pyautogui.doubleClick(869, 391, interval=0.08)')
+   self.assertEqual(select['command'],'pyautogui.click(869, 391)')
    self.assertEqual(state['pending_edit']['shape_id'],6)
    self.assertEqual(state['spatial_index'],0)
    self.assertEqual(state['pending_edit']['stage'],'select-issued')
@@ -300,7 +300,7 @@ class MeshTests(unittest.TestCase):
 
    # Shape-bound targeting must move to CoverSub and never re-edit CoverTitle.
    second_select=shim.next_091_specialist_action(task,'WPS Presentation','',state,deck_after)
-   self.assertEqual(second_select['command'],'pyautogui.doubleClick(861, 586, interval=0.08)')
+   self.assertEqual(second_select['command'],'pyautogui.click(861, 586)')
    self.assertEqual(state['pending_edit']['shape_id'],7)
    wrong_shape_after={**deck_after,
       'deck_slide_text':{'1':'Northstar Cloud Prepared for July Operating Committee review Planning posture: stabilize and recover with disciplined sequencing Planning posture: accelerate growth through H2 scale-up'},
@@ -539,7 +539,7 @@ class MeshTests(unittest.TestCase):
   command=shim._task091_restricted_repair_command([first])
   self.assertNotIn('pyautogui.write(',command)
   self.assertIn("press('delete')",command)
-  self.assertLessEqual(len(command.splitlines()),4)
+  self.assertLessEqual(len(command.splitlines()),5)
   from osworld_control import canonical_action
   compiled=canonical_action({'action':'exec','command':command})
   self.assertEqual(compiled['command'],command)
@@ -559,7 +559,8 @@ class MeshTests(unittest.TestCase):
    self.assertNotIn('presses=43',command)
    self.assertNotIn('presses=51',command)
    self.assertIn("presses=30",command)
-   self.assertLessEqual(len(command.splitlines()),5)
+   self.assertLessEqual(len(command.splitlines()),6)
+   self.assertEqual(command.splitlines()[0], "pyautogui.press('f2')")
    from osworld_control import canonical_action
    compiled=canonical_action({'action':'exec','command':command})
    self.assertEqual(compiled['command'],command)
@@ -578,7 +579,8 @@ class MeshTests(unittest.TestCase):
    self.assertTrue(plan)
    op=plan[0]
    command=shim._task091_restricted_repair_command([op])
-   self.assertLessEqual(len(command.splitlines()),5)
+   self.assertLessEqual(len(command.splitlines()),6)
+   self.assertEqual(command.splitlines()[0], "pyautogui.press('f2')")
    self.assertEqual(command.count("press('delete')")+command.count("hotkey('shift', 'enter')"),1)
    commands.append(command)
    states.append(shim._task091_apply_repair_operation(current,op))
@@ -587,5 +589,35 @@ class MeshTests(unittest.TestCase):
   self.assertEqual([shim._task091_restricted_repair_plan(s,expected)[0]['index']
                     for s in states[:-1]],[1,14,43,51])
   self.assertTrue(all('pyautogui.write(' not in command for command in commands))
+
+ def test_task091_geometry_hint_disambiguates_repeated_text_and_table_cells(self):
+  deck={
+   'screen':[0,0,1920,1080],
+   'window':{'bbox':[70,27,1850,1053]},
+   'deck_file':{'slide_size':{'w':12191365,'h':6858000}},
+   'deck_slide_shapes':{'9':[
+    {'id':34,'name':'RoadmapLaneName_1','text':'Expansion Sprint',
+     'geometry':{'x':804672,'y':2798063,'w':914400,'h':201168},'kind':'shape'},
+    {'id':42,'name':'RoadmapBarText_1','text':'Expansion Sprint',
+     'geometry':{'x':3127248,'y':2798064,'w':4224528,'h':164592},'kind':'shape'},
+    {'id':-50101,'name':'KpiTable#r1c1','text':'Expansion Sprint',
+     'geometry':{'x':6500000,'y':2800000,'w':900000,'h':200000},'kind':'table-cell'},
+   ]}
+  }
+  left=shim._task091_shape_point(deck,9,'Expansion Sprint',505,455)
+  right=shim._task091_shape_point(deck,9,'Expansion Sprint',901,453)
+  self.assertIsNotNone(left)
+  self.assertIsNotNone(right)
+  self.assertEqual(left['shape']['id'],34)
+  self.assertEqual(right['shape']['id'],42)
+  self.assertNotEqual(left['shape']['id'],right['shape']['id'])
+
+ def test_task091_repair_always_enters_text_mode_before_destructive_keys(self):
+  command=shim._task091_restricted_repair_command([{'op':'delete','index':51,'char':'R'}])
+  lines=command.splitlines()
+  self.assertEqual(lines[0],"pyautogui.press('f2')")
+  self.assertEqual(lines[1],"pyautogui.hotkey('ctrl', 'a')")
+  self.assertLessEqual(len(lines),6)
+
 
 if __name__=='__main__':unittest.main()
