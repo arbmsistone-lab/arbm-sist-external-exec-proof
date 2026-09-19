@@ -19,8 +19,8 @@ def load_function(name, namespace):
     )
     module = ast.fix_missing_locations(ast.Module(body=[function], type_ignores=[]))
     scope = dict(namespace)
-    # Test harness executes an AST extracted from the fixed local SCRIPT, never external input. nosemgrep: python.lang.security.audit.exec-detected.exec-detected
-    exec(compile(module, str(SCRIPT), 'exec'), scope)
+    # Test harness executes AST extracted only from the fixed repository-local SCRIPT.
+    exec(compile(module, str(SCRIPT), 'exec'), scope)  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
     return scope[name]
 
 
