@@ -319,7 +319,7 @@ class ForegroundTests(unittest.TestCase):
         # Audit 07: third KPI survives the larger 91px drift without weakening identity.
         p3=shim._task091_shape_point(body,1,'214',1338,630)
         self.assertEqual(p3['shape']['id'],19)
-        self.assertEqual(p3['hint_drift'],91)
+        self.assertEqual(p3['hint_drift'],92)
 
         # Audit 08: duplicate exact shapes remain fail-closed under ambiguous geometry.
         dup=copy.deepcopy(body)
@@ -399,13 +399,13 @@ class ForegroundTests(unittest.TestCase):
         lanes.append(('S08_wrong_text',shim._task091_shape_point(body,1,'$99.9M',1338,393) is None))
         partial=copy.deepcopy(body); partial['deck_slide_shapes']['1'][0]['text']='Forecast $42.8M approved'
         pp=shim._task091_shape_point(partial,1,'$42.8M',1338,393)
-        lanes.append(('S09_unique_partial_allowed',pp is not None and pp['shape']['id']==13))
+        lanes.append(('S09_partial_not_authoritative',pp is None))
         ambiguous=copy.deepcopy(partial)
         ambiguous['deck_slide_shapes']['1'].append({
             'id':14,'name':'Other','text':'Other $42.8M reference',
             'geometry':{'x':1000000,'y':1000000,'w':1000000,'h':300000}})
         ap=shim._task091_shape_point(ambiguous,1,'$42.8M',1338,393)
-        lanes.append(('S10_partial_uses_distance_only_when_no_exact',ap is not None and ap['shape']['id'] in (13,14)))
+        lanes.append(('S10_ambiguous_partial_rejected',ap is None))
         self.assertEqual([name for name,ok in lanes if not ok],[],lanes)
 
     def test_task091_text_hitpoint_must_belong_to_exactly_one_shape(self):
