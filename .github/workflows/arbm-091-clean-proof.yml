@@ -287,6 +287,7 @@ jobs:
         probe['screen']=[0,0,1920,1080]
         probe['window']['bbox']=[70,27,1850,1053]
         probe['target']=None
+        probe['active_slide']=1
         assert preflight(action['command'],probe) == 'wps-content'
         print(json.dumps({'status':'PASS','corpus_run':'35404537401',
                           'atspi_controls':0,'fallback':'task091-pptx-canonical',
@@ -532,6 +533,7 @@ jobs:
 
         probe=copy.deepcopy(snap)
         probe['target']=None
+        probe['active_slide']=1
         assert preflight(action['command'],probe)=='wps-content'
         try:
             preflight('pyautogui.doubleClick(1215, 470, interval=0.08)',probe)
