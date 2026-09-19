@@ -552,6 +552,19 @@ class MeshTests(unittest.TestCase):
   with self.assertRaises(RuntimeError):
    evaluate(actual,expected,unsafe,shape,'a'*64,'b'*64)
 
+ def test_task091_atomic_repair_chunks_long_caret_navigation(self):
+  for index in (43,51):
+   command=shim._task091_restricted_repair_command([{'op':'delete','index':index,'char':'R'}])
+   self.assertNotIn('presses=31',command)
+   self.assertNotIn('presses=43',command)
+   self.assertNotIn('presses=51',command)
+   self.assertIn("presses=30",command)
+   self.assertLessEqual(len(command.splitlines()),5)
+   from osworld_control import canonical_action
+   compiled=canonical_action({'action':'exec','command':command})
+   self.assertEqual(compiled['command'],command)
+   self.assertEqual(command.count("pyautogui.press('delete')"),1)
+
  def test_task091_atomic_repair_replans_from_persisted_text(self):
   actual='HH2 Operating CCommittee Pack\nStabilize-and-RRecover RRebaseline'
   expected='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
