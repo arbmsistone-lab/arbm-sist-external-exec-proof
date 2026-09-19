@@ -361,17 +361,21 @@ class MeshTests(unittest.TestCase):
                  'deck_slide_shapes':{'1':[{'id':7,'name':'Title 1','text':corrupt_text,
                                             'paragraphs':['H2 Operating Committee Pack',
                                                           'SStabilize-and-Recover Rebaseline'],
-                                            'geometry':{'x':1,'y':2,'w':3,'h':4}}]},
+                                            'geometry':{'x':749808,'y':1078992,'w':5852160,'h':922020}}]},
                  'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
                               'sha256':'c'*64,'size':110431,'mtime_ns':3,
                               'slide_size':{'w':12192000,'h':6858000}},
                  'screenshot_sha256':'3'*64}
    repair_select=shim.next_091_specialist_action(task,'WPS Presentation','',corrupt_state,corrupt_deck)
-   self.assertEqual(repair_select['command'],'pyautogui.doubleClick(745, 335, interval=0.08)')
+   self.assertEqual(repair_select['command'],'pyautogui.doubleClick(869, 373, interval=0.08)')
+   self.assertNotEqual(repair_select['command'],'pyautogui.doubleClick(745, 335, interval=0.08)')
    self.assertEqual(repair_select['target']['source'],'task091-pptx-canonical')
    self.assertEqual(corrupt_state['pending_edit']['repair_attempts'],1)
    self.assertEqual(corrupt_state['pending_edit']['repair_before_deck_sha256'],'c'*64)
    self.assertEqual(corrupt_state['pending_edit']['repair_shape_id'],7)
+   self.assertEqual(corrupt_state['pending_edit']['repair_target_cx'],869)
+   self.assertEqual(corrupt_state['pending_edit']['repair_target_cy'],373)
+   self.assertEqual(corrupt_state['pending_edit']['repair_shape_geometry']['h'],922020)
    self.assertGreater(len(corrupt_state['pending_edit']['repair_plan']),0)
    self.assertTrue(all(row['op'] in ('delete','linebreak') for row in corrupt_state['pending_edit']['repair_plan']))
 
@@ -393,7 +397,7 @@ class MeshTests(unittest.TestCase):
                   'deck_slide_shapes':{'1':[{'id':7,'name':'Title 1','text':repaired_text,
                                              'paragraphs':['H2 Operating Committee Pack',
                                                            'Stabilize-and-Recover Rebaseline'],
-                                             'geometry':{'x':1,'y':2,'w':3,'h':4}}]},
+                                             'geometry':{'x':749808,'y':1078992,'w':5852160,'h':922020}}]},
                   'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
                                'sha256':'d'*64,'size':110500,'mtime_ns':4,
                                'slide_size':{'w':12192000,'h':6858000}},
