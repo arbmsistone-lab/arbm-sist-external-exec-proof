@@ -164,7 +164,57 @@ def capture(point):
                             }
                         shapes.append({'id': shape_id, 'name': shape_name,
                                        'text': shape_text, 'paragraphs': paragraphs,
-                                       'geometry': geometry})
+                                       'geometry': geometry, 'kind':'shape'})
+                    for frame in root_xml.iter():
+                        if not frame.tag.endswith('}graphicFrame'):
+                            continue
+                        c_nv_pr = next((node for node in frame.iter()
+                                      if node.tag.endswith('}cNvPr')), None)
+                        frame_id = int(c_nv_pr.attrib.get('id', '0')) if c_nv_pr is not None else 0
+                        frame_name = str(c_nv_pr.attrib.get('name', '')) if c_nv_pr is not None else ''
+                        xfrm = next((node for node in frame
+                                     if node.tag.endswith('}xfrm')), None)
+                        if xfrm is None:
+                            continue
+                        off = next((node for node in xfrm if node.tag.endswith('}off')), None)
+                        ext = next((node for node in xfrm if node.tag.endswith('}ext')), None)
+                        table = next((node for node in frame.iter()
+                                      if node.tag.endswith('}tbl')), None)
+                        if table is None or off is None or ext is None:
+                            continue
+                        fx=int(off.attrib.get('x','0')); fy=int(off.attrib.get('y','0'))
+                        fw=int(ext.attrib.get('cx','0')); fh=int(ext.attrib.get('cy','0'))
+                        rows=[node for node in table if node.tag.endswith('}tr')]
+                        grid=next((node for node in table if node.tag.endswith('}tblGrid')),None)
+                        cols=[int(node.attrib.get('w','0')) for node in grid] if grid is not None else []
+                        row_heights=[int(row.attrib.get('h','0')) for row in rows]
+                        total_w=sum(cols); total_h=sum(row_heights)
+                        if not cols or total_w<=0 or total_h<=0:
+                            continue
+                        y_cursor=fy
+                        for r_index,row in enumerate(rows):
+                            rh=row_heights[r_index] if r_index < len(row_heights) else 0
+                            x_cursor=fx
+                            cells=[node for node in row if node.tag.endswith('}tc')]
+                            for c_index,cell in enumerate(cells):
+                                cw=cols[c_index] if c_index < len(cols) else 0
+                                chunks=[]
+                                for text_node in cell.iter():
+                                    if text_node.tag.endswith('}t') and text_node.text is not None:
+                                        chunks.append(str(text_node.text))
+                                    elif text_node.tag.endswith('}br'):
+                                        chunks.append('\n')
+                                text=''.join(chunks)
+                                if text and cw>0 and rh>0:
+                                    shapes.append({
+                                        'id': -(frame_id*10000 + r_index*100 + c_index + 1),
+                                        'name': f'{frame_name}#r{r_index}c{c_index}',
+                                        'text': text, 'paragraphs':[text],
+                                        'geometry': {'x':x_cursor,'y':y_cursor,'w':cw,'h':rh},
+                                        'kind':'table-cell','frame_id':frame_id,
+                                        'row':r_index,'col':c_index})
+                                x_cursor += cw
+                            y_cursor += rh
                     key = str(int(number))
                     run_result[key] = parts
                     shape_result[key] = shapes
