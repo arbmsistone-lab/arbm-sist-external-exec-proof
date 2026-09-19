@@ -27,7 +27,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          case "$GITHUB_REF" in refs/heads/p9/*) ;; *) echo 'P9_REF_REQUIRED'; exit 64;; esac
+          if [[ "$GITHUB_REF" != refs/heads/p9/* ]]; then echo 'P9_REF_REQUIRED'; exit 64; fi
           test -n "$REQUEST_ID"
       - name: Fetch pinned public SRS
         shell: bash
