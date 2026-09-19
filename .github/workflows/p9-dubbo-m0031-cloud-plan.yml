@@ -28,7 +28,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          case "$GITHUB_REF" in refs/heads/p8/*) ;; *) echo 'P9_BRIDGE_REQUIRES_OIDC_ALLOWED_P8_REF'; exit 64;; esac
+          if [[ "$GITHUB_REF" != refs/heads/p8/* ]]; then echo 'P9_BRIDGE_REQUIRES_OIDC_ALLOWED_P8_REF'; exit 64; fi
           test -n "$REQUEST_ID"
       - name: Fetch and pin public SRS
         shell: bash
