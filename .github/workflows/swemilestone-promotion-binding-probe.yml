@@ -48,8 +48,8 @@ jobs:
           closure_remote='hyd2apse/swe-milestone__element-hq_element-web_v1.11.95_v1.11.97__base-offline@sha256:7c0367cc633fa0367368c358d245f379e2eef534f2360cf8296ec02d9ca18ce8'
           closure_logical='swe-milestone/element-hq_element-web_v1.11.95_v1.11.97__base-offline:v1.0.2'
           for pair in "$feature_remote|$feature_logical" "$closure_remote|$closure_logical"; do
-            remote=${pair%%|*}
-            logical=${pair#*|}
+            remote="$(printf '%s' "$pair" | cut -d '|' -f 1)"
+            logical="$(printf '%s' "$pair" | cut -d '|' -f 2-)"
             docker pull "$remote"
             id=$(docker image inspect "$remote" --format '{{.Id}}')
             docker tag "$id" "$logical"

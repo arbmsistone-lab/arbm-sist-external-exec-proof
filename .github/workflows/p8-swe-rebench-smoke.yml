@@ -38,7 +38,10 @@ jobs:
       - name: Acquire GitHub OIDC token for ARBM benchmark
         id: oidc
         run: |
-          TOKEN=$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')
+          oidc_json="$(mktemp)"
+          trap 'rm -f "$oidc_json"' EXIT
+          curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-sist-benchmark" -o "$oidc_json"
+          TOKEN="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["value"])' "$oidc_json")"
           echo "::add-mask::$TOKEN"
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
       - name: Generate patch via remote zero-cost mesh first

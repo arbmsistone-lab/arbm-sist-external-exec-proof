@@ -22,6 +22,7 @@ jobs:
     env:
       MISSION_B64: ${{ inputs.mission_b64 }}
       ARBM_RUN_ROOT: ${{ github.workspace }}/.arbm-run
+      REQUEST_ID: ${{ inputs.request_id }}
     steps:
       - name: Checkout control plane
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -38,7 +39,7 @@ jobs:
         if: always()
         run: |
           mkdir -p "$ARBM_RUN_ROOT/evidence"
-          printf '%s\n' "${{ inputs.request_id }}" > "$ARBM_RUN_ROOT/evidence/request-id.txt"
+          printf '%s\n' "$REQUEST_ID" > "$ARBM_RUN_ROOT/evidence/request-id.txt"
           sha256sum "$ARBM_RUN_ROOT/evidence"/* 2>/dev/null | sort > "$ARBM_RUN_ROOT/evidence/evidence-sha256.txt" || true
 
       - name: Upload universal evidence

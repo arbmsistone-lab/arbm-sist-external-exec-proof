@@ -15,6 +15,7 @@ jobs:
     timeout-minutes: 5
     env:
       ZERO_SPEND_MODE: HARD
+      INPUT_GENERATION: ${{ inputs.generation }}
     steps:
       - name: Prove free public runner rotation
         shell: bash
@@ -22,7 +23,7 @@ jobs:
           set -euo pipefail
           test "$RUNNER_ENVIRONMENT" = github-hosted
           test "$ZERO_SPEND_MODE" = HARD
-          GEN='${{ inputs.generation }}'
+          GEN="$INPUT_GENERATION"
           test "$GEN" -ge 0
           test "$GEN" -le 2
           printf '{"generation":%s,"run_id":"%s","runner":"github-hosted","zero_spend":"HARD"}\n' "$GEN" "$GITHUB_RUN_ID" | tee rotation-evidence.json
@@ -33,7 +34,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          NEXT=$(( ${{ inputs.generation }} + 1 ))
+          NEXT=$(( INPUT_GENERATION + 1 ))
           curl -fsS -X POST \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H 'Accept: application/vnd.github+json' \

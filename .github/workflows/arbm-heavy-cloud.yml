@@ -19,12 +19,15 @@ jobs:
   execute:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      INPUT_MISSION: ${{ inputs.mission }}
+      INPUT_REQUEST_ID: ${{ inputs.request_id }}
     steps:
       - name: Validate mission
         shell: bash
         run: |
           set -euo pipefail
-          case "${{ inputs.mission }}" in
+          case "$INPUT_MISSION" in
             ripgrep-cargo-test|ripgrep-cargo-check) ;;
             *) echo 'MISSION_NOT_ALLOWLISTED'; exit 64 ;;
           esac
@@ -43,7 +46,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${{ inputs.mission }}" = "ripgrep-cargo-test" ]; then
+          if [ "$INPUT_MISSION" = "ripgrep-cargo-test" ]; then
             (cd target && CARGO_BUILD_JOBS=2 RUST_TEST_THREADS=1 cargo test --locked)
           else
             (cd target && CARGO_BUILD_JOBS=2 cargo check --locked)
@@ -55,7 +58,7 @@ jobs:
           PARENT_SHA="$(git -C target rev-parse HEAD)"
           TREE_SHA="$(git -C target write-tree)"
           printf '{"schema":"arbm-heavy-cloud-v1","requestId":"%s","mission":"%s","runner":"%s","parentSha":"%s","treeSha":"%s","benchmarkBaselineCommit":"d4b620ee55bcf3b2e85d23576878161540b67948","zeroSpendMode":"HARD","executionType":"remote","state":"SUCCEEDED"}\n' \
-            "${{ inputs.request_id }}" "${{ inputs.mission }}" "$RUNNER_NAME" "$PARENT_SHA" "$TREE_SHA" > evidence.json
+            "$INPUT_REQUEST_ID" "$INPUT_MISSION" "$RUNNER_NAME" "$PARENT_SHA" "$TREE_SHA" > evidence.json
           sha256sum evidence.json > evidence.sha256
           cat evidence.json
       - name: Upload evidence

@@ -1,0 +1,153 @@
+name: ZEES P07 Candidate Security Proof
+on:
+  push:
+    branches:
+      - chatgpt/zees-p07-p15-proof-20260919
+    paths:
+      - 'certification/zees-p07-security-profile.json'
+      - '.github/workflows/zees-p07-final-security.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  BASE_SHA: cf008c04e9bf01e87fca80799dfc25b1de68d888
+  PRIOR_RUN_ID: "35454406051"
+  PRIOR_ARTIFACT_DIGEST: "sha256:baa1b7234e5a4f4c568ecfb87221962bb8b3d6cbab23aa56dcd1e3086df4e497"
+
+jobs:
+  security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout proof harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: harness
+      - name: Checkout exact certified subject
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: target
+          fetch-depth: 1
+      - name: Validate exact SHA and security applicability
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C target rev-parse HEAD)" = "$GITHUB_SHA"
+          python3 - <<'PY'
+          import json,os
+          p=json.load(open('harness/certification/zees-p07-security-profile.json'))
+          assert p['schema']=='zees-p07-security-profile/v1'
+          assert p['target_sha']==os.environ['BASE_SHA']
+          assert p['fail_closed'] is True
+          assert p['applicability']['dast']['applicable'] is False and len(p['applicability']['dast']['justification'])>40
+          assert p['applicability']['asvs']['applicable'] is False and len(p['applicability']['asvs']['justification'])>40
+          assert len(p['threat_model']['threats'])>=6
+          print('P07_PROFILE_PASS')
+          PY
+      - name: Verify prior chaos and failure proof is exact and immutable
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PRIOR_RUN_ID")"
+          test "$(jq -r .head_sha <<<"$run_json")" = "$BASE_SHA"
+          test "$(jq -r .conclusion <<<"$run_json")" = "success"
+          artifact_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PRIOR_RUN_ID/artifacts")"
+          digest="$(jq -r '.artifacts[] | select(.name=="top3-security-load-failure-proof") | .digest' <<<"$artifact_json")"
+          test "$digest" = "$PRIOR_ARTIFACT_DIGEST"
+          echo "PRIOR_SECURITY_CHAOS_PROOF=PASS"
+      - name: SAST OWASP and security audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          docker run --rm -v "$PWD/target:/src" -w /src semgrep/semgrep:1.177.0             semgrep scan --config p/owasp-top-ten --config p/security-audit --metrics off             --exclude .git --json-output /src/zees-p07-semgrep.json .
+          rc=$?
+          set -e
+          test -f target/zees-p07-semgrep.json
+          echo "SEMGREP_PROCESS_RC=$rc" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import json,os
+          d=json.load(open('target/zees-p07-semgrep.json'))
+          findings=len(d.get('results',[])); errors=len(d.get('errors',[]))
+          print(f'SEMGREP findings={findings} errors={errors}')
+          open(os.environ['GITHUB_ENV'],'a').write(f"SEMGREP_FINDINGS={findings}\nSEMGREP_ERRORS={errors}\n")
+          PY
+      - name: SCA secrets and misconfiguration scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD/target:/src" -w /src aquasec/trivy:0.74.0             fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1             --format json --output /src/zees-p07-trivy.json .
+          echo "TRIVY_HIGH_CRITICAL=0"
+      - name: Python syntax and deterministic test surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib, py_compile
+          files=[p for p in pathlib.Path('target').rglob('*.py') if '.git' not in p.parts]
+          for p in files: py_compile.compile(str(p), doraise=True)
+          print(f'PY_COMPILE_PASS files={len(files)}')
+          PY
+          python3 target/arbm-control-isolation-tests.py
+          python3 target/arbm-evidence-fault-tests.py
+      - name: Upload raw scanner evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: zees-p07-raw-scanners
+          path: |
+            target/zees-p07-semgrep.json
+            target/zees-p07-trivy.json
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Enforce zero unresolved security findings
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${SEMGREP_FINDINGS:-999}" -eq 0
+          test "${SEMGREP_ERRORS:-999}" -eq 0
+          test "${SEMGREP_PROCESS_RC:-999}" -eq 0
+          echo "SECURITY_FINDINGS_ZERO=PASS"
+
+      - name: Freeze P07 evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          out={
+            "schema":"zees-p07-final-security/v1",
+            "base_sha":"cf008c04e9bf01e87fca80799dfc25b1de68d888",
+            "candidate_sha":os.environ["GITHUB_SHA"],
+            "status":"PASS_CANDIDATE",
+            "sast":"PASS_ZERO_FINDINGS",
+            "sca_secret_misconfig":"PASS_HIGH_CRITICAL_ZERO",
+            "threat_model":"PASS",
+            "dynamic_applicability":"NON_WEB_ENGINE",
+            "prior_chaos_run":35454406051,
+            "zero_spend":True,
+            "fail_closed":True
+          }
+          raw=json.dumps(out,sort_keys=True,indent=2)+"\n"
+          pathlib.Path('zees-p07-final-security.json').write_text(raw)
+          pathlib.Path('zees-p07-final-security.sha256').write_text(hashlib.sha256(raw.encode()).hexdigest()+"  zees-p07-final-security.json\n")
+          print(raw)
+          PY
+      - name: Upload immutable P07 evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: zees-p07-final-security
+          path: |
+            zees-p07-final-security.json
+            zees-p07-final-security.sha256
+            target/zees-p07-semgrep.json
+            target/zees-p07-trivy.json
+          retention-days: 90
+          if-no-files-found: error

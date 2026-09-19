@@ -23,6 +23,11 @@ jobs:
           - {id: swe-milestone-1.0.2, repo: 'https://github.com/DeepCommit-ai/SWE-Milestone.git', commit: '6d8b31168fd0e2ad57c0d1daa3df1556df014320'}
           - {id: osworld-v2-2026.08.08, repo: 'https://github.com/xlang-ai/OSWorld-V2.git', commit: 'd578d2d4e0dc82b43e270fdaa7fa89d9708cd154'}
           - {id: swefficiency, repo: 'https://github.com/swefficiency/swefficiency.git', commit: '12d32a2d6800824a7d84bdb6797b5708e7b7957f'}
+    env:
+      REQUEST_ID: ${{ inputs.request_id }}
+      BENCHMARK_REPO: ${{ matrix.repo }}
+      BENCHMARK_COMMIT: ${{ matrix.commit }}
+      BENCHMARK_ID: ${{ matrix.id }}
     steps:
       - name: Constitutional zero-spend contract
         shell: bash
@@ -31,19 +36,19 @@ jobs:
           echo "ZERO_SPEND_MODE=HARD"
           echo "EXECUTION_POLICY=REMOTE_ONLY"
           echo "LOCAL_EXECUTION_ALLOWED=false"
-          echo "REQUEST_ID=${{ inputs.request_id }}"
+          echo "REQUEST_ID=$REQUEST_ID"
       - name: Fetch exact public benchmark commit
         shell: bash
         run: |
           set -euo pipefail
           git init benchmark
           cd benchmark
-          git remote add origin "${{ matrix.repo }}"
-          git fetch --depth=1 origin "${{ matrix.commit }}"
+          git remote add origin "$BENCHMARK_REPO"
+          git fetch --depth=1 origin "$BENCHMARK_COMMIT"
           git checkout --detach FETCH_HEAD
           actual="$(git rev-parse HEAD)"
-          test "$actual" = "${{ matrix.commit }}"
-          echo "BENCHMARK_FAMILY=${{ matrix.id }}"
+          test "$actual" = "$BENCHMARK_COMMIT"
+          echo "BENCHMARK_FAMILY=$BENCHMARK_ID"
           echo "PIN_MATCH=true"
           echo "COMMIT=$actual"
       - name: Generic harness inspection
@@ -64,7 +69,7 @@ jobs:
         run: |
           set -euo pipefail
           cd benchmark
-          case "${{ matrix.id }}" in
+          case "$BENCHMARK_ID" in
             swe-milestone-1.0.2) test -d harness ;;
             *) true ;;
           esac
@@ -72,6 +77,6 @@ jobs:
       - name: Summary
         shell: bash
         run: |
-          echo "### ${{ matrix.id }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "### $BENCHMARK_ID" >> "$GITHUB_STEP_SUMMARY"
           echo "- public fetch: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- mandatory spend: 0" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,51 @@
+{
+  "schema": "zees-p07-security-profile/v1",
+  "target": "ARBM SIST",
+  "target_sha": "cf008c04e9bf01e87fca80799dfc25b1de68d888",
+  "profile": "AI_AGENTIC_PLATFORM",
+  "fail_closed": true,
+  "applicability": {
+    "dast": {
+      "applicable": false,
+      "justification": "O repositório certificado é um motor/agentic execution platform sem superfície HTTP pública própria. Testes dinâmicos aplicáveis são isolamento, fault-injection, carga, failover N-1/N-2 e recovery; DAST web é N/A para este alvo."
+    },
+    "asvs": {
+      "applicable": false,
+      "justification": "OWASP ASVS é específico de aplicação web. Para este alvo, controles equivalentes aplicáveis são SAST OWASP, SCA, secret/misconfiguration scan, threat model, isolamento, fault injection e provenance."
+    }
+  },
+  "threat_model": {
+    "assets": [
+      "provider credentials",
+      "CI/OIDC identity",
+      "evidence artifacts",
+      "signed cache/control state",
+      "benchmark inputs/outputs"
+    ],
+    "threats": [
+      "credential leakage",
+      "prompt/action injection into execution control",
+      "tampered evidence",
+      "dependency compromise",
+      "provider isolation failure",
+      "state corruption",
+      "failover split-brain"
+    ],
+    "required_controls": [
+      "secret scan",
+      "SAST OWASP",
+      "SCA HIGH/CRITICAL=0",
+      "misconfiguration HIGH/CRITICAL=0",
+      "evidence integrity",
+      "N-1/N-2 failover",
+      "zero-spend fail-closed",
+      "exact-SHA provenance"
+    ]
+  },
+  "required_prior_run": {
+    "id": 35454406051,
+    "sha": "cf008c04e9bf01e87fca80799dfc25b1de68d888",
+    "conclusion": "success",
+    "artifact_sha256": "baa1b7234e5a4f4c568ecfb87221962bb8b3d6cbab23aa56dcd1e3086df4e497"
+  }
+}

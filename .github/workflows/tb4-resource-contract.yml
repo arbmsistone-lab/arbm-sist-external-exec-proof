@@ -18,6 +18,7 @@ jobs:
     env:
       TB4_COMMIT: 452bf305c6daa62fc59061d22133a7cbc7c1572e
       TB4_REPO: https://github.com/harbor-framework/terminal-bench.git
+      REQUEST_ID: ${{ inputs.request_id }}
     steps:
       - name: Constitutional execution contract
         shell: bash
@@ -26,7 +27,7 @@ jobs:
           echo "ZERO_SPEND_MODE=HARD"
           echo "EXECUTION_POLICY=REMOTE_ONLY"
           echo "LOCAL_HEAVY_ALLOWED=false"
-          echo "REQUEST_ID=${{ inputs.request_id }}"
+          echo "REQUEST_ID=$REQUEST_ID"
       - name: Fetch exact Terminal-Bench 4 source
         shell: bash
         run: |

@@ -1,0 +1,172 @@
+name: ZEES P06 Final Test Regression Proof
+
+on:
+  push:
+    branches:
+      - chatgpt/zees-p07-p15-proof-20260919
+    paths:
+      - '.github/workflows/zees-p06-final-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+env:
+  TARGET_SHA: cf008c04e9bf01e87fca80799dfc25b1de68d888
+  ZERO_SPEND_MODE: HARD
+
+jobs:
+  p06-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact canonical subject
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          path: target
+          fetch-depth: 1
+
+      - name: Assert exact canonical subject
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git -C target rev-parse HEAD)" = "$TARGET_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY" --jq .default_branch)" = "master"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/master" --jq .sha)" = "$TARGET_SHA"
+          test "$ZERO_SPEND_MODE" = "HARD"
+          echo "P06_CANONICAL_SHA=PASS"
+          echo "P06_ZERO_SPEND=PASS"
+
+      - name: Python control isolation regression
+        shell: bash
+        working-directory: target
+        run: |
+          set -euo pipefail
+          python3 arbm-control-isolation-tests.py 2>&1 | tee /tmp/p06-python-isolation.log
+          grep -F "OK" /tmp/p06-python-isolation.log
+          echo "P06_CONTROL_ISOLATION=PASS"
+
+      - name: Python evidence and fault regression
+        shell: bash
+        working-directory: target
+        run: |
+          set -euo pipefail
+          python3 arbm-evidence-fault-tests.py 2>&1 | tee /tmp/p06-python-faults.log
+          grep -F "OK" /tmp/p06-python-faults.log
+          echo "P06_EVIDENCE_FAULTS=PASS"
+
+      - name: Node mesh resilience regression
+        shell: bash
+        working-directory: target
+        run: |
+          set -euo pipefail
+          node test_mesh_resilience.mjs | tee /tmp/p06-mesh.log
+          grep -F "# fail 0" /tmp/p06-mesh.log
+          echo "P06_MESH_RESILIENCE=PASS"
+
+      - name: Node shadow evaluator regression
+        shell: bash
+        working-directory: target
+        run: |
+          set -euo pipefail
+          node shadow-evaluator-test.mjs | tee /tmp/p06-shadow.log
+          grep -F '"score":100' /tmp/p06-shadow.log
+          echo "P06_SHADOW_EVALUATOR=PASS"
+
+      - name: Capability and release fail-closed regressions
+        shell: bash
+        working-directory: target
+        run: |
+          set -euo pipefail
+          node certification/capability-matcher-test.mjs | tee /tmp/p06-capability.log
+          grep -F "CAPABILITY_MATCHER_TEST_PASS" /tmp/p06-capability.log
+          node certification/global-release-gate-test.mjs | tee /tmp/p06-release.log
+          grep -F "GLOBAL_RELEASE_GATE_TEST_PASS" /tmp/p06-release.log
+          node certification/provider-operational-quorum-test.mjs | tee /tmp/p06-quorum.log
+          grep -F "PROVIDER_OPERATIONAL_QUORUM_TEST_PASS" /tmp/p06-quorum.log
+          echo "P06_FAIL_CLOSED_RELEASE=PASS"
+
+      - name: Continuity and remote execution regressions
+        shell: bash
+        working-directory: target
+        run: |
+          set -euo pipefail
+          node scripts/continuity-execution-supervisor.test.mjs | tee /tmp/p06-supervisor.log
+          grep -F '"state":"PASS"' /tmp/p06-supervisor.log
+          node scripts/cloud-host-attestation.test.mjs | tee /tmp/p06-cloud-host.log
+          grep -F '"state":"PASS"' /tmp/p06-cloud-host.log
+          node scripts/sovereign-continuity-worker.test.mjs | tee /tmp/p06-sovereign.log
+          grep -F "SOVEREIGN_CONTINUITY_MULTIPROVIDER_TEST_PASS" /tmp/p06-sovereign.log
+          node scripts/universal-remote-runner.test.mjs | tee /tmp/p06-remote.log
+          grep -F '"state":"PASS"' /tmp/p06-remote.log
+          echo "P06_CONTINUITY_REMOTE=PASS"
+
+      - name: Build immutable P06 evidence subject
+        shell: bash
+        working-directory: target
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,pathlib
+          subject={
+            "schema":"zees-p06-final-regression/v1",
+            "pillar":"P06",
+            "definition":"Testes, verificacao e regressao",
+            "target":"ARBM SIST",
+            "target_sha":"cf008c04e9bf01e87fca80799dfc25b1de68d888",
+            "canonical_branch":"master",
+            "zero_spend_mode":"HARD",
+            "heavy_local":0,
+            "suites":{
+              "control_isolation":"PASS",
+              "evidence_faults":"PASS",
+              "mesh_resilience":"PASS",
+              "shadow_evaluator":"PASS",
+              "capability_matcher":"PASS",
+              "global_release_fail_closed":"PASS",
+              "provider_quorum":"PASS",
+              "continuity_supervisor":"PASS",
+              "cloud_host_attestation":"PASS",
+              "sovereign_continuity":"PASS",
+              "universal_remote_runner":"PASS"
+            },
+            "negative_contracts_proven":True,
+            "fail_closed":True,
+            "status":"PASS"
+          }
+          raw=json.dumps(subject,sort_keys=True,indent=2)+"\n"
+          pathlib.Path("../zees-p06-final-regression.json").write_text(raw)
+          pathlib.Path("../zees-p06-final-regression.sha256").write_text(
+            hashlib.sha256(raw.encode()).hexdigest()+"  zees-p06-final-regression.json\n")
+          print(raw)
+          PY
+
+      - name: Generate public P06 attestation
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d
+        with:
+          subject-path: zees-p06-final-regression.json
+
+      - name: Verify P06 attestation and digest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh attestation verify zees-p06-final-regression.json --repo "$GITHUB_REPOSITORY"
+          sha256sum -c zees-p06-final-regression.sha256
+          echo "ZEES_P06_FINAL_REGRESSION=PASS"
+
+      - name: Upload immutable P06 evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: zees-p06-final-regression
+          path: |
+            zees-p06-final-regression.json
+            zees-p06-final-regression.sha256
+          retention-days: 90
+          if-no-files-found: error

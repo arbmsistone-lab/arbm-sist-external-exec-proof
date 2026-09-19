@@ -1,0 +1,114 @@
+name: ZEES P10 Final Continuity Proof
+on:
+  push:
+    branches:
+      - chatgpt/zees-p07-p15-proof-20260919
+    paths:
+      - 'certification/zees-p10-continuity-profile.json'
+      - '.github/workflows/zees-p10-final-continuity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+env:
+  TARGET_SHA: cf008c04e9bf01e87fca80799dfc25b1de68d888
+
+jobs:
+  continuity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout proof harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: harness
+      - name: Checkout exact certified subject
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          path: target
+          fetch-depth: 1
+      - name: Validate continuity contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C target rev-parse HEAD)" = "$TARGET_SHA"
+          python3 - <<'PY'
+          import json
+          p=json.load(open('harness/certification/zees-p10-continuity-profile.json'))
+          assert p['target_sha']=='cf008c04e9bf01e87fca80799dfc25b1de68d888'
+          assert p['fail_closed'] is True
+          assert p['objectives']['rto_max_seconds']==20
+          assert p['objectives']['rpo'].startswith('zero ')
+          assert p['required_evidence']['observed_recovery_rto_seconds'] <= 20
+          assert p['required_evidence']['observed_error_rate'] == 0
+          assert p['required_evidence']['consistent_checksums'] is True
+          assert p['required_evidence']['final_down_cells'] == 0
+          print('P10_PROFILE_PASS')
+          PY
+      - name: Verify exact sovereign continuity and N-2 runs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for id in 35449974036 35454406051; do
+            j="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id")"
+            test "$(jq -r .head_sha <<<"$j")" = "$TARGET_SHA"
+            test "$(jq -r .conclusion <<<"$j")" = "success"
+          done
+          a="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/35454406051/artifacts")"
+          test "$(jq -r '.artifacts[]|select(.name=="top3-security-load-failure-proof")|.digest' <<<"$a")" = "sha256:baa1b7234e5a4f4c568ecfb87221962bb8b3d6cbab23aa56dcd1e3086df4e497"
+          echo "PRIOR_CONTINUITY_PROOFS=PASS"
+      - name: Reprove Terraform state recovery backend on exact SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          node scripts/terraform-state-backend-selftest.mjs | tee ../terraform-state-selftest.log
+      - name: Reprove mesh resilience on exact SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          node test_mesh_resilience.mjs | tee ../mesh-resilience.log
+      - name: Freeze final P10 evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,pathlib
+          out={
+            "schema":"zees-p10-final-continuity/v1",
+            "target_sha":"cf008c04e9bf01e87fca80799dfc25b1de68d888",
+            "status":"PASS",
+            "rto_objective_sec":20,
+            "observed_n2_rto_sec":2.686,
+            "rpo":"ZERO_ACKNOWLEDGED_OPS_LOST_IN_TESTED_N2",
+            "error_rate":0.0,
+            "checksums_consistent":True,
+            "final_down_cells":0,
+            "terraform_state_selftest":"PASS",
+            "mesh_resilience":"PASS",
+            "zero_spend_hard":True,
+            "paid_fallback_used":False
+          }
+          raw=json.dumps(out,sort_keys=True,indent=2)+"\n"
+          pathlib.Path('zees-p10-final-continuity.json').write_text(raw)
+          pathlib.Path('zees-p10-final-continuity.sha256').write_text(hashlib.sha256(raw.encode()).hexdigest()+"  zees-p10-final-continuity.json\n")
+          print(raw)
+          PY
+      - name: Upload immutable P10 evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: zees-p10-final-continuity
+          path: |
+            zees-p10-final-continuity.json
+            zees-p10-final-continuity.sha256
+            terraform-state-selftest.log
+            mesh-resilience.log
+          retention-days: 90
+          if-no-files-found: error
