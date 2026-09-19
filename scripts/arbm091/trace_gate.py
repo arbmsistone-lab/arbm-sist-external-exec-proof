@@ -168,7 +168,7 @@ def preflight(command: str, snapshot: dict) -> str:
     if point is not None:
         target = snapshot.get('target')
         deck_spatial = (target is None and app == 'wps-presentation'
-                        and name == 'doubleClick'
+                        and name in ('click','doubleClick')
                         and isinstance(snapshot.get('deck_slide_text'), dict)
                         and bool(snapshot.get('deck_slide_text')))
         if deck_spatial:
