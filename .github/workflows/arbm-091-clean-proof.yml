@@ -281,7 +281,7 @@ jobs:
               'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
               'Reforecast_Model_H2.xlsx is the source of truth.')
         action=shim.next_091_specialist_action(task,'WPS Presentation','',state,deck)
-        assert action['command'] == 'pyautogui.doubleClick(869, 391, interval=0.08)', action
+        assert action['command'] == 'pyautogui.click(869, 391)', action
         assert action['target']['source'] == 'task091-pptx-canonical', action
         probe=copy.deepcopy(deck)
         probe['screen']=[0,0,1920,1080]
