@@ -171,7 +171,7 @@ class ForegroundTests(unittest.TestCase):
         body['deck_file'] = {'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
                              'sha256':'a'*64,'size':1234,'mtime_ns':1,
                              'slide_size':{'w':12192000,'h':6858000}}
-        self.assertEqual(preflight('pyautogui.doubleClick(869, 391, interval=0.08)', body), 'wps-content')
+        self.assertEqual(preflight('pyautogui.doubleClick(745, 335, interval=0.08)', body), 'wps-content')
         self.assertEqual(preflight('pyautogui.click(869, 391)', body), 'wps-content')
 
         no_proof = copy.deepcopy(body)
@@ -181,7 +181,7 @@ class ForegroundTests(unittest.TestCase):
 
         off_shape = copy.deepcopy(body)
         with self.assertRaisesRegex(ValueError, 'SHAPE_POINT_UNPROVEN'):
-            preflight('pyautogui.doubleClick(870, 391, interval=0.08)', off_shape)
+            preflight('pyautogui.doubleClick(1215, 470, interval=0.08)', off_shape)
 
         missing_shape = copy.deepcopy(body)
         missing_shape['deck_slide_shapes'] = {}
@@ -207,6 +207,21 @@ class ForegroundTests(unittest.TestCase):
         missing_slide_size['deck_file'].pop('slide_size', None)
         with self.assertRaisesRegex(ValueError, 'SHAPE_POINT_UNPROVEN'):
             preflight('pyautogui.doubleClick(869, 391, interval=0.08)', missing_slide_size)
+
+    def test_task091_text_hitpoint_must_belong_to_exactly_one_shape(self):
+        body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2594)
+        body['window']['bbox'] = [70, 27, 1850, 1053]
+        body['screen'] = [0, 0, 1920, 1080]
+        body['target'] = None
+        body['deck_slide_text'] = {'1':'A B'}
+        body['deck_slide_shapes'] = {'1':[
+            {'id':1,'name':'A','text':'A','geometry':{'x':749808,'y':1078992,'w':5852160,'h':1234440}},
+            {'id':2,'name':'B','text':'B','geometry':{'x':749808,'y':1078992,'w':5852160,'h':1234440}},
+        ]}
+        body['deck_file'] = {'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                             'sha256':'a'*64,'slide_size':{'w':12192000,'h':6858000}}
+        with self.assertRaisesRegex(ValueError, 'SHAPE_POINT_UNPROVEN'):
+            preflight('pyautogui.doubleClick(745, 335, interval=0.08)', body)
 
     def test_application_switch_is_not_edit(self):
         self.assertEqual(preflight("pyautogui.hotkey('alt', 'tab')", snapshot()), 'application-switch')
@@ -409,7 +424,7 @@ if __name__ == '__main__':
 
 
 class Task091CompactEditTests(unittest.TestCase):
-    def test_every_nonempty_replacement_requires_explicit_text_mode(self):
+    def test_text_mode_is_pointer_established_not_f2_injected(self):
         samples=[
             ('$42.8M', '$40.9M'),
             ('214', '206'),
@@ -420,10 +435,12 @@ class Task091CompactEditTests(unittest.TestCase):
              'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'),
         ]
         for old,new in samples:
-            self.assertTrue(shim._task091_needs_explicit_text_mode(old,new))
-            command=shim._task091_write_command(new, ensure_text_mode=True)
-            self.assertEqual(command.splitlines()[0], "pyautogui.press('f2')")
-            self.assertIn("pyautogui.hotkey('ctrl', 'a')", command)
+            self.assertFalse(shim._task091_needs_explicit_text_mode(old,new))
+            command=shim._task091_write_command(new, ensure_text_mode=False)
+            self.assertEqual(command.splitlines()[0], "pyautogui.hotkey('ctrl', 'a')")
+            self.assertNotIn("pyautogui.press('f2')", command)
+            with self.assertRaisesRegex(ValueError, 'TASK091_TEXT_MODE_MUST_BE_POINTER_ESTABLISHED'):
+                shim._task091_write_command(new, ensure_text_mode=True)
 
 
     def test_guest_probe_keeps_signed_table_cell_extraction_contract(self):
@@ -436,16 +453,17 @@ class Task091CompactEditTests(unittest.TestCase):
             self.assertIn(token, source)
         self.assertIn("grid_index += grid_span", source)
 
-    def test_all_task091_spatial_replacements_are_text_mode_guarded(self):
+    def test_all_task091_spatial_replacements_use_bounded_post_hit_writer(self):
         checked=0
         for _slide,_x,_y,old,new in shim.TASK091_SPATIAL_TEXT_EDITS:
             if shim._task091_norm(old)==shim._task091_norm(new):
                 continue
             checked += 1
-            self.assertTrue(shim._task091_needs_explicit_text_mode(old,new), (old,new))
-            command=shim._task091_write_command(new, ensure_text_mode=True)
-            self.assertEqual(command.splitlines()[0], "pyautogui.press('f2')")
-            self.assertLessEqual(len(command.splitlines()), 8)
+            self.assertFalse(shim._task091_needs_explicit_text_mode(old,new), (old,new))
+            command=shim._task091_write_command(new, ensure_text_mode=False)
+            self.assertEqual(command.splitlines()[0], "pyautogui.hotkey('ctrl', 'a')")
+            self.assertNotIn("press('f2')", command)
+            self.assertLessEqual(len(command.splitlines()), 7)
         self.assertGreaterEqual(checked, 70)
 
     def test_empty_replacement_is_not_authorized_as_text_mode(self):
