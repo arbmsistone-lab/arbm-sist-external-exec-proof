@@ -238,12 +238,19 @@ def preflight(command: str, snapshot: dict) -> str:
         require(app != 'wps-transient', 'WPS_TRANSIENT_APP_SWITCH_FORBIDDEN')
         return 'application-switch'
     elif name == 'sleep':
-        # A bounded sleep is a non-interacting timing no-op. It is allowed even
-        # before an approved application is foregrounded, but it cannot count
-        # as WPS activity, editing, saving, or application switching.
+        # A bounded sleep is a non-interacting timing no-op. Preserve the
+        # stronger WPS bootstrap classification when that exact transient is
+        # proven; otherwise allow waiting only outside ambiguous WPS windows.
         require(len(args) == 1 and type(args[0]) in (int, float), 'NEUTRAL_WAIT_DURATION_REQUIRED')
         require(0 <= float(args[0]) <= 2.0, 'NEUTRAL_WAIT_DURATION_UNBOUNDED')
-        return 'neutral-wait'
+        if app == 'wps-transient':
+            return 'wps-transient'
+        if app == 'unapproved':
+            title=str(window.get('title', '')).strip().casefold()
+            require(title not in {'wps office','set wps office as your default office software'}
+                    and not _is_wps_class(window.get('wm_class','')),
+                    'UNAPPROVED_APPLICATION')
+            return 'neutral-wait'
     else:
         require(app != 'unapproved', 'UNAPPROVED_APPLICATION')
     return 'wps-transient' if app == 'wps-transient' else ('wps-content' if app == 'wps-presentation' else 'reference')
