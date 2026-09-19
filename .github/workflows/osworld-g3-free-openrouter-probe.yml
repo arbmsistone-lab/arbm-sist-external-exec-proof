@@ -19,7 +19,7 @@ jobs:
         run: |
           test "$GITHUB_REF_NAME" = "g3-free-cert-lane-20260910"
           test -n "${OPENROUTER_API_KEY:-}"
-          case "$FREE_MODEL" in *:free) ;; *) exit 1 ;; esac
+          test "${FREE_MODEL%:free}" != "$FREE_MODEL"
           printf 'ZERO_SPEND=true\nMODEL=%s\n' "$FREE_MODEL" > free-probe-evidence.txt
       - name: Probe image plus native tool calling
         shell: bash
