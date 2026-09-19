@@ -1,0 +1,115 @@
+name: ZEES Priority Pillars Final Closeout
+
+on:
+  push:
+    branches:
+      - chatgpt/zees-p07-p15-proof-20260919
+    paths:
+      - '.github/workflows/zees-priority-pillars-final-closeout.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+  attestations: write
+
+env:
+  TARGET_SHA: cf008c04e9bf01e87fca80799dfc25b1de68d888
+
+jobs:
+  closeout:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact canonical subject
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          path: target
+          fetch-depth: 1
+
+      - name: Assert canonical target remains exact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git -C target rev-parse HEAD)" = "$TARGET_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY" --jq .default_branch)" = "master"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/master" --jq .sha)" = "$TARGET_SHA"
+          echo "CANONICAL_TARGET_EXACT=PASS"
+
+      - name: Verify final pillar runs and immutable artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          verify_run() {
+            local id="$1" name="$2" digest="$3"
+            local run artifacts got
+            run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id")"
+            test "$(jq -r .conclusion <<<"$run")" = "success"
+            artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/artifacts")"
+            got="$(jq -r --arg n "$name" '.artifacts[]|select(.name==$n)|.digest' <<<"$artifacts")"
+            test "$got" = "$digest"
+            echo "RUN_${id}_${name}=PASS"
+          }
+          verify_run 35459185350 zees-p06-final-regression sha256:89325dd8cca615c6d480a3b3329b43baf150370c27db04bc9f9ba2d181f0c764
+          verify_run 35459067904 zees-p07-final-security sha256:026cf4bf7824ed11f9bd3f48291188980d0d32fe42e9dfe6daebfd96f2e73f10
+          verify_run 35458154534 zees-p10-final-continuity sha256:4aac912621f1cd8b4696f4460d36c13bd7ac18a0d1bbb7281f1efc9c35bdd609
+          verify_run 35458553073 zees-p15-final-provenance sha256:3a416695b91d22dff542d101e960b8e67a84dc2fec9fda4426ffb54a1963a7be
+          echo "PRIORITY_PILLAR_ARTIFACTS=PASS"
+
+      - name: Freeze aggregate closeout subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,pathlib
+          subject={
+            "schema":"zees-priority-pillars-final-closeout/v1",
+            "target":"ARBM SIST",
+            "target_sha":"cf008c04e9bf01e87fca80799dfc25b1de68d888",
+            "canonical_branch":"master",
+            "pillars":{
+              "P06":{"definition":"Testes, verificacao e regressao","status":"PASS","run":35459185350,"artifact_digest":"sha256:89325dd8cca615c6d480a3b3329b43baf150370c27db04bc9f9ba2d181f0c764"},
+              "P07":{"status":"PASS","run":35459067904,"artifact_digest":"sha256:026cf4bf7824ed11f9bd3f48291188980d0d32fe42e9dfe6daebfd96f2e73f10"},
+              "P10":{"status":"PASS","run":35458154534,"artifact_digest":"sha256:4aac912621f1cd8b4696f4460d36c13bd7ac18a0d1bbb7281f1efc9c35bdd609"},
+              "P15":{"status":"PASS","run":35458553073,"artifact_digest":"sha256:3a416695b91d22dff542d101e960b8e67a84dc2fec9fda4426ffb54a1963a7be"}
+            },
+            "policy":{"zero_spend_hard":True,"heavy_local":0,"fail_closed":True,"exact_sha":True},
+            "status":"PASS"
+          }
+          raw=json.dumps(subject,sort_keys=True,indent=2)+"\n"
+          pathlib.Path("zees-priority-pillars-final-closeout.json").write_text(raw)
+          pathlib.Path("zees-priority-pillars-final-closeout.sha256").write_text(
+            hashlib.sha256(raw.encode()).hexdigest()+"  zees-priority-pillars-final-closeout.json\n")
+          print(raw)
+          PY
+
+      - name: Generate aggregate public attestation
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d
+        with:
+          subject-path: zees-priority-pillars-final-closeout.json
+
+      - name: Verify aggregate attestation and digest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh attestation verify zees-priority-pillars-final-closeout.json --repo "$GITHUB_REPOSITORY"
+          sha256sum -c zees-priority-pillars-final-closeout.sha256
+          echo "ZEES_PRIORITY_PILLARS_FINAL_CLOSEOUT=PASS"
+
+      - name: Upload immutable aggregate evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: zees-priority-pillars-final-closeout
+          path: |
+            zees-priority-pillars-final-closeout.json
+            zees-priority-pillars-final-closeout.sha256
+          retention-days: 90
+          if-no-files-found: error
