@@ -337,6 +337,77 @@ class ForegroundTests(unittest.TestCase):
         wrong_window['window']['bbox']=[71,27,1849,1053]
         self.assertIsNone(shim._task091_shape_point(wrong_window,1,'$42.8M',1338,393))
 
+    def test_task091_geometry_senior_robot_board_10(self):
+        body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2588)
+        body['window']['bbox']=[70,27,1850,1053]
+        body['screen']=[0,0,1920,1080]
+        body['active_slide']=1
+        body['deck_file']={'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                           'sha256':'4'*64,'slide_size':{'w':12191365,'h':6858000}}
+        body['deck_slide_text']={'1':'$42.8M $2.6M 214'}
+        body['deck_slide_shapes']={'1':[
+            {'id':13,'name':'CoverStatValue_0','text':'$42.8M',
+             'geometry':{'x':8339327,'y':2167128,'w':2560320,'h':219456}},
+            {'id':16,'name':'CoverStatValue_1','text':'$2.6M',
+             'geometry':{'x':8339327,'y':3358896,'w':2560320,'h':210312}},
+            {'id':19,'name':'CoverStatValue_2','text':'214',
+             'geometry':{'x':8339327,'y':4550664,'w':2560320,'h':210312}},
+        ]}
+        lanes=[]
+        p=shim._task091_shape_point(body,1,'$42.8M',1338,393)
+        lanes.append(('R01_unique_id',p['shape']['id']==13))
+        lanes.append(('R02_exact_name',p['shape']['name']=='CoverStatValue_0'))
+        lanes.append(('R03_bbox',[p['shape_bbox'][0],p['shape_bbox'][1]]==[1410,445]))
+        lanes.append(('R04_positive_extent',p['shape_bbox'][2]>0 and p['shape_bbox'][3]>0))
+        lanes.append(('R05_inside',p['shape_bbox'][0] <= p['cx'] < p['shape_bbox'][0]+p['shape_bbox'][2]))
+        lanes.append(('R06_basis',p['selection_basis']=='unique-exact-pptx-geometry'))
+        lanes.append(('R07_drift',p['hint_drift']==72))
+        p_again=shim._task091_shape_point(copy.deepcopy(body),1,'$42.8M',1338,393)
+        lanes.append(('R08_deterministic',(p['cx'],p['cy'],p['shape']['id'])==(p_again['cx'],p_again['cy'],p_again['shape']['id'])))
+        p2=shim._task091_shape_point(body,1,'$2.6M',1338,511)
+        lanes.append(('R09_second_kpi',p2 is not None and p2['shape']['id']==16))
+        p3=shim._task091_shape_point(body,1,'214',1338,630)
+        lanes.append(('R10_third_kpi',p3 is not None and p3['shape']['id']==19))
+        self.assertEqual([name for name,ok in lanes if not ok],[],lanes)
+
+    def test_task091_geometry_senior_specialist_board_10(self):
+        body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2588)
+        body['window']['bbox']=[70,27,1850,1053]
+        body['screen']=[0,0,1920,1080]
+        body['active_slide']=1
+        body['deck_file']={'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                           'sha256':'5'*64,'slide_size':{'w':12191365,'h':6858000}}
+        shape={'id':13,'name':'CoverStatValue_0','text':'$42.8M',
+               'geometry':{'x':8339327,'y':2167128,'w':2560320,'h':219456}}
+        body['deck_slide_text']={'1':'$42.8M'}
+        body['deck_slide_shapes']={'1':[shape]}
+        lanes=[]
+        duplicate=copy.deepcopy(body)
+        duplicate['deck_slide_shapes']['1'].append({**copy.deepcopy(shape),'id':113})
+        lanes.append(('S01_duplicate_rejected',shim._task091_shape_point(duplicate,1,'$42.8M',1338,393) is None))
+        no_geom=copy.deepcopy(body); no_geom['deck_slide_shapes']['1'][0]['geometry']={}
+        lanes.append(('S02_missing_geometry',shim._task091_shape_point(no_geom,1,'$42.8M',1338,393) is None))
+        bad_w=copy.deepcopy(body); bad_w['deck_slide_shapes']['1'][0]['geometry']['w']=0
+        lanes.append(('S03_zero_width',shim._task091_shape_point(bad_w,1,'$42.8M',1338,393) is None))
+        no_size=copy.deepcopy(body); no_size['deck_file'].pop('slide_size')
+        lanes.append(('S04_missing_slide_size',shim._task091_shape_point(no_size,1,'$42.8M',1338,393) is None))
+        wrong_screen=copy.deepcopy(body); wrong_screen['screen']=[0,0,1919,1080]
+        lanes.append(('S05_wrong_screen',shim._task091_shape_point(wrong_screen,1,'$42.8M',1338,393) is None))
+        wrong_window=copy.deepcopy(body); wrong_window['window']['bbox']=[71,27,1849,1053]
+        lanes.append(('S06_wrong_window',shim._task091_shape_point(wrong_window,1,'$42.8M',1338,393) is None))
+        lanes.append(('S07_wrong_slide',shim._task091_shape_point(body,2,'$42.8M',1338,393) is None))
+        lanes.append(('S08_wrong_text',shim._task091_shape_point(body,1,'$99.9M',1338,393) is None))
+        partial=copy.deepcopy(body); partial['deck_slide_shapes']['1'][0]['text']='Forecast $42.8M approved'
+        pp=shim._task091_shape_point(partial,1,'$42.8M',1338,393)
+        lanes.append(('S09_unique_partial_allowed',pp is not None and pp['shape']['id']==13))
+        ambiguous=copy.deepcopy(partial)
+        ambiguous['deck_slide_shapes']['1'].append({
+            'id':14,'name':'Other','text':'Other $42.8M reference',
+            'geometry':{'x':1000000,'y':1000000,'w':1000000,'h':300000}})
+        ap=shim._task091_shape_point(ambiguous,1,'$42.8M',1338,393)
+        lanes.append(('S10_partial_uses_distance_only_when_no_exact',ap is not None and ap['shape']['id'] in (13,14)))
+        self.assertEqual([name for name,ok in lanes if not ok],[],lanes)
+
     def test_task091_text_hitpoint_must_belong_to_exactly_one_shape(self):
         body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2594)
         body['window']['bbox'] = [70, 27, 1850, 1053]
