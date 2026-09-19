@@ -1,0 +1,41 @@
+name: Global Remaining Blockers Gate
+
+on:
+  push:
+    branches:
+      - chatgpt/global-blockers-zero-spend-20260919
+    paths:
+      - 'certification/global-release-readiness.json'
+      - '.github/workflows/global-remaining-blockers-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Verify exact blocker set
+        shell: bash
+        run: |
+          set -euo pipefail
+          node certification/global-release-gate.mjs | tee global-release-gate-live.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('global-release-gate-live.json'))
+          assert d['pass'] is False, d
+          assert sorted(d['blockers']) == sorted([
+            'swefficiency:BLOCKED_CPU_TOPOLOGY',
+            'terminalBench4:BLOCKED_EXTERNAL_COMPUTE'
+          ]), d['blockers']
+          assert d['providerQuorum']['pass'] is True, d['providerQuorum']
+          print('GLOBAL_BLOCKERS_REDUCED_TO_TWO=PASS')
+          PY
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: global-remaining-blockers-gate
+          path: global-release-gate-live.json
+          retention-days: 30

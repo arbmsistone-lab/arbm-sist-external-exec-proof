@@ -1,0 +1,77 @@
+name: Beam ZERO_SPEND Final Compute Gate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  beam-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      BEAM_TOKEN: ${{ secrets.BEAM_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Fail closed without Beam credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$BEAM_TOKEN" || { echo "BEAM_TOKEN_MISSING"; exit 42; }
+          echo "BEAM_TOKEN_PRESENT=PASS"
+
+      - name: Install exact cloud harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet 'harbor[beam]>=0.dev0' beam-client
+          harbor --help >/dev/null
+          beam --help >/dev/null
+          echo "BEAM_HARBOR_INSTALL=PASS"
+
+      - name: Prove Beam authentication and H100 availability
+        shell: bash
+        run: |
+          set -euo pipefail
+          beam machine list | tee beam-machines.txt
+          grep -E 'H100[[:space:]]+Yes' beam-machines.txt
+          echo "BEAM_H100_AVAILABLE=PASS"
+
+      - name: Freeze zero-spend execution plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > beam-zero-spend-plan.json <<'JSON'
+          {
+            "schema":"arbm-beam-zero-spend-final-gate-v1",
+            "provider":"beam",
+            "zeroSpendHard":true,
+            "heavyLocal":0,
+            "swefficiency":{
+              "route":"beam-cpu",
+              "required":"official SWEfficiency resource contract and smoke"
+            },
+            "terminalBench4":{
+              "route":"harbor-beam",
+              "dataset":"terminal-bench/terminal-bench@v4.0.0",
+              "gpuTasks":["fp8-rmsnorm-gemm","jax-speedrun-gpu","math-eval-grader"],
+              "gpuType":"H100"
+            },
+            "failClosed":true
+          }
+          JSON
+          sha256sum beam-zero-spend-plan.json | tee beam-zero-spend-plan.sha256
+
+      - name: Upload immutable preflight evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: beam-zero-spend-final-preflight
+          path: |
+            beam-machines.txt
+            beam-zero-spend-plan.json
+            beam-zero-spend-plan.sha256
+          retention-days: 30
+          if-no-files-found: error

@@ -1,0 +1,128 @@
+name: Global Blockers ZERO_SPEND Readiness
+
+on:
+  push:
+    branches:
+      - chatgpt/global-blockers-zero-spend-20260919
+    paths:
+      - '.github/workflows/global-blockers-zero-spend-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      SEMAPHORE_API_TOKEN: ${{ secrets.SEMAPHORE_API_TOKEN }}
+      LIGHTNING_API_KEY: ${{ secrets.LIGHTNING_API_KEY }}
+      CIRCLECI_TOKEN: ${{ secrets.CIRCLECI_TOKEN }}
+    steps:
+      - name: ZERO_SPEND contract
+        run: |
+          set -euo pipefail
+          echo "ZERO_SPEND_MODE=HARD"
+          echo "HEAVY_LOCAL=0"
+          echo "REMOTE_ONLY=true"
+
+      - name: Detect configured provider credentials without disclosure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,pathlib
+          names=['HF_TOKEN','MODAL_TOKEN_ID','MODAL_TOKEN_SECRET','SEMAPHORE_API_TOKEN','LIGHTNING_API_KEY','CIRCLECI_TOKEN']
+          out={k:bool(os.environ.get(k,'')) for k in names}
+          out['modal_pair']=out['MODAL_TOKEN_ID'] and out['MODAL_TOKEN_SECRET']
+          pathlib.Path('provider-secret-readiness.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - name: Probe OSWorld V2 gated content with configured HF token
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error,urllib.parse,pathlib
+          token=os.environ.get('HF_TOKEN','').strip()
+          repos=['xlangai/osworld_v2_tasks','xlangai/osworld_v2_assets_gated']
+          out={'tokenPresent':bool(token),'release':'v2026.08.08','repos':{}}
+          for repo in repos:
+              api=f'https://huggingface.co/api/datasets/{repo}/revision/v2026.08.08'
+              headers={'User-Agent':'arbm-global-closeout'}
+              if token: headers['Authorization']=f'Bearer {token}'
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(api,headers=headers),timeout=30) as r:
+                      meta=json.load(r)
+                  siblings=[x.get('rfilename') for x in meta.get('siblings',[]) if x.get('rfilename')]
+                  candidate=next((x for x in siblings if x and not x.endswith('/')),None)
+                  row={'metadataHttp':200,'candidate':candidate}
+                  if candidate:
+                      url=f'https://huggingface.co/datasets/{repo}/resolve/v2026.08.08/{urllib.parse.quote(candidate,safe="/")}?download=true'
+                      req=urllib.request.Request(url,headers={**headers,'Range':'bytes=0-31'})
+                      try:
+                          with urllib.request.urlopen(req,timeout=30) as rr:
+                              body=rr.read(32)
+                              row.update(downloadHttp=rr.status,bytesRead=len(body),contentAccessible=len(body)>0)
+                      except urllib.error.HTTPError as e:
+                          row.update(downloadHttp=e.code,bytesRead=0,contentAccessible=False)
+                  else:
+                      row.update(downloadHttp=0,bytesRead=0,contentAccessible=False)
+              except urllib.error.HTTPError as e:
+                  row={'metadataHttp':e.code,'candidate':None,'downloadHttp':0,'bytesRead':0,'contentAccessible':False}
+              except Exception as e:
+                  row={'metadataHttp':0,'candidate':None,'downloadHttp':0,'bytesRead':0,'contentAccessible':False,'error':type(e).__name__}
+              out['repos'][repo]=row
+          out['pass']=len(out['repos'])==2 and all(v.get('contentAccessible') for v in out['repos'].values())
+          pathlib.Path('osworld-v2-content-live-probe.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - name: Probe Modal authentication only when configured
+        if: env.MODAL_TOKEN_ID != '' && env.MODAL_TOKEN_SECRET != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet 'modal>=1,<2'
+          modal app list >/tmp/modal-app-list.txt
+          echo "MODAL_AUTH=PASS"
+
+      - name: Freeze readiness summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,pathlib
+          secrets=json.load(open('provider-secret-readiness.json'))
+          osw=json.load(open('osworld-v2-content-live-probe.json'))
+          out={
+            'schema':'arbm-global-blockers-zero-spend-readiness-v1',
+            'zero_spend_hard':True,
+            'heavy_local':0,
+            'osworldV2Content':'PASS' if osw.get('pass') else 'BLOCKED_EXTERNAL_AUTH',
+            'modalCredentialReady':bool(secrets.get('modal_pair')),
+            'semaphoreCredentialReady':bool(secrets.get('SEMAPHORE_API_TOKEN')),
+            'lightningCredentialReady':bool(secrets.get('LIGHTNING_API_KEY')),
+            'circleciCredentialReady':bool(secrets.get('CIRCLECI_TOKEN'))
+          }
+          raw=json.dumps(out,indent=2,sort_keys=True)+'\n'
+          pathlib.Path('global-blockers-zero-spend-readiness.json').write_text(raw)
+          pathlib.Path('global-blockers-zero-spend-readiness.sha256').write_text(hashlib.sha256(raw.encode()).hexdigest()+'  global-blockers-zero-spend-readiness.json\n')
+          print(raw)
+          PY
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: global-blockers-zero-spend-readiness
+          path: |
+            provider-secret-readiness.json
+            osworld-v2-content-live-probe.json
+            global-blockers-zero-spend-readiness.json
+            global-blockers-zero-spend-readiness.sha256
+          retention-days: 30
+          if-no-files-found: error
