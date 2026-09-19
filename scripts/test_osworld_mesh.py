@@ -299,7 +299,67 @@ class MeshTests(unittest.TestCase):
    self.assertEqual(stuck['spatial_index'],0)
 
    self.assertIn("hotkey('shift', 'enter')",edit['command'])
+   self.assertIn("interval=0.02",edit['command'])
+   self.assertNotIn("interval=0.001",edit['command'])
    self.assertNotIn("\\n', interval",edit['command'])
+
+   # Run 35411705196 proved a saved but key-repeat-corrupted first edit.
+   # Recovery is allowed exactly once and still requires exact PPTX verification.
+   corrupt_state={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'mode':'TARGET_VERIFYING',
+                  'pending_edit':{'slide':1,'old':'Growth Plan Draft',
+                                  'new':'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline',
+                                  'stage':'save-issued',
+                                  'target':{'label':'Growth Plan Draft','role':'task091-canonical-point',
+                                            'bbox':[744,334,2,2],'cx':745,'cy':335,
+                                            'source':'task091-pptx-canonical','slide':1},
+                                  'before_old_count':1,'before_new_count':0,
+                                  'before_deck_sha256':'a'*64,
+                                  'selected_screenshot_sha256':'1'*64,
+                                  'edited_screenshot_sha256':'2'*64,
+                                  'verify_attempts':0}}
+   corrupt_deck={**deck,
+                 'deck_slide_text':{'1':'H2 OOperating CCommitPPPPPPack Stabilize-and-RRecover RRebaseline'},
+                 'deck_slide_runs':{'1':['H2 OOperating CCommitPPPPPPack','Stabilize-and-RRecover RRebaseline']},
+                 'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                              'sha256':'c'*64,'size':110431,'mtime_ns':3},
+                 'screenshot_sha256':'3'*64}
+   repair_select=shim.next_091_specialist_action(task,'WPS Presentation','',corrupt_state,corrupt_deck)
+   self.assertEqual(repair_select['command'],'pyautogui.doubleClick(745, 335, interval=0.08)')
+   self.assertEqual(repair_select['target']['source'],'task091-pptx-canonical')
+   self.assertEqual(corrupt_state['pending_edit']['repair_attempts'],1)
+   self.assertEqual(corrupt_state['pending_edit']['repair_before_deck_sha256'],'c'*64)
+
+   repair_selected={**corrupt_deck,'screenshot_sha256':'4'*64}
+   repair_edit=shim.next_091_specialist_action(task,'WPS Presentation','',corrupt_state,repair_selected)
+   self.assertIn('interval=0.05',repair_edit['command'])
+   repair_edited={**corrupt_deck,'screenshot_sha256':'5'*64}
+   repair_commit=shim.next_091_specialist_action(task,'WPS Presentation','',corrupt_state,repair_edited)
+   self.assertEqual(repair_commit['command'],"pyautogui.press('esc')")
+   repair_save=shim.next_091_specialist_action(task,'WPS Presentation','',corrupt_state,repair_edited)
+   self.assertIn("hotkey('ctrl', 's')",repair_save['command'])
+
+   repaired_deck={**deck,
+                  'deck_slide_text':{'1':'H2 Operating Committee Pack Stabilize-and-Recover Rebaseline'},
+                  'deck_slide_runs':{'1':['H2 Operating Committee Pack','Stabilize-and-Recover Rebaseline']},
+                  'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                               'sha256':'d'*64,'size':110500,'mtime_ns':4},
+                  'screenshot_sha256':'6'*64}
+   repaired=shim.next_091_specialist_action(task,'WPS Presentation','',corrupt_state,repaired_deck)
+   self.assertEqual(repaired['action'],'checkpoint')
+   self.assertEqual(repaired['checkpoint'],'TASK091_FIRST_STRUCTURAL_EDIT_VERIFIED')
+   self.assertEqual(corrupt_state['spatial_index'],1)
+
+   corrupt_twice={'owned':True,'anchored':True,'slide':1,'spatial_index':0,
+                  'pending_edit':{'slide':1,'old':'Growth Plan Draft',
+                                  'new':'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline',
+                                  'stage':'save-issued','repair_attempts':1,
+                                  'repair_before_deck_sha256':'b'*64,
+                                  'target':{'bbox':[744,334,2,2],'cx':745,'cy':335},
+                                  'before_old_count':1,'before_new_count':0,
+                                  'before_deck_sha256':'a'*64,'verify_attempts':1}}
+   terminal_corrupt=shim.next_091_specialist_action(task,'WPS Presentation','',corrupt_twice,corrupt_deck)
+   self.assertEqual(terminal_corrupt['action'],'terminal')
+   self.assertEqual(terminal_corrupt['reason'],'TASK091_EDIT_TEXT_CORRUPTED')
 
    # Official WPS runner may expose no canvas AT-SPI. In that case only the
    # canonical Task 091 point is usable, and only when target-PPTX text proves
