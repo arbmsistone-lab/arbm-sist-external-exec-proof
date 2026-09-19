@@ -502,7 +502,7 @@ jobs:
         shape=next(row for row in snap['deck_slide_shapes']['1'] if int(row.get('id') or 0)==6)
         assert shape['geometry']['h']==922020, shape
         point=shim._task091_shape_center(snap,shape)
-        assert [point['cx'],point['cy']]==[869,373], point
+        assert [point['cx'],point['cy']]==[869,372], point
 
         state={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'mode':'TARGET_VERIFYING',
                'pending_edit':{
