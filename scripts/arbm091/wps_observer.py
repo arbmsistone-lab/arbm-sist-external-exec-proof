@@ -80,6 +80,7 @@ def snapshot(controller, root: Path, name: str, point):
         'focused_control': payload.get('focused_control'),
         'deck_slide_text': payload.get('deck_slide_text', {}),
         'deck_slide_runs': payload.get('deck_slide_runs', {}),
+        'deck_slide_shapes': payload.get('deck_slide_shapes', {}),
         'deck_file': payload.get('deck_file', {}),
         'screenshot_sha256': hashlib.sha256(png).hexdigest(),
     }
