@@ -30,12 +30,15 @@ def _task091_shape_boxes(snapshot: dict) -> list[tuple[int,int,int,int]]:
     table=snapshot.get('deck_slide_shapes', {}) if isinstance(snapshot, dict) else {}
     if not isinstance(table, dict):
         return []
+    active_slide=snapshot.get('active_slide')
+    if type(active_slide) is not int or active_slide <= 0:
+        return []
+    rows=table.get(str(active_slide), [])
+    if not isinstance(rows, list):
+        return []
     vx,vy,vw,vh=TASK091_CANONICAL_SLIDE_VIEWPORT
     boxes=[]
-    for rows in table.values():
-        if not isinstance(rows, list):
-            continue
-        for row in rows:
+    for row in rows:
             if not isinstance(row, dict) or not str(row.get('text') or '').strip():
                 continue
             geometry=row.get('geometry', {})
@@ -207,6 +210,11 @@ def preflight(command: str, snapshot: dict) -> str:
                     '/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx'
                     and len(str(snapshot['deck_file'].get('sha256',''))) == 64,
                     'TASK091_TARGET_DECK_FILE_UNPROVEN')
+            require(type(snapshot.get('active_slide')) is int
+                    and snapshot.get('active_slide') > 0,
+                    'TASK091_ACTIVE_SLIDE_UNPROVEN')
+            require(str(snapshot.get('active_slide')) in snapshot.get('deck_slide_shapes', {}),
+                    'TASK091_ACTIVE_SLIDE_SHAPES_UNPROVEN')
             require(_task091_point_inside_unique_text_shape(snapshot, point),
                     'TASK091_SHAPE_POINT_UNPROVEN')
             require(inside(point, snapshot.get('screen')), 'POINTER_OUTSIDE_SCREEN')
