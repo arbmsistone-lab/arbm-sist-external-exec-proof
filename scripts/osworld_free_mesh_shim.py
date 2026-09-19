@@ -279,8 +279,8 @@ def _task091_shape_for_old(window_state, slide, old):
             matches.append(row)
     return matches[0] if len(matches)==1 else None
 
-def _task091_shape_point(window_state, slide, old):
-    if not isinstance(window_state,dict):
+def _task091_shape_center(window_state, row):
+    if not isinstance(window_state,dict) or not isinstance(row,dict):
         return None
     if window_state.get('screen') != TASK091_CANONICAL_SCREEN:
         return None
@@ -293,18 +293,21 @@ def _task091_shape_point(window_state, slide, old):
     sw=int(slide_size.get('w') or 0); sh=int(slide_size.get('h') or 0)
     if sw<=0 or sh<=0:
         return None
-    row=_task091_shape_for_old(window_state,slide,old)
-    if row is None:
-        return None
     geometry=row.get('geometry') or {}
     gx=int(geometry.get('x') or 0); gy=int(geometry.get('y') or 0)
     gw=int(geometry.get('w') or 0); gh=int(geometry.get('h') or 0)
+    if gx<0 or gy<0 or gw<=0 or gh<=0:
+        return None
     vx,vy,vw,vh=TASK091_CANONICAL_SLIDE_VIEWPORT
     cx=round(vx + ((gx + gw/2.0)/sw)*vw)
     cy=round(vy + ((gy + gh/2.0)/sh)*vh)
     if not (vx <= cx < vx+vw and vy <= cy < vy+vh):
         return None
     return {'shape':row,'cx':int(cx),'cy':int(cy)}
+
+def _task091_shape_point(window_state, slide, old):
+    row=_task091_shape_for_old(window_state,slide,old)
+    return _task091_shape_center(window_state,row)
 
 def _task091_nav_command(current_slide, target_slide):
     delta=int(target_slide)-int(current_slide)
@@ -636,17 +639,21 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 visual_edit_proven=(len(selected)==64 and len(edited)==64 and selected != edited)
                 current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
                 current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
-                target=pending.get('target',{})
                 corrupt_shape,repair_plan=_task091_corrupt_shape(window_state,pending['slide'],pending['new'])
                 if not visual_edit_proven or len(current_sha)!=64 or corrupt_shape is None or not repair_plan:
                     return _task091_terminal('TASK091_EDIT_TEXT_MISMATCH_UNPROVEN',state)
+                if int(corrupt_shape.get('id') or 0) != int(pending.get('shape_id') or 0):
+                    return _task091_terminal('TASK091_RESTRICTED_REPAIR_SHAPE_DRIFT',state)
+                repair_point=_task091_shape_center(window_state,corrupt_shape)
+                if repair_point is None:
+                    return _task091_terminal('TASK091_RESTRICTED_REPAIR_GEOMETRY_UNPROVEN',state)
                 delete_count=sum(1 for row in repair_plan if row.get('op')=='delete')
                 linebreak_count=sum(1 for row in repair_plan if row.get('op')=='linebreak')
                 if len(repair_plan) > 8 or delete_count > 8 or linebreak_count > 2:
                     return _task091_terminal('TASK091_EDIT_TEXT_CORRUPTION_EXCESSIVE',state)
                 if any(row.get('op') not in ('delete','linebreak') for row in repair_plan):
                     return _task091_terminal('TASK091_EDIT_TEXT_MISMATCH_UNPROVEN',state)
-                cx=int(target.get('cx') or 0); cy=int(target.get('cy') or 0)
+                cx=int(repair_point['cx']); cy=int(repair_point['cy'])
                 repaired_target={'source':'task091-pptx-canonical','label':str(corrupt_shape.get('text') or ''),
                                  'role':'task091-canonical-point','slide':int(pending['slide']),
                                  'x':cx-1,'y':cy-1,'w':2,'h':2,'cx':cx,'cy':cy,
@@ -657,6 +664,9 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 pending['repair_before_deck_sha256']=current_sha
                 pending['repair_shape_id']=int(corrupt_shape.get('id') or 0)
                 pending['repair_shape_text']=str(corrupt_shape.get('text') or '')
+                pending['repair_shape_geometry']=dict(corrupt_shape.get('geometry') or {})
+                pending['repair_target_cx']=cx
+                pending['repair_target_cy']=cy
                 pending['repair_plan']=list(repair_plan)
                 pending['verify_attempts']=0
                 pending['stage']='repair-select-issued'
