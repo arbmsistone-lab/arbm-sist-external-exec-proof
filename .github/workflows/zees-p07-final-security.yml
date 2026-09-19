@@ -55,7 +55,7 @@ jobs:
         run: |
           set -euo pipefail
           run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PRIOR_RUN_ID")"
-          test "$(jq -r .head_sha <<<"$run_json")" = "$TARGET_SHA"
+          test "$(jq -r .head_sha <<<"$run_json")" = "$BASE_SHA"
           test "$(jq -r .conclusion <<<"$run_json")" = "success"
           artifact_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PRIOR_RUN_ID/artifacts")"
           digest="$(jq -r '.artifacts[] | select(.name=="top3-security-load-failure-proof") | .digest' <<<"$artifact_json")"
