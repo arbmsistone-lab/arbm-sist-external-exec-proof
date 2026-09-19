@@ -344,6 +344,7 @@ jobs:
           /tmp/run35400883826-enter-regression.json
           /tmp/run35404537401-deck-regression.json
           /tmp/run35407234122-pointer-regression.json
+          /tmp/run35411705196-keyrepeat-regression.json
         if-no-files-found: warn
         retention-days: 30
     permissions:
