@@ -16,7 +16,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tok=$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=arbm-sist-benchmark" | python -c "import sys,json; print(json.load(sys.stdin)['value'])")
+          oidc_json="$(mktemp)"
+          trap 'rm -f "$oidc_json"' EXIT
+          curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=arbm-sist-benchmark" -o "$oidc_json"
+          tok="$(python -c "import sys,json; print(json.load(open(sys.argv[1]))['value'])" "$oidc_json")"
           img='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
           body=$(python -c "import json,sys; print(json.dumps({'image_base64':sys.argv[1]}))" "$img")
           curl -fsS -H "Authorization: Bearer $tok" -H 'content-type: application/json' \
