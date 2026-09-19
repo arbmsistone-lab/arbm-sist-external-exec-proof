@@ -29,6 +29,7 @@ jobs:
       ARBM_G3_FREE_MODEL: ${{ inputs.model }}
       ZERO_SPEND: 'true'
       HEAVY_LOCAL: '0'
+      PROBE_ONLY: ${{ inputs.probe_only }}
     steps:
       - name: Checkout G3 tooling
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -60,7 +61,7 @@ jobs:
           ARBM_G3_USAGE_LOG: ${{ github.workspace }}/g3-free-probe-usage.jsonl
         run: |
           set -euo pipefail
-          if [ "$ARBM_G3_PROVIDER" = "groq" ] && [ "${{ inputs.probe_only }}" = "true" ]; then
+          if [ "$ARBM_G3_PROVIDER" = "groq" ] && [ "$PROBE_ONLY" = "true" ]; then
             export ARBM_G3_GROQ_FREE_PLAN_PROVEN=1
             python certification/g3_free_control.py probe --model "$ARBM_G3_FREE_MODEL" --output free-capability.json
           else
