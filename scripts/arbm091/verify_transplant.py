@@ -196,7 +196,7 @@ grep -F 'RUN35407234122_POINTER_REGRESSION=PASS' /tmp/run35407234122-pointer-reg
 }
 
 RUN35411705196_KEYREPEAT_REPLAY = {
-    'name': 'Replay run 35411705196 WPS key-repeat corruption regression',
+    'name': 'Replay run 35411705196 non-delete-only corruption rejection',
     'shell': 'bash',
     'run': '''set -euo pipefail
 TASK_ID=091 ZERO_SPEND_MODE=HARD PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35411705196-keyrepeat-regression.json
@@ -206,47 +206,16 @@ import osworld_free_mesh_shim as shim
 
 root=Path('/tmp/091-keyrepeat/task-091')
 corrupt=json.loads((root/'wps-observations/0009-01-after.json').read_text())
-assert corrupt['deck_file']['sha256'] != '4c9c57567fa8f4bd81175dbd3d1b2ea40f0ad1ff8689ca47e1cbd001da637f5b'
 slide1=corrupt['deck_slide_text']['1']
 assert 'OOperating' in slide1 and 'PPPPPPack' in slide1 and 'RRecover' in slide1, slide1
-
-trace=[json.loads(line) for line in (root/'wps-trace.jsonl').read_text().splitlines() if line.strip()]
-selected=next(row['after']['screenshot_sha256'] for row in trace
-              if row.get('step')==6 and row.get('substep')==1)
-edited=next(row['after']['screenshot_sha256'] for row in trace
-            if row.get('step')==7 and row.get('substep')==4)
-assert selected != edited
-
-corrupt['screenshot_sha256']=next(row['after']['screenshot_sha256'] for row in trace
-                                  if row.get('step')==9 and row.get('substep')==1)
-state={'owned':True,'anchored':True,'slide':1,'spatial_index':0,
-       'pending_edit':{'slide':1,'old':'Growth Plan Draft',
-                       'new':'H2 Operating Committee Pack\\nStabilize-and-Recover Rebaseline',
-                       'stage':'save-issued',
-                       'target':{'label':'Growth Plan Draft','role':'task091-canonical-point',
-                                 'bbox':[744,334,2,2],'cx':745,'cy':335,
-                                 'source':'task091-pptx-canonical','slide':1},
-                       'before_old_count':1,'before_new_count':0,
-                       'before_deck_sha256':'4c9c57567fa8f4bd81175dbd3d1b2ea40f0ad1ff8689ca47e1cbd001da637f5b',
-                       'selected_screenshot_sha256':selected,
-                       'edited_screenshot_sha256':edited,
-                       'verify_attempts':0}}
-task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
-      'The COO has asked you to rebaseline the H2 Operating Committee pack. '
-      'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
-      'Reforecast_Model_H2.xlsx is the source of truth.')
-repair=shim.next_091_specialist_action(task,'WPS Presentation','',state,corrupt)
-assert repair['action']=='exec', repair
-assert repair['command']=='pyautogui.doubleClick(745, 335, interval=0.08)', repair
-assert repair['target']['source']=='task091-pptx-canonical', repair
-assert state['pending_edit']['repair_attempts']==1, state['pending_edit']
-assert state['pending_edit']['repair_before_deck_sha256']==corrupt['deck_file']['sha256']
-assert shim.TASK091_TYPE_INTERVAL >= 0.02
-assert shim.TASK091_REPAIR_TYPE_INTERVAL >= 0.05
+actual='H2 OOperating CCommitPPPPPPack\\nStabilize-and-RRecover RRebaseline'
+expected='H2 Operating Committee Pack\\nStabilize-and-Recover Rebaseline'
+assert shim._task091_delete_only_plan(actual,expected) is None
 print(json.dumps({'status':'PASS','corpus_run':'35411705196',
                   'old_failure':'TASK091_EDIT_NOT_VERIFIED',
-                  'detected':'saved-key-repeat-corruption',
-                  'bounded_repair':1,'zero_spend':'HARD'},sort_keys=True))
+                  'detected':'non-delete-only-key-repeat-corruption',
+                  'auto_repair':False,'fail_closed':True,
+                  'zero_spend':'HARD'},sort_keys=True))
 print('RUN35411705196_KEYREPEAT_REGRESSION=PASS')
 PY
 grep -F 'RUN35411705196_KEYREPEAT_REGRESSION=PASS' /tmp/run35411705196-keyrepeat-regression.json
@@ -395,11 +364,11 @@ def main():
             'CLEAN_BASELINE_ANCESTRY_MISMATCH')
     require(git('rev-list', '--count', BASE + '..' + CLEAN_BASELINE) == '3',
             'EXACTLY_THREE_BASELINE_COMMITS_REQUIRED')
-    require(git('rev-list', '--count', BASE + '..HEAD') == '120',
-            'EXACTLY_ONE_HUNDRED_TWENTY_AUDITED_COMMITS_REQUIRED')
+    require(git('rev-list', '--count', BASE + '..HEAD') == '123',
+            'EXACTLY_ONE_HUNDRED_TWENTY_THREE_AUDITED_COMMITS_REQUIRED')
     require(not git('rev-list', '--merges', BASE + '..HEAD'), 'MERGE_COMMITS_FORBIDDEN')
     overlay = git('rev-list', '--reverse', CLEAN_BASELINE + '..HEAD').splitlines()
-    require(len(overlay) == 117, 'EXACTLY_ONE_HUNDRED_SEVENTEEN_REPAIR_COMMITS_REQUIRED')
+    require(len(overlay) == 120, 'EXACTLY_ONE_HUNDRED_TWENTY_REPAIR_COMMITS_REQUIRED')
     require(overlay[2] == PID_FILTER_COMMIT and overlay[3] == PID_TEST_COMMIT,
             'PID_REPAIR_COMMIT_IDENTITY_MISMATCH')
     require(overlay[6] == WPS_ALIAS_COMMIT and overlay[7] == WPS_ALIAS_TEST_COMMIT
@@ -409,7 +378,7 @@ def main():
                        LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, VERIFIER, WORKFLOW, VERIFIER, WORKFLOW,
                        VERIFIER, SHIM, MESH_TEST, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, WPS_OBSERVER, TRACE_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST,
                        (SHIM, MESH_TEST), VERIFIER, TRACE_GATE, TRACE_GATE, WPS_OBSERVER, WPS_OBSERVER,
-                       SHIM, TRACE_GATE, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, VERIFIER, TRACE_GATE, VERIFIER, WORKFLOW, VERIFIER, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, TRACE_TEST, MESH_TEST, WORKFLOW, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, TRACE_TEST, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, VERIFIER, CONTROL, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER)
+                       SHIM, TRACE_GATE, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, VERIFIER, TRACE_GATE, VERIFIER, WORKFLOW, VERIFIER, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, TRACE_TEST, MESH_TEST, WORKFLOW, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, TRACE_TEST, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, VERIFIER, CONTROL, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, WORKFLOW, VERIFIER, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER)
     require(overlay[43] == SUPERSEDED_ALT_F4_COMMIT, 'SUPERSEDED_ALT_F4_COMMIT_IDENTITY_MISMATCH')
     for commit, allowed in zip(overlay, expected_scopes):
         actual=set(git('diff-tree', '--no-commit-id', '--name-only', '-r', commit).splitlines())
@@ -444,7 +413,7 @@ def main():
     expected.update(patch['postimage_sha256'])
     repaired = {LOCAL_VLM: WPS_ALIAS_COMMIT, LOCAL_VLM_TEST: WPS_ALIAS_TEST_COMMIT,
                 TRACE_GATE: overlay[84], TRACE_TEST: overlay[87], WPS_OBSERVER: overlay[110],
-                GUEST_PROBE: overlay[109], CONTROL: overlay[95], SHIM: overlay[111], MESH_TEST: overlay[112]}
+                GUEST_PROBE: overlay[109], CONTROL: overlay[95], SHIM: overlay[111], MESH_TEST: overlay[117]}
     for path, wanted in expected.items():
         if path in repaired:
             source = subprocess.check_output(['git', 'show', repaired[path] + ':' + path])
@@ -457,7 +426,7 @@ def main():
     verify_workflow_delta()
     print(json.dumps({'status': 'CLEAN_HISTORY_AND_SCOPE_PASS', 'base_sha': BASE,
                       'clean_baseline_sha': CLEAN_BASELINE, 'baseline_commits': 3,
-                      'repair_commits': overlay, 'new_commits': 120, 'changed_files': len(changed),
+                      'repair_commits': overlay, 'new_commits': 123, 'changed_files': len(changed),
                       'repair_scope': [VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST,
                                        TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL], 'official_score_claimed': False}))
 
