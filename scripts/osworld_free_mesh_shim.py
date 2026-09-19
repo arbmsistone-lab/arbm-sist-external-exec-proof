@@ -768,7 +768,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 return {'action':'checkpoint','checkpoint':checkpoint,
                         'slide':pending['slide'],'old':pending['old'],'new':pending['new'],
                         'target':new_hit,'specialist_phase':'verify-pending-target'}
-            if status=='disk-text-mismatch' and int(pending.get('repair_steps') or 0)==0:
+            if status=='disk-text-mismatch' and int(pending.get('repair_steps') or pending.get('repair_attempts') or 0)==0:
                 selected=str(pending.get('selected_screenshot_sha256') or '')
                 edited=str(pending.get('edited_screenshot_sha256') or '')
                 visual_edit_proven=(len(selected)==64 and len(edited)==64 and selected != edited)
