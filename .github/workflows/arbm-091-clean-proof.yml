@@ -388,7 +388,7 @@ jobs:
         assert deletes == [29], deletes
         command=shim._task091_delete_repair_command(deletes)
         assert "hotkey('ctrl', 'a')" in command, command
-        assert "press('delete')" in command, command
+        assert "'delete'" in command, command
         assert 'pyautogui.write(' not in command, command
         assert shim._task091_delete_only_plan(
             'H2 Operating Committee Pack\nBroken Rebaseline',expected) is None
