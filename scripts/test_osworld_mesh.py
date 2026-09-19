@@ -471,4 +471,27 @@ class MeshTests(unittest.TestCase):
     'rebaseline H2 Operating Committee pack using Reforecast_Model_H2.xlsx',
     'WPS Presentation','',{}))
 
+
+ def test_task091_restricted_repair_and_50x10_review_board(self):
+  from arbm091.review_board_50x10 import evaluate
+  actual='H2 Operating Committee PPackSStabilize-and-Recover RRebaseline'
+  expected='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
+  plan=shim._task091_restricted_repair_plan(actual,expected)
+  self.assertEqual(plan,[
+      {'op':'delete','index':24,'char':'P'},
+      {'op':'linebreak','index':27},
+      {'op':'delete','index':29,'char':'S'},
+      {'op':'delete','index':51,'char':'R'}])
+  command=shim._task091_restricted_repair_command(plan)
+  self.assertNotIn('pyautogui.write(',command)
+  self.assertIn("hotkey('shift', 'enter')",command)
+  shape={'id':6,'name':'CoverTitle','text':actual}
+  verdict=evaluate(actual,expected,plan,shape,'a'*64,'b'*64)
+  self.assertEqual(verdict['status'],'PASS')
+  self.assertEqual(verdict['senior_pass'],50)
+  self.assertEqual(verdict['master_pass'],10)
+  unsafe=[{'op':'insert','index':27,'char':'S'}]
+  with self.assertRaises(RuntimeError):
+   evaluate(actual,expected,unsafe,shape,'a'*64,'b'*64)
+
 if __name__=='__main__':unittest.main()
