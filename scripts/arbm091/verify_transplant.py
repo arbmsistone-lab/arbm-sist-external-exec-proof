@@ -20,6 +20,7 @@ TRACE_TEST = 'tests/arbm091/test_score_and_trace.py'
 WPS_OBSERVER = 'scripts/arbm091/wps_observer.py'
 GUEST_PROBE = 'scripts/arbm091/guest_probe.py'
 SHIM = 'scripts/osworld_free_mesh_shim.py'
+CONTROL = 'scripts/osworld_control.py'
 MESH_TEST = 'scripts/test_osworld_mesh.py'
 WPS_ALIAS_COMMIT = 'f0a49b84c95808b501cd91aed14bd702e8230a9c'
 WPS_ALIAS_TEST_COMMIT = '51f63478520b3e8fa89152460dc12dd7da446945'
@@ -136,18 +137,61 @@ task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
       'Reforecast_Model_H2.xlsx is the source of truth.')
 action=shim.next_091_specialist_action(task,'WPS Presentation','',state,deck)
 assert action['command'] == 'pyautogui.doubleClick(745, 335, interval=0.08)', action
-assert action['target']['source'] == 'target-pptx-spatial', action
+assert action['target']['source'] == 'task091-pptx-canonical', action
 probe=copy.deepcopy(deck)
 probe['screen']=[0,0,1920,1080]
 probe['window']['bbox']=[70,27,1850,1053]
 probe['target']=None
 assert preflight(action['command'],probe) == 'wps-content'
 print(json.dumps({'status':'PASS','corpus_run':'35404537401',
-                  'atspi_controls':0,'fallback':'target-pptx-spatial',
+                  'atspi_controls':0,'fallback':'task091-pptx-canonical',
                   'zero_spend':'HARD'},sort_keys=True))
 print('RUN35404537401_DECK_REGRESSION=PASS')
 PY
 grep -F 'RUN35404537401_DECK_REGRESSION=PASS' /tmp/run35404537401-deck-regression.json
+'''
+}
+
+RUN35407234122_POINTER_REPLAY = {
+    'name': 'Replay run 35407234122 canonical pointer policy regression',
+    'shell': 'bash',
+    'run': '''set -euo pipefail
+TASK_ID=091 ZERO_SPEND_MODE=HARD PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35407234122-pointer-regression.json
+import copy, json
+from pathlib import Path
+import osworld_free_mesh_shim as shim
+
+root=Path('/tmp/091-pointer/task-091/wps-observations')
+deck=json.loads((root/'0004-01-after.json').read_text())
+deck['deck_slide_text']={'1':'Growth Plan Draft Planning posture: accelerate growth through H2 scale-up $42.8M $2.6M 214'}
+deck['deck_slide_runs']={'1':['Growth Plan Draft','Planning posture: accelerate growth through H2 scale-up','$42.8M','$2.6M','214']}
+deck['deck_file']={'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                   'sha256':'a'*64,'size':1234,'mtime_ns':1}
+state={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
+task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
+      'The COO has asked you to rebaseline the H2 Operating Committee pack. '
+      'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
+      'Reforecast_Model_H2.xlsx is the source of truth.')
+action=shim.next_091_specialist_action(task,'WPS Presentation','',state,deck)
+assert action['target']['source']=='task091-pptx-canonical', action
+grounded=shim.ground_action(action,'WPS Presentation','',[],allow_canonical=True)
+assert grounded['command']=='pyautogui.doubleClick(745, 335, interval=0.08)', grounded
+assert 'PPTX-backed canonical target' in grounded.get('compiler_note',''), grounded
+bad=copy.deepcopy(action)
+bad['target']['deck_sha256']='b'*64
+try:
+    shim.ground_action(bad,'WPS Presentation','',[],allow_canonical=True)
+except ValueError as exc:
+    assert 'TASK091_CANONICAL_TARGET_PROOF_INVALID' in str(exc), exc
+else:
+    raise AssertionError('tampered canonical target was accepted')
+print(json.dumps({'status':'PASS','corpus_run':'35407234122',
+                  'old_failure':'POINTER_TARGET_INVALID',
+                  'new_contract':'task091-pptx-canonical',
+                  'tamper_rejected':True,'zero_spend':'HARD'},sort_keys=True))
+print('RUN35407234122_POINTER_REGRESSION=PASS')
+PY
+grep -F 'RUN35407234122_POINTER_REGRESSION=PASS' /tmp/run35407234122-pointer-regression.json
 '''
 }
 
@@ -217,6 +261,10 @@ mkdir -p /tmp/091-deck
 unzip -q /tmp/091-deck.zip -d /tmp/091-deck
 test -s /tmp/091-deck/task-091/wps-observations/0004-01-before.json
 test -s /tmp/091-deck/task-091/wps-observations/0004-01-after.json
+gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10572823026/zip > /tmp/091-pointer.zip
+mkdir -p /tmp/091-pointer
+unzip -q /tmp/091-pointer.zip -d /tmp/091-pointer
+test -s /tmp/091-pointer/task-091/wps-observations/0004-01-after.json
 '''
     replay[3]['name'] = 'Replay exact WPS 2019 Step 2 through alias-isolated selector twice'
     replay[3]['run'] = (
@@ -227,7 +275,8 @@ test -s /tmp/091-deck/task-091/wps-observations/0004-01-after.json
     replay.insert(4, RUN35391431490_MODAL_REPLAY)
     replay.insert(5, RUN35400883826_ENTER_REPLAY)
     replay.insert(6, RUN35404537401_DECK_REPLAY)
-    replay[7]['with']['path'] = '/tmp/091-local-contract-replay.json\n/tmp/run35391431490-modal-regression.json\n/tmp/run35400883826-enter-regression.json\n/tmp/run35404537401-deck-regression.json\n'
+    replay.insert(7, RUN35407234122_POINTER_REPLAY)
+    replay[8]['with']['path'] = '/tmp/091-local-contract-replay.json\n/tmp/run35391431490-modal-regression.json\n/tmp/run35400883826-enter-regression.json\n/tmp/run35404537401-deck-regression.json\n/tmp/run35407234122-pointer-regression.json\n'
     require(len(re.findall(r'(?m)^\s+TASK_ID: [\'"]091[\'"]\s*$', text)) == 1,
             'TASK091_MUST_BE_QUOTED_YAML_STRING')
     require(normalize(current) == normalize(expected), 'UNEXPECTED_WORKFLOW_SEMANTIC_DELTA')
@@ -242,11 +291,11 @@ def main():
             'CLEAN_BASELINE_ANCESTRY_MISMATCH')
     require(git('rev-list', '--count', BASE + '..' + CLEAN_BASELINE) == '3',
             'EXACTLY_THREE_BASELINE_COMMITS_REQUIRED')
-    require(git('rev-list', '--count', BASE + '..HEAD') == '98',
-            'EXACTLY_NINETY_EIGHT_AUDITED_COMMITS_REQUIRED')
+    require(git('rev-list', '--count', BASE + '..HEAD') == '103',
+            'EXACTLY_ONE_HUNDRED_THREE_AUDITED_COMMITS_REQUIRED')
     require(not git('rev-list', '--merges', BASE + '..HEAD'), 'MERGE_COMMITS_FORBIDDEN')
     overlay = git('rev-list', '--reverse', CLEAN_BASELINE + '..HEAD').splitlines()
-    require(len(overlay) == 95, 'EXACTLY_NINETY_FIVE_REPAIR_COMMITS_REQUIRED')
+    require(len(overlay) == 100, 'EXACTLY_ONE_HUNDRED_REPAIR_COMMITS_REQUIRED')
     require(overlay[2] == PID_FILTER_COMMIT and overlay[3] == PID_TEST_COMMIT,
             'PID_REPAIR_COMMIT_IDENTITY_MISMATCH')
     require(overlay[6] == WPS_ALIAS_COMMIT and overlay[7] == WPS_ALIAS_TEST_COMMIT
@@ -256,7 +305,7 @@ def main():
                        LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, VERIFIER, WORKFLOW, VERIFIER, WORKFLOW,
                        VERIFIER, SHIM, MESH_TEST, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, WPS_OBSERVER, TRACE_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST, VERIFIER, SHIM, MESH_TEST,
                        (SHIM, MESH_TEST), VERIFIER, TRACE_GATE, TRACE_GATE, WPS_OBSERVER, WPS_OBSERVER,
-                       SHIM, TRACE_GATE, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, VERIFIER, TRACE_GATE, VERIFIER, WORKFLOW, VERIFIER, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, TRACE_TEST, MESH_TEST, WORKFLOW, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, TRACE_TEST, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, VERIFIER)
+                       SHIM, TRACE_GATE, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, VERIFIER, TRACE_GATE, VERIFIER, WORKFLOW, VERIFIER, VERIFIER, WORKFLOW, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, TRACE_TEST, MESH_TEST, WORKFLOW, VERIFIER, TRACE_GATE, TRACE_TEST, VERIFIER, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, GUEST_PROBE, WPS_OBSERVER, SHIM, MESH_TEST, TRACE_TEST, GUEST_PROBE, WPS_OBSERVER, TRACE_GATE, SHIM, MESH_TEST, TRACE_TEST, WORKFLOW, VERIFIER, MESH_TEST, WORKFLOW, VERIFIER, MESH_TEST, VERIFIER, CONTROL, SHIM, MESH_TEST, WORKFLOW, VERIFIER)
     require(overlay[43] == SUPERSEDED_ALT_F4_COMMIT, 'SUPERSEDED_ALT_F4_COMMIT_IDENTITY_MISMATCH')
     for commit, allowed in zip(overlay, expected_scopes):
         actual=set(git('diff-tree', '--no-commit-id', '--name-only', '-r', commit).splitlines())
@@ -272,7 +321,7 @@ def main():
     changed = set(git('diff', '--name-only', BASE, 'HEAD').splitlines())
     require(changed == set(manifest), 'CHANGED_FILE_ALLOWLIST_MISMATCH')
     require(set(git('diff', '--name-only', CLEAN_BASELINE, 'HEAD').splitlines())
-            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE},
+            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL},
             'REPAIR_TOTAL_SCOPE_MISMATCH')
     exists = subprocess.run(['git', 'cat-file', '-e', PATCH_SOURCE], capture_output=True).returncode == 0
     if exists:
@@ -291,7 +340,7 @@ def main():
     expected.update(patch['postimage_sha256'])
     repaired = {LOCAL_VLM: WPS_ALIAS_COMMIT, LOCAL_VLM_TEST: WPS_ALIAS_TEST_COMMIT,
                 TRACE_GATE: overlay[84], TRACE_TEST: overlay[87], WPS_OBSERVER: overlay[83],
-                GUEST_PROBE: overlay[82], SHIM: overlay[85], MESH_TEST: overlay[93]}
+                GUEST_PROBE: overlay[82], CONTROL: overlay[95], SHIM: overlay[96], MESH_TEST: overlay[97]}
     for path, wanted in expected.items():
         if path in repaired:
             source = subprocess.check_output(['git', 'show', repaired[path] + ':' + path])
@@ -304,9 +353,9 @@ def main():
     verify_workflow_delta()
     print(json.dumps({'status': 'CLEAN_HISTORY_AND_SCOPE_PASS', 'base_sha': BASE,
                       'clean_baseline_sha': CLEAN_BASELINE, 'baseline_commits': 3,
-                      'repair_commits': overlay, 'new_commits': 98, 'changed_files': len(changed),
+                      'repair_commits': overlay, 'new_commits': 103, 'changed_files': len(changed),
                       'repair_scope': [VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST,
-                                       TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE], 'official_score_claimed': False}))
+                                       TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL], 'official_score_claimed': False}))
 
 
 if __name__ == '__main__':
