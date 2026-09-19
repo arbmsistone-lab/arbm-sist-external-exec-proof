@@ -449,8 +449,11 @@ def _task091_restricted_repair_command(plan):
     if target < 0:
         raise ValueError('TASK091_REPAIR_OPERATION_INDEX_INVALID')
     commands=["pyautogui.hotkey('ctrl', 'a')","pyautogui.press('left')"]
-    if target:
-        commands.append(f"pyautogui.press('right', presses={target}, interval=0.02)")
+    remaining=target
+    while remaining:
+        chunk=min(30,remaining)
+        commands.append(f"pyautogui.press('right', presses={chunk}, interval=0.02)")
+        remaining-=chunk
     if row['op']=='delete':
         commands.append("pyautogui.press('delete')")
     else:
