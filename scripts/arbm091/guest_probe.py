@@ -195,9 +195,17 @@ def capture(point):
                         for r_index,row in enumerate(rows):
                             rh=row_heights[r_index] if r_index < len(row_heights) else 0
                             x_cursor=fx
+                            grid_index=0
                             cells=[node for node in row if node.tag.endswith('}tc')]
-                            for c_index,cell in enumerate(cells):
-                                cw=cols[c_index] if c_index < len(cols) else 0
+                            for cell_index,cell in enumerate(cells):
+                                grid_span=max(1,int(cell.attrib.get('gridSpan','1') or '1'))
+                                row_span=max(1,int(cell.attrib.get('rowSpan','1') or '1'))
+                                h_merge=str(cell.attrib.get('hMerge','0')).lower() in ('1','true')
+                                v_merge=str(cell.attrib.get('vMerge','0')).lower() in ('1','true')
+                                span_cols=cols[grid_index:grid_index+grid_span]
+                                cw=sum(span_cols)
+                                span_rows=row_heights[r_index:r_index+row_span]
+                                ch=sum(span_rows)
                                 chunks=[]
                                 for text_node in cell.iter():
                                     if text_node.tag.endswith('}t') and text_node.text is not None:
@@ -205,15 +213,17 @@ def capture(point):
                                     elif text_node.tag.endswith('}br'):
                                         chunks.append('\n')
                                 text=''.join(chunks)
-                                if text and cw>0 and rh>0:
+                                if text and not h_merge and not v_merge and cw>0 and ch>0:
                                     shapes.append({
-                                        'id': -(frame_id*10000 + r_index*100 + c_index + 1),
-                                        'name': f'{frame_name}#r{r_index}c{c_index}',
+                                        'id': -(frame_id*1000000 + r_index*1000 + grid_index + 1),
+                                        'name': f'{frame_name}#r{r_index}c{grid_index}',
                                         'text': text, 'paragraphs':[text],
-                                        'geometry': {'x':x_cursor,'y':y_cursor,'w':cw,'h':rh},
+                                        'geometry': {'x':x_cursor,'y':y_cursor,'w':cw,'h':ch},
                                         'kind':'table-cell','frame_id':frame_id,
-                                        'row':r_index,'col':c_index})
+                                        'row':r_index,'col':grid_index,
+                                        'grid_span':grid_span,'row_span':row_span})
                                 x_cursor += cw
+                                grid_index += grid_span
                             y_cursor += rh
                     key = str(int(number))
                     run_result[key] = parts
