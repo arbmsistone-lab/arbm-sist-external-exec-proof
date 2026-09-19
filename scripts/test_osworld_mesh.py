@@ -466,7 +466,7 @@ class MeshTests(unittest.TestCase):
    retry_no_old=shim.next_091_specialist_action(task,'WPS Presentation','',no_old_state,no_old)
    self.assertIn('sleep',retry_no_old['command'])
    no_old_terminal=shim.next_091_specialist_action(task,'WPS Presentation','',no_old_state,no_old)
-   self.assertEqual(no_old_terminal['reason'],'TASK091_TARGET_NOT_VISIBLE')
+   self.assertEqual(no_old_terminal['reason'],'TASK091_SHAPE_GEOMETRY_UNPROVEN')
 
    # Missing and ambiguous targets never click blindly.
    missing_obs='text\tOperating Committee\tOperating Committee\t\t\t(500, 180)\t(600, 60)'
