@@ -10,6 +10,7 @@ from pathlib import Path
 from arbm091.score_tracker import exact_result, scan_fatal
 from arbm091.trace_gate import DECK, WORKBOOK, classify, digest, preflight, postflight, verify_trace
 from arbm091 import wps_observer
+import osworld_free_mesh_shim as shim
 from unittest.mock import patch
 
 SHA = 'a' * 40
@@ -404,3 +405,26 @@ class TraceTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class Task091CompactEditTests(unittest.TestCase):
+    def test_short_scalar_requires_explicit_text_mode(self):
+        self.assertTrue(shim._task091_needs_explicit_text_mode('$42.8M', '$40.9M'))
+        self.assertTrue(shim._task091_needs_explicit_text_mode('214', '206'))
+        self.assertTrue(shim._task091_needs_explicit_text_mode('GTM', 'Ops'))
+        command=shim._task091_write_command('$40.9M', ensure_text_mode=True)
+        self.assertEqual(command.splitlines()[0], "pyautogui.press('f2')")
+        self.assertIn("pyautogui.hotkey('ctrl', 'a')", command)
+        self.assertIn("pyautogui.write('$40.9M'", command)
+
+    def test_long_narrative_keeps_existing_edit_path(self):
+        old='Planning posture: accelerate growth through H2 scale-up'
+        new='Planning posture: stabilize and recover with disciplined sequencing'
+        self.assertFalse(shim._task091_needs_explicit_text_mode(old, new))
+        command=shim._task091_write_command(new, ensure_text_mode=False)
+        self.assertNotIn("press('f2')", command)
+        self.assertEqual(command.splitlines()[0], "pyautogui.hotkey('ctrl', 'a')")
+
+    def test_multiline_title_keeps_existing_edit_path(self):
+        new='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
+        self.assertFalse(shim._task091_needs_explicit_text_mode('Growth Plan Draft', new))
