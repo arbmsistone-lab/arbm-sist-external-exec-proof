@@ -324,7 +324,7 @@ jobs:
         actual='H2 Operating Committee Pack\nSStabilize-and-Recover Rebaseline'
         expected='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
         deletes=shim._task091_delete_only_plan(actual,expected)
-        assert deletes == [28], deletes
+        assert deletes == [29], deletes
         command=shim._task091_delete_repair_command(deletes)
         assert "hotkey('ctrl', 'a')" in command, command
         assert "press('delete')" in command, command
