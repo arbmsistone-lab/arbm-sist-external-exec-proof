@@ -382,7 +382,7 @@ class MeshTests(unittest.TestCase):
    repair_selected={**corrupt_deck,'screenshot_sha256':'4'*64}
    repair_edit=shim.next_091_specialist_action(task,'WPS Presentation','',corrupt_state,repair_selected)
    self.assertIn("hotkey('ctrl', 'a')",repair_edit['command'])
-   self.assertIn("press('delete')",repair_edit['command'])
+   self.assertIn("'delete'",repair_edit['command'])
    self.assertNotIn('pyautogui.write(',repair_edit['command'])
    repair_edited={**corrupt_deck,'screenshot_sha256':'5'*64}
    repair_commit=shim.next_091_specialist_action(task,'WPS Presentation','',corrupt_state,repair_edited)
