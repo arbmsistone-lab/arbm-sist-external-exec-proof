@@ -713,6 +713,27 @@ def next_091_specialist_action(instruction, active_application, observation, sta
 
     if app == 'wps-transient':
         state['mode']='TRANSIENT_WPS'
+        pending=state.get('pending_edit')
+        if isinstance(pending,dict):
+            stage=str(pending.get('stage') or '')
+            if stage in ('select-issued','reselect-required'):
+                interrupts=int(pending.get('selection_interrupts') or 0)+1
+                pending['selection_interrupts']=interrupts
+                if interrupts > 3:
+                    return _task091_terminal('TASK091_SELECTION_TRANSIENT_LOOP',state)
+                pending['stage']='reselect-required'
+                pending['selection_invalidated_by']=str(window.get('title') or 'wps-transient')
+                pending.pop('selected_screenshot_sha256',None)
+                pending.pop('selection_ack_foreground_sha256',None)
+            elif stage in ('repair-select-issued','repair-reselect-required'):
+                interrupts=int(pending.get('repair_selection_interrupts') or 0)+1
+                pending['repair_selection_interrupts']=interrupts
+                if interrupts > 3:
+                    return _task091_terminal('TASK091_REPAIR_SELECTION_TRANSIENT_LOOP',state)
+                pending['stage']='repair-reselect-required'
+            elif stage in ('edit-issued','commit-issued','save-issued',
+                           'repair-edit-issued','repair-commit-issued','repair-save-issued'):
+                return _task091_terminal('TASK091_EDIT_INTERRUPTED_BY_TRANSIENT',state)
         current=state.get('transient_title')
         phase=state.get('transient_phase')
         if current != title:
@@ -776,18 +797,83 @@ def next_091_specialist_action(instruction, active_application, observation, sta
     pending=state.get('pending_edit')
     if isinstance(pending,dict):
         stage=pending.get('stage')
-        state['mode']={'select-issued':'TARGET_VISIBLE','edit-issued':'TARGET_EDITING',
+        state['mode']={'reselect-required':'TARGET_RESELECT_REQUIRED',
+                       'select-issued':'TARGET_SELECTION_PENDING',
+                       'edit-issued':'TARGET_EDITING',
                        'commit-issued':'TARGET_COMMITTED','save-issued':'TARGET_VERIFYING',
-                       'repair-select-issued':'TARGET_VISIBLE','repair-edit-issued':'TARGET_EDITING',
+                       'repair-reselect-required':'TARGET_RESELECT_REQUIRED',
+                       'repair-select-issued':'TARGET_SELECTION_PENDING',
+                       'repair-edit-issued':'TARGET_EDITING',
                        'repair-commit-issued':'TARGET_COMMITTED','repair-save-issued':'TARGET_VERIFYING'}.get(stage,'TARGET_VERIFYING')
+        if stage == 'reselect-required':
+            current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
+            current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
+            if current_sha != str(pending.get('before_deck_sha256') or ''):
+                return _task091_terminal('TASK091_RESELECT_DECK_DRIFT',state)
+            if int(window_state.get('active_slide') or 0) != int(pending.get('slide') or 0):
+                return _task091_terminal('TASK091_RESELECT_SLIDE_DRIFT',state)
+            shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
+            if shape is None or _task091_norm(pending.get('old')) not in _task091_norm(shape.get('text')):
+                return _task091_terminal('TASK091_RESELECT_SHAPE_DRIFT',state)
+            point=_task091_shape_point(window_state,pending['slide'],pending['old'],
+                                       pending.get('text_hint_x'),pending.get('text_hint_y'))
+            if point is None or int(point['shape'].get('id') or 0) != int(pending.get('shape_id') or 0):
+                return _task091_terminal('TASK091_RESELECT_GEOMETRY_UNPROVEN',state)
+            cx=int(point['cx']); cy=int(point['cy'])
+            target={'source':'task091-pptx-canonical','label':pending['old'],
+                    'role':'task091-canonical-point','slide':int(pending['slide']),
+                    'x':cx-1,'y':cy-1,'w':2,'h':2,'cx':cx,'cy':cy,
+                    'foreground_sha256':_task091_foreground_sha(window_state),
+                    'deck_sha256':current_sha}
+            target['proof_sha256']=task091_spatial_target_proof(target)
+            pending['target'].update({
+                'label':target['label'],'role':target['role'],
+                'bbox':[target['x'],target['y'],target['w'],target['h']],
+                'cx':cx,'cy':cy,'source':target['source'],'slide':target['slide'],
+                'foreground_sha256':target['foreground_sha256'],
+                'deck_sha256':target['deck_sha256'],'proof_sha256':target['proof_sha256']})
+            pending['text_hit_x']=cx
+            pending['text_hit_y']=cy
+            pending['selection_before_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
+            pending['selection_foreground_sha256']=target['foreground_sha256']
+            pending['stage']='select-issued'
+            command=f"pyautogui.doubleClick({cx}, {cy}, interval=0.08)"
+            pending['selection_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+            return {'action':'exec','command':command,
+                    'target':target,
+                    'plan':'Re-select the exact PPTX shape after transient invalidated the previous unacknowledged selection.',
+                    'specialist_phase':'reselect-pending-target'}
         if stage == 'select-issued':
-            pending['selected_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
+            current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
+            current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
+            current_fg=_task091_foreground_sha(window_state)
+            current_shot=str(window_state.get('screenshot_sha256') or '')
+            expected_fg=str(pending.get('selection_foreground_sha256') or pending.get('target',{}).get('foreground_sha256') or '')
+            before_shot=str(pending.get('selection_before_screenshot_sha256') or pending.get('before_screenshot_sha256') or '')
+            shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
+            ack=(current_sha == str(pending.get('before_deck_sha256') or '')
+                 and int(window_state.get('active_slide') or 0) == int(pending.get('slide') or 0)
+                 and shape is not None
+                 and _task091_norm(pending.get('old')) in _task091_norm(shape.get('text'))
+                 and len(current_fg)==64 and current_fg == expected_fg
+                 and len(current_shot)==64 and len(before_shot)==64 and current_shot != before_shot)
+            if not ack:
+                attempts=int(pending.get('selection_ack_attempts') or 0)+1
+                pending['selection_ack_attempts']=attempts
+                if attempts >= 2:
+                    return _task091_terminal('TASK091_SELECTION_NOT_ACKNOWLEDGED',state)
+                pending['stage']='reselect-required'
+                return {'action':'exec','command':"pyautogui.sleep(0.2)",
+                        'plan':'Selection was not positively acknowledged in the same deck/slide/shape; re-observe before reselecting.',
+                        'specialist_phase':'reobserve-unacknowledged-selection'}
+            pending['selected_screenshot_sha256']=current_shot
+            pending['selection_ack_foreground_sha256']=current_fg
             pending['stage']='edit-issued'
-            pending['explicit_text_mode']=False
+            pending['explicit_text_mode']=True
             command=_task091_write_command(pending['new'], ensure_text_mode=False)
             pending['action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
-                    'plan':f"Edit the selected target from {pending['old']!r} to {pending['new']!r}.",
+                    'plan':f"Edit the positively acknowledged target from {pending['old']!r} to {pending['new']!r}.",
                     'specialist_phase':'edit-pending-target','expected_change':pending['new']}
         if stage == 'edit-issued':
             pending['edited_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
@@ -797,6 +883,23 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             return {'action':'exec','command':command,
                     'plan':'Commit the pending shape edit without advancing its transaction.',
                     'specialist_phase':'commit-pending-target','expected_change':pending['new']}
+        if stage == 'repair-reselect-required':
+            shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('repair_shape_id'))
+            if shape is None or str(shape.get('text') or '') != str(pending.get('repair_before_text') or ''):
+                return _task091_terminal('TASK091_REPAIR_RESELECT_PROOF_DRIFT',state)
+            repair_point=_task091_shape_text_point(window_state,shape,
+                                                   pending.get('repair_target_cx'),
+                                                   pending.get('repair_target_cy'))
+            if repair_point is None:
+                return _task091_terminal('TASK091_REPAIR_RESELECT_GEOMETRY_UNPROVEN',state)
+            cx=int(repair_point['cx']); cy=int(repair_point['cy'])
+            pending['repair_selection_before_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
+            pending['stage']='repair-select-issued'
+            command=f"pyautogui.doubleClick({cx}, {cy}, interval=0.08)"
+            pending['repair_selection_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+            return {'action':'exec','command':command,
+                    'plan':'Re-select the freshly proven repair textbox after transient invalidated the prior selection.',
+                    'specialist_phase':'repair-reselect-pending-target'}
         if stage == 'repair-select-issued':
             pending['repair_selected_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
             shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('repair_shape_id'))
@@ -967,6 +1070,10 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             'before_old_count':before_old,'before_new_count':before_new,
             'before_deck_sha256':str((window_state.get('deck_file',{}) or {}).get('sha256','')),
             'before_screenshot_sha256':str(window_state.get('screenshot_sha256') or ''),
+            'selection_before_screenshot_sha256':str(window_state.get('screenshot_sha256') or ''),
+            'selection_foreground_sha256':_task091_foreground_sha(window_state),
+            'selection_ack_attempts':0,
+            'selection_interrupts':0,
             'before_observation_hash':hashlib.sha256(str(observation or '').encode()).hexdigest(),
             'action_command_hash':hashlib.sha256(command.encode()).hexdigest(),
             'verify_attempts':0,
