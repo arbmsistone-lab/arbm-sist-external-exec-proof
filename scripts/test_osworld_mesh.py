@@ -452,7 +452,7 @@ class MeshTests(unittest.TestCase):
    spatial_state={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
    spatial=shim.next_091_specialist_action(task,'WPS Presentation','',spatial_state,deck)
    self.assertEqual(spatial['target']['source'],'task091-pptx-canonical')
-   self.assertEqual(spatial['command'],'pyautogui.click(869, 391)')
+   self.assertEqual(spatial['command'],'pyautogui.doubleClick(745, 335, interval=0.08)')
    self.assertEqual(spatial_state['pending_edit']['shape_id'],6)
    self.assertEqual(spatial_state['pending_edit']['before_old_count'],1)
    self.assertEqual(spatial['target']['proof_sha256'],shim.task091_spatial_target_proof(spatial['target']))
