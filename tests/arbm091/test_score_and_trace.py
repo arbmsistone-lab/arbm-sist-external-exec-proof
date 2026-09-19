@@ -203,6 +203,7 @@ class ForegroundTests(unittest.TestCase):
         body['window']['bbox'] = [70, 27, 1850, 1053]
         body['screen'] = [0, 0, 1920, 1080]
         body['target'] = None
+        body['active_slide'] = 1
         body['deck_slide_text'] = {'1':'Growth Plan Draft'}
         body['deck_slide_shapes'] = {'1':[{
             'id':6,'name':'CoverTitle','text':'Growth Plan Draft',
@@ -247,11 +248,34 @@ class ForegroundTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'SHAPE_POINT_UNPROVEN'):
             preflight('pyautogui.doubleClick(869, 391, interval=0.08)', missing_slide_size)
 
+    def test_task091_spatial_proof_is_scoped_to_observed_active_slide(self):
+        body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2594)
+        body['window']['bbox'] = [70, 27, 1850, 1053]
+        body['screen'] = [0, 0, 1920, 1080]
+        body['target'] = None
+        body['active_slide'] = 1
+        body['deck_slide_text'] = {'1':'Planning posture','2':'Other slide'}
+        shared = {'id':7,'name':'CoverSub','text':'Planning posture',
+                  'geometry':{'x':768096,'y':2743200,'w':5669280,'h':1280160}}
+        body['deck_slide_shapes'] = {'1':[copy.deepcopy(shared)], '2':[copy.deepcopy(shared)]}
+        body['deck_file'] = {'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                             'sha256':'a'*64,'slide_size':{'w':12192000,'h':6858000}}
+        self.assertEqual(preflight('pyautogui.doubleClick(738, 516, interval=0.08)', body), 'wps-content')
+        missing = copy.deepcopy(body)
+        missing.pop('active_slide')
+        with self.assertRaisesRegex(ValueError, 'ACTIVE_SLIDE_UNPROVEN'):
+            preflight('pyautogui.doubleClick(738, 516, interval=0.08)', missing)
+        wrong = copy.deepcopy(body)
+        wrong['active_slide'] = 3
+        with self.assertRaisesRegex(ValueError, 'ACTIVE_SLIDE_SHAPES_UNPROVEN'):
+            preflight('pyautogui.doubleClick(738, 516, interval=0.08)', wrong)
+
     def test_task091_text_hitpoint_must_belong_to_exactly_one_shape(self):
         body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2594)
         body['window']['bbox'] = [70, 27, 1850, 1053]
         body['screen'] = [0, 0, 1920, 1080]
         body['target'] = None
+        body['active_slide'] = 1
         body['deck_slide_text'] = {'1':'A B'}
         body['deck_slide_shapes'] = {'1':[
             {'id':1,'name':'A','text':'A','geometry':{'x':749808,'y':1078992,'w':5852160,'h':1234440}},
