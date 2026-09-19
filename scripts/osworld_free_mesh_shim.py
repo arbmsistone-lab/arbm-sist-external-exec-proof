@@ -295,6 +295,61 @@ def _task091_same_region(hit,bbox):
     tolerance=max(120,int(max(w,h)*1.75))
     return abs(int(hit.get('cx',0))-cx)<=tolerance and abs(int(hit.get('cy',0))-cy)<=tolerance
 
+def _task091_delete_only_plan(actual, expected):
+    actual=str(actual or '')
+    expected=str(expected or '')
+    if not actual or not expected or actual == expected:
+        return None
+    deletes=[]
+    i=j=0
+    while i < len(actual):
+        if j < len(expected) and actual[i] == expected[j]:
+            i += 1
+            j += 1
+            continue
+        deletes.append(i)
+        i += 1
+    if j != len(expected):
+        return None
+    rebuilt=''.join(ch for idx,ch in enumerate(actual) if idx not in set(deletes))
+    if rebuilt != expected:
+        return None
+    return deletes
+
+def _task091_corrupt_shape(window_state, slide, expected):
+    if not isinstance(window_state,dict):
+        return None,None
+    table=window_state.get('deck_slide_shapes',{})
+    rows=table.get(str(int(slide)),[]) if isinstance(table,dict) else []
+    matches=[]
+    for row in rows if isinstance(rows,list) else []:
+        text=str(row.get('text') or '')
+        deletes=_task091_delete_only_plan(text,expected)
+        if deletes:
+            matches.append((row,deletes))
+    if len(matches)!=1:
+        return None,None
+    return matches[0]
+
+def _task091_delete_repair_command(delete_indices):
+    indices=[int(value) for value in delete_indices]
+    if not indices or indices != sorted(indices) or len(set(indices)) != len(indices):
+        raise ValueError('TASK091_DELETE_PLAN_INVALID')
+    commands=["pyautogui.hotkey('ctrl', 'a')","pyautogui.press('left')"]
+    cursor=0
+    removed=0
+    for original_index in indices:
+        target=original_index-removed
+        delta=target-cursor
+        if delta < 0:
+            raise ValueError('TASK091_DELETE_PLAN_NON_MONOTONIC')
+        if delta:
+            commands.append(f"pyautogui.press('right', presses={delta}, interval=0.02)")
+            cursor += delta
+        commands.append("pyautogui.press('delete')")
+        removed += 1
+    return '\n'.join(commands)
+
 def _task091_verify_pending(observation,pending,window_state):
     slide=int(pending.get('slide') or 0)
     before_old=int(pending.get('before_old_count') or 0)
@@ -439,12 +494,17 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                     'specialist_phase':'commit-pending-target','expected_change':pending['new']}
         if stage == 'repair-select-issued':
             pending['repair_selected_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
+            shape,deletes=_task091_corrupt_shape(window_state,pending['slide'],pending['new'])
+            if shape is None or list(deletes or []) != list(pending.get('repair_delete_indices') or []):
+                return _task091_terminal('TASK091_DELETE_REPAIR_PROOF_DRIFT',state)
+            if int(shape.get('id') or 0) != int(pending.get('repair_shape_id') or 0):
+                return _task091_terminal('TASK091_DELETE_REPAIR_SHAPE_DRIFT',state)
             pending['stage']='repair-edit-issued'
-            command=_task091_write_command(pending['new'],TASK091_REPAIR_TYPE_INTERVAL)
+            command=_task091_delete_repair_command(deletes)
             pending['repair_action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
-                    'plan':'Rewrite the same proven Task 091 text box once at a conservative key interval after an exact saved-text mismatch.',
-                    'specialist_phase':'repair-edit-pending-target','expected_change':pending['new']}
+                    'plan':'Delete only the uniquely proven duplicated keystrokes from the same Task 091 textbox; inject no replacement text.',
+                    'specialist_phase':'repair-delete-pending-target','expected_change':pending['new']}
         if stage == 'repair-edit-issued':
             pending['repair_edited_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
             pending['stage']='repair-commit-issued'
@@ -487,10 +547,13 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
                 current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
                 target=pending.get('target',{})
-                if not visual_edit_proven or len(current_sha)!=64:
+                corrupt_shape,deletes=_task091_corrupt_shape(window_state,pending['slide'],pending['new'])
+                if not visual_edit_proven or len(current_sha)!=64 or corrupt_shape is None or not deletes:
                     return _task091_terminal('TASK091_EDIT_TEXT_MISMATCH_UNPROVEN',state)
+                if len(deletes) > 8:
+                    return _task091_terminal('TASK091_EDIT_TEXT_CORRUPTION_EXCESSIVE',state)
                 cx=int(target.get('cx') or 0); cy=int(target.get('cy') or 0)
-                repaired_target={'source':'task091-pptx-canonical','label':pending['new'],
+                repaired_target={'source':'task091-pptx-canonical','label':str(corrupt_shape.get('text') or ''),
                                  'role':'task091-canonical-point','slide':int(pending['slide']),
                                  'x':cx-1,'y':cy-1,'w':2,'h':2,'cx':cx,'cy':cy,
                                  'foreground_sha256':_task091_foreground_sha(window_state),
@@ -498,6 +561,9 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 repaired_target['proof_sha256']=task091_spatial_target_proof(repaired_target)
                 pending['repair_attempts']=1
                 pending['repair_before_deck_sha256']=current_sha
+                pending['repair_shape_id']=int(corrupt_shape.get('id') or 0)
+                pending['repair_shape_text']=str(corrupt_shape.get('text') or '')
+                pending['repair_delete_indices']=list(deletes)
                 pending['verify_attempts']=0
                 pending['stage']='repair-select-issued'
                 pending['target'].update({
@@ -510,7 +576,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                     'proof_sha256':repaired_target['proof_sha256']})
                 command=f"pyautogui.doubleClick({cx}, {cy}, interval=0.08)"
                 return {'action':'exec','command':command,'target':repaired_target,
-                        'plan':'The saved PPTX changed but exact text verification failed; reselect the same signed canonical Task 091 target for one bounded slow-input repair.',
+                        'plan':'The saved PPTX contains one uniquely proven delete-only key-repeat corruption; reselect the same signed textbox for bounded character deletion.',
                         'specialist_phase':'repair-select-pending-target'}
             attempts=int(pending.get('verify_attempts') or 0)+1
             pending['verify_attempts']=attempts
