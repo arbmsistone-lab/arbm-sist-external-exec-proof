@@ -11,7 +11,7 @@ permissions:
   id-token: write
 concurrency:
   group: arbm091-clean-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 env:
   PYTHONPATH: ${{ github.workspace }}/scripts
   ZERO_SPEND_MODE: HARD
