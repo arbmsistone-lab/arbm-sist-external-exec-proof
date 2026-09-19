@@ -182,16 +182,16 @@ TASK091_TYPE_INTERVAL=0.02
 TASK091_REPAIR_TYPE_INTERVAL=0.05
 
 def _task091_needs_explicit_text_mode(old, new):
-    """WPS compact scalar boxes can highlight text without accepting typing.
+    """Every signed object/cell edit must enter WPS text mode explicitly.
 
-    For short single-line values/labels, explicitly enter text-edit mode with F2
-    after the signed shape selection and before Ctrl+A. This preserves the same
-    canonical target proof and the same post-save PPTX verification.
+    A pointer selection only proves the target object/cell. WPS may leave the
+    object selected without a caret, in which case Ctrl+A would select slide
+    objects instead of target text. F2 is therefore mandatory for every
+    non-empty replacement before Ctrl+A, regardless of text length.
     """
     old=str(old or '')
     new=str(new or '')
-    return ('\n' not in old and '\n' not in new
-            and 0 < len(old) <= 12 and 0 < len(new) <= 12)
+    return bool(old and new)
 
 def _task091_write_command(value, interval=TASK091_TYPE_INTERVAL, ensure_text_mode=False):
     lines=str(value).split('\n')
@@ -283,7 +283,7 @@ def _task091_shape_by_id(window_state, slide, shape_id):
              if int(row.get('id') or 0)==int(shape_id or 0)]
     return matches[0] if len(matches)==1 else None
 
-def _task091_shape_for_old(window_state, slide, old):
+def _task091_shape_for_old(window_state, slide, old, hint_x=None, hint_y=None):
     wanted=_task091_norm(old)
     matches=[]
     for row in _task091_shape_rows(window_state,slide):
@@ -292,7 +292,25 @@ def _task091_shape_for_old(window_state, slide, old):
         if (wanted and wanted in text and isinstance(geometry,dict)
                 and int(geometry.get('w') or 0)>0 and int(geometry.get('h') or 0)>0):
             matches.append(row)
-    return matches[0] if len(matches)==1 else None
+    if not matches:
+        return None
+    exact=[row for row in matches if _task091_norm(row.get('text'))==wanted]
+    pool=exact or matches
+    if hint_x is None or hint_y is None:
+        return pool[0] if len(pool)==1 else None
+    scored=[]
+    for row in pool:
+        point=_task091_shape_center(window_state,row)
+        if point is None:
+            continue
+        distance=(int(point['cx'])-int(hint_x))**2+(int(point['cy'])-int(hint_y))**2
+        scored.append((distance,int(row.get('id') or 0),str(row.get('name') or ''),row))
+    if not scored:
+        return None
+    scored.sort(key=lambda item:(item[0],item[1],item[2]))
+    if len(scored)>1 and scored[0][0]==scored[1][0]:
+        return None
+    return scored[0][3]
 
 def _task091_shape_center(window_state, row):
     if not isinstance(window_state,dict) or not isinstance(row,dict):
@@ -320,8 +338,8 @@ def _task091_shape_center(window_state, row):
         return None
     return {'shape':row,'cx':int(cx),'cy':int(cy)}
 
-def _task091_shape_point(window_state, slide, old):
-    row=_task091_shape_for_old(window_state,slide,old)
+def _task091_shape_point(window_state, slide, old, hint_x=None, hint_y=None):
+    row=_task091_shape_for_old(window_state,slide,old,hint_x,hint_y)
     return _task091_shape_center(window_state,row)
 
 def _task091_nav_command(current_slide, target_slide):
@@ -463,7 +481,7 @@ def _task091_restricted_repair_command(plan):
     target=int(row.get('index') if row.get('index') is not None else -1)
     if target < 0:
         raise ValueError('TASK091_REPAIR_OPERATION_INDEX_INVALID')
-    commands=["pyautogui.hotkey('ctrl', 'a')","pyautogui.press('left')"]
+    commands=["pyautogui.press('f2')","pyautogui.hotkey('ctrl', 'a')","pyautogui.press('left')"]
     remaining=target
     while remaining:
         chunk=min(30,remaining)
@@ -581,7 +599,7 @@ def _task091_prepare_atomic_repair(pending, window_state, state):
         'foreground_sha256':repaired_target['foreground_sha256'],
         'deck_sha256':repaired_target['deck_sha256'],
         'proof_sha256':repaired_target['proof_sha256']})
-    command=f"pyautogui.doubleClick({cx}, {cy}, interval=0.08)"
+    command=f"pyautogui.click({cx}, {cy})"
     return {'action':'exec','command':command,'target':repaired_target,
             'plan':'Select the freshly observed signed textbox for exactly one atomic repair mutation; the next mutation is forbidden until this delta is persisted and verified.',
             'specialist_phase':'repair-select-pending-target'}
@@ -827,7 +845,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
 
         before_old=_task091_text_count(window_state,slide,old)
         before_new=_task091_text_count(window_state,slide,new)
-        shape_target=_task091_shape_point(window_state,slide,old)
+        shape_target=_task091_shape_point(window_state,slide,old,x,y)
         if shape_target is None:
             retries=int(state.get('target_retries') or 0)
             if retries<1:
@@ -848,7 +866,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
 
         state['target_retries']=0
         state['mode']='TARGET_VISIBLE'
-        command=f"pyautogui.doubleClick({int(target['cx'])}, {int(target['cy'])}, interval=0.08)"
+        command=f"pyautogui.click({int(target['cx'])}, {int(target['cy'])})"
         state['pending_edit']={
             'slide':slide,'old':old,'new':new,'stage':'select-issued',
             'target':{'label':target['label'],'role':target['role'],
