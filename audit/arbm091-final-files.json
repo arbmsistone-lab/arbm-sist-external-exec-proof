@@ -20,6 +20,7 @@
   "scripts/arbm091/finalize_evidence.py",
   "scripts/arbm091/guest_probe.py",
   "scripts/arbm091/install_observer.py",
+  "scripts/arbm091/review_board_50x10.py",
   "scripts/arbm091/score_tracker.py",
   "scripts/arbm091/trace_gate.py",
   "scripts/arbm091/verify_transplant.py",
