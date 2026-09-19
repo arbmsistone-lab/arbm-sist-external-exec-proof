@@ -440,6 +440,9 @@ class ForegroundTests(unittest.TestCase):
         }
         obs='text\tGrowth Plan Draft\tGrowth Plan Draft\t\t\t(700,300)\t(100,40)'
 
+        task_id_patch=patch.dict(os.environ,{'TASK_ID':'091'},clear=False)
+        task_id_patch.start()
+        self.addCleanup(task_id_patch.stop)
         state={'anchored':True,'slide':1}
         first=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,copy.deepcopy(deck))
         self.assertIn('doubleClick',first['command'])
