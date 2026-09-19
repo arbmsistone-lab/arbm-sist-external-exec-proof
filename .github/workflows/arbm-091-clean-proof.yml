@@ -145,6 +145,13 @@ jobs:
         test -s /tmp/091-shape-target/task-091/wps-observations/0013-01-after.json
         test -s /tmp/091-shape-target/task-091/wps-observations/0017-01-after.json
         test -s /tmp/091-shape-target/task-091/wps-trace.jsonl
+        gh api -H 'Accept: application/vnd.github+json' /repos/${GITHUB_REPOSITORY}/actions/artifacts/10585727439/zip > /tmp/091-repair-geometry.zip
+        mkdir -p /tmp/091-repair-geometry
+        unzip -q /tmp/091-repair-geometry.zip -d /tmp/091-repair-geometry
+        test -s /tmp/091-repair-geometry/task-091/wps-observations/0009-01-before.json
+        test -s /tmp/091-repair-geometry/task-091/wps-observations/0009-01-after.json
+        test -s /tmp/091-repair-geometry/task-091/wps-observations/0010-01-before.json
+        test -s /tmp/091-repair-geometry/task-091/wps-trace.jsonl
     - name: Install pinned local VLM runtime
       run: 'set -euo pipefail
 
@@ -470,6 +477,69 @@ jobs:
         print('RUN35444915125_SHAPE_TARGET_REGRESSION=PASS')
         PY
         grep -F 'RUN35444915125_SHAPE_TARGET_REGRESSION=PASS' /tmp/run35444915125-shape-target-regression.json
+    - name: Replay run 35448424940 repair-geometry reprojection regression
+      shell: bash
+      run: |
+        set -euo pipefail
+        TASK_ID=091 ZERO_SPEND_MODE=HARD PYTHONPATH=scripts python - <<'PY' | tee /tmp/run35448424940-repair-geometry-regression.json
+        import copy, json
+        from pathlib import Path
+        import osworld_free_mesh_shim as shim
+        from arbm091.trace_gate import preflight
+
+        root=Path('/tmp/091-repair-geometry/task-091/wps-observations')
+        before=json.loads((root/'0009-01-before.json').read_text())
+        snap=json.loads((root/'0009-01-after.json').read_text())
+        blocked=json.loads((root/'0010-01-before.json').read_text())
+        shape=next(row for row in snap['deck_slide_shapes']['1'] if int(row.get('id') or 0)==6)
+        assert shape['geometry']['h']==922020, shape
+        point=shim._task091_shape_center(snap,shape)
+        assert [point['cx'],point['cy']]==[869,373], point
+
+        state={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'mode':'TARGET_VERIFYING',
+               'pending_edit':{
+                 'slide':1,'old':'Growth Plan Draft',
+                 'new':'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline',
+                 'stage':'save-issued','shape_id':6,'repair_attempts':0,
+                 'target':{'label':'Growth Plan Draft','role':'task091-canonical-point',
+                           'bbox':[868,390,2,2],'cx':869,'cy':391,
+                           'source':'task091-pptx-canonical','slide':1},
+                 'before_old_count':1,'before_new_count':0,
+                 'before_deck_sha256':before['deck_file']['sha256'],
+                 'selected_screenshot_sha256':'1'*64,
+                 'edited_screenshot_sha256':'2'*64,
+                 'verify_attempts':0}}
+        task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
+              'The COO has asked you to rebaseline the H2 Operating Committee pack. '
+              'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
+              'Reforecast_Model_H2.xlsx is the source of truth.')
+        action=shim.next_091_specialist_action(task,'WPS Presentation','',state,snap)
+        assert action['command']=='pyautogui.doubleClick(869, 373, interval=0.08)', action
+        assert state['pending_edit']['repair_shape_id']==6, state['pending_edit']
+        assert state['pending_edit']['repair_target_cy']==373, state['pending_edit']
+        assert state['pending_edit']['repair_shape_geometry']['h']==922020, state['pending_edit']
+        assert action['command']!='pyautogui.doubleClick(869, 391, interval=0.08)'
+
+        probe=copy.deepcopy(snap)
+        probe['target']=None
+        assert preflight(action['command'],probe)=='wps-content'
+        try:
+            preflight('pyautogui.doubleClick(869, 391, interval=0.08)',probe)
+        except ValueError as exc:
+            assert 'TASK091_SHAPE_POINT_UNPROVEN' in str(exc), exc
+        else:
+            raise AssertionError('stale pre-edit center was not rejected')
+
+        assert blocked['deck_file']['sha256']==snap['deck_file']['sha256']
+        print(json.dumps({'status':'PASS','corpus_run':'35448424940',
+                          'old_failure':'TASK091_SHAPE_POINT_UNPROVEN',
+                          'root_cause':'repair-reused-pre-edit-shape-center',
+                          'shape_id':6,'old_center':[869,391],
+                          'current_center':[869,373],'current_height':922020,
+                          'stale_center_rejected':True,'zero_spend':'HARD'},sort_keys=True))
+        print('RUN35448424940_REPAIR_GEOMETRY_REGRESSION=PASS')
+        PY
+        grep -F 'RUN35448424940_REPAIR_GEOMETRY_REGRESSION=PASS' /tmp/run35448424940-repair-geometry-regression.json
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       if: always()
       with:
@@ -484,6 +554,7 @@ jobs:
           /tmp/run35439821335-delete-repair-regression.json
           /tmp/run35443356294-restricted-repair-regression.json
           /tmp/run35444915125-shape-target-regression.json
+          /tmp/run35448424940-repair-geometry-regression.json
         if-no-files-found: warn
         retention-days: 30
     permissions:
