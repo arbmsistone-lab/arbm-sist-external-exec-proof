@@ -533,10 +533,13 @@ class MeshTests(unittest.TestCase):
       {'op':'linebreak','index':27},
       {'op':'delete','index':29,'char':'S'},
       {'op':'delete','index':51,'char':'R'}])
-  command=shim._task091_restricted_repair_command(plan)
+  with self.assertRaisesRegex(ValueError,'TASK091_REPAIR_ATOMIC_OPERATION_REQUIRED'):
+   shim._task091_restricted_repair_command(plan)
+  first=plan[0]
+  command=shim._task091_restricted_repair_command([first])
   self.assertNotIn('pyautogui.write(',command)
-  self.assertIn("hotkey('shift', 'enter')",command)
-  self.assertEqual(len(command.splitlines()),5)
+  self.assertIn("press('delete')",command)
+  self.assertLessEqual(len(command.splitlines()),4)
   from osworld_control import canonical_action
   compiled=canonical_action({'action':'exec','command':command})
   self.assertEqual(compiled['command'],command)
@@ -548,5 +551,28 @@ class MeshTests(unittest.TestCase):
   unsafe=[{'op':'insert','index':27,'char':'S'}]
   with self.assertRaises(RuntimeError):
    evaluate(actual,expected,unsafe,shape,'a'*64,'b'*64)
+
+ def test_task091_atomic_repair_replans_from_persisted_text(self):
+  actual='HH2 Operating CCommittee Pack\nStabilize-and-RRecover RRebaseline'
+  expected='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
+  states=[actual]
+  commands=[]
+  for _ in range(8):
+   current=states[-1]
+   if current==expected:
+    break
+   plan=shim._task091_restricted_repair_plan(current,expected)
+   self.assertTrue(plan)
+   op=plan[0]
+   command=shim._task091_restricted_repair_command([op])
+   self.assertLessEqual(len(command.splitlines()),4)
+   self.assertEqual(command.count("press('delete')")+command.count("hotkey('shift', 'enter')"),1)
+   commands.append(command)
+   states.append(shim._task091_apply_repair_operation(current,op))
+  self.assertEqual(states[-1],expected)
+  self.assertEqual(len(states)-1,4)
+  self.assertEqual([shim._task091_restricted_repair_plan(s,expected)[0]['index']
+                    for s in states[:-1]],[1,14,43,51])
+  self.assertTrue(all('pyautogui.write(' not in command for command in commands))
 
 if __name__=='__main__':unittest.main()
