@@ -376,7 +376,41 @@ def _task091_shape_point(window_state, slide, old, hint_x=None, hint_y=None):
     row=_task091_shape_for_old(window_state,slide,old,hint_x,hint_y)
     if row is None:
         return None
-    return _task091_shape_text_point(window_state,row,hint_x,hint_y)
+    point=_task091_shape_text_point(window_state,row,hint_x,hint_y)
+    if point is not None:
+        point['selection_basis']='hint-within-tolerance'
+        point['hint_drift']=0
+        return point
+
+    # A historical screen hint is advisory, never more authoritative than a
+    # unique exact-text shape proven in the active target slide of the PPTX.
+    # If the hint drifts after WPS/layout changes, keep fail-closed semantics
+    # for ambiguity, but derive a safe in-shape point from canonical geometry.
+    wanted=_task091_norm(old)
+    exact=[]
+    for candidate in _task091_shape_rows(window_state,slide):
+        geometry=candidate.get('geometry')
+        if (_task091_norm(candidate.get('text'))==wanted
+                and isinstance(geometry,dict)
+                and int(geometry.get('w') or 0)>0 and int(geometry.get('h') or 0)>0):
+            exact.append(candidate)
+    if len(exact) != 1 or int(exact[0].get('id') or 0) != int(row.get('id') or 0):
+        return None
+    box=_task091_shape_bbox(window_state,row)
+    if box is None or hint_x is None or hint_y is None:
+        return None
+    hx=int(hint_x); hy=int(hint_y)
+    left=int(box['x']); top=int(box['y'])
+    right=left+int(box['w'])-1; bottom=top+int(box['h'])-1
+    dx=(left-hx) if hx<left else ((hx-right) if hx>right else 0)
+    dy=(top-hy) if hy<top else ((hy-bottom) if hy>bottom else 0)
+    point=_task091_shape_text_point(window_state,row,hint_x,hint_y,
+                                    tolerance=max(dx,dy))
+    if point is None:
+        return None
+    point['selection_basis']='unique-exact-pptx-geometry'
+    point['hint_drift']=int(max(dx,dy))
+    return point
 
 def _task091_nav_command(current_slide, target_slide):
     delta=int(target_slide)-int(current_slide)
