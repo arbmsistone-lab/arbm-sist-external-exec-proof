@@ -317,9 +317,14 @@ class MeshTests(unittest.TestCase):
                                   'selected_screenshot_sha256':'1'*64,
                                   'edited_screenshot_sha256':'2'*64,
                                   'verify_attempts':0}}
+   corrupt_text='H2 OOperating CCommitPPPPPPack\nStabilize-and-RRecover RRebaseline'
    corrupt_deck={**deck,
-                 'deck_slide_text':{'1':'H2 OOperating CCommitPPPPPPack Stabilize-and-RRecover RRebaseline'},
+                 'deck_slide_text':{'1':corrupt_text.replace('\n',' ')},
                  'deck_slide_runs':{'1':['H2 OOperating CCommitPPPPPPack','Stabilize-and-RRecover RRebaseline']},
+                 'deck_slide_shapes':{'1':[{'id':7,'name':'Title 1','text':corrupt_text,
+                                            'paragraphs':['H2 OOperating CCommitPPPPPPack',
+                                                          'Stabilize-and-RRecover RRebaseline'],
+                                            'geometry':{'x':1,'y':2,'w':3,'h':4}}]},
                  'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
                               'sha256':'c'*64,'size':110431,'mtime_ns':3},
                  'screenshot_sha256':'3'*64}
@@ -328,19 +333,28 @@ class MeshTests(unittest.TestCase):
    self.assertEqual(repair_select['target']['source'],'task091-pptx-canonical')
    self.assertEqual(corrupt_state['pending_edit']['repair_attempts'],1)
    self.assertEqual(corrupt_state['pending_edit']['repair_before_deck_sha256'],'c'*64)
+   self.assertEqual(corrupt_state['pending_edit']['repair_shape_id'],7)
+   self.assertGreater(len(corrupt_state['pending_edit']['repair_delete_indices']),0)
 
    repair_selected={**corrupt_deck,'screenshot_sha256':'4'*64}
    repair_edit=shim.next_091_specialist_action(task,'WPS Presentation','',corrupt_state,repair_selected)
-   self.assertIn('interval=0.05',repair_edit['command'])
+   self.assertIn("hotkey('ctrl', 'a')",repair_edit['command'])
+   self.assertIn("press('delete')",repair_edit['command'])
+   self.assertNotIn('pyautogui.write(',repair_edit['command'])
    repair_edited={**corrupt_deck,'screenshot_sha256':'5'*64}
    repair_commit=shim.next_091_specialist_action(task,'WPS Presentation','',corrupt_state,repair_edited)
    self.assertEqual(repair_commit['command'],"pyautogui.press('esc')")
    repair_save=shim.next_091_specialist_action(task,'WPS Presentation','',corrupt_state,repair_edited)
    self.assertIn("hotkey('ctrl', 's')",repair_save['command'])
 
+   repaired_text='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
    repaired_deck={**deck,
-                  'deck_slide_text':{'1':'H2 Operating Committee Pack Stabilize-and-Recover Rebaseline'},
+                  'deck_slide_text':{'1':repaired_text.replace('\n',' ')},
                   'deck_slide_runs':{'1':['H2 Operating Committee Pack','Stabilize-and-Recover Rebaseline']},
+                  'deck_slide_shapes':{'1':[{'id':7,'name':'Title 1','text':repaired_text,
+                                             'paragraphs':['H2 Operating Committee Pack',
+                                                           'Stabilize-and-Recover Rebaseline'],
+                                             'geometry':{'x':1,'y':2,'w':3,'h':4}}]},
                   'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
                                'sha256':'d'*64,'size':110500,'mtime_ns':4},
                   'screenshot_sha256':'6'*64}
@@ -348,6 +362,25 @@ class MeshTests(unittest.TestCase):
    self.assertEqual(repaired['action'],'checkpoint')
    self.assertEqual(repaired['checkpoint'],'TASK091_FIRST_STRUCTURAL_EDIT_VERIFIED')
    self.assertEqual(corrupt_state['spatial_index'],1)
+
+   latest_corrupt='H2 Operating Committee Pack\nSStabilize-and-Recover Rebaseline'
+   self.assertEqual(shim._task091_delete_only_plan(
+       latest_corrupt,'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'),[28])
+   self.assertIsNone(shim._task091_delete_only_plan(
+       'H2 Operating Committee Pack\nBroken Rebaseline',
+       'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'))
+   ambiguous_shapes={**corrupt_deck,'deck_slide_shapes':{'1':[
+       {'id':7,'name':'Title 1','text':corrupt_text,'paragraphs':[],'geometry':{}},
+       {'id':8,'name':'Title 2','text':corrupt_text,'paragraphs':[],'geometry':{}}]}}
+   ambiguous_repair_state=copy.deepcopy(corrupt_state)
+   ambiguous_repair_state['pending_edit']['stage']='save-issued'
+   ambiguous_repair_state['pending_edit']['repair_attempts']=0
+   ambiguous_repair_state['pending_edit'].pop('repair_shape_id',None)
+   ambiguous_repair_state['pending_edit'].pop('repair_delete_indices',None)
+   ambiguous_repair=shim.next_091_specialist_action(
+       task,'WPS Presentation','',ambiguous_repair_state,ambiguous_shapes)
+   self.assertEqual(ambiguous_repair['action'],'terminal')
+   self.assertEqual(ambiguous_repair['reason'],'TASK091_EDIT_TEXT_MISMATCH_UNPROVEN')
 
    corrupt_twice={'owned':True,'anchored':True,'slide':1,'spatial_index':0,
                   'pending_edit':{'slide':1,'old':'Growth Plan Draft',
