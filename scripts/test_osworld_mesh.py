@@ -180,11 +180,20 @@ class MeshTests(unittest.TestCase):
   deck={'schema':1,'stable':True,'window':{
    'id':50331680,'pid':2689,'title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Office',
    'owner_title':'','wm_class':'wpp wpp','bbox':[70,27,1850,1053]},
+   'screen':[0,0,1920,1080],
    'deck_slide_text':{'1':'Growth Plan Draft Planning posture: accelerate growth through H2 scale-up $42.8M $2.6M 214'},
    'deck_slide_runs':{'1':['Growth Plan Draft','Planning posture: accelerate growth through H2 scale-up','$42.8M','$2.6M','214']},
+   'deck_slide_shapes':{'1':[
+      {'id':6,'name':'CoverTitle','text':'H2 Operating Committee Pack\nGrowth Plan Draft',
+       'paragraphs':['H2 Operating Committee Pack','Growth Plan Draft'],
+       'geometry':{'x':749808,'y':1078992,'w':5852160,'h':1234440}},
+      {'id':7,'name':'CoverSub','text':'Northstar Cloud\nPrepared for July Operating Committee review\nPlanning posture: accelerate growth through H2 scale-up',
+       'paragraphs':['Northstar Cloud','Prepared for July Operating Committee review',
+                     'Planning posture: accelerate growth through H2 scale-up'],
+       'geometry':{'x':768096,'y':2743200,'w':5669280,'h':1280160}}]},
    'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
                 'sha256':'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-                'size':1234,'mtime_ns':1}}
+                'size':1234,'mtime_ns':1,'slide_size':{'w':12192000,'h':6858000}}}
   deck_obs=('text\tOperating Committee\tOperating Committee\t\t\t(500, 180)\t(600, 60)\n'
             'text\tGrowth Plan Draft\tGrowth Plan Draft\t\t\t(700, 300)\t(100, 40)')
   with patch.dict(os.environ,{'TASK_ID':'091','ZERO_SPEND_MODE':'HARD'},clear=False):
@@ -250,8 +259,9 @@ class MeshTests(unittest.TestCase):
 
    # First edit is a two-phase transaction and index cannot advance early.
    select=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck)
-   self.assertEqual(select['target']['source'],'accessibility')
-   self.assertIn('doubleClick(750, 320',select['command'])
+   self.assertEqual(select['target']['source'],'task091-pptx-canonical')
+   self.assertEqual(select['command'],'pyautogui.doubleClick(869, 391, interval=0.08)')
+   self.assertEqual(state['pending_edit']['shape_id'],6)
    self.assertEqual(state['spatial_index'],0)
    self.assertEqual(state['pending_edit']['stage'],'select-issued')
 
@@ -273,15 +283,41 @@ class MeshTests(unittest.TestCase):
    deck_after={**deck,'deck_slide_text':{'1':'H2 Operating Committee Pack Stabilize-and-Recover Rebaseline Planning posture: accelerate growth through H2 scale-up $42.8M $2.6M 214'},
                'deck_slide_runs':{'1':['H2 Operating Committee Pack','Stabilize-and-Recover Rebaseline',
                                        'Planning posture: accelerate growth through H2 scale-up','$42.8M','$2.6M','214']},
+               'deck_slide_shapes':{'1':[
+                   {'id':6,'name':'CoverTitle','text':'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline',
+                    'paragraphs':['H2 Operating Committee Pack','Stabilize-and-Recover Rebaseline'],
+                    'geometry':{'x':749808,'y':1078992,'w':5852160,'h':1234440}},
+                   deck['deck_slide_shapes']['1'][1]]},
                'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
                             'sha256':'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-                            'size':1240,'mtime_ns':2}}
+                            'size':1240,'mtime_ns':2,'slide_size':{'w':12192000,'h':6858000}}}
    verified=shim.next_091_specialist_action(task,'WPS Presentation',commit_obs,state,deck_after)
    self.assertEqual(verified['action'],'checkpoint')
    self.assertEqual(verified['checkpoint'],'TASK091_FIRST_STRUCTURAL_EDIT_VERIFIED')
    self.assertEqual(state['spatial_index'],1)
    self.assertIsNone(state.get('pending_edit'))
    self.assertTrue(state.get('first_structural_edit_verified'))
+
+   # Shape-bound targeting must move to CoverSub and never re-edit CoverTitle.
+   second_select=shim.next_091_specialist_action(task,'WPS Presentation','',state,deck_after)
+   self.assertEqual(second_select['command'],'pyautogui.doubleClick(861, 586, interval=0.08)')
+   self.assertEqual(state['pending_edit']['shape_id'],7)
+   wrong_shape_after={**deck_after,
+      'deck_slide_text':{'1':'Northstar Cloud Prepared for July Operating Committee review Planning posture: stabilize and recover with disciplined sequencing Planning posture: accelerate growth through H2 scale-up'},
+      'deck_slide_shapes':{'1':[
+          {'id':6,'name':'CoverTitle',
+           'text':'Northstar Cloud\nPrepared for July Operating Committee review\nPlanning posture: stabilize and recover with disciplined sequencing',
+           'paragraphs':['Northstar Cloud','Prepared for July Operating Committee review',
+                         'Planning posture: stabilize and recover with disciplined sequencing'],
+           'geometry':{'x':749808,'y':1078992,'w':5852160,'h':1234440}},
+          deck_after['deck_slide_shapes']['1'][1]]},
+      'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                   'sha256':'e'*64,'size':1300,'mtime_ns':3,
+                   'slide_size':{'w':12192000,'h':6858000}}}
+   state['pending_edit']['stage']='save-issued'
+   wrong=shim.next_091_specialist_action(task,'WPS Presentation','',state,wrong_shape_after)
+   self.assertNotEqual(wrong.get('checkpoint'),'TASK091_STRUCTURAL_EDIT_VERIFIED')
+   self.assertEqual(state['spatial_index'],1)
 
    # No semantic old->new change remains pending, then terminates specifically.
    stuck={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'mode':'TARGET_COMMITTED',
@@ -313,6 +349,7 @@ class MeshTests(unittest.TestCase):
                                             'bbox':[744,334,2,2],'cx':745,'cy':335,
                                             'source':'task091-pptx-canonical','slide':1},
                                   'before_old_count':1,'before_new_count':0,
+                                  'shape_id':7,
                                   'before_deck_sha256':'a'*64,
                                   'selected_screenshot_sha256':'1'*64,
                                   'edited_screenshot_sha256':'2'*64,
@@ -326,7 +363,8 @@ class MeshTests(unittest.TestCase):
                                                           'SStabilize-and-Recover Rebaseline'],
                                             'geometry':{'x':1,'y':2,'w':3,'h':4}}]},
                  'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
-                              'sha256':'c'*64,'size':110431,'mtime_ns':3},
+                              'sha256':'c'*64,'size':110431,'mtime_ns':3,
+                              'slide_size':{'w':12192000,'h':6858000}},
                  'screenshot_sha256':'3'*64}
    repair_select=shim.next_091_specialist_action(task,'WPS Presentation','',corrupt_state,corrupt_deck)
    self.assertEqual(repair_select['command'],'pyautogui.doubleClick(745, 335, interval=0.08)')
@@ -357,7 +395,8 @@ class MeshTests(unittest.TestCase):
                                                            'Stabilize-and-Recover Rebaseline'],
                                              'geometry':{'x':1,'y':2,'w':3,'h':4}}]},
                   'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
-                               'sha256':'d'*64,'size':110500,'mtime_ns':4},
+                               'sha256':'d'*64,'size':110500,'mtime_ns':4,
+                               'slide_size':{'w':12192000,'h':6858000}},
                   'screenshot_sha256':'6'*64}
    repaired=shim.next_091_specialist_action(task,'WPS Presentation','',corrupt_state,repaired_deck)
    self.assertEqual(repaired['action'],'checkpoint')
