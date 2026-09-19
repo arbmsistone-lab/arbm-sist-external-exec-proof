@@ -15,7 +15,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 import requests
 from osworld_control import canonical_action
-from arbm091.trace_gate import digest, pointer, preflight, postflight, require
+from arbm091.trace_gate import digest, parse_atom, pointer, preflight, postflight, require
 
 _LOCK = threading.Lock()
 _PROBE = Path(__file__).with_name('guest_probe.py').read_text()
@@ -56,12 +56,14 @@ def _settled_probe(controller, point, attempts=4, delay=0.12):
     return payload, png
 
 
-def snapshot(controller, root: Path, name: str, point):
+def snapshot(controller, root: Path, name: str, point, active_slide=None):
     server = controller.http_server
     parsed = urlparse(server)
     require(parsed.scheme == 'http' and parsed.hostname in ('localhost', '127.0.0.1'),
             'PROBE_ISOLATED_GUEST_ONLY')
     payload, png = _settled_probe(controller, point)
+    if type(active_slide) is int and active_slide > 0:
+        payload['active_slide'] = active_slide
     raw = (json.dumps(payload, sort_keys=True) + '\n').encode()
     directory = root / 'wps-observations'
     directory.mkdir(parents=True, exist_ok=True)
@@ -78,6 +80,7 @@ def snapshot(controller, root: Path, name: str, point):
         'window': payload.get('window', {}),
         'controls': payload.get('controls', []),
         'focused_control': payload.get('focused_control'),
+        'active_slide': payload.get('active_slide'),
         'deck_slide_text': payload.get('deck_slide_text', {}),
         'deck_slide_runs': payload.get('deck_slide_runs', {}),
         'deck_slide_shapes': payload.get('deck_slide_shapes', {}),
@@ -117,6 +120,21 @@ def append(root: Path, row: dict):
             os.fsync(stream.fileno())
 
 
+
+def _next_active_slide(command, current):
+    name, args, kwargs = parse_atom(command)
+    if name == 'hotkey' and {str(value).casefold() for value in args} == {'ctrl', 'home'}:
+        return 1
+    if name == 'press' and args and str(args[0]).casefold() in ('pagedown', 'pageup'):
+        if type(current) is not int or current <= 0:
+            return None
+        presses = kwargs.get('presses', 1)
+        if type(presses) is not int or presses < 1:
+            return None
+        delta = presses if str(args[0]).casefold() == 'pagedown' else -presses
+        return max(1, current + delta)
+    return current
+
 def install(environment_class):
     require(os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted'
             and os.environ.get('ZERO_SPEND_MODE') == 'HARD'
@@ -131,8 +149,10 @@ def install(environment_class):
         step = int(self._step_no) + 1
         controller = self.controller
         original_execute = controller.execute_python_command
+        active_slide = getattr(self, '_arbm091_active_slide', None)
 
         def guarded_execute(command):
+            nonlocal active_slide
             canonical = canonical_action({'action': 'exec', 'command': command})['command']
             result = None
             for substep, atom in enumerate(canonical.splitlines(), 1):
@@ -141,14 +161,17 @@ def install(environment_class):
                        'command_sha256': hashlib.sha256(atom.encode()).hexdigest()}
                 try:
                     point = pointer(atom)
-                    before, reference = snapshot(controller, root, f'{step:04d}-{substep:02d}-before', point)
+                    before, reference = snapshot(controller, root, f'{step:04d}-{substep:02d}-before', point, active_slide)
                     row['before'] = reference
                     row['scope'] = preflight(atom, before)
+                    next_active_slide = _next_active_slide(atom, active_slide)
                     result = original_execute(atom)
                     require(isinstance(result, dict) and result.get('status') == 'success'
                             and result.get('returncode') == 0, 'GUEST_ACTION_FAILED_OR_UNACKNOWLEDGED')
-                    after, reference = snapshot(controller, root, f'{step:04d}-{substep:02d}-after', None)
+                    after, reference = snapshot(controller, root, f'{step:04d}-{substep:02d}-after', None, next_active_slide)
                     postflight(atom, before, after)
+                    active_slide = next_active_slide
+                    self._arbm091_active_slide = active_slide
                     row['after'] = reference
                     row['before_window'] = before.get('window', {})
                     row['after_window'] = after.get('window', {})
