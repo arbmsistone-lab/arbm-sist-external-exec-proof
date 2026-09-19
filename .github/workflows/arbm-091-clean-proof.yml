@@ -304,7 +304,7 @@ jobs:
         print('RUN35407234122_POINTER_REGRESSION=PASS')
         PY
         grep -F 'RUN35407234122_POINTER_REGRESSION=PASS' /tmp/run35407234122-pointer-regression.json
-    - name: Replay run 35411705196 non-delete-only corruption rejection
+    - name: Replay run 35411705196 non-restricted corruption rejection
       shell: bash
       run: |
         set -euo pipefail
@@ -317,12 +317,12 @@ jobs:
         corrupt=json.loads((root/'wps-observations/0009-01-after.json').read_text())
         slide1=corrupt['deck_slide_text']['1']
         assert 'OOperating' in slide1 and 'PPPPPPack' in slide1 and 'RRecover' in slide1, slide1
-        actual='H2 OOperating CCommitPPPPPPack\nStabilize-and-RRecover RRebaseline'
+        actual='H2 Operating Committee Pack\nBroken Rebaseline'
         expected='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
-        assert shim._task091_delete_only_plan(actual,expected) is None
+        assert shim._task091_restricted_repair_plan(actual,expected) is None
         print(json.dumps({'status':'PASS','corpus_run':'35411705196',
                           'old_failure':'TASK091_EDIT_NOT_VERIFIED',
-                          'detected':'non-delete-only-key-repeat-corruption',
+                          'detected':'non-restricted-corruption-requiring-printable-insert',
                           'auto_repair':False,'fail_closed':True,
                           'zero_spend':'HARD'},sort_keys=True))
         print('RUN35411705196_KEYREPEAT_REGRESSION=PASS')
