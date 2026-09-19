@@ -372,6 +372,53 @@ def _task091_shape_text_point(window_state, row, hint_x, hint_y, tolerance=32):
             'shape_center_cx':int(box['cx']),'shape_center_cy':int(box['cy']),
             'hint_x':hx,'hint_y':hy}
 
+def _task091_drift_safe_text_point(window_state, row, hint_x, hint_y, recovery_attempt=0):
+    """Project a stale historical hint into the interior of the proven text shape.
+
+    A drifted hint must never be clamped to the shape edge: WPS can interpret an
+    edge hit as object selection rather than text editing. Keep the hint's
+    horizontal side, prefer the vertical text band, and move boundedly inward on
+    a retry. This is geometry-only and remains scoped to the exact proven shape.
+    """
+    box=_task091_shape_bbox(window_state,row)
+    if box is None or hint_x is None or hint_y is None:
+        return None
+    hx=int(hint_x); hy=int(hint_y)
+    left=int(box['x']); top=int(box['y'])
+    width=int(box['w']); height=int(box['h'])
+    right=left+width-1; bottom=top+height-1
+    max_inset_x=max(0,(width-1)//3)
+    max_inset_y=max(0,(height-1)//3)
+    inset_x=min(max_inset_x,max(4,min(32,max(1,width//10))))
+    inset_y=min(max_inset_y,max(2,min(10,max(1,height//4))))
+    lo_x=left+inset_x; hi_x=right-inset_x
+    lo_y=top+inset_y; hi_y=bottom-inset_y
+    if lo_x>hi_x or lo_y>hi_y:
+        return None
+    if hx < left:
+        tx=lo_x
+    elif hx > right:
+        tx=hi_x
+    else:
+        tx=min(max(hx,lo_x),hi_x)
+    if hy < top or hy > bottom:
+        ty=top+height//2
+    else:
+        ty=min(max(hy,lo_y),hi_y)
+    retry=max(0,min(2,int(recovery_attempt or 0)))
+    if retry:
+        step=max(4,min(18,max(1,width//16)))
+        center=int(box['cx'])
+        if tx <= center:
+            tx=min(hi_x,tx+step*retry)
+        else:
+            tx=max(lo_x,tx-step*retry)
+    return {'shape':row,'cx':int(tx),'cy':int(ty),
+            'shape_bbox':[left,top,width,height],
+            'shape_center_cx':int(box['cx']),'shape_center_cy':int(box['cy']),
+            'hint_x':hx,'hint_y':hy,'recovery_attempt':retry}
+
+
 def _task091_shape_point(window_state, slide, old, hint_x=None, hint_y=None):
     row=_task091_shape_for_old(window_state,slide,old,hint_x,hint_y)
     if row is None:
@@ -404,8 +451,7 @@ def _task091_shape_point(window_state, slide, old, hint_x=None, hint_y=None):
     right=left+int(box['w'])-1; bottom=top+int(box['h'])-1
     dx=(left-hx) if hx<left else ((hx-right) if hx>right else 0)
     dy=(top-hy) if hy<top else ((hy-bottom) if hy>bottom else 0)
-    point=_task091_shape_text_point(window_state,row,hint_x,hint_y,
-                                    tolerance=max(dx,dy))
+    point=_task091_drift_safe_text_point(window_state,row,hint_x,hint_y)
     if point is None:
         return None
     point['selection_basis']='unique-exact-pptx-geometry'
@@ -815,8 +861,14 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
             if shape is None or _task091_norm(pending.get('old')) not in _task091_norm(shape.get('text')):
                 return _task091_terminal('TASK091_RESELECT_SHAPE_DRIFT',state)
-            point=_task091_shape_point(window_state,pending['slide'],pending['old'],
-                                       pending.get('text_hint_x'),pending.get('text_hint_y'))
+            recovery_attempt=int(pending.get('selection_recovery_attempts') or 0)
+            if recovery_attempt:
+                point=_task091_drift_safe_text_point(
+                    window_state,shape,pending.get('text_hint_x'),pending.get('text_hint_y'),
+                    recovery_attempt=recovery_attempt)
+            else:
+                point=_task091_shape_point(window_state,pending['slide'],pending['old'],
+                                           pending.get('text_hint_x'),pending.get('text_hint_y'))
             if point is None or int(point['shape'].get('id') or 0) != int(pending.get('shape_id') or 0):
                 return _task091_terminal('TASK091_RESELECT_GEOMETRY_UNPROVEN',state)
             cx=int(point['cx']); cy=int(point['cy'])
@@ -1001,6 +1053,26 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             attempts=int(pending.get('verify_attempts') or 0)+1
             pending['verify_attempts']=attempts
             if attempts>=2:
+                current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
+                current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
+                expected_shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
+                unchanged_target=(len(current_sha)==64
+                                  and current_sha==str(pending.get('before_deck_sha256') or '')
+                                  and isinstance(expected_shape,dict)
+                                  and str(expected_shape.get('text') or '')==str(pending.get('old') or ''))
+                if status!='disk-text-mismatch' and unchanged_target:
+                    recoveries=int(pending.get('selection_recovery_attempts') or 0)
+                    if recoveries>=2:
+                        return _task091_terminal('TASK091_TEXT_SELECTION_UNPROVEN',state)
+                    pending['selection_recovery_attempts']=recoveries+1
+                    pending['selection_ack_attempts']=0
+                    pending['verify_attempts']=0
+                    pending['stage']='reselect-required'
+                    pending.pop('selected_screenshot_sha256',None)
+                    pending.pop('selection_ack_foreground_sha256',None)
+                    return {'action':'exec','command':"pyautogui.sleep(0.2)",
+                            'plan':'The deck and exact target text stayed unchanged after save; invalidate the visual-only selection ACK and retry a bounded interior text hit.',
+                            'specialist_phase':'recover-nonpersisted-text-selection'}
                 reason='TASK091_EDIT_TEXT_CORRUPTED' if status=='disk-text-mismatch' else 'TASK091_EDIT_NOT_VERIFIED'
                 return _task091_terminal(reason,state)
             return {'action':'exec','command':"pyautogui.sleep(0.2)",
@@ -1074,6 +1146,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             'selection_foreground_sha256':_task091_foreground_sha(window_state),
             'selection_ack_attempts':0,
             'selection_interrupts':0,
+            'selection_recovery_attempts':0,
             'before_observation_hash':hashlib.sha256(str(observation or '').encode()).hexdigest(),
             'action_command_hash':hashlib.sha256(command.encode()).hexdigest(),
             'verify_attempts':0,
