@@ -27,6 +27,7 @@ def parse_json(text):
             if isinstance(value, dict):
                 return value
         except json.JSONDecodeError:
+            # Invalid candidate slice is expected while scanning bounded JSON windows.
             pass
     return None
 
