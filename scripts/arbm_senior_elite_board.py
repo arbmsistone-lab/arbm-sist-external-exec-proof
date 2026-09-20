@@ -112,9 +112,29 @@ def review_action(action, *, task_id="", source="generic", state=None,
              and int(task091_state.get("deck_observation_retries") or 0)==1)
         )
     )
-    anti_repeat=not (repeated and no_progress>0 and not bounded_observation_retry)
+    pending091=task091_state.get("pending_edit") if isinstance(task091_state.get("pending_edit"),dict) else {}
+    target091=pending091.get("target") if isinstance(pending091.get("target"),dict) else {}
+    expected_table_click=(
+        f"pyautogui.click({int(target091.get('cx') or 0)}, {int(target091.get('cy') or 0)})"
+        if target091 else ""
+    )
+    bounded_table_cell_entry=(
+        str(task_id)=="091"
+        and source=="task091-specialist"
+        and phase=="enter-table-cell-caret-candidate"
+        and str(pending091.get("stage") or "")=="table-cell-enter-issued"
+        and str(pending091.get("shape_kind") or "")=="table-cell"
+        and command==expected_table_click
+        and repeated
+        and no_progress==1
+        and bool(str(pending091.get("table_selected_screenshot_sha256") or ""))
+        and bool(str(pending091.get("table_selected_target_visual_sha256") or ""))
+        and bool(str(pending091.get("table_selected_sibling_visual_sha256") or ""))
+    )
+    bounded_semantic_retry=bounded_observation_retry or bounded_table_cell_entry
+    anti_repeat=not (repeated and no_progress>0 and not bounded_semantic_retry)
     rows.append(_lane("anti_repetition",anti_repeat,
-        "no-progress actions cannot repeat except the single Task 091 deck observation resync explicitly bounded by specialist state"))
+        "no-progress repetition is forbidden except state-bound Task 091 observation resync or the single evidence-proven table-cell text-entry click"))
 
     progress_ok=not (
         kind=="finish"
