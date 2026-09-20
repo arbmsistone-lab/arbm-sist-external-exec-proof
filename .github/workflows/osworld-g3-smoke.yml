@@ -3,11 +3,11 @@ on:
   push:
     paths:
       - '.github/workflows/osworld-g3-smoke.yml'
-permissions:
-  contents: read
-  id-token: write
+permissions: read-all
 jobs:
   smoke:
+    permissions:
+      id-token: write
     runs-on: ubuntu-24.04
     timeout-minutes: 55
     env:
