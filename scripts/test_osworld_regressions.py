@@ -1,10 +1,8 @@
-import copy
 import base64
 import io
 import importlib.util
 import json
 import pathlib
-import tempfile
 import unittest
 from PIL import Image
 
