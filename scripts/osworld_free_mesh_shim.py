@@ -991,7 +991,6 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                        'select-issued':'TARGET_SELECTION_PENDING',
                        'table-select-issued':'TARGET_TABLE_SELECTED_PENDING',
                        'table-cell-enter-issued':'TARGET_CELL_TEXTMODE_PENDING',
-                       'table-caret-blink-wait':'TARGET_CARET_PROOF_PENDING',
                        'edit-issued':'TARGET_EDITING',
                        'commit-issued':'TARGET_COMMITTED','save-issued':'TARGET_VERIFYING',
                        'repair-reselect-required':'TARGET_RESELECT_REQUIRED',
@@ -1402,7 +1401,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 'target':action_target,
                 'plan':(f'Select the exact table containing {old!r}; text entry requires a second separately observed cell click.'
                         if is_table_cell else
-                        f'Select the signed Task 091 point derived from the unique target-PPTX shape geometry for {old!r} on slide {slide}.'),
+                        f'Activate the signed Task 091 point using unique target-PPTX shape geometry for {old!r} on slide {slide}.'),
                 'specialist_phase':('select-table-container' if is_table_cell else 'select-pending-target')}
 
     if state.get('pending_edit'):
