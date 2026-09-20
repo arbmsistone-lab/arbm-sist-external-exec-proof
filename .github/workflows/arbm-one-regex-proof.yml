@@ -22,24 +22,28 @@ jobs:
           cat > /tmp/proof.mjs <<'NODE'
           import assert from "node:assert/strict";
 
-          const circle = String.raw`            if [ "${ARBM_CRITICAL_MODE:-0}" = "1" ]; then
-              echo critical
-            else
-              npm run ci:portable:core
-            fi
-                name: Attest CircleCI on main with OIDC
-                name: ARBM live provider quorum in explicit critical mode
-                if [ "${ARBM_CRITICAL_MODE:-0}" != "1" ]; then exit 0; fi`;
+          const circle = [
+            '            if [ "${ARBM_CRITICAL_MODE:-0}" = "1" ]; then',
+            '              echo critical',
+            '            else',
+            '              npm run ci:portable:core',
+            '            fi',
+            '                name: Attest CircleCI on main with OIDC',
+            '                name: ARBM live provider quorum in explicit critical mode',
+            '                if [ "${ARBM_CRITICAL_MODE:-0}" != "1" ]; then exit 0; fi',
+          ].join("\n");
 
-          const buildkite = String.raw`  - label: ":satellite: Independent exact provider attest"
-              key: "independent-provider-attest"
-              if: build.branch == "main"
-            - label: ":shield: ARBM critical cloud gate"
-              key: "critical-gate"
-              if: build.env("ARBM_CRITICAL_MODE") == "1"
-            - label: ":eyes: PR browser visual gate"
-              key: "pr-browser-visual"
-              if: build.env("ARBM_OPS_JOB") == "pr-browser-visual"`;
+          const buildkite = [
+            '  - label: ":satellite: Independent exact provider attest"',
+            '    key: "independent-provider-attest"',
+            '    if: build.branch == "main"',
+            '  - label: ":shield: ARBM critical cloud gate"',
+            '    key: "critical-gate"',
+            '    if: build.env("ARBM_CRITICAL_MODE") == "1"',
+            '  - label: ":eyes: PR browser visual gate"',
+            '    key: "pr-browser-visual"',
+            '    if: build.env("ARBM_OPS_JOB") == "pr-browser-visual"',
+          ].join("\n");
 
           assert.match(circle,/if \[ "\$\{ARBM_CRITICAL_MODE:-0\}" = "1" \]; then/);
           assert.match(circle,/Attest CircleCI on main with OIDC/);
