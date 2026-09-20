@@ -6,9 +6,7 @@ on:
       - p8/owner-20260904
     paths:
       - .p8-run-matrix
-permissions:
-  contents: read
-  id-token: write
+permissions: read-all
 jobs:
   matrix-serial:
     runs-on: ubuntu-24.04
