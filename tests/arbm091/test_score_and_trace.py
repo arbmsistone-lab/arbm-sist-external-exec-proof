@@ -916,6 +916,30 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
             self.assertEqual(result['reason'],'TASK091_TABLE_SELECTION_NOT_ACKNOWLEDGED')
 
 
+class Task091CaretBoundedWriterTests(unittest.TestCase):
+    def test_table_cell_bounded_writer_never_uses_ctrl_a(self):
+        command=shim._task091_table_cell_bounded_write_command('$42.8M','$40.9M')
+        self.assertNotIn("hotkey('ctrl', 'a')",command)
+        self.assertEqual(command.splitlines()[0],"pyautogui.press('end')")
+        self.assertIn("pyautogui.press('backspace', presses=6",command)
+        self.assertTrue(command.splitlines()[-1].startswith("pyautogui.write('$40.9M'"))
+
+    def test_table_cell_bounded_writer_rejects_multiline_or_empty_old(self):
+        with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_BOUNDED_EDIT_INVALID'):
+            shim._task091_table_cell_bounded_write_command('','x')
+        with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_BOUNDED_EDIT_INVALID'):
+            shim._task091_table_cell_bounded_write_command('a\\nb','x')
+
+    def test_table_cell_writer_contract_forbids_global_selection(self):
+        source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+        start=source.index("def _task091_table_cell_bounded_write_command")
+        end=source.index("def _task091_foreground_sha",start)
+        body=source[start:end]
+        self.assertNotIn("ctrl', 'a",body)
+        self.assertIn("press('end')",body)
+        self.assertIn("press('backspace'",body)
+
+
 if __name__ == '__main__':
     unittest.main()
 
