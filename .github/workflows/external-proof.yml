@@ -1,6 +1,7 @@
 name: ARBM External Execution Proof
 on:
   workflow_dispatch:
+permissions: read-all
 jobs:
   proof:
     runs-on: ubuntu-latest
