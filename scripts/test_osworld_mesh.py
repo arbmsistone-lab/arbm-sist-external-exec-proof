@@ -181,6 +181,8 @@ class MeshTests(unittest.TestCase):
    'id':50331680,'pid':2689,'title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Office',
    'owner_title':'','wm_class':'wpp wpp','bbox':[70,27,1850,1053]},
    'screen':[0,0,1920,1080],
+   'active_slide':1,
+   'screenshot_sha256':'1'*64,
    'deck_slide_text':{'1':'Growth Plan Draft Planning posture: accelerate growth through H2 scale-up $42.8M $2.6M 214'},
    'deck_slide_runs':{'1':['Growth Plan Draft','Planning posture: accelerate growth through H2 scale-up','$42.8M','$2.6M','214']},
    'deck_slide_shapes':{'1':[
@@ -265,7 +267,9 @@ class MeshTests(unittest.TestCase):
    self.assertEqual(state['spatial_index'],0)
    self.assertEqual(state['pending_edit']['stage'],'select-issued')
 
-   edit=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck)
+   selected=copy.deepcopy(deck)
+   selected['screenshot_sha256']='2'*64
+   edit=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,selected)
    self.assertIn("hotkey('ctrl', 'a')",edit['command'])
    self.assertEqual(state['spatial_index'],0)
    self.assertEqual(state['pending_edit']['stage'],'edit-issued')
