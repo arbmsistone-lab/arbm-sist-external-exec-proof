@@ -6,16 +6,7 @@ on:
       - chatgpt/arbm-world-free-assurance-20260920
   workflow_dispatch:
 
-permissions:
-  actions: read
-  attestations: write
-  checks: read
-  contents: read
-  id-token: write
-  issues: read
-  pull-requests: read
-  security-events: write
-  statuses: read
+permissions: read-all
 
 jobs:
   external-scanners:
@@ -132,6 +123,9 @@ jobs:
           retention-days: 90
 
   codeql:
+    permissions:
+      contents: read
+      security-events: write
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     strategy:
@@ -154,6 +148,11 @@ jobs:
           category: /language:${{ matrix.language }}
 
   supply-chain:
+    permissions:
+      actions: read
+      attestations: write
+      contents: read
+      id-token: write
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
