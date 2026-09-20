@@ -18,7 +18,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - name: Install pinned Python scanners
-        run: python -m pip install -q semgrep==1.177.0 bandit==1.9.4 pip-audit==2.10.1
+        run: python -m pip install --require-hashes -q -r audit/locks/world-free-scanners.txt
       - name: Run Bandit
         run: |
           mkdir -p world-evidence
