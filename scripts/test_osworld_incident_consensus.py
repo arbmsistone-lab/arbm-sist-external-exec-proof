@@ -1,4 +1,4 @@
-import json, pathlib, sys, tempfile, unittest
+import pathlib, sys, tempfile, unittest
 from unittest.mock import patch
 sys.path.insert(0,str(pathlib.Path(__file__).parent))
 import osworld_incident_consensus as c
