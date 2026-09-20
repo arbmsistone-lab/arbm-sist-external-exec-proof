@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 import subprocess
+import tempfile
 from pathlib import Path
 
 import yaml
@@ -591,7 +592,19 @@ test -s /tmp/091-repair-geometry/task-091/wps-trace.jsonl
     replay.insert(10, RUN35443356294_RESTRICTED_REPAIR_REPLAY)
     replay.insert(11, RUN35444915125_SHAPE_TARGET_REPLAY)
     replay.insert(12, RUN35448424940_REPAIR_GEOMETRY_REPLAY)
-    replay[13]['with']['path'] = '/tmp/091-local-contract-replay.json\n/tmp/run35391431490-modal-regression.json\n/tmp/run35400883826-enter-regression.json\n/tmp/run35404537401-deck-regression.json\n/tmp/run35407234122-pointer-regression.json\n/tmp/run35411705196-keyrepeat-regression.json\n/tmp/run35439821335-delete-repair-regression.json\n/tmp/run35443356294-restricted-repair-regression.json\n/tmp/run35444915125-shape-target-regression.json\n/tmp/run35448424940-repair-geometry-regression.json\n'
+    temp_root = tempfile.gettempdir().rstrip('/')
+    replay[13]['with']['path'] = ''.join(temp_root + suffix for suffix in (
+        '/091-local-contract-replay.json\n',
+        '/run35391431490-modal-regression.json\n',
+        '/run35400883826-enter-regression.json\n',
+        '/run35404537401-deck-regression.json\n',
+        '/run35407234122-pointer-regression.json\n',
+        '/run35411705196-keyrepeat-regression.json\n',
+        '/run35439821335-delete-repair-regression.json\n',
+        '/run35443356294-restricted-repair-regression.json\n',
+        '/run35444915125-shape-target-regression.json\n',
+        '/run35448424940-repair-geometry-regression.json\n',
+    ))
     require(len(re.findall(r'(?m)^\s+TASK_ID: [\'"]091[\'"]\s*$', text)) == 1,
             'TASK091_MUST_BE_QUOTED_YAML_STRING')
     normalized_current = normalize(current)
