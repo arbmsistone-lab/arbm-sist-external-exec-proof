@@ -2,22 +2,35 @@
 
 ## Supported code
 
-Security fixes are developed against the current default branch and must preserve
-the repository's fail-closed, exact-SHA, ZERO_SPEND and provenance gates.
+Security fixes target the current default branch and active release candidates.
+Every security change must preserve the repository's fail-closed, exact-SHA,
+ZERO_SPEND and provenance gates.
 
-## Reporting a vulnerability
+## Private vulnerability reporting
 
-Do not disclose exploit details, credentials, tokens, personal data, or
-production-sensitive information in a public issue.
+Report vulnerabilities privately through GitHub Security Advisories:
 
-Prefer GitHub's private security-advisory reporting channel for this repository
-when it is available. If private reporting is unavailable, open a minimal public
-issue that requests a private contact channel without including vulnerability
-details.
+https://github.com/arbmsistone-lab/arbm-sist-external-exec-proof/security/advisories/new
 
-A useful report includes the affected commit, affected component, impact,
-reproduction prerequisites, minimal proof of concept, and any proposed
-mitigation.
+Do not disclose exploit details, credentials, tokens, personal data, production
+configuration, or active unmitigated weaknesses in public issues.
+
+A useful report includes the affected commit, component, impact, prerequisites,
+minimal proof of concept, and any proposed mitigation.
+
+## Response targets
+
+- acknowledgement: within 2 business days;
+- initial severity/triage decision: within 7 calendar days;
+- critical actively exploitable issue: mitigation or containment targeted within
+  72 hours after confirmation;
+- high severity issue: remediation targeted within 14 calendar days;
+- lower severity issues: scheduled according to verified impact and regression
+  risk.
+
+These are engineering response targets, not a promise that every report is a
+valid vulnerability or that every remediation can be publicly disclosed on the
+same schedule.
 
 ## Handling requirements
 
@@ -25,12 +38,10 @@ Security changes must:
 
 - remain fail-closed;
 - include regression coverage for the reported weakness;
-- avoid secret or policy bypasses;
+- avoid secret, policy, provenance, or authorization bypasses;
 - preserve immutable evidence and exact-SHA provenance;
-- pass the repository's security, dependency, SAST and regression gates before
+- pass security, dependency, SAST, fuzz/regression, and release gates before
   promotion;
-- avoid paid fallbacks or hidden external dependencies.
-
-Public disclosure should occur only after a fix is available and the disclosure
-does not expose credentials, private data, or an active unmitigated production
-weakness.
+- avoid paid fallbacks or hidden external dependencies;
+- use coordinated disclosure after mitigation, without exposing credentials,
+  personal data, or an active unmitigated production weakness.
