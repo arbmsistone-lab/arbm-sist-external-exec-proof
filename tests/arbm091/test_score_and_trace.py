@@ -507,6 +507,47 @@ class ForegroundTests(unittest.TestCase):
         fatal=shim.next_091_specialist_action(task,'WPS 2019','',interrupted_state,copy.deepcopy(transient))
         self.assertEqual(fatal['reason'],'TASK091_EDIT_INTERRUPTED_BY_TRANSIENT')
 
+    def test_task091_table_cell_uses_signed_hint_without_viewport_reprojection(self):
+        body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2594)
+        body['window']['bbox'] = [70,27,1850,1053]
+        body['screen'] = [0,0,1920,1080]
+        body['active_slide'] = 3
+        body['deck_slide_text'] = {'3':'$42.8M'}
+        body['deck_slide_shapes'] = {'3':[{
+            'id':-13001003,'kind':'table-cell','frame_id':13,'row':1,'col':2,
+            'name':'Table 12#r1c2','text':'$42.8M',
+            'geometry':{'x':3877056,'y':2088750,'w':1563624,'h':607422}}]}
+        body['deck_file'] = {'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                             'sha256':'a'*64,'slide_size':{'w':12191365,'h':6858000}}
+        point=shim._task091_shape_point(body,3,'$42.8M',843,404)
+        self.assertIsNotNone(point)
+        self.assertEqual(point['selection_basis'],'signed-table-cell-hint')
+        self.assertEqual((point['cx'],point['cy']),(843,404))
+        self.assertEqual(point['shape']['kind'],'table-cell')
+
+    def test_task091_collateral_table_edit_is_detected_before_generic_verify_failure(self):
+        pending={
+            'slide':3,'old':'$42.8M','new':'$40.9M','shape_id':-13001003,
+            'before_old_count':2,'before_new_count':0,
+            'before_deck_sha256':'a'*64,
+            'before_sibling_signature':'before-siblings',
+            'target':{'bbox':[842,403,2,2],'cx':843,'cy':404},
+        }
+        body={
+            'deck_slide_text':{'3':'$40.9MM ARR $39.6M $42.8M'},
+            'deck_slide_shapes':{'3':[
+                {'id':-13001003,'kind':'table-cell','name':'Table 12#r1c2','text':'$42.8M',
+                 'geometry':{'x':3877056,'y':2088750,'w':1563624,'h':607422}},
+                {'id':-13000003,'kind':'table-cell','name':'Table 12#r0c0','text':'$40.9MM',
+                 'geometry':{'x':0,'y':0,'w':1,'h':1}},
+            ]},
+            'deck_file':{'sha256':'b'*64},
+        }
+        ok,status,detail=shim._task091_verify_pending('',pending,body)
+        self.assertFalse(ok)
+        self.assertEqual(status,'collateral-mutation')
+        self.assertEqual(detail['actual_shape_text'],'$42.8M')
+
     def test_task091_drifted_short_text_uses_interior_text_band(self):
         body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2594)
         body['window']['bbox'] = [70,27,1850,1053]
