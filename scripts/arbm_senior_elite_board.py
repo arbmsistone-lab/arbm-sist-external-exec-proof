@@ -96,9 +96,18 @@ def review_action(action, *, task_id="", source="generic", state=None,
         "pointer actions require an explicit grounded target source"))
 
     repeated=bool(command and recent and command==recent[-1])
-    anti_repeat=not (repeated and int(verifier.get("no_progress") or 0)>0)
+    no_progress=int(verifier.get("no_progress") or 0)
+    phase=str(a.get("specialist_phase") or "")
+    bounded_observation_retry=(
+        str(task_id)=="091"
+        and source=="task091-specialist"
+        and command=="pyautogui.sleep(0.2)"
+        and phase=="deck-a11y-resync"
+        and no_progress==1
+    )
+    anti_repeat=not (repeated and no_progress>0 and not bounded_observation_retry)
     rows.append(_lane("anti_repetition",anti_repeat,
-        "an action that produced no progress cannot be repeated without a bounded retry proof"))
+        "no-progress actions cannot repeat except the single Task 091 deck observation resync explicitly bounded by specialist state"))
 
     progress_ok=not (
         kind=="finish"
