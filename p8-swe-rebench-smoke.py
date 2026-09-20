@@ -1,6 +1,7 @@
-import json, os, re, shutil, subprocess, sys, tempfile, time, urllib.request, urllib.error, urllib.parse
+import json, os, re, shutil, subprocess, sys, tempfile, time, urllib.parse
 from pathlib import Path
 from datasets import load_dataset
+from scripts.arbm_safe_http import request as safe_request, SafeHTTPError
 
 DATASET = 'ibragim-bad/SWE-rebench-V2-sample'
 HF_OFFSET = int(os.environ.get('HF_OFFSET', '0'))
@@ -201,10 +202,11 @@ def fresh_oidc():
     bearer=os.environ.get('ACTIONS_ID_TOKEN_REQUEST_TOKEN','')
     if url and bearer:
         sep='&' if '?' in url else '?'
-        req=urllib.request.Request(url+sep+'audience='+urllib.parse.quote('arbm-sist-benchmark'))
-        req.add_header('Authorization','Bearer '+bearer)
-        with urllib.request.urlopen(req, timeout=20) as r:
-            return str(json.loads(r.read().decode('utf-8'))['value'])
+        response=safe_request(
+            url+sep+'audience='+urllib.parse.quote('arbm-sist-benchmark'),
+            headers={'Authorization':'Bearer '+bearer},timeout=20,
+            allowed_hosts=('actions.githubusercontent.com',),max_bytes=1_000_000)
+        return str(json.loads(response.read().decode('utf-8'))['value'])
     return os.environ.get('ARBM_BENCHMARK_OIDC','')
 
 def infer(prompt, instance_id):
@@ -219,16 +221,16 @@ def infer(prompt, instance_id):
                 token=fresh_oidc()
                 if not token:
                     return 126, [], 'NO_OIDC_PROVIDER_TOKEN', False
-                req=urllib.request.Request(endpoint, data=body, method='POST')
-                req.add_header('Authorization', 'Bearer '+token)
-                req.add_header('Content-Type', 'application/json')
-                with urllib.request.urlopen(req, timeout=150) as r:
-                    data=json.loads(r.read().decode('utf-8'))
+                r=safe_request(
+                    endpoint,method='POST',data=body,
+                    headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+                    timeout=150,max_bytes=8_000_000)
+                data=json.loads(r.read().decode('utf-8'))
                 if not data.get('ok'):
                     last_err='REMOTE_STATUS:'+str(data.get('status'))
                     continue
                 return 0, data.get('edits',[]), '', False
-            except urllib.error.HTTPError as exc:
+            except SafeHTTPError as exc:
                 error_body=exc.read().decode('utf-8','ignore')[:2000]
                 last_err=f'HTTP {exc.code}: {error_body}'
                 transient=(exc.code in (502,503,504) and ('high demand' in error_body.lower() or 'provider_timeout' in error_body.lower() or 'provider_error' in error_body.lower()))
@@ -253,13 +255,14 @@ def _remote_json_one(endpoint, payload, retries=(0,12)):
         try:
             token=fresh_oidc()
             if not token: return 126,None,'NO_OIDC_PROVIDER_TOKEN',False
-            req=urllib.request.Request(endpoint,data=body,method='POST')
-            req.add_header('Authorization','Bearer '+token); req.add_header('Content-Type','application/json')
-            req.add_header('User-Agent','arbm-sist-benchmark/19'); req.add_header('Accept','application/json')
-            with urllib.request.urlopen(req,timeout=150) as r: data=json.loads(r.read().decode('utf-8'))
+            r=safe_request(
+                endpoint,method='POST',data=body,timeout=150,max_bytes=8_000_000,
+                headers={'Authorization':'Bearer '+token,'Content-Type':'application/json',
+                         'User-Agent':'arbm-sist-benchmark/19','Accept':'application/json'})
+            data=json.loads(r.read().decode('utf-8'))
             if data.get('ok'): return 0,data,'',False
             last_err='REMOTE_STATUS:'+str(data.get('status'))
-        except urllib.error.HTTPError as exc:
+        except SafeHTTPError as exc:
             b=exc.read().decode('utf-8','ignore')[:2000]; last_err=f'HTTP {exc.code}: {b}'
         except TimeoutError as exc:
             last_err=type(exc).__name__+': '+str(exc)
@@ -409,9 +412,12 @@ def _sovereign_json(payload):
     body=json.dumps({'model':'arbm-qwen-sovereign','messages':[{'role':'system','content':'You are a precise software repair agent. Output valid JSON only.'},{'role':'user','content':prompt}],
                      'temperature':0,'max_tokens':max_tokens,'stream':False,'cache_prompt':True,'response_format':{'type':'json_object','schema':schema}}).encode('utf-8')
     try:
-        req=urllib.request.Request(endpoint,data=body,method='POST'); req.add_header('Content-Type','application/json')
         sovereign_timeout=max(180,min(600,int(os.environ.get('ARBM_SOVEREIGN_TIMEOUT_SECONDS','420'))))
-        with urllib.request.urlopen(req,timeout=sovereign_timeout) as r: outer=json.loads(r.read().decode('utf-8'))
+        r=safe_request(
+            endpoint,method='POST',data=body,headers={'Content-Type':'application/json'},
+            timeout=sovereign_timeout,allow_loopback_http=True,allow_private_http=True,
+            max_bytes=8_000_000)
+        outer=json.loads(r.read().decode('utf-8'))
         content=outer['choices'][0]['message'].get('content','')
         if isinstance(content,list): content=''.join(str(x.get('text','')) if isinstance(x,dict) else str(x) for x in content)
         text=str(content).strip()
