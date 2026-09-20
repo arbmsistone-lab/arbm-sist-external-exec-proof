@@ -773,7 +773,9 @@ def load_public_sample_with_backoff():
             transient = ('429' in msg or 'too many requests' in msg or 'maximum queue size' in msg or '503' in msg or '502' in msg or '504' in msg)
             if not transient or attempt == 4:
                 raise
-    raise last
+    if last is not None:
+        raise last
+    raise RuntimeError("DATASET_LOAD_FAILED_WITHOUT_EXCEPTION")
 
 ds=load_public_sample_with_backoff()
 if HF_OFFSET < 0 or HF_OFFSET >= len(ds):
