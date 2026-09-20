@@ -6,11 +6,11 @@ on:
         description: ARBM P9 request id
         required: true
         type: string
-permissions:
-  contents: read
-  id-token: write
+permissions: read-all
 jobs:
   solve:
+    permissions:
+      id-token: write
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
