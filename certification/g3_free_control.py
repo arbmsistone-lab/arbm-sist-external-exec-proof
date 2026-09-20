@@ -9,10 +9,10 @@ import re
 import sys
 import time
 import types
-import urllib.request
 from collections import Counter
 from decimal import Decimal
 from pathlib import Path
+from scripts.arbm_safe_http import request as safe_request
 
 ROOT = Path(__file__).resolve().parent
 
@@ -100,8 +100,10 @@ def catalog_admission(model):
     agent = load_agent()
     if model not in agent.ALLOWED_MODELS:
         raise RuntimeError('MODEL_NOT_ALLOWLISTED')
-    with urllib.request.urlopen('https://openrouter.ai/api/v1/models', timeout=20) as response:
-        models = json.load(response)['data']
+    response=safe_request(
+        'https://openrouter.ai/api/v1/models',timeout=20,
+        allowed_hosts=('openrouter.ai',),max_bytes=8_000_000)
+    models=json.loads(response.read())['data']
     item = next((r for r in models if r['id'] == model), None)
     if not item or not model.endswith(':free'):
         raise RuntimeError('FREE_MODEL_NOT_AVAILABLE')
