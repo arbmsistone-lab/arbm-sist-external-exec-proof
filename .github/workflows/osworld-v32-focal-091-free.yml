@@ -42,7 +42,7 @@ jobs:
           set -euo pipefail
           test "$ZERO_SPEND_MODE" = HARD
           test "$ARBM_MAX_STEPS" = 500
-          python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
+          python -m pip install --disable-pip-version-check --require-hashes -q -r scripts/requirements-osworld.txt
           python -m unittest scripts/test_osworld_groq_free.py scripts/test_osworld_groq_local_fallback.py scripts/test_osworld_failover_matrix.py -v
           git diff --check
       - name: Prove cloud KVM
@@ -58,7 +58,7 @@ jobs:
           set -euo pipefail
           git clone --depth 1 --branch v2026.08.08 https://github.com/xlang-ai/OSWorld-V2.git osworld
           test "$(git -C osworld rev-parse HEAD)" = d578d2d4e0dc82b43e270fdaa7fa89d9708cd154
-          python -m pip install --disable-pip-version-check -q uv==0.8.15 huggingface_hub==0.35.3
+          python -m pip install --disable-pip-version-check --require-hashes -q -r audit/locks/uv-hf.txt
           cd osworld
           uv sync --frozen
           uv run python scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
@@ -133,7 +133,7 @@ jobs:
           sha256sum "$QCOW" | cut -d' ' -f1 > qcow-base.sha256
           PYTHONPATH=scripts python -c 'import json; from osworld_v32_gate import PINS; open("official-pins.json","w").write(json.dumps(PINS,sort_keys=True))'
       - name: Install quota-independent local VLM fallback
-        run: python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
+        run: python -m pip install --disable-pip-version-check --require-hashes -q -r audit/locks/osworld-ml.txt
       - name: Execute official task 091 only
         shell: bash
         run: |
