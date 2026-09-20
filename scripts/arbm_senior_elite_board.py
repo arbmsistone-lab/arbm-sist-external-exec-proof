@@ -103,9 +103,14 @@ def review_action(action, *, task_id="", source="generic", state=None,
         str(task_id)=="091"
         and source=="task091-specialist"
         and command=="pyautogui.sleep(0.2)"
-        and phase=="deck-a11y-resync"
         and no_progress==1
-        and int(task091_state.get("deck_observation_retries") or 0)==1
+        and (
+            (phase=="sync-window-state"
+             and int(task091_state.get("sync_window_retries") or 0)==2)
+            or
+            (phase=="deck-a11y-resync"
+             and int(task091_state.get("deck_observation_retries") or 0)==1)
+        )
     )
     anti_repeat=not (repeated and no_progress>0 and not bounded_observation_retry)
     rows.append(_lane("anti_repetition",anti_repeat,
@@ -153,6 +158,12 @@ def _self_test_bounded_091_resync():
                      verifier={"no_progress":1},recent_commands=["pyautogui.sleep(0.2)"],
                      zero_spend_mode="HARD",github_sha="a"*40)
     assert ok["allow"] and ok["unanimous"], ok
+    sync={"action":"exec","command":"pyautogui.sleep(0.2)","specialist_phase":"sync-window-state"}
+    sync_state={"task091_specialist":{"owned":True,"handoff":False,"sync_window_retries":2}}
+    sync_ok=review_action(sync,task_id="091",source="task091-specialist",state=sync_state,
+                          verifier={"no_progress":1},recent_commands=["pyautogui.sleep(0.2)"],
+                          zero_spend_mode="HARD",github_sha="a"*40)
+    assert sync_ok["allow"] and sync_ok["unanimous"], sync_ok
     state["task091_specialist"]["deck_observation_retries"]=2
     blocked=review_action(base,task_id="091",source="task091-specialist",state=state,
                           verifier={"no_progress":2},recent_commands=["pyautogui.sleep(0.2)"],
