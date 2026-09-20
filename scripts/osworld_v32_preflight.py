@@ -45,11 +45,6 @@ def main(root):
     # This contains only sanitized attempts and is essential for diagnosing a
     # rejected repository secret without leaking its value.
     Path('osworld-v32-initial-admission.json').write_text(json.dumps(third_proof,indent=2))
-    failover_body={**body,'provider_hint':'openrouter','request_budget_ms':60000,
-        'route_cooldowns':{route+':'+model:int((time.time()+120)*1000)
-            for route,models in [('groq-multimodal-free',['qwen/qwen3.8-27b','qwen/qwen3.6-27b']),
-                                 ('groq-accessibility-free',['openai/gpt-oss-120b','openai/gpt-oss-20b'])]
-            for model in models}}
     independent_messages=[{'role':'system','content':'Output exactly YES or NO.'},
         {'role':'user','content':[{'type':'text','text':'Is this a desktop screenshot? Answer only YES or NO.'},
             {'type':'image_url','image_url':{'url':body['screenshot_data_url'],'detail':'high'}}]}]
