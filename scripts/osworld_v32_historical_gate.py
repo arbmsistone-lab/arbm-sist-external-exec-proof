@@ -1,7 +1,6 @@
 """Replay v31 recorded observations through the v32 deterministic policy."""
 from pathlib import Path
 import json
-import re
 
 from osworld_v32_policy import apply_live_policy, extract_state
 from replay_osworld_run30 import load_cases
