@@ -423,6 +423,21 @@ def _task091_shape_point(window_state, slide, old, hint_x=None, hint_y=None):
     row=_task091_shape_for_old(window_state,slide,old,hint_x,hint_y)
     if row is None:
         return None
+    if str(row.get('kind') or '') == 'table-cell':
+        if (hint_x is None or hint_y is None
+                or window_state.get('screen') != TASK091_CANONICAL_SCREEN
+                or (window_state.get('window') or {}).get('bbox') != TASK091_CANONICAL_WINDOW):
+            return None
+        hx=int(hint_x); hy=int(hint_y)
+        vx,vy,vw,vh=TASK091_CANONICAL_SLIDE_VIEWPORT
+        if not (vx <= hx <= vx+vw and vy <= hy <= vy+vh):
+            return None
+        return {'shape':row,'cx':hx,'cy':hy,
+                'shape_bbox':[hx-1,hy-1,2,2],
+                'shape_center_cx':hx,'shape_center_cy':hy,
+                'hint_x':hx,'hint_y':hy,
+                'selection_basis':'signed-table-cell-hint',
+                'hint_drift':0}
     point=_task091_shape_text_point(window_state,row,hint_x,hint_y)
     if point is not None:
         point['selection_basis']='hint-within-tolerance'
@@ -633,6 +648,21 @@ def _task091_verify_pending(observation,pending,window_state):
     expected_shape=_task091_shape_by_id(window_state,slide,expected_shape_id)
     exact_shape_text=(isinstance(expected_shape,dict)
                       and str(expected_shape.get('text') or '')==str(pending.get('new') or ''))
+    current_sibling_signature=_task091_other_shapes_signature(window_state,slide,expected_shape_id)
+    before_sibling_signature=str(pending.get('before_sibling_signature') or '')
+    collateral_mutation=(disk_mutated
+                         and isinstance(expected_shape,dict)
+                         and str(expected_shape.get('text') or '')==str(pending.get('old') or '')
+                         and bool(before_sibling_signature)
+                         and current_sibling_signature != before_sibling_signature)
+    if collateral_mutation:
+        return False,'collateral-mutation',{'source':'target-pptx','slide':slide,
+                                           'shape_id':expected_shape_id,
+                                           'sha256_before':before_sha,'sha256_after':after_sha,
+                                           'actual_shape_text':str(expected_shape.get('text') or ''),
+                                           'expected_shape_text':str(pending.get('new') or ''),
+                                           'sibling_signature_before':before_sibling_signature,
+                                           'sibling_signature_after':current_sibling_signature}
     disk_verified=(disk_mutated and repair_persisted
                    and before_old > 0 and after_old < before_old and after_new > before_new
                    and exact_shape_text)
@@ -1043,6 +1073,8 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 return {'action':'checkpoint','checkpoint':checkpoint,
                         'slide':pending['slide'],'old':pending['old'],'new':pending['new'],
                         'target':new_hit,'specialist_phase':'verify-pending-target'}
+            if status=='collateral-mutation':
+                return _task091_terminal('TASK091_COLLATERAL_EDIT_DETECTED',state)
             if status=='disk-text-mismatch' and int(pending.get('repair_steps') or pending.get('repair_attempts') or 0)==0:
                 selected=str(pending.get('selected_screenshot_sha256') or '')
                 edited=str(pending.get('edited_screenshot_sha256') or '')
@@ -1142,6 +1174,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             'before_old_count':before_old,'before_new_count':before_new,
             'before_deck_sha256':str((window_state.get('deck_file',{}) or {}).get('sha256','')),
             'before_screenshot_sha256':str(window_state.get('screenshot_sha256') or ''),
+            'before_sibling_signature':_task091_other_shapes_signature(window_state,slide,int(shape.get('id') or 0)),
             'selection_before_screenshot_sha256':str(window_state.get('screenshot_sha256') or ''),
             'selection_foreground_sha256':_task091_foreground_sha(window_state),
             'selection_ack_attempts':0,
