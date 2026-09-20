@@ -33,7 +33,7 @@ const data=stage('data',knowledgeHits,buildDataReport([{kind:'spreadsheet',name:
 if(!dataV2Gate(data).pass)throw new Error('data_gate_failed');stages.at(-1).consumedByNext=true;
 const automation=new DurableAutomationEngine(path.join(root,'automation','state.json'));
 const workflow=automation.register({name:'p2-deploy-decision',trigger:{type:'e2e'},steps:[{id:'decide',type:'decision'},{id:'integrate',type:'integration'}]});
-const run=automation.enqueue(workflow.id,{dataSummary:{rows:data.totalRows,kinds:data.sourceKinds},researchHash:research.evidenceSha256});
+automation.enqueue(workflow.id,{dataSummary:{rows:data.totalRows,kinds:data.sourceKinds},researchHash:research.evidenceSha256});
 const automated=await automation.runNext(async(step,r)=>step.id==='decide'?{state:'SUCCEEDED',decision:r.payload.dataSummary.rows>0?'DEPLOY_CANDIDATE':'BLOCK'}:{state:'SUCCEEDED',handoff:r.results[0].result.decision});
 const automationOut=stage('automation',data,automated);if(!automationV2Gate(automation).pass||automationOut.state!=='SUCCEEDED')throw new Error('automation_gate_failed');stages.at(-1).consumedByNext=true;
 const integrations=new IntegrationEngine();for(const type of ['mcp','api','webhook','connector'])integrations.register({id:`${type}-free`,type,zeroMandatorySpend:true,capabilities:['deploy'],enabled:true});
