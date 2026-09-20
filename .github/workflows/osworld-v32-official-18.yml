@@ -14,15 +14,14 @@ on:
       - .github/workflows/osworld-v32-official-18.yml
       - scripts/**
       - endpoint/**
-permissions:
-  actions: read
-  contents: read
-  id-token: write
+permissions: read-all
 concurrency:
   group: ${{ github.event_name == 'push' && format('osworld-v32-preflight-{0}', github.sha) || github.event.inputs.mode == 'providers-only' && 'osworld-v32-providers' || 'osworld-v32-official-18' }}
   cancel-in-progress: false
 jobs:
   preflight:
+    permissions:
+      id-token: write
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
