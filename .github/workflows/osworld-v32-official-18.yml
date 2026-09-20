@@ -32,7 +32,7 @@ jobs:
       GROQ_API_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - run: python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
+      - run: python -m pip install --disable-pip-version-check --require-hashes -q -r scripts/requirements-osworld.txt
       - run: python -m unittest discover -s scripts -p 'test_osworld_*.py'
       - name: Enforce task 061 twenty-point blind-spot audit
         run: python scripts/osworld_061_blindspot_audit.py
@@ -52,7 +52,7 @@ jobs:
           path: provider-observation
       - name: Install quota-independent local VLM fallback
         if: github.event_name == 'workflow_dispatch'
-        run: python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
+        run: python -m pip install --disable-pip-version-check --require-hashes -q -r audit/locks/osworld-ml.txt
       - name: Prove quota-independent local VLM admission
         if: github.event_name == 'workflow_dispatch'
         run: python scripts/osworld_local_vlm_smoke.py provider-observation
@@ -114,7 +114,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
+          python -m pip install --disable-pip-version-check --require-hashes -q -r scripts/requirements-osworld.txt
           python -c "import ijson; from PIL import Image; print('SHIM_RUNTIME_DEPS_OK')"
       - name: Prove cloud KVM
         shell: bash
@@ -131,7 +131,7 @@ jobs:
           set -euo pipefail
           git clone --depth 1 --branch v2026.08.08 https://github.com/xlang-ai/OSWorld-V2.git osworld
           test "$(git -C osworld rev-parse HEAD)" = d578d2d4e0dc82b43e270fdaa7fa89d9708cd154
-          python -m pip install --disable-pip-version-check -q uv==0.8.15 huggingface_hub==0.35.3
+          python -m pip install --disable-pip-version-check --require-hashes -q -r audit/locks/uv-hf.txt
           cd osworld
           uv sync --frozen
           uv run python scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
@@ -243,7 +243,7 @@ jobs:
           retention-days: 90
       - name: Install quota-independent local VLM fallback
         shell: bash
-        run: python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
+        run: python -m pip install --disable-pip-version-check --require-hashes -q -r audit/locks/osworld-ml.txt
       - name: Execute fixed subset
         shell: bash
         run: |
