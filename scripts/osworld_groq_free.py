@@ -2,10 +2,9 @@
 import json
 import os
 import time
-import urllib.error
-import urllib.request
 
 from osworld_control import canonical_action
+from arbm_safe_http import SafeHttpError, request_json
 from osworld_openrouter_free import prompt
 from osworld_local_vlm import LOCAL_VLM_ROUTE
 
@@ -30,17 +29,12 @@ class GroqFreeRoute:
 
     @staticmethod
     def http(path, key, payload=None, timeout=35):
-        request = urllib.request.Request(BASE + path,
-            headers={'Authorization':'Bearer ' + key, 'Content-Type':'application/json'},
-            data=None if payload is None else json.dumps(payload, ensure_ascii=False).encode())
+        headers={'Authorization':'Bearer ' + key, 'Content-Type':'application/json'}
+        data=None if payload is None else json.dumps(payload, ensure_ascii=False).encode()
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
-                return response.status, json.loads(response.read()), dict(response.headers)
-        except urllib.error.HTTPError as error:
-            try: data = json.loads(error.read())
-            except (ValueError, UnicodeError): data = {}
-            return error.code, data, dict(error.headers)
-        except (urllib.error.URLError, TimeoutError, ValueError):
+            return request_json(BASE + path, method='GET' if data is None else 'POST',
+                                headers=headers, data=data, timeout=timeout)
+        except (SafeHttpError, OSError, TimeoutError, ValueError):
             return 503, {}, {}
 
     def call(self, body, key=None, budget=55, raw_messages=None, raw_tokens=512, temperature=0):
