@@ -1,0 +1,54 @@
+name: ARBM ONE Private Source Proof
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  exact-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      TARGET_SHA: 0023aa3965e6e601f62885089f3c32a4dc792513
+      PRIVATE_REPO_TOKEN: ${{ secrets.ARBM_ONE_RUNNER_TOKEN }}
+    steps:
+      - name: Verify private repo credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PRIVATE_REPO_TOKEN"
+          auth="$(printf 'x-access-token:%s' "$PRIVATE_REPO_TOKEN" | base64 -w0)"
+          code="$(curl -sS -o /tmp/repo.json -w '%{http_code}'             -H "Authorization: Basic $auth"             -H "Accept: application/vnd.github+json"             https://api.github.com/repos/arbmsistone-lab/ARBM-one)"
+          test "$code" = "200"
+          echo "PRIVATE_REPO_ACCESS=PASS"
+
+      - name: Checkout exact private SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          auth="$(printf 'x-access-token:%s' "$PRIVATE_REPO_TOKEN" | base64 -w0)"
+          git -c "http.https://github.com/.extraheader=Authorization: Basic $auth" clone             --filter=blob:none --no-checkout https://github.com/arbmsistone-lab/ARBM-one.git target
+          cd target
+          git -c "http.https://github.com/.extraheader=Authorization: Basic $auth" fetch --depth=1 origin "$TARGET_SHA"
+          git checkout --detach "$TARGET_SHA"
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          echo "EXACT_PRIVATE_SHA=PASS sha=$TARGET_SHA"
+
+      - name: Run exact provider proof
+        shell: bash
+        working-directory: target
+        env:
+          ARBM_CI_PROVIDER: github-public-cloud
+          ARBM_CI_SCOPE: provider
+          NODE_OPTIONS: --max-old-space-size=640
+          NPM_CONFIG_CACHE: /tmp/arbm-public-cloud-npm-cache
+        run: |
+          set -euo pipefail
+          rm -rf "$NPM_CONFIG_CACHE"
+          mkdir -p "$NPM_CONFIG_CACHE"
+          npm ci --ignore-scripts
+          npm run ci:portable:core
+          node --test tests/visual-12p-global-contract-v1.test.mjs tests/github-main-oidc-quorum-v1.test.mjs
+          echo "PUBLIC_CLOUD_EXACT_PROVIDER_PROOF=PASS sha=$TARGET_SHA"
