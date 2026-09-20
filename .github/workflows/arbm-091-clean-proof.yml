@@ -549,7 +549,7 @@ jobs:
         print('RUN35448424940_REPAIR_GEOMETRY_REGRESSION=PASS')
         PY
         grep -F 'RUN35448424940_REPAIR_GEOMETRY_REGRESSION=PASS' /tmp/run35448424940-repair-geometry-regression.json
-    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       if: always()
       with:
         name: arbm-091-local-contract-replay
@@ -800,7 +800,7 @@ jobs:
         \ \"$GITHUB_RUN_ID\" --run-attempt \"$GITHUB_RUN_ATTEMPT\" > \"$GITHUB_WORKSPACE/arbm091-verdict.json\"\n"
     - name: Preserve focal 091 evidence
       if: always()
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:
         name: osworld-v32-focal-091-free
         path: osworld-v32-evidence
@@ -808,7 +808,7 @@ jobs:
         retention-days: 90
     - name: Preserve supplemental tracker report
       if: always()
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:
         name: arbm091-wps-proof-report
         path: 'arbm091-score-tracker.log

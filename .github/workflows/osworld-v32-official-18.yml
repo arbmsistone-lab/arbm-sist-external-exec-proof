@@ -57,7 +57,7 @@ jobs:
         run: python scripts/osworld_local_vlm_smoke.py provider-observation
       - name: Preserve local VLM admission proof
         if: always() && github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: osworld-v32-local-vlm-smoke
           path: osworld-v32-local-vlm-smoke.json
@@ -68,7 +68,7 @@ jobs:
         run: python scripts/osworld_v32_preflight.py provider-observation
       - name: Preserve live preflight proof
         if: always() && github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: osworld-v32-live-preflight
           path: |
@@ -234,7 +234,7 @@ jobs:
           PYTHONPATH=scripts python -c 'from pathlib import Path; from osworld_evidence import seal; seal(Path("osworld-v32-integration/reset"))'
       - name: Preserve cloud reset integration evidence
         if: always() && matrix.shard.id == 'B'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: osworld-v32-cloud-reset-integration
           path: osworld-v32-integration
@@ -314,7 +314,7 @@ jobs:
           exit "$overall"
       - name: Upload shard evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: osworld-v32-official18-${{ matrix.shard.id }}
           path: osworld-v32-evidence
@@ -342,7 +342,7 @@ jobs:
           if [ "$GATE_MODE" = focal-061 ]; then args+=(--focal); fi
           python scripts/osworld_v32_gate.py aggregate evidence "${args[@]}"
           test "$SHARD_RESULT" = success
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
           name: osworld-v32-official18-summary

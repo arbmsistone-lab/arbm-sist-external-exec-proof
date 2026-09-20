@@ -65,7 +65,7 @@ jobs:
           printf '%s\n' 'NON_SCORING_SINGLE_TASK_SMOKE=true' > deepswe-smoke-evidence/metadata.txt
           printf '%s\n' 'FULL_SCORE_REQUIRES_978_TRIALS=true' >> deepswe-smoke-evidence/metadata.txt
           find deepswe-smoke-evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > deepswe-smoke-evidence/SHA256SUMS.txt || true
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
           name: deepswe-sovereign-single-task-smoke
