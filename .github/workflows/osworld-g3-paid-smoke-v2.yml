@@ -6,15 +6,14 @@ on:
       - g3/paid-cert-lane-20260910
     paths:
       - '.g3-paid-smoke-trigger'
-permissions:
-  contents: read
-  actions: read
-  id-token: write
+permissions: read-all
 concurrency:
   group: arbm-g3-paid-total-budget
   cancel-in-progress: false
 jobs:
   smoke:
+    permissions:
+      id-token: write
     if: github.repository == 'arbmsistone-lab/arbm-sist-external-exec-proof' && github.ref == 'refs/heads/g3/paid-cert-lane-20260910'
     runs-on: ubuntu-24.04
     timeout-minutes: 55
