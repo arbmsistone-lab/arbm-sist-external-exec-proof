@@ -7,7 +7,6 @@ import base64
 import hashlib
 import json
 import logging
-import os
 import time
 from arbm_safe_http import SafeHttpError, request_json
 import uuid
