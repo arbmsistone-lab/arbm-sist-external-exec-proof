@@ -91,7 +91,8 @@ def capture(point):
         shape_result = {}
         metadata = {}
         try:
-            raw = open(path, 'rb').read()
+            with open(path, 'rb') as handle:
+                raw = handle.read()
             stat = os.stat(path)
             metadata = {'path': path, 'size': int(stat.st_size),
                         'mtime_ns': int(stat.st_mtime_ns),
