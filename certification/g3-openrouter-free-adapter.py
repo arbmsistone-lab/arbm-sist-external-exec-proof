@@ -322,7 +322,7 @@ class ArbmG3Agent:
                         'reasoning': {'enabled': False}})
                 response = self.client.chat.completions.create(**kwargs)
                 results.put((response, None))
-            except BaseException as error:
+            except Exception as error:
                 results.put((None, error))
 
         threading.Thread(target=worker, daemon=True).start()
@@ -427,7 +427,7 @@ class ArbmG3Agent:
                 retry_reason = str(error)
                 self._context.update(structural_valid=False, action_status='REJECTED', reason=retry_reason)
                 event = 'request_completed' if self._context['zero_spend'] is True else 'request_failed_classified'
-            except BaseException as error:
+            except Exception as error:
                 fatal = classify(error)
                 self._terminal_error = 'G3_FREE_' + fatal
                 self._context.update(reason=fatal, action_status='REJECTED', terminal_state='BLOCKED')
