@@ -145,3 +145,16 @@ def require_unanimous(*args,**kwargs):
     if not result["allow"]:
         raise ValueError("SENIOR_ELITE_VETO:"+",".join(result["failed"]))
     return result
+
+def _self_test_bounded_091_resync():
+    base={"action":"exec","command":"pyautogui.sleep(0.2)","specialist_phase":"deck-a11y-resync"}
+    state={"task091_specialist":{"owned":True,"handoff":False,"deck_observation_retries":1}}
+    ok=review_action(base,task_id="091",source="task091-specialist",state=state,
+                     verifier={"no_progress":1},recent_commands=["pyautogui.sleep(0.2)"],
+                     zero_spend_mode="HARD",github_sha="a"*40)
+    assert ok["allow"] and ok["unanimous"], ok
+    state["task091_specialist"]["deck_observation_retries"]=2
+    blocked=review_action(base,task_id="091",source="task091-specialist",state=state,
+                          verifier={"no_progress":2},recent_commands=["pyautogui.sleep(0.2)"],
+                          zero_spend_mode="HARD",github_sha="a"*40)
+    assert not blocked["allow"] and "anti_repetition" in blocked["failed"], blocked
