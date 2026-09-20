@@ -6,10 +6,7 @@ on:
     paths:
       - .github/workflows/osworld-v32-focal-091-free.yml
   workflow_dispatch:
-permissions:
-  actions: read
-  contents: read
-  id-token: write
+permissions: read-all
 jobs:
   focal-091:
     runs-on: ubuntu-24.04
