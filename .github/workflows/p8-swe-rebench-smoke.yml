@@ -7,11 +7,11 @@ on:
       - 'p8-swe-rebench-smoke.py'
       - 'p8-swe-rebench-smoke-test.py'
       - '.github/workflows/p8-swe-rebench-smoke.yml'
-permissions:
-  contents: read
-  id-token: write
+permissions: read-all
 jobs:
   real-smoke:
+    permissions:
+      id-token: write
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     env:
