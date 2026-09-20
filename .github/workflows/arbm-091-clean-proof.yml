@@ -642,7 +642,7 @@ jobs:
       shell: bash
       run: "set -euo pipefail\ngit clone --depth 1 --branch v2026.08.08 https://github.com/xlang-ai/OSWorld-V2.git\
         \ osworld\ntest \"$(git -C osworld rev-parse HEAD)\" = d578d2d4e0dc82b43e270fdaa7fa89d9708cd154\npython\
-        \ -m pip install --disable-pip-version-check -q uv==0.8.15 huggingface_hub==0.35.3\ncd osworld\nuv sync\
+        \ -m pip install --disable-pip-version-check --require-hashes -q -r audit/locks/uv-hf.txt\ncd osworld\nuv sync\
         \ --frozen\nuv run python scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08\n\
         test \"$(find evaluation_examples/task_class -maxdepth 1 -name 'task_*.py' -type f | wc -l)\" -eq 108\n\
         test -f evaluation_examples/task_class/task_091.py\nuv run python - <<'PY' > /tmp/osworld_asset_dirs.txt\n\
