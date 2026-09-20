@@ -10,10 +10,7 @@ on:
       - 'scripts/osworld_mesh_preflight.py'
       - '.github/workflows/osworld-v32-cloud-matrix.yml'
   workflow_dispatch:
-permissions:
-  actions: read
-  contents: read
-  id-token: write
+permissions: read-all
 jobs:
   strategy:
     runs-on: ubuntu-24.04
