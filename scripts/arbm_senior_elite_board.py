@@ -98,12 +98,14 @@ def review_action(action, *, task_id="", source="generic", state=None,
     repeated=bool(command and recent and command==recent[-1])
     no_progress=int(verifier.get("no_progress") or 0)
     phase=str(a.get("specialist_phase") or "")
+    task091_state=state.get("task091_specialist") if isinstance(state.get("task091_specialist"),dict) else {}
     bounded_observation_retry=(
         str(task_id)=="091"
         and source=="task091-specialist"
         and command=="pyautogui.sleep(0.2)"
         and phase=="deck-a11y-resync"
         and no_progress==1
+        and int(task091_state.get("deck_observation_retries") or 0)==1
     )
     anti_repeat=not (repeated and no_progress>0 and not bounded_observation_retry)
     rows.append(_lane("anti_repetition",anti_repeat,
