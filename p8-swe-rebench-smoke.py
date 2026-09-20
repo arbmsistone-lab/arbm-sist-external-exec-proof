@@ -898,7 +898,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     pattern=r'\('+re.escape(form)+r'\b'
                     if len(re.findall(pattern,new)) < len(re.findall(pattern,old)):
                         errs.append('public_invariant_control_flow_removed:'+form+':'+rel)
-            except Exception: pass
+            except Exception:\n                # Public-spec heuristic is best-effort; malformed optional source context is ignored.\n                pass
         if overflow and edits:
             touches_overflow_site=False
             for e in edits if isinstance(edits,list) else []:
@@ -910,7 +910,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     old='\n'.join(lines[st-1:en])
                     if re.search(r'\b(?:int|integer|int32|uint32)\b|\(int\s',old,re.I):
                         touches_overflow_site=True; break
-                except Exception: pass
+                except Exception:\n                # Public-spec heuristic is best-effort; malformed optional source context is ignored.\n                pass
             if not touches_overflow_site: errs.append('public_invariant_no_overflow_site_touched')
         return errs
     def public_causal_fixed_width_hints(repo, edits):
@@ -925,7 +925,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     line=lines[idx]
                     if re.search(r'\b(?:int|integer|int32|uint32)\b|\(int\s',line,re.I):
                         hints.append({'path':rel,'line':idx+1,'source':line.strip()})
-            except Exception: pass
+            except Exception:\n                # Public-spec heuristic is best-effort; malformed optional source context is ignored.\n                pass
         return hints[:4]
 
     def public_deterministic_overflow_repair(repo, paths, issue_text):
