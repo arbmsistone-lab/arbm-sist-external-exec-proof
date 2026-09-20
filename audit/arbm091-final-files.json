@@ -26,6 +26,8 @@
   "scripts/arbm091/trace_gate.py",
   "scripts/arbm091/verify_transplant.py",
   "scripts/arbm091/wps_observer.py",
+  "scripts/arbm_global_assurance_gate.py",
+  "scripts/arbm_senior_elite_board.py",
   "scripts/osworld_061_3d_audit.py",
   "scripts/osworld_061_blindspot_audit.py",
   "scripts/osworld_061_calibrated_grade.py",
@@ -108,5 +110,7 @@
   "scripts/test_osworld_vm_upload.py",
   "scripts/test_osworld_workflow_watchdog.py",
   "scripts/test_osworld_wps_foreground.py",
-  "tests/arbm091/test_score_and_trace.py"
+  "tests/arbm091/test_global_assurance_gate.py",
+  "tests/arbm091/test_score_and_trace.py",
+  "tests/arbm091/test_senior_elite_agent.py"
 ]
