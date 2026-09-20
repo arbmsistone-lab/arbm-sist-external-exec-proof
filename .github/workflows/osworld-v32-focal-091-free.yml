@@ -111,7 +111,10 @@ jobs:
           test -s osworld-docker-provider.patch
           python scripts/osworld_docker_volume.py osworld
           cp scripts/arbm_safe_http.py osworld/arbm_safe_http.py
-          PYTHONPATH=osworld python -c 'import arbm_safe_http; print("ARBM_SAFE_HTTP_IMPORT=PASS")'
+          cp -R scripts/arbm091 osworld/arbm091
+          cp scripts/osworld_control.py osworld/osworld_control.py
+          PYTHONPATH=osworld python -c 'import arbm_safe_http; import arbm091.wps_observer; print("ARBM_SAFE_HTTP_IMPORT=PASS"); print("ARBM_091_OBSERVER_IMPORT=PASS")'
+          python scripts/arbm091/install_observer.py osworld
           git -C osworld diff -- scripts/python/run_multienv.py desktop_env/providers/docker/provider.py > osworld-volume.patch
           test -s osworld-volume.patch
           python scripts/osworld_vm_upload.py osworld/desktop_env/controllers/setup.py
@@ -142,6 +145,8 @@ jobs:
           mkdir -p "$DIR"
           export ARBM_OSWORLD_SHIM_LOG="$DIR/shim.jsonl"
           export ARBM_OSWORLD_OBSERVATIONS="$DIR/shim-observations"
+          export ARBM_WPS_OBSERVER=1
+          export ARBM_WPS_EVIDENCE_DIR="$DIR/wps-observer"
           export ARBM_JUDGE_EVIDENCE="$DIR/judge"
           export OSWORLD_EVAL_SAVE_RAW_DIR="$DIR/official-evaluator-raw"
           touch "$DIR/shim.jsonl"
