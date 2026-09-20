@@ -1594,7 +1594,6 @@ def oidc_token():
     return data['value']
 
 def task_from(messages):
-    import re
     system='\n'.join(content_parts(m.get('content'))[0] for m in messages if m.get('role')=='system')
     match=re.search(r'You are asked to complete the following task:\s*(.*)$',system,re.S)
     return match.group(1).strip() if match else system[-7000:]
@@ -1675,6 +1674,7 @@ def request_mesh(body):
                 'agent_build':EXPECTED_BUILD,**result,'provider_attempts':router_attempts,
                 'mandatory_cost_usd':0,'paid_fallback_used':False,'scoreable':False,
                 'github_sha':os.environ.get('GITHUB_SHA'),'github_run_id':os.environ.get('GITHUB_RUN_ID')}
+        return None
     def router():
         result, attempts=FREE_ROUTE.call(body,budget=mesh_external_budget(started,55))
         router_attempts.extend(attempts)
@@ -1683,6 +1683,7 @@ def request_mesh(body):
                 'agent_build':EXPECTED_BUILD,**result,'provider_attempts':router_attempts,
                 'mandatory_cost_usd':0,'paid_fallback_used':False,'scoreable':False,
                 'github_sha':os.environ.get('GITHUB_SHA'),'github_run_id':os.environ.get('GITHUB_RUN_ID')}
+        return None
     def local_router():
         result, attempts=LOCAL_VLM_ROUTE.call(body,budget=mesh_local_budget(started,80))
         router_attempts.extend(attempts)
