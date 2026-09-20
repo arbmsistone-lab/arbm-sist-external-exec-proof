@@ -37,14 +37,12 @@ class SmokePolicyTests(unittest.TestCase):
             def __enter__(self): return self
             def __exit__(self,*args): pass
             def read(self): return json.dumps({'choices':[{'message':{'content':'{"edits":[]}'}}]}).encode()
-        def request(url,data,method):
-            return SimpleNamespace(data=data,add_header=lambda *args:None)
-        def urlopen(req,timeout):
-            requests.append(json.loads(req.data))
+        def safe_request(url,method='GET',data=None,headers=None,timeout=0,**kwargs):
+            requests.append(json.loads(data))
             return Response()
         sovereign=load_function('_sovereign_json',{
-            'json':json,'re':re,'os':SimpleNamespace(environ={'ARBM_SOVEREIGN_ENDPOINT':'http://synthetic.invalid'}),
-            'urllib':SimpleNamespace(request=SimpleNamespace(Request=request,urlopen=urlopen)),
+            'json':json,'re':re,'os':SimpleNamespace(environ={'ARBM_SOVEREIGN_ENDPOINT':'http://127.0.0.1:9999'}),
+            'safe_request':safe_request,
             '_compact_public_issue':compact_issue,'_compact_public_context':lambda *args:'FILE: src/example.py\n000001|public_source()',
             '_compact_public_validation_output':compact_output,
         })
