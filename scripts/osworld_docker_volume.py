@@ -4,7 +4,7 @@ import logging
 import os
 import struct
 from pathlib import Path
-import urllib.request
+from arbm_safe_http import request as safe_request
 
 LOG = logging.getLogger(__name__)
 LOG.setLevel(logging.INFO)
@@ -12,10 +12,12 @@ GUEST_CAPACITY = "import json,os;f=os.statvfs('/');print(json.dumps(dict(filesys
 
 
 def verify_volume(server, requested_gb):
-    request = urllib.request.Request(server.rstrip('/') + '/setup/execute',
+    response = safe_request(
+        server.rstrip('/') + '/setup/execute', method='POST',
         data=json.dumps({'command':['python3','-c',GUEST_CAPACITY],'shell':False,'timeout':30}).encode(),
-        headers={'Content-Type':'application/json'},method='POST')
-    with urllib.request.urlopen(request,timeout=60) as response: result=json.loads(response.read())
+        headers={'Content-Type':'application/json'}, timeout=60,
+        allow_loopback_http=True, allow_private_http=True, max_bytes=2_000_000)
+    result=json.loads(response.read())
     if result.get('returncode') != 0 or result.get('status') != 'success': raise RuntimeError('VM_VOLUME_COMMAND_FAILED:' + json.dumps(result))
     capacity = json.loads(result['output'])
     LOG.info('VM_VOLUME_ACTUAL %s',json.dumps(capacity,sort_keys=True))
