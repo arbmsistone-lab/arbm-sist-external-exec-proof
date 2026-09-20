@@ -63,7 +63,7 @@ def _literal_ip_is_public(host: str) -> bool:
     )
 
 
-def validate_url(url: str, *, allowed_hosts=(), allow_loopback_http=False):
+def validate_url(url: str, *, allowed_hosts=(), allow_loopback_http=False, allow_private_http=False):
     parsed = urlsplit(str(url or ""))
     scheme = parsed.scheme.casefold()
     host = (parsed.hostname or "").casefold().rstrip(".")
@@ -74,9 +74,16 @@ def validate_url(url: str, *, allowed_hosts=(), allow_loopback_http=False):
     if scheme not in {"https", "http"}:
         raise ValueError("SAFE_HTTP_SCHEME_FORBIDDEN")
     loopback = _is_loopback(host)
-    if scheme == "http" and not (allow_loopback_http and loopback):
-        raise ValueError("SAFE_HTTP_PLAINTEXT_FORBIDDEN")
-    if not loopback and not _literal_ip_is_public(host):
+    literal_public = _literal_ip_is_public(host)
+    literal_private = (not loopback and not literal_public)
+    if scheme == "http":
+        if loopback and allow_loopback_http:
+            pass
+        elif literal_private and allow_private_http:
+            pass
+        else:
+            raise ValueError("SAFE_HTTP_PLAINTEXT_FORBIDDEN")
+    if scheme == "https" and literal_private:
         raise ValueError("SAFE_HTTP_PRIVATE_IP_FORBIDDEN")
     allowed = tuple(str(x).casefold().rstrip(".") for x in (allowed_hosts or ()) if str(x).strip())
     if allowed and not any(host == item or host.endswith("." + item) for item in allowed):
@@ -91,10 +98,11 @@ def validate_url(url: str, *, allowed_hosts=(), allow_loopback_http=False):
 
 
 def request(url: str, *, method="GET", data=None, headers=None, timeout=30,
-            allowed_hosts=(), allow_loopback_http=False, max_bytes=8_000_000,
-            raise_for_status=True):
+            allowed_hosts=(), allow_loopback_http=False, allow_private_http=False,
+            max_bytes=8_000_000, raise_for_status=True):
     scheme, host, port, path = validate_url(
-        url, allowed_hosts=allowed_hosts, allow_loopback_http=allow_loopback_http)
+        url, allowed_hosts=allowed_hosts, allow_loopback_http=allow_loopback_http,
+        allow_private_http=allow_private_http)
     timeout = max(1.0, min(float(timeout), 180.0))
     max_bytes = max(1, min(int(max_bytes), 32_000_000))
     payload = None if data is None else bytes(data)
@@ -128,8 +136,8 @@ def request(url: str, *, method="GET", data=None, headers=None, timeout=30,
 
 
 def json_request(url: str, *, method="GET", payload=None, headers=None, timeout=30,
-                 allowed_hosts=(), allow_loopback_http=False, max_bytes=8_000_000,
-                 raise_for_status=True):
+                 allowed_hosts=(), allow_loopback_http=False, allow_private_http=False,
+                 max_bytes=8_000_000, raise_for_status=True):
     merged = dict(headers or {})
     data = None
     if payload is not None:
@@ -138,7 +146,8 @@ def json_request(url: str, *, method="GET", payload=None, headers=None, timeout=
     response = request(
         url, method=method, data=data, headers=merged, timeout=timeout,
         allowed_hosts=allowed_hosts, allow_loopback_http=allow_loopback_http,
-        max_bytes=max_bytes, raise_for_status=raise_for_status)
+        allow_private_http=allow_private_http, max_bytes=max_bytes,
+        raise_for_status=raise_for_status)
     try:
         decoded = json.loads(response.body.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
