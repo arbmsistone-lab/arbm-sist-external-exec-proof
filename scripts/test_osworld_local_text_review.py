@@ -2,7 +2,7 @@ import os
 import pathlib
 import sys
 import unittest
-from unittest import mock
+import unittest.mock as mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import osworld_local_text_review as local_review
