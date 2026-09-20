@@ -1,0 +1,62 @@
+name: ARBM ONE Regex Contract Proof
+
+on:
+  push:
+    branches:
+      - chatgpt/arbm-one-regex-proof-20260920
+    paths:
+      - '.github/workflows/arbm-one-regex-proof.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Prove provider-before-quorum regex against exact fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/proof.mjs <<'NODE'
+          import assert from "node:assert/strict";
+
+          const circle = String.raw`            if [ "${ARBM_CRITICAL_MODE:-0}" = "1" ]; then
+              echo critical
+            else
+              npm run ci:portable:core
+            fi
+                name: Attest CircleCI on main with OIDC
+                name: ARBM live provider quorum in explicit critical mode
+                if [ "${ARBM_CRITICAL_MODE:-0}" != "1" ]; then exit 0; fi`;
+
+          const buildkite = String.raw`  - label: ":satellite: Independent exact provider attest"
+              key: "independent-provider-attest"
+              if: build.branch == "main"
+            - label: ":shield: ARBM critical cloud gate"
+              key: "critical-gate"
+              if: build.env("ARBM_CRITICAL_MODE") == "1"
+            - label: ":eyes: PR browser visual gate"
+              key: "pr-browser-visual"
+              if: build.env("ARBM_OPS_JOB") == "pr-browser-visual"`;
+
+          assert.match(circle,/if \[ "\$\{ARBM_CRITICAL_MODE:-0\}" = "1" \]; then/);
+          assert.match(circle,/Attest CircleCI on main with OIDC/);
+          assert.match(circle,/live provider quorum in explicit critical mode/);
+          assert.match(circle,/if \[ "\$\{ARBM_CRITICAL_MODE:-0\}" != "1" \]; then exit 0; fi/);
+
+          let oldFailed=false;
+          try { assert.match(circle,/else\s+\n\s+npm run ci:portable:core/); }
+          catch { oldFailed=true; }
+          assert.equal(oldFailed,true,"old regex must be proven defective");
+
+          assert.match(circle,/else\n\s+npm run ci:portable:core/);
+          assert.doesNotMatch(circle,/else\n\s+bash scripts\/run-static-security-scan\.sh\n\s+npm run ci:portable:core/);
+          assert.match(buildkite,/key: "pr-browser-visual"[\s\S]{0,180}if: build\.env\("ARBM_OPS_JOB"\) == "pr-browser-visual"/);
+          assert.match(buildkite,/Independent exact provider attest/);
+          assert.match(buildkite,/key: "critical-gate"[\s\S]{0,160}if: build\.env\("ARBM_CRITICAL_MODE"\) == "1"/);
+          assert.doesNotMatch(buildkite,/key: "critical-gate"[\s\S]{0,160}build\.branch == "main"/);
+          console.log("ARBM_ONE_REGEX_CONTRACT_PROOF=PASS");
+          NODE
+          node /tmp/proof.mjs
