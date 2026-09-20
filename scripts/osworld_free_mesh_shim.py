@@ -424,20 +424,18 @@ def _task091_shape_point(window_state, slide, old, hint_x=None, hint_y=None):
     if row is None:
         return None
     if str(row.get('kind') or '') == 'table-cell':
-        if (hint_x is None or hint_y is None
-                or window_state.get('screen') != TASK091_CANONICAL_SCREEN
-                or (window_state.get('window') or {}).get('bbox') != TASK091_CANONICAL_WINDOW):
+        box=_task091_shape_bbox(window_state,row)
+        if box is None:
             return None
-        hx=int(hint_x); hy=int(hint_y)
-        vx,vy,vw,vh=TASK091_CANONICAL_SLIDE_VIEWPORT
-        if not (vx <= hx <= vx+vw and vy <= hy <= vy+vh):
-            return None
-        return {'shape':row,'cx':hx,'cy':hy,
-                'shape_bbox':[hx-1,hy-1,2,2],
-                'shape_center_cx':hx,'shape_center_cy':hy,
+        cx=int(box['cx']); cy=int(box['cy'])
+        hx=int(hint_x) if hint_x is not None else cx
+        hy=int(hint_y) if hint_y is not None else cy
+        return {'shape':row,'cx':cx,'cy':cy,
+                'shape_bbox':[int(box['x']),int(box['y']),int(box['w']),int(box['h'])],
+                'shape_center_cx':cx,'shape_center_cy':cy,
                 'hint_x':hx,'hint_y':hy,
-                'selection_basis':'signed-table-cell-hint',
-                'hint_drift':0}
+                'selection_basis':'pptx-table-cell-geometry',
+                'hint_drift':int(max(abs(cx-hx),abs(cy-hy)))}
     point=_task091_shape_text_point(window_state,row,hint_x,hint_y)
     if point is not None:
         point['selection_basis']='hint-within-tolerance'
