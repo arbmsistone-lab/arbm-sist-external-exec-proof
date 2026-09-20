@@ -3,7 +3,7 @@ import pathlib
 import sys
 import tempfile
 import unittest
-from unittest import mock
+import unittest.mock as mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import osworld_061_lane_receipt as receipt
