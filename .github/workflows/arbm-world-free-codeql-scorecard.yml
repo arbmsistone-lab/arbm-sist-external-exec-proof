@@ -1,6 +1,9 @@
 name: ARBM World Free CodeQL Scorecard
 
 on:
+  push:
+    branches:
+      - chatgpt/arbm-world-free-assurance-20260920
   workflow_dispatch:
 
 permissions:
