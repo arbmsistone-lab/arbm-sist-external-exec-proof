@@ -7,7 +7,6 @@ import subprocess
 import tempfile
 import unittest
 import urllib.error
-from unittest.mock import patch
 from osworld_vm_upload import upload, GUEST, UploadError, patch_setup
 
 
