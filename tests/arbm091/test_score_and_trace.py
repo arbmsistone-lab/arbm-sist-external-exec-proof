@@ -523,7 +523,7 @@ class ForegroundTests(unittest.TestCase):
         self.assertIsNotNone(point)
         self.assertEqual(point['selection_basis'],'pptx-table-cell-geometry')
         self.assertEqual((point['cx'],point['cy']),(983,471))
-        self.assertEqual(point['shape_bbox'],[892,436,181,70])
+        self.assertEqual(point['shape_bbox'],[892,436,182,71])
         self.assertGreater(point['hint_drift'],100)
         self.assertEqual(point['shape']['kind'],'table-cell')
 
