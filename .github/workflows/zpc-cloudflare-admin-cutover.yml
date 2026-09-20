@@ -62,7 +62,7 @@ jobs:
           fi
 
       - name: Verify token scope read-only
-        if: inputs.mode != 'probe'
+        if: env.ZPC_MODE != 'probe'
         shell: bash
         run: |
           set -euo pipefail
@@ -72,7 +72,7 @@ jobs:
           echo "cloudflare_token_active=true"
 
       - name: Snapshot current /central rules
-        if: inputs.mode != 'probe'
+        if: env.ZPC_MODE != 'probe'
         shell: bash
         run: |
           set -euo pipefail
@@ -86,7 +86,7 @@ jobs:
           fi
 
       - name: Cut over /central to hardened control
-        if: inputs.mode == 'cutover'
+        if: env.ZPC_MODE == 'cutover'
         shell: bash
         run: |
           set -euo pipefail
@@ -113,7 +113,7 @@ jobs:
           echo "cutover_applied=true"
 
       - name: Rollback hardened /central redirect
-        if: inputs.mode == 'rollback'
+        if: env.ZPC_MODE == 'rollback'
         shell: bash
         run: |
           set -euo pipefail
@@ -129,7 +129,7 @@ jobs:
           echo "rollback_applied=true"
 
       - name: Final public verification
-        if: inputs.mode != 'probe'
+        if: env.ZPC_MODE != 'probe'
         shell: bash
         run: |
           set -euo pipefail
