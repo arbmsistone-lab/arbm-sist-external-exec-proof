@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Add only an explicit observation hook to a pinned upstream runtime module."""
 import argparse
-import hashlib
 import subprocess
 from pathlib import Path
 
@@ -26,7 +25,7 @@ def main():
         raise SystemExit('UPSTREAM_SHA_MISMATCH')
     path = root / 'desktop_env/desktop_env.py'
     raw = path.read_bytes()
-    blob = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
+    blob = subprocess.check_output(['git', '-C', str(root), 'hash-object', '--stdin'], input=raw).decode().strip()
     if blob != EXPECTED_BLOB:
         raise SystemExit('UPSTREAM_RUNTIME_BLOB_CHANGED')
     text = raw.decode()
