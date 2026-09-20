@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 const BASE=process.env.ARBM_TF_STATE_URL||'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-terraform-state-v1';
 const mode=process.argv[2]||'issue';
 const basic=(u,p)=>`Basic ${Buffer.from(`${u}:${p}`).toString('base64')}`;
@@ -11,9 +11,12 @@ if(mode==='issue'){
   const jwt=String((await r.json()).value||'');if(!jwt)throw new Error('oidc_token_missing');
   const s=await fetch(`${BASE}/_session`,{method:'POST',headers:{authorization:basic('github-oidc',jwt)},signal:AbortSignal.timeout(15000)});
   if(!s.ok)throw new Error(`session_issue_http_${s.status}:${await s.text()}`);
-  const body=await s.json(),token=String(body.token||'');if(!token)throw new Error('session_token_missing');
+  const body=await s.json(),token=String(body.token||'');
+  if(!/^[A-Za-z0-9._~+\/-]{20,4096}$/.test(token))throw new Error('session_token_invalid');
   console.log(`::add-mask::${token}`);
-  fs.appendFileSync(process.env.GITHUB_ENV,`TF_HTTP_PASSWORD=${token}\nARBM_TF_STATE_SESSION_TOKEN=${token}\n`);
+  execFileSync('/usr/bin/env',['bash','-c','umask 077; printf "TF_HTTP_PASSWORD=%s\\nARBM_TF_STATE_SESSION_TOKEN=%s\\n" "$ARBM_SESSION_TOKEN" "$ARBM_SESSION_TOKEN" >> "$GITHUB_ENV"'],{
+    env:{...process.env,ARBM_SESSION_TOKEN:token,GITHUB_ENV:String(process.env.GITHUB_ENV)},stdio:'ignore'
+  });
   console.log(JSON.stringify({event:'terraform_state_session_issued',expiresAt:body.expiresAt}));
 }else if(mode==='revoke'){
   const token=String(process.env.ARBM_TF_STATE_SESSION_TOKEN||'');
