@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --disable-pip-version-check -q docker psutil requests filelock
+          python -m pip install --disable-pip-version-check --require-hashes -q -r audit/locks/provider-preflight.txt
           PYTHONPATH="$PWD/osworld" python - <<'PY' | tee -a osworld-preflight.txt
           from desktop_env.providers.docker.provider import DockerProvider
           p=DockerProvider(region='local')
