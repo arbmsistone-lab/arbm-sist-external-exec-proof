@@ -13,6 +13,7 @@ from osworld_groq_free import GROQ_FREE_ROUTE
 from osworld_local_vlm import LOCAL_VLM_ROUTE, warm_runtime
 from osworld_recovery import recovery_policy, rejects_visual_navigation_loop, semantic_terminal
 from osworld_elite_controller import EliteController
+from arbm_senior_elite_board import require_unanimous as require_senior_elite
 from osworld_gimp_style_transfer import next_recovery_action
 from osworld_061_calibrated_grade import next_calibrated_action, DONE as CAL_DONE
 
@@ -247,6 +248,54 @@ def _task091_screenshot_path(window_state):
         return None
     path=Path(root)/'wps-observations'/(source+'.png')
     return path if path.is_file() else None
+
+def _task091_screenshot_source_path(source):
+    root=os.environ.get('ARBM_WPS_EVIDENCE_DIR')
+    source=str(source or '')
+    if not root or not re.fullmatch(r'\d{4}-\d{2}-(?:before|after)',source):
+        return None
+    path=Path(root)/'wps-observations'/(source+'.png')
+    return path if path.is_file() else None
+
+def _task091_caret_delta_geometry(before_source, after_source, bbox):
+    """Prove a text caret from a narrow vertical pixel delta inside one cell."""
+    before_path=_task091_screenshot_source_path(before_source)
+    after_path=_task091_screenshot_source_path(after_source)
+    if before_path is None or after_path is None or not isinstance(bbox,list) or len(bbox)!=4:
+        return {'proven':False,'reason':'evidence-missing'}
+    if not all(type(v) is int for v in bbox):
+        return {'proven':False,'reason':'bbox-invalid'}
+    x,y,w,h=bbox
+    if w<=0 or h<=0:
+        return {'proven':False,'reason':'bbox-empty'}
+    try:
+        with Image.open(before_path) as a_img, Image.open(after_path) as b_img:
+            a=a_img.convert('RGB').crop((x,y,x+w,y+h))
+            b=b_img.convert('RGB').crop((x,y,x+w,y+h))
+            if a.size != b.size:
+                return {'proven':False,'reason':'size-drift'}
+            xs=[]; ys=[]; col_counts={}
+            for py in range(h):
+                for px in range(w):
+                    av=a.getpixel((px,py)); bv=b.getpixel((px,py))
+                    if max(abs(int(av[i])-int(bv[i])) for i in range(3)) <= 20:
+                        continue
+                    xs.append(px); ys.append(py); col_counts[px]=col_counts.get(px,0)+1
+    except Exception:
+        return {'proven':False,'reason':'image-read-failed'}
+    count=len(xs)
+    if not count:
+        return {'proven':False,'reason':'no-local-delta','count':0}
+    dw=max(xs)-min(xs)+1; dh=max(ys)-min(ys)+1
+    dominant=max(col_counts.values()) if col_counts else 0
+    proven=(8 <= count <= 160
+            and dw <= 4
+            and 8 <= dh <= min(40,h)
+            and dh >= max(8,dw*4)
+            and dominant >= max(8,int(count*0.65)))
+    return {'proven':proven,'reason':'caret-geometry' if proven else 'delta-not-caret',
+            'count':count,'width':dw,'height':dh,'dominant_column':dominant,
+            'bbox':[min(xs),min(ys),dw,dh]}
 
 def _task091_region_sha256(window_state, bbox, inset=6):
     path=_task091_screenshot_path(window_state)
@@ -857,7 +906,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
         pending=state.get('pending_edit')
         if isinstance(pending,dict):
             stage=str(pending.get('stage') or '')
-            if stage in ('select-issued','table-select-issued','table-cell-enter-issued','table-caret-blink-wait','reselect-required'):
+            if stage in ('select-issued','table-select-issued','table-cell-enter-issued','reselect-required'):
                 interrupts=int(pending.get('selection_interrupts') or 0)+1
                 pending['selection_interrupts']=interrupts
                 if interrupts > 3:
@@ -1022,6 +1071,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             if not ack:
                 return _task091_terminal('TASK091_TABLE_SELECTION_NOT_ACKNOWLEDGED',state)
             pending['table_selected_screenshot_sha256']=current_shot
+            pending['table_selected_source']=str(window_state.get('source') or '')
             pending['table_selected_sibling_signature']=siblings
             pending['table_frame_id']=frame_id
             pending['table_selected_target_visual_sha256']=target_visual
@@ -1050,9 +1100,11 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
             shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
             siblings=_task091_other_shapes_signature(window_state,pending['slide'],pending.get('shape_id'))
-            target_visual=_task091_region_sha256(window_state,list(pending.get('shape_bbox') or []))
             sibling_visual=_task091_table_visual_signature(
                 window_state,pending['slide'],pending.get('table_frame_id'),pending.get('shape_id'))
+            bbox=list(pending.get('shape_bbox') or [])
+            caret=_task091_caret_delta_geometry(
+                pending.get('table_selected_source'),window_state.get('source'),bbox)
             safe=(current_sha == str(pending.get('before_deck_sha256') or '')
                   and int(window_state.get('active_slide') or 0) == int(pending.get('slide') or 0)
                   and shape is not None
@@ -1060,54 +1112,23 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                   and str(shape.get('text') or '') == str(pending.get('old') or '')
                   and siblings == str(pending.get('before_sibling_signature') or '')
                   and siblings == str(pending.get('table_selected_sibling_signature') or '')
-                  and len(target_visual)==64 and len(sibling_visual)==64
+                  and len(sibling_visual)==64
                   and sibling_visual == str(pending.get('table_selected_sibling_visual_sha256') or ''))
             if not safe:
                 return _task091_terminal('TASK091_TABLE_CELL_ENTRY_DRIFT',state)
-            pending['caret_probe_visual_sha256']=target_visual
-            pending['caret_probe_sibling_visual_sha256']=sibling_visual
-            pending['caret_probe_attempts']=0
-            pending['stage']='table-caret-blink-wait'
-            return {'action':'exec','command':"pyautogui.sleep(0.45)",
-                    'plan':'Wait only for the insertion caret blink; no text key is allowed until the change is localized to the exact target cell.',
-                    'specialist_phase':'prove-table-cell-caret-blink'}
-        if stage == 'table-caret-blink-wait':
-            current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
-            current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
-            shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
-            siblings=_task091_other_shapes_signature(window_state,pending['slide'],pending.get('shape_id'))
-            target_visual=_task091_region_sha256(window_state,list(pending.get('shape_bbox') or []))
-            sibling_visual=_task091_table_visual_signature(
-                window_state,pending['slide'],pending.get('table_frame_id'),pending.get('shape_id'))
-            safe=(current_sha == str(pending.get('before_deck_sha256') or '')
-                  and int(window_state.get('active_slide') or 0) == int(pending.get('slide') or 0)
-                  and shape is not None
-                  and str(shape.get('kind') or '') == 'table-cell'
-                  and str(shape.get('text') or '') == str(pending.get('old') or '')
-                  and siblings == str(pending.get('before_sibling_signature') or '')
-                  and len(target_visual)==64 and len(sibling_visual)==64
-                  and sibling_visual == str(pending.get('caret_probe_sibling_visual_sha256') or ''))
-            if not safe:
-                return _task091_terminal('TASK091_TABLE_CARET_PROOF_DRIFT',state)
-            baseline=str(pending.get('caret_probe_visual_sha256') or '')
-            if target_visual == baseline:
-                attempts=int(pending.get('caret_probe_attempts') or 0)+1
-                pending['caret_probe_attempts']=attempts
-                if attempts >= 3:
-                    return _task091_terminal('TASK091_TABLE_CELL_CARET_UNPROVEN',state)
-                return {'action':'exec','command':"pyautogui.sleep(0.45)",
-                        'plan':'Caret phase matched the prior frame; wait one bounded blink interval and prove target-local change.',
-                        'specialist_phase':'reprobe-table-cell-caret-blink'}
+            if caret.get('proven') is not True:
+                pending['caret_geometry']=caret
+                return _task091_terminal('TASK091_TABLE_CELL_CARET_GEOMETRY_UNPROVEN',state)
             pending['selected_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
             pending['selection_ack_foreground_sha256']=_task091_foreground_sha(window_state)
             pending['explicit_text_mode']=True
-            pending['caret_proven_target_visual_sha256']=target_visual
+            pending['caret_geometry']=caret
             pending['stage']='edit-issued'
             command=_task091_table_cell_bounded_write_command(pending['old'],pending['new'])
             pending['action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
-                    'plan':f"Replace only the proven one-line table cell {pending['old']!r} using End + bounded Backspace + write; Ctrl+A is forbidden.",
-                    'specialist_phase':'edit-caret-proven-table-cell','expected_change':pending['new']}
+                    'plan':f"Replace only the geometrically proven table-cell caret target {pending['old']!r} using End + bounded Backspace + write; Ctrl+A is forbidden.",
+                    'specialist_phase':'edit-geometry-proven-table-cell','expected_change':pending['new']}
         if stage == 'select-issued':
             current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
             current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
@@ -1426,6 +1447,13 @@ def try_091_specialist(body, obs, focused_obs):
                              allow_canonical=True,verifier_result=VERIFIER.last_result,
                              recent_commands=[x['command'] for x in STATE['history'][-6:]])
         decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
+        senior_review=require_senior_elite(
+            action,task_id=os.environ.get('TASK_ID'),source='task091-specialist',
+            state=STATE,verifier=VERIFIER.last_result,
+            recent_commands=[x['command'] for x in STATE['history'][-6:]])
+        log_event({'status':'SENIOR_ELITE_BOARD_PASS','source':'task091-specialist',
+                   'pass':senior_review['pass'],'total':senior_review['total'],
+                   'lanes':senior_review['lanes']})
     except ValueError as exc:
         log_event({'status':'TASK091_SPECIALIST_POLICY_REJECTED','reason':str(exc),'action':candidate,
                    'mode':state.get('mode'),'pending_edit':state.get('pending_edit')})
@@ -1938,6 +1966,12 @@ def call_mesh(messages):
                     body.get('verified_milestones',[]),allow_canonical=allow_canonical,
                     verifier_result=VERIFIER.last_result,recent_commands=recent_commands)
                 decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
+                senior_review=require_senior_elite(
+                    action,task_id=os.environ.get('TASK_ID'),source='generic-mesh',
+                    state=STATE,verifier=VERIFIER.last_result,recent_commands=recent_commands)
+                log_event({'status':'SENIOR_ELITE_BOARD_PASS','source':'generic-mesh',
+                           'pass':senior_review['pass'],'total':senior_review['total'],
+                           'lanes':senior_review['lanes']})
             except ValueError as exc:
                 policy_rejections+=1
                 rejected_action=data.get('action') if isinstance(data.get('action'),dict) else {}
