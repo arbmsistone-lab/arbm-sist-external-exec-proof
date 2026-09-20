@@ -1,4 +1,4 @@
-name: ARBM World Free CodeQL Scorecard
+name: ARBM World Free Assurance
 
 on:
   push:
@@ -8,41 +8,123 @@ on:
 
 permissions:
   actions: read
+  attestations: write
   checks: read
   contents: read
+  id-token: write
   issues: read
   pull-requests: read
   security-events: write
   statuses: read
 
 jobs:
-  scorecard:
+  external-scanners:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - name: Run OpenSSF Scorecard
-        uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc
-        with:
-          results_file: scorecard.json
-          results_format: json
-          publish_results: false
-      - name: Require maximum score
-        shell: bash
+          fetch-depth: 0
+      - name: Install pinned Python scanners
+        run: python -m pip install -q semgrep==1.177.0 bandit==1.9.4 pip-audit==2.10.1
+      - name: Run Bandit
         run: |
-          python - <<'PY'
-          import json
-          data=json.load(open('scorecard.json'))
-          score=float(data.get('score',0))
-          print('OPENSSF_SCORECARD_SCORE=',score)
-          if score < 10.0:
-              raise SystemExit('OPENSSF_SCORECARD_NOT_MAXIMUM:'+str(score))
-          PY
+          mkdir -p world-evidence
+          bandit -r scripts endpoint -f json -o world-evidence/bandit.json -ll || true
+          python -c "import json,sys;d=json.load(open('world-evidence/bandit.json'));x=[r for r in d.get('results',[]) if r.get('issue_severity') in ('MEDIUM','HIGH')];print('BANDIT_BLOCKERS',len(x));sys.exit(bool(x))"
+      - name: Run Semgrep CE
+        run: |
+          semgrep scan --config p/python --config p/secrets --metrics=off --json --output world-evidence/semgrep.json scripts endpoint || true
+          python -c "import json,sys;d=json.load(open('world-evidence/semgrep.json'));x=d.get('results',[]);print('SEMGREP_FINDINGS',len(x));sys.exit(bool(x))"
+      - name: Run pip-audit
+        run: |
+          pip-audit -r scripts/requirements-osworld.txt -f json -o world-evidence/pip-audit.json || true
+          python -c "import json,sys;d=json.load(open('world-evidence/pip-audit.json'));deps=d.get('dependencies',d if isinstance(d,list) else []);x=[v for dep in deps for v in dep.get('vulns',[])];print('PIP_AUDIT_VULNS',len(x));sys.exit(bool(x))"
+      - name: Install and run Gitleaks
+        run: |
+          mkdir -p /tmp/gitleaks
+          cd /tmp/gitleaks
+          curl -fsSLO https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          curl -fsSLO https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_checksums.txt
+          grep 'gitleaks_8.30.1_linux_x64.tar.gz' gitleaks_8.30.1_checksums.txt | sha256sum -c -
+          tar -xzf gitleaks_8.30.1_linux_x64.tar.gz
+          ./gitleaks git "$GITHUB_WORKSPACE" --redact=100 --report-format json --report-path "$GITHUB_WORKSPACE/world-evidence/gitleaks.json" || true
+          cd "$GITHUB_WORKSPACE"
+          python -c "import json,sys;d=json.load(open('world-evidence/gitleaks.json'));print('GITLEAKS_FINDINGS',len(d));sys.exit(bool(d))"
+      - name: Install and run Trivy
+        run: |
+          mkdir -p /tmp/trivy
+          cd /tmp/trivy
+          curl -fsSLO https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_Linux-64bit.tar.gz
+          curl -fsSLO https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_checksums.txt
+          grep 'trivy_0.74.0_Linux-64bit.tar.gz' trivy_0.74.0_checksums.txt | sha256sum -c -
+          tar -xzf trivy_0.74.0_Linux-64bit.tar.gz
+          cd "$GITHUB_WORKSPACE"
+          /tmp/trivy/trivy fs --scanners vuln,misconfig,secret,license --license-full --severity UNKNOWN,HIGH,CRITICAL --format json --output world-evidence/trivy.json .
+          python -c "import json,sys;d=json.load(open('world-evidence/trivy.json'));x=[i for r in d.get('Results',[]) for k in ('Vulnerabilities','Misconfigurations','Secrets','Licenses') for i in (r.get(k) or [])];b=[i for i in x if str(i.get('Severity','')).upper() in ('UNKNOWN','HIGH','CRITICAL')];print('TRIVY_BLOCKERS',len(b));sys.exit(bool(b))"
+      - name: Install and run OSV-Scanner
+        run: |
+          mkdir -p /tmp/osv
+          cd /tmp/osv
+          curl -fsSLO https://github.com/google/osv-scanner/releases/download/v2.6.0/osv-scanner_linux_amd64
+          curl -fsSLO https://github.com/google/osv-scanner/releases/download/v2.6.0/osv-scanner_SHA256SUMS
+          grep 'osv-scanner_linux_amd64' osv-scanner_SHA256SUMS | sha256sum -c -
+          chmod +x osv-scanner_linux_amd64
+          cd "$GITHUB_WORKSPACE"
+          /tmp/osv/osv-scanner_linux_amd64 scan source -L scripts/requirements-osworld.txt --format=json --output-file world-evidence/osv-requirements.json || true
+          /tmp/osv/osv-scanner_linux_amd64 scan source --recursive . --format=json --output-file world-evidence/osv-recursive.json || true
+          python -c "import json,sys;fs=['world-evidence/osv-requirements.json','world-evidence/osv-recursive.json'];n=sum(len(p.get('vulnerabilities',[])) for f in fs for r in json.load(open(f)).get('results',[]) for p in r.get('packages',[]));print('OSV_VULNS',n);sys.exit(bool(n))"
+      - name: Generate SBOM and scan with Grype
+        run: |
+          mkdir -p /tmp/syft /tmp/grype
+          cd /tmp/syft
+          curl -fsSLO https://github.com/anchore/syft/releases/download/v1.52.0/syft_1.52.0_linux_amd64.tar.gz
+          curl -fsSLO https://github.com/anchore/syft/releases/download/v1.52.0/syft_1.52.0_checksums.txt
+          grep 'syft_1.52.0_linux_amd64.tar.gz' syft_1.52.0_checksums.txt | sha256sum -c -
+          tar -xzf syft_1.52.0_linux_amd64.tar.gz
+          cd /tmp/grype
+          curl -fsSLO https://github.com/anchore/grype/releases/download/v0.119.0/grype_0.119.0_linux_amd64.tar.gz
+          curl -fsSLO https://github.com/anchore/grype/releases/download/v0.119.0/grype_0.119.0_checksums.txt
+          grep 'grype_0.119.0_linux_amd64.tar.gz' grype_0.119.0_checksums.txt | sha256sum -c -
+          tar -xzf grype_0.119.0_linux_amd64.tar.gz
+          cd "$GITHUB_WORKSPACE"
+          /tmp/syft/syft dir:. -o cyclonedx-json=world-evidence/sbom.cdx.json -o spdx-json=world-evidence/sbom.spdx.json
+          /tmp/grype/grype sbom:world-evidence/sbom.cdx.json -o json > world-evidence/grype.json || true
+          python -c "import json,sys;d=json.load(open('world-evidence/grype.json'));x=[m for m in d.get('matches',[]) if str(m.get('vulnerability',{}).get('severity','')).upper() in ('HIGH','CRITICAL')];print('GRYPE_HIGH_CRITICAL',len(x));sys.exit(bool(x))"
+      - name: Upload scanner evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: world-free-external-scanners
+          path: world-evidence
+          if-no-files-found: error
+          retention-days: 90
+
+  scorecard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Install validated OpenSSF Scorecard
+        run: |
+          mkdir -p /tmp/scorecard
+          cd /tmp/scorecard
+          curl -fsSLO https://github.com/ossf/scorecard/releases/download/v5.5.0/scorecard_5.5.0_linux_amd64.tar.gz
+          curl -fsSLO https://github.com/ossf/scorecard/releases/download/v5.5.0/scorecard_checksums.txt
+          grep 'scorecard_5.5.0_linux_amd64.tar.gz' scorecard_checksums.txt | sha256sum -c -
+          tar -xzf scorecard_5.5.0_linux_amd64.tar.gz
+      - name: Run OpenSSF Scorecard at exact SHA
+        env:
+          GITHUB_AUTH_TOKEN: ${{ github.token }}
+        run: |
+          /tmp/scorecard/scorecard --repo=github.com/${GITHUB_REPOSITORY} --commit=${GITHUB_SHA} --format=json > scorecard.json
+          python -c "import json,sys;d=json.load(open('scorecard.json'));s=float(d.get('score',0));print('OPENSSF_SCORECARD_SCORE',s);sys.exit(s<10.0)"
       - name: Upload Scorecard evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: world-free-scorecard
           path: scorecard.json
@@ -57,7 +139,7 @@ jobs:
       matrix:
         language: [python, javascript-typescript, actions]
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
       - name: Initialize CodeQL
@@ -71,16 +153,72 @@ jobs:
         with:
           category: /language:${{ matrix.language }}
 
+  supply-chain:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Create deterministic source artifact and SBOM
+        run: |
+          mkdir -p supply-evidence /tmp/syft
+          git archive --format=tar HEAD | gzip -n > supply-evidence/arbm-sist-agent-source.tar.gz
+          cd /tmp/syft
+          curl -fsSLO https://github.com/anchore/syft/releases/download/v1.52.0/syft_1.52.0_linux_amd64.tar.gz
+          curl -fsSLO https://github.com/anchore/syft/releases/download/v1.52.0/syft_1.52.0_checksums.txt
+          grep 'syft_1.52.0_linux_amd64.tar.gz' syft_1.52.0_checksums.txt | sha256sum -c -
+          tar -xzf syft_1.52.0_linux_amd64.tar.gz
+          cd "$GITHUB_WORKSPACE"
+          /tmp/syft/syft dir:. -o cyclonedx-json=supply-evidence/sbom.cdx.json -o spdx-json=supply-evidence/sbom.spdx.json
+          sha256sum supply-evidence/* > supply-evidence/sha256.txt
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6
+        with:
+          cosign-release: v3.1.3
+      - name: Keyless-sign and verify SBOM
+        run: |
+          cosign sign-blob --yes --bundle supply-evidence/sbom.sigstore.json supply-evidence/sbom.cdx.json
+          cosign verify-blob supply-evidence/sbom.cdx.json --bundle supply-evidence/sbom.sigstore.json --certificate-identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/arbm-world-free-codeql-scorecard.yml@refs/heads/chatgpt/arbm-world-free-assurance-20260920" --certificate-oidc-issuer="https://token.actions.githubusercontent.com"
+      - name: Attest source provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+        with:
+          subject-path: supply-evidence/arbm-sist-agent-source.tar.gz
+      - name: Attest source SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+        with:
+          subject-path: supply-evidence/arbm-sist-agent-source.tar.gz
+          sbom-path: supply-evidence/sbom.spdx.json
+      - name: Verify GitHub provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh attestation verify supply-evidence/arbm-sist-agent-source.tar.gz -R "${GITHUB_REPOSITORY}"
+          gh attestation verify supply-evidence/arbm-sist-agent-source.tar.gz -R "${GITHUB_REPOSITORY}" --predicate-type https://spdx.dev/Document/v2.3
+      - name: Upload signed supply-chain evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: world-free-supply-chain
+          path: supply-evidence
+          if-no-files-found: error
+          retention-days: 90
+
   verdict:
     if: always()
-    needs: [scorecard, codeql]
+    needs: [external-scanners, scorecard, codeql, supply-chain]
     runs-on: ubuntu-24.04
     steps:
-      - shell: bash
+      - name: Require all world-free lanes
         env:
-          SCORECARD_RESULT: ${{ needs.scorecard.result }}
-          CODEQL_RESULT: ${{ needs.codeql.result }}
+          EXTERNAL_SCANNERS: ${{ needs.external-scanners.result }}
+          SCORECARD: ${{ needs.scorecard.result }}
+          CODEQL: ${{ needs.codeql.result }}
+          SUPPLY_CHAIN: ${{ needs.supply-chain.result }}
         run: |
-          test "$SCORECARD_RESULT" = success
-          test "$CODEQL_RESULT" = success
-          echo ARBM_WORLD_CODEQL_SCORECARD=PASS
+          test "$EXTERNAL_SCANNERS" = success
+          test "$SCORECARD" = success
+          test "$CODEQL" = success
+          test "$SUPPLY_CHAIN" = success
+          echo ARBM_WORLD_FREE_ASSURANCE=PASS
