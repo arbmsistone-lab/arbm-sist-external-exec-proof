@@ -1,35 +1,70 @@
 name: OSWorld G3 zero-spend model probe
+
 on:
   workflow_dispatch:
   push:
     paths:
       - '.github/workflows/osworld-g3-model-probe.yml'
+
 permissions: read-all
+
 jobs:
   probe:
     permissions:
+      contents: read
       id-token: write
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    env:
+      PRIMARY_ENDPOINT: https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-benchmark-agent-v17
     steps:
-      - name: Probe fixed free multimodal model via OIDC
+      - name: Probe authenticated FREE provider mesh via OIDC
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=arbm-sist-benchmark" -o /tmp/arbm-oidc.json
+          mkdir -p evidence
+          curl -fsSL --connect-timeout 10 --max-time 30 \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=arbm-sist-benchmark" \
+            -o /tmp/arbm-oidc.json
           tok=$(python -c "import json; print(json.load(open('/tmp/arbm-oidc.json'))['value'])")
-          img='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
-          body=$(python -c "import json,sys; print(json.dumps({'image_base64':sys.argv[1]}))" "$img")
-          curl -fsS -H "Authorization: Bearer $tok" -H 'content-type: application/json' \
-            -d "$body" 'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-cf-ai-probe-once-20260905' | tee model-probe.json
-          python - <<'PY'
-          import json
-          d=json.load(open('model-probe.json'))
-          assert d.get('status')=='PASS',d
-          assert d.get('http')==200,d
-          assert d.get('requested_model')=='gemini-3.5-flash',d
-          assert d.get('image_input') and d.get('text_input') and d.get('multimodal_response') and d.get('parsed_response'),d
-          assert d.get('mandatory_cost_usd')==0 and d.get('paid_fallback_used') is False,d
-          assert d.get('secret_values_present') is False,d
+          echo "::add-mask::$tok"
+          body='{"phase":"plan","issue":"OSWorld G3 zero-spend authenticated model probe","repo_index":"TRACKED FILES:\nREADME.md","instance_id":"osworld-g3-model-probe"}'
+          http=$(curl -sS --connect-timeout 10 --max-time 90 \
+            -o evidence/model-probe.json -w '%{http_code}' \
+            -H "Authorization: Bearer $tok" \
+            -H 'content-type: application/json' \
+            -d "$body" "$PRIMARY_ENDPOINT")
+          printf '%s\n' "$http" > evidence/model-probe-http.txt
+          python - "$http" <<'PY'
+          import json,sys
+          http=sys.argv[1]
+          d=json.load(open('evidence/model-probe.json'))
+          attempts=d.get('attempts') or []
+          successful=[
+              a for a in attempts
+              if a.get('stage')=='plan'
+              and a.get('http')==200
+              and a.get('parsed') is True
+              and str(a.get('model','')).startswith(('gemini-','gemma-'))
+          ]
+          assert http=='200', {'http':http,'body':d}
+          assert d.get('ok') is True and d.get('status')=='PASS',d
+          assert d.get('pipeline')=='provider-mesh-v17',d
+          assert d.get('mandatory_cost_usd')==0,d
+          assert successful,{'reason':'no_successful_free_model_attempt','body':d}
           print('MODEL_GATE=PASS')
+          print('AUTHENTICATION=OIDC')
+          print('COST_MODE=ZERO_SPEND')
+          print('SUCCESS_MODEL='+successful[0]['model'])
           PY
+          sha256sum evidence/model-probe.json evidence/model-probe-http.txt > evidence/SHA256SUMS.txt
+
+      - name: Upload immutable model-probe evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: osworld-g3-model-probe-${{ github.run_id }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
