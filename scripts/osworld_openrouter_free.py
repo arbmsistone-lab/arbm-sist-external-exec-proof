@@ -107,20 +107,6 @@ class FreeRoute:
         except (TimeoutError, ValueError, OSError):
             return 503, {}, {}
 
-    def http(path, key, payload=None, timeout=35):
-        headers = {'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json'}
-        request = urllib.request.Request(BASE + path, headers=headers,
-            data=None if payload is None else json.dumps(payload, ensure_ascii=False).encode())
-        try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
-                return response.status, json.loads(response.read()), dict(response.headers)
-        except urllib.error.HTTPError as error:
-            try: data = json.loads(error.read())
-            except (ValueError, UnicodeError): data = {}
-            return error.code, data, dict(error.headers)
-        except (urllib.error.URLError, TimeoutError, ValueError):
-            return 503, {}, {}
-
     def state(self, model):
         return self.states.setdefault(model, {'state':'DEGRADED', 'until':0,
             'failures':0, 'successes':0, 'latency_seconds':35, 'remaining':None})
