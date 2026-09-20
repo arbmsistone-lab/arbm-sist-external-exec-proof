@@ -1,4 +1,4 @@
-﻿import json, pathlib, sys
+﻿import json, pathlib
 p=pathlib.Path('certification/global-market-20260911/matrix.json')
 d=json.loads(p.read_text(encoding='utf-8-sig'))
 assert d['policy']=={'zero_spend':'HARD','heavy_local':0,'fail_closed':True,'no_regression':True}
