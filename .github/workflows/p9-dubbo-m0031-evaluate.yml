@@ -142,7 +142,8 @@ jobs:
           SWE_MILESTONE_IMAGE_TAG: v1.0.2
         run: |
           set -euo pipefail
-          python -m pip install -q -e ./harness-src
+          python -m pip install --require-hashes -q -r audit/locks/swe-milestone-base.txt
+          export PYTHONPATH="$PWD/harness-src${PYTHONPATH:+:$PYTHONPATH}"
           cfg="data/config/$REPO_ID.yaml"
           cfg_sha=$(sha256sum "$cfg" | awk '{print $1}')
           set +e
