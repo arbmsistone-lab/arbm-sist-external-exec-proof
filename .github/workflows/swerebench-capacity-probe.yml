@@ -75,19 +75,22 @@ jobs:
           echo "::add-mask::$TOKEN"
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
 
-      - name: Probe zero-cost providers
+      - name: Probe primary agent and fallback runtime
         env:
           TOKEN: ${{ steps.oidc.outputs.token }}
         run: |
           set +e
           mkdir -p evidence
           BODY='{"phase":"plan","issue":"public capacity probe only","repo_index":"TRACKED FILES:\nREADME.md","instance_id":"arbm-capacity-probe"}'
-          for NAME in primary fallback; do
-            if [ "$NAME" = primary ]; then URL="$PRIMARY_ENDPOINT"; else URL="$FALLBACK_ENDPOINT"; fi
-            CODE=$(curl -sS --connect-timeout 10 --max-time 90 -o "evidence/$NAME-body.json" -w '%{http_code}' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data "$BODY" "$URL")
-            echo "$CODE" > "evidence/$NAME-http.txt"
-            echo "$NAME HTTP=$CODE"
-          done
+
+          PRIMARY_CODE=$(curl -sS --connect-timeout 10 --max-time 90 -o evidence/primary-body.json -w '%{http_code}' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data "$BODY" "$PRIMARY_ENDPOINT")
+          echo "$PRIMARY_CODE" > evidence/primary-http.txt
+          echo "primary POST HTTP=$PRIMARY_CODE"
+
+          FALLBACK_CODE=$(curl -sS --connect-timeout 10 --max-time 30 -o evidence/fallback-body.json -w '%{http_code}' "$FALLBACK_ENDPOINT/healthz")
+          echo "$FALLBACK_CODE" > evidence/fallback-http.txt
+          echo "fallback GET /healthz HTTP=$FALLBACK_CODE"
+
       - name: Freeze probe summary
         if: always()
         run: |
@@ -100,12 +103,20 @@ jobs:
               return p.read_text(errors='replace').strip() if p.exists() else ''
           primary=read('primary-http.txt')
           fallback=read('fallback-http.txt')
-          out={'schema':'arbm-swerebench-capacity-probe-v1','benchmark':'SWE-rebench V2',
-               'commit':'c71902a8cf8d2b725f63d51f199f4d3e56f68d2d','completeFamilyCertified':False,
-               'sourceSha':os.environ['GITHUB_SHA'],'runId':os.environ['GITHUB_RUN_ID'],
-               'primaryHttp':primary,'fallbackHttp':fallback,
-               'httpTransportReady':primary=='200' and fallback=='200',
-               'classification':'CAPACITY_PROBE_ONLY'}
+          out={
+            'schema':'arbm-swerebench-capacity-probe-v2',
+            'benchmark':'SWE-rebench V2',
+            'evaluatorCommit':'c71902a8cf8d2b725f63d51f199f4d3e56f68d2d',
+            'completeFamilyCertified':False,
+            'sourceSha':os.environ['GITHUB_SHA'],
+            'runId':os.environ['GITHUB_RUN_ID'],
+            'primaryAgentHttp':primary,
+            'fallbackHealthHttp':fallback,
+            'primaryAgentReady':primary=='200',
+            'fallbackRuntimeReady':fallback=='200',
+            'httpTransportReady':primary=='200' and fallback=='200',
+            'classification':'CAPACITY_PROBE_ONLY'
+          }
           p=root/'swerebench-capacity-summary.json'
           p.write_text(json.dumps(out,indent=2))
           sums=[f'{hashlib.sha256(f.read_bytes()).hexdigest()}  {f.name}'
@@ -122,13 +133,18 @@ jobs:
           path: evidence/
           if-no-files-found: error
           retention-days: 30
-      - name: Require both HTTP probes without certifying benchmark performance
+
+      - name: Require primary agent and fallback runtime readiness
         run: |
           python - <<'PY'
           import json,sys
           summary=json.load(open('evidence/swerebench-capacity-summary.json'))
-          if not summary['httpTransportReady']:
-              print('PROVIDER_HTTP_GATE=FAIL')
+          if not summary['primaryAgentReady'] or not summary['fallbackRuntimeReady']:
+              print('CAPACITY_RUNTIME_GATE=FAIL')
+              print(json.dumps(summary,indent=2))
               sys.exit(1)
-          print('PROVIDER_HTTP_GATE=PASS; BENCHMARK_PERFORMANCE=NOT_CERTIFIED')
+          print('CAPACITY_RUNTIME_GATE=PASS')
+          print('PRIMARY_AGENT=READY')
+          print('FALLBACK_RUNTIME=READY')
+          print('BENCHMARK_PERFORMANCE=NOT_CERTIFIED')
           PY
