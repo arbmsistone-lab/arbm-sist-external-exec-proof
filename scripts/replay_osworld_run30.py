@@ -1,5 +1,5 @@
 """Replay recorded run30 observations; never start OSWorld or execute GUI code."""
-import argparse,base64,json,re,hashlib,sys
+import argparse,base64,json,re,hashlib
 from pathlib import Path
 from osworld_control import Verifier,canonical_action,pack_payload
 
