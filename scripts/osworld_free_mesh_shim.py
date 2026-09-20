@@ -372,10 +372,70 @@ def _task091_shape_text_point(window_state, row, hint_x, hint_y, tolerance=32):
             'shape_center_cx':int(box['cx']),'shape_center_cy':int(box['cy']),
             'hint_x':hx,'hint_y':hy}
 
+def _task091_drift_safe_text_point(window_state, row, hint_x, hint_y, recovery_attempt=0):
+    """Project a stale historical hint into the interior of the proven text shape.
+
+    A drifted hint must never be clamped to the shape edge: WPS can interpret an
+    edge hit as object selection rather than text editing. Keep the hint's
+    horizontal side, prefer the vertical text band, and move boundedly inward on
+    a retry. This is geometry-only and remains scoped to the exact proven shape.
+    """
+    box=_task091_shape_bbox(window_state,row)
+    if box is None or hint_x is None or hint_y is None:
+        return None
+    hx=int(hint_x); hy=int(hint_y)
+    left=int(box['x']); top=int(box['y'])
+    width=int(box['w']); height=int(box['h'])
+    right=left+width-1; bottom=top+height-1
+    max_inset_x=max(0,(width-1)//3)
+    max_inset_y=max(0,(height-1)//3)
+    inset_x=min(max_inset_x,max(4,min(32,max(1,width//10))))
+    inset_y=min(max_inset_y,max(2,min(10,max(1,height//4))))
+    lo_x=left+inset_x; hi_x=right-inset_x
+    lo_y=top+inset_y; hi_y=bottom-inset_y
+    if lo_x>hi_x or lo_y>hi_y:
+        return None
+    if hx < left:
+        tx=lo_x
+    elif hx > right:
+        tx=hi_x
+    else:
+        tx=min(max(hx,lo_x),hi_x)
+    if hy < top or hy > bottom:
+        ty=top+height//2
+    else:
+        ty=min(max(hy,lo_y),hi_y)
+    retry=max(0,min(2,int(recovery_attempt or 0)))
+    if retry:
+        step=max(4,min(18,max(1,width//16)))
+        center=int(box['cx'])
+        if tx <= center:
+            tx=min(hi_x,tx+step*retry)
+        else:
+            tx=max(lo_x,tx-step*retry)
+    return {'shape':row,'cx':int(tx),'cy':int(ty),
+            'shape_bbox':[left,top,width,height],
+            'shape_center_cx':int(box['cx']),'shape_center_cy':int(box['cy']),
+            'hint_x':hx,'hint_y':hy,'recovery_attempt':retry}
+
+
 def _task091_shape_point(window_state, slide, old, hint_x=None, hint_y=None):
     row=_task091_shape_for_old(window_state,slide,old,hint_x,hint_y)
     if row is None:
         return None
+    if str(row.get('kind') or '') == 'table-cell':
+        box=_task091_shape_bbox(window_state,row)
+        if box is None:
+            return None
+        cx=int(box['cx']); cy=int(box['cy'])
+        hx=int(hint_x) if hint_x is not None else cx
+        hy=int(hint_y) if hint_y is not None else cy
+        return {'shape':row,'cx':cx,'cy':cy,
+                'shape_bbox':[int(box['x']),int(box['y']),int(box['w']),int(box['h'])],
+                'shape_center_cx':cx,'shape_center_cy':cy,
+                'hint_x':hx,'hint_y':hy,
+                'selection_basis':'pptx-table-cell-geometry',
+                'hint_drift':int(max(abs(cx-hx),abs(cy-hy)))}
     point=_task091_shape_text_point(window_state,row,hint_x,hint_y)
     if point is not None:
         point['selection_basis']='hint-within-tolerance'
@@ -404,8 +464,7 @@ def _task091_shape_point(window_state, slide, old, hint_x=None, hint_y=None):
     right=left+int(box['w'])-1; bottom=top+int(box['h'])-1
     dx=(left-hx) if hx<left else ((hx-right) if hx>right else 0)
     dy=(top-hy) if hy<top else ((hy-bottom) if hy>bottom else 0)
-    point=_task091_shape_text_point(window_state,row,hint_x,hint_y,
-                                    tolerance=max(dx,dy))
+    point=_task091_drift_safe_text_point(window_state,row,hint_x,hint_y)
     if point is None:
         return None
     point['selection_basis']='unique-exact-pptx-geometry'
@@ -587,6 +646,21 @@ def _task091_verify_pending(observation,pending,window_state):
     expected_shape=_task091_shape_by_id(window_state,slide,expected_shape_id)
     exact_shape_text=(isinstance(expected_shape,dict)
                       and str(expected_shape.get('text') or '')==str(pending.get('new') or ''))
+    current_sibling_signature=_task091_other_shapes_signature(window_state,slide,expected_shape_id)
+    before_sibling_signature=str(pending.get('before_sibling_signature') or '')
+    collateral_mutation=(disk_mutated
+                         and isinstance(expected_shape,dict)
+                         and str(expected_shape.get('text') or '')==str(pending.get('old') or '')
+                         and bool(before_sibling_signature)
+                         and current_sibling_signature != before_sibling_signature)
+    if collateral_mutation:
+        return False,'collateral-mutation',{'source':'target-pptx','slide':slide,
+                                           'shape_id':expected_shape_id,
+                                           'sha256_before':before_sha,'sha256_after':after_sha,
+                                           'actual_shape_text':str(expected_shape.get('text') or ''),
+                                           'expected_shape_text':str(pending.get('new') or ''),
+                                           'sibling_signature_before':before_sibling_signature,
+                                           'sibling_signature_after':current_sibling_signature}
     disk_verified=(disk_mutated and repair_persisted
                    and before_old > 0 and after_old < before_old and after_new > before_new
                    and exact_shape_text)
@@ -716,7 +790,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
         pending=state.get('pending_edit')
         if isinstance(pending,dict):
             stage=str(pending.get('stage') or '')
-            if stage in ('select-issued','reselect-required'):
+            if stage in ('select-issued','table-select-issued','table-cell-enter-issued','reselect-required'):
                 interrupts=int(pending.get('selection_interrupts') or 0)+1
                 pending['selection_interrupts']=interrupts
                 if interrupts > 3:
@@ -799,6 +873,8 @@ def next_091_specialist_action(instruction, active_application, observation, sta
         stage=pending.get('stage')
         state['mode']={'reselect-required':'TARGET_RESELECT_REQUIRED',
                        'select-issued':'TARGET_SELECTION_PENDING',
+                       'table-select-issued':'TARGET_TABLE_SELECTED_PENDING',
+                       'table-cell-enter-issued':'TARGET_CELL_TEXTMODE_PENDING',
                        'edit-issued':'TARGET_EDITING',
                        'commit-issued':'TARGET_COMMITTED','save-issued':'TARGET_VERIFYING',
                        'repair-reselect-required':'TARGET_RESELECT_REQUIRED',
@@ -815,8 +891,14 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
             if shape is None or _task091_norm(pending.get('old')) not in _task091_norm(shape.get('text')):
                 return _task091_terminal('TASK091_RESELECT_SHAPE_DRIFT',state)
-            point=_task091_shape_point(window_state,pending['slide'],pending['old'],
-                                       pending.get('text_hint_x'),pending.get('text_hint_y'))
+            recovery_attempt=int(pending.get('selection_recovery_attempts') or 0)
+            if recovery_attempt:
+                point=_task091_drift_safe_text_point(
+                    window_state,shape,pending.get('text_hint_x'),pending.get('text_hint_y'),
+                    recovery_attempt=recovery_attempt)
+            else:
+                point=_task091_shape_point(window_state,pending['slide'],pending['old'],
+                                           pending.get('text_hint_x'),pending.get('text_hint_y'))
             if point is None or int(point['shape'].get('id') or 0) != int(pending.get('shape_id') or 0):
                 return _task091_terminal('TASK091_RESELECT_GEOMETRY_UNPROVEN',state)
             cx=int(point['cx']); cy=int(point['cy'])
@@ -836,13 +918,83 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             pending['text_hit_y']=cy
             pending['selection_before_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
             pending['selection_foreground_sha256']=target['foreground_sha256']
-            pending['stage']='select-issued'
-            command=f"pyautogui.doubleClick({cx}, {cy}, interval=0.08)"
+            is_table_cell=str(shape.get('kind') or '') == 'table-cell'
+            pending['stage']='table-select-issued' if is_table_cell else 'select-issued'
+            command=(f"pyautogui.click({cx}, {cy})" if is_table_cell
+                     else f"pyautogui.doubleClick({cx}, {cy}, interval=0.08)")
             pending['selection_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
                     'target':target,
-                    'plan':'Re-select the exact PPTX shape after transient invalidated the previous unacknowledged selection.',
-                    'specialist_phase':'reselect-pending-target'}
+                    'plan':('Re-select the exact table cell container before a separately observed text-entry click.'
+                            if is_table_cell else
+                            'Re-select the exact PPTX shape after transient invalidated the previous unacknowledged selection.'),
+                    'specialist_phase':('table-reselect-container' if is_table_cell else 'reselect-pending-target')}
+        if stage == 'table-select-issued':
+            current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
+            current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
+            current_fg=_task091_foreground_sha(window_state)
+            current_shot=str(window_state.get('screenshot_sha256') or '')
+            before_shot=str(pending.get('selection_before_screenshot_sha256') or pending.get('before_screenshot_sha256') or '')
+            shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
+            siblings=_task091_other_shapes_signature(window_state,pending['slide'],pending.get('shape_id'))
+            ack=(current_sha == str(pending.get('before_deck_sha256') or '')
+                 and int(window_state.get('active_slide') or 0) == int(pending.get('slide') or 0)
+                 and shape is not None
+                 and str(shape.get('kind') or '') == 'table-cell'
+                 and str(shape.get('text') or '') == str(pending.get('old') or '')
+                 and siblings == str(pending.get('before_sibling_signature') or '')
+                 and len(current_fg)==64
+                 and current_fg == str(pending.get('selection_foreground_sha256') or '')
+                 and len(current_shot)==64 and len(before_shot)==64 and current_shot != before_shot)
+            if not ack:
+                return _task091_terminal('TASK091_TABLE_SELECTION_NOT_ACKNOWLEDGED',state)
+            pending['table_selected_screenshot_sha256']=current_shot
+            pending['table_selected_sibling_signature']=siblings
+            pending['stage']='table-cell-enter-issued'
+            cx=int(pending.get('text_hit_x') or 0); cy=int(pending.get('text_hit_y') or 0)
+            command=f"pyautogui.click({cx}, {cy})"
+            pending['cell_enter_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+            stored=pending.get('target') if isinstance(pending.get('target'),dict) else {}
+            bbox=stored.get('bbox') if isinstance(stored.get('bbox'),list) else []
+            if len(bbox)!=4:
+                return _task091_terminal('TASK091_TABLE_CANONICAL_PROOF_MISSING',state)
+            action_target={'source':'task091-pptx-canonical','label':stored.get('label'),
+                           'role':stored.get('role'),'slide':stored.get('slide'),
+                           'x':int(bbox[0]),'y':int(bbox[1]),'w':int(bbox[2]),'h':int(bbox[3]),
+                           'cx':int(stored.get('cx') or 0),'cy':int(stored.get('cy') or 0),
+                           'foreground_sha256':stored.get('foreground_sha256'),
+                           'deck_sha256':stored.get('deck_sha256'),
+                           'proof_sha256':stored.get('proof_sha256')}
+            return {'action':'exec','command':command,
+                    'target':action_target,
+                    'plan':'The table container is positively selected; issue one separate click into the exact cell and observe again before any text key.',
+                    'specialist_phase':'enter-table-cell-text-mode'}
+        if stage == 'table-cell-enter-issued':
+            current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
+            current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
+            current_shot=str(window_state.get('screenshot_sha256') or '')
+            table_shot=str(pending.get('table_selected_screenshot_sha256') or '')
+            shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
+            siblings=_task091_other_shapes_signature(window_state,pending['slide'],pending.get('shape_id'))
+            ack=(current_sha == str(pending.get('before_deck_sha256') or '')
+                 and int(window_state.get('active_slide') or 0) == int(pending.get('slide') or 0)
+                 and shape is not None
+                 and str(shape.get('kind') or '') == 'table-cell'
+                 and str(shape.get('text') or '') == str(pending.get('old') or '')
+                 and siblings == str(pending.get('before_sibling_signature') or '')
+                 and siblings == str(pending.get('table_selected_sibling_signature') or '')
+                 and len(current_shot)==64 and len(table_shot)==64 and current_shot != table_shot)
+            if not ack:
+                return _task091_terminal('TASK091_TABLE_CELL_TEXT_MODE_UNPROVEN',state)
+            pending['selected_screenshot_sha256']=current_shot
+            pending['selection_ack_foreground_sha256']=_task091_foreground_sha(window_state)
+            pending['explicit_text_mode']=True
+            pending['stage']='edit-issued'
+            command=_task091_write_command(pending['new'], ensure_text_mode=False)
+            pending['action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+            return {'action':'exec','command':command,
+                    'plan':f"Edit the twice-observed exact table cell from {pending['old']!r} to {pending['new']!r}; sibling signature is unchanged.",
+                    'specialist_phase':'edit-proven-table-cell','expected_change':pending['new']}
         if stage == 'select-issued':
             current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
             current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
@@ -991,6 +1143,8 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 return {'action':'checkpoint','checkpoint':checkpoint,
                         'slide':pending['slide'],'old':pending['old'],'new':pending['new'],
                         'target':new_hit,'specialist_phase':'verify-pending-target'}
+            if status=='collateral-mutation':
+                return _task091_terminal('TASK091_COLLATERAL_EDIT_DETECTED',state)
             if status=='disk-text-mismatch' and int(pending.get('repair_steps') or pending.get('repair_attempts') or 0)==0:
                 selected=str(pending.get('selected_screenshot_sha256') or '')
                 edited=str(pending.get('edited_screenshot_sha256') or '')
@@ -1001,6 +1155,26 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             attempts=int(pending.get('verify_attempts') or 0)+1
             pending['verify_attempts']=attempts
             if attempts>=2:
+                current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
+                current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
+                expected_shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
+                unchanged_target=(len(current_sha)==64
+                                  and current_sha==str(pending.get('before_deck_sha256') or '')
+                                  and isinstance(expected_shape,dict)
+                                  and str(expected_shape.get('text') or '')==str(pending.get('old') or ''))
+                if status!='disk-text-mismatch' and unchanged_target:
+                    recoveries=int(pending.get('selection_recovery_attempts') or 0)
+                    if recoveries>=2:
+                        return _task091_terminal('TASK091_TEXT_SELECTION_UNPROVEN',state)
+                    pending['selection_recovery_attempts']=recoveries+1
+                    pending['selection_ack_attempts']=0
+                    pending['verify_attempts']=0
+                    pending['stage']='reselect-required'
+                    pending.pop('selected_screenshot_sha256',None)
+                    pending.pop('selection_ack_foreground_sha256',None)
+                    return {'action':'exec','command':"pyautogui.sleep(0.2)",
+                            'plan':'The deck and exact target text stayed unchanged after save; invalidate the visual-only selection ACK and retry a bounded interior text hit.',
+                            'specialist_phase':'recover-nonpersisted-text-selection'}
                 reason='TASK091_EDIT_TEXT_CORRUPTED' if status=='disk-text-mismatch' else 'TASK091_EDIT_NOT_VERIFIED'
                 return _task091_terminal(reason,state)
             return {'action':'exec','command':"pyautogui.sleep(0.2)",
@@ -1051,9 +1225,13 @@ def next_091_specialist_action(instruction, active_application, observation, sta
 
         state['target_retries']=0
         state['mode']='TARGET_VISIBLE'
-        command=f"pyautogui.doubleClick({int(target['cx'])}, {int(target['cy'])}, interval=0.08)"
+        is_table_cell=str(shape.get('kind') or '') == 'table-cell'
+        command=(f"pyautogui.click({int(target['cx'])}, {int(target['cy'])})"
+                 if is_table_cell else
+                 f"pyautogui.doubleClick({int(target['cx'])}, {int(target['cy'])}, interval=0.08)")
         state['pending_edit']={
-            'slide':slide,'old':old,'new':new,'stage':'select-issued',
+            'slide':slide,'old':old,'new':new,
+            'stage':('table-select-issued' if is_table_cell else 'select-issued'),
             'target':{'label':target['label'],'role':target['role'],
                       'bbox':[target['x'],target['y'],target['w'],target['h']],
                       'cx':target['cx'],'cy':target['cy'],'source':source,
@@ -1061,6 +1239,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                       'deck_sha256':target.get('deck_sha256'),'proof_sha256':target.get('proof_sha256')},
             'shape_id':int(shape.get('id') or 0),
             'shape_name':str(shape.get('name') or ''),
+            'shape_kind':str(shape.get('kind') or ''),
             'shape_geometry':dict(shape.get('geometry') or {}),
             'shape_bbox':list(shape_target.get('shape_bbox') or []),
             'shape_center_cx':shape_target.get('shape_center_cx'),
@@ -1070,10 +1249,12 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             'before_old_count':before_old,'before_new_count':before_new,
             'before_deck_sha256':str((window_state.get('deck_file',{}) or {}).get('sha256','')),
             'before_screenshot_sha256':str(window_state.get('screenshot_sha256') or ''),
+            'before_sibling_signature':_task091_other_shapes_signature(window_state,slide,int(shape.get('id') or 0)),
             'selection_before_screenshot_sha256':str(window_state.get('screenshot_sha256') or ''),
             'selection_foreground_sha256':_task091_foreground_sha(window_state),
             'selection_ack_attempts':0,
             'selection_interrupts':0,
+            'selection_recovery_attempts':0,
             'before_observation_hash':hashlib.sha256(str(observation or '').encode()).hexdigest(),
             'action_command_hash':hashlib.sha256(command.encode()).hexdigest(),
             'verify_attempts':0,
@@ -1085,8 +1266,10 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                                    'deck_sha256','proof_sha256')})
         return {'action':'exec','command':command,
                 'target':action_target,
-                'plan':f'Select the signed Task 091 point derived from the unique target-PPTX shape geometry for {old!r} on slide {slide}.',
-                'specialist_phase':'select-pending-target'}
+                'plan':(f'Select the exact table containing {old!r}; text entry requires a second separately observed cell click.'
+                        if is_table_cell else
+                        f'Select the signed Task 091 point derived from the unique target-PPTX shape geometry for {old!r} on slide {slide}.'),
+                'specialist_phase':('select-table-container' if is_table_cell else 'select-pending-target')}
 
     if state.get('pending_edit'):
         return _task091_terminal('TASK091_EDIT_NOT_COMMITTED',state)
