@@ -845,6 +845,77 @@ class TraceTests(unittest.TestCase):
             verify_trace(self.root, SHA, '10', '1')
 
 
+class Task091FinalAtomicTableCellTests(unittest.TestCase):
+    def _deck(self, shot='1'):
+        return {
+          'schema':1,'stable':True,
+          'window':{'id':12582927,'pid':2594,
+                    'title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Office',
+                    'owner_title':'','wm_class':'wpsoffice wpsoffice','bbox':[70,27,1850,1053]},
+          'screen':[0,0,1920,1080],
+          'active_slide':3,
+          'screenshot_sha256':shot*64,
+          'deck_slide_text':{'3':'KPI Scorecard ARR $39.6M $42.8M Repeated metrics $42.8M'},
+          'deck_slide_shapes':{'3':[
+              {'id':-13000001,'kind':'table-cell','frame_id':13,'row':0,'col':0,
+               'name':'Table 12#r0c0','text':'Metric',
+               'geometry':{'x':749808,'y':1481328,'w':1563624,'h':607422}},
+              {'id':-13001003,'kind':'table-cell','frame_id':13,'row':1,'col':2,
+               'name':'Table 12#r1c2','text':'$42.8M',
+               'geometry':{'x':3877056,'y':2088750,'w':1563624,'h':607422}},
+              {'id':16,'kind':'shape','name':'KpiReadout_Body',
+               'text':'• ARR and NRR are both positioned as ahead of plan in the current draft.\\n• Headcount plan still assumes 5 Growth Ops hires land in H2.\\n• Burn improvement relies on expansion payback from Q4.',
+               'geometry':{'x':9034272,'y':1883664,'w':2148840,'h':1353312}},
+          ]},
+          'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                       'sha256':'a'*64,'size':113361,'mtime_ns':1,
+                       'slide_size':{'w':12191365,'h':6858000}},
+        }
+
+    def _task(self):
+        return ('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
+                'The COO has asked you to rebaseline the H2 Operating Committee pack. '
+                'The draft deck Operating_Committee_Rebaseline_Draft.pptx is already open. '
+                'Reforecast_Model_H2.xlsx is the source of truth.')
+
+    def test_table_cell_requires_two_observed_clicks_before_writer(self):
+        with patch.dict(os.environ,{'TASK_ID':'091'},clear=False):
+            state={'anchored':True,'slide':3,'spatial_index':10}
+            deck=self._deck('1')
+            first=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(deck))
+            self.assertEqual(first['command'],'pyautogui.click(983, 471)')
+            self.assertEqual(first['specialist_phase'],'select-table-container')
+            self.assertEqual(state['pending_edit']['stage'],'table-select-issued')
+            self.assertNotIn("ctrl', 'a",first['command'])
+
+            table_selected=self._deck('2')
+            second=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(table_selected))
+            self.assertEqual(second['command'],'pyautogui.click(983, 471)')
+            self.assertEqual(second['specialist_phase'],'enter-table-cell-text-mode')
+            self.assertEqual(state['pending_edit']['stage'],'table-cell-enter-issued')
+            self.assertNotIn("ctrl', 'a",second['command'])
+            self.assertEqual(second['target']['proof_sha256'],
+                             state['pending_edit']['target']['proof_sha256'])
+
+            cell_text_mode=self._deck('3')
+            third=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(cell_text_mode))
+            self.assertEqual(third['specialist_phase'],'edit-proven-table-cell')
+            self.assertEqual(state['pending_edit']['stage'],'edit-issued')
+            self.assertTrue(state['pending_edit']['explicit_text_mode'])
+            self.assertTrue(third['command'].startswith("pyautogui.hotkey('ctrl', 'a')"))
+
+    def test_table_cell_sibling_drift_blocks_second_click(self):
+        with patch.dict(os.environ,{'TASK_ID':'091'},clear=False):
+            state={'anchored':True,'slide':3,'spatial_index':10}
+            deck=self._deck('1')
+            shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(deck))
+            drift=self._deck('2')
+            drift['deck_slide_shapes']['3'][0]['text']='CORRUPTED'
+            result=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,drift)
+            self.assertEqual(result['action'],'terminal')
+            self.assertEqual(result['reason'],'TASK091_TABLE_SELECTION_NOT_ACKNOWLEDGED')
+
+
 if __name__ == '__main__':
     unittest.main()
 
