@@ -136,6 +136,7 @@ def upload(server, source, destination, execute=None, sleep=time.sleep):
                 LOG.warning('VM_UPLOAD_RETRY mode=%s offset=%s attempt=%s error=%s',
                             mode, offset, attempt + 1, type(exc).__name__)
                 sleep(attempt + 1)
+        raise UploadError('VM_UPLOAD_RETRY_EXHAUSTED')
 
     begun = False
     try:
