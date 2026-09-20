@@ -109,7 +109,6 @@ def _dialog_button(obs, dialog_name, button_name):
             inside=cols[1].replace('\u200b','').strip().casefold()==dialog_name.casefold()
             continue
         if inside and len(cols)>=7 and cols[0].strip().casefold()=='push-button' and cols[1].replace('\u200b','').strip().casefold()==button_name.casefold():
-            import re
             xy=re.findall(r'-?\d+',cols[-2]); wh=re.findall(r'\d+',cols[-1])
             if len(xy)==2 and len(wh)==2:
                 x,y=map(int,xy); w,h=map(int,wh)
@@ -117,12 +116,10 @@ def _dialog_button(obs, dialog_name, button_name):
     return None
 
 def _baseline_script(task):
-    output_path = '/home/user/Pictures/' + task['output']
     return f"""import json, os, time\np={output_path!r}\nnow=time.time_ns()\nexists=os.path.exists(p)\nsize=0\nmtime_ns=0\nif exists:\n st=os.stat(p); size=st.st_size; mtime_ns=st.st_mtime_ns\nbase={{'captured_ns':now,'exists':bool(exists),'size':int(size),'mtime_ns':int(mtime_ns)}}\nopen('/tmp/arbm061-export-baseline.json','w',encoding='utf-8').write(json.dumps(base,sort_keys=True))\nprint(f'ARBM061_EXPORT_BASELINE_READY exists={{int(exists)}} size={{size}} mtime_ns={{mtime_ns}} captured_ns={{now}}',flush=True)\n"""
 
 
 def _verify_script(task):
-    output_path = '/home/user/Pictures/' + task['output']
     return f"""import hashlib, json, os, time\np={output_path!r}\nbase_path='/tmp/arbm061-export-baseline.json'\nif not os.path.exists(base_path):\n print('ARBM061_GIMP_EXPORT_PROVENANCE_FAIL BASELINE_MISSING',flush=True); raise SystemExit(7)\nbase=json.load(open(base_path,encoding='utf-8'))\nfor _ in range(5):\n if os.path.exists(p):\n  st=os.stat(p)\n  fresh=(not base.get('exists')) or st.st_mtime_ns>int(base.get('mtime_ns') or 0)\n  after_capture=st.st_mtime_ns>=int(base.get('captured_ns') or 0)\n  if st.st_size>1024 and fresh and after_capture:\n   raw=open(p,'rb').read(); sha=hashlib.sha256(raw).hexdigest()\n   print(f'ARBM061_GIMP_EXPORT_PROVENANCE_SUCCESS size={{st.st_size}} mtime_ns={{st.st_mtime_ns}} sha256={{sha}}',flush=True)\n   raise SystemExit(0)\n time.sleep(1)\nprint('ARBM061_GIMP_EXPORT_PROVENANCE_FAIL PHYSICAL_FILE_UNPROVEN',flush=True)\nraise SystemExit(8)\n"""
 
 
@@ -250,7 +247,6 @@ def next_recovery_action(instruction, active_application, observation, state):
         state['colorize_closing'] = False
         state['colorize_closed'] = True
 
-    output_path = '/home/user/Pictures/' + task['output']
     if state.get('colorize_closed'):
         if not state.get('export_baseline_captured'):
             return _terminal_script_action(_baseline_script(task),
