@@ -878,13 +878,14 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
                 'The draft deck Operating_Committee_Rebaseline_Draft.pptx is already open. '
                 'Reforecast_Model_H2.xlsx is the source of truth.')
 
-    def test_table_cell_requires_caret_blink_before_bounded_writer(self):
+    def test_table_cell_requires_geometric_caret_before_bounded_writer(self):
         with patch.dict(os.environ,{'TASK_ID':'091'},clear=False), \
-             patch.object(shim,'_task091_region_sha256',side_effect=[
-                 'a'*64, 'b'*64,
-                 'c'*64, 'b'*64,
-                 'd'*64, 'b'*64]), \
-             patch.object(shim,'_task091_table_visual_signature',return_value='b'*64):
+             patch.object(shim,'_task091_region_sha256',return_value='a'*64), \
+             patch.object(shim,'_task091_table_visual_signature',return_value='b'*64), \
+             patch.object(shim,'_task091_caret_delta_geometry',
+                          return_value={'proven':True,'reason':'caret-geometry',
+                                        'count':22,'width':1,'height':22,
+                                        'dominant_column':22,'bbox':[91,3,1,22]}):
             state={'anchored':True,'slide':3,'spatial_index':10}
             deck=self._deck('1')
             first=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(deck))
@@ -901,18 +902,13 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
 
             cell_entered=self._deck('3')
             third=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(cell_entered))
-            self.assertEqual(third['command'],'pyautogui.sleep(0.45)')
-            self.assertEqual(third['specialist_phase'],'prove-table-cell-caret-blink')
-            self.assertEqual(state['pending_edit']['stage'],'table-caret-blink-wait')
-
-            blinked=self._deck('4')
-            fourth=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(blinked))
-            self.assertEqual(fourth['specialist_phase'],'edit-caret-proven-table-cell')
+            self.assertEqual(third['specialist_phase'],'edit-geometry-proven-table-cell')
             self.assertEqual(state['pending_edit']['stage'],'edit-issued')
             self.assertTrue(state['pending_edit']['explicit_text_mode'])
-            self.assertNotIn("ctrl', 'a",fourth['command'])
-            self.assertTrue(fourth['command'].startswith("pyautogui.press('end')"))
-            self.assertIn("backspace', presses=6",fourth['command'])
+            self.assertEqual(state['pending_edit']['caret_geometry']['width'],1)
+            self.assertNotIn("ctrl', 'a",third['command'])
+            self.assertTrue(third['command'].startswith("pyautogui.press('end')"))
+            self.assertIn("backspace', presses=6",third['command'])
 
     def test_table_cell_sibling_drift_blocks_second_click(self):
         with patch.dict(os.environ,{'TASK_ID':'091'},clear=False):
