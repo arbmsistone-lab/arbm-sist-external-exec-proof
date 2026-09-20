@@ -5,11 +5,10 @@ only for explicit loopback communication used by local OSWorld services.
 """
 from __future__ import annotations
 
-import http.client
+import requests
 import ipaddress
 import json
 import socket
-import ssl
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
@@ -97,42 +96,71 @@ def validate_url(url: str, *, allowed_hosts=(), allow_loopback_http=False, allow
     return scheme, host, int(port), path
 
 
+def _resolved_addresses_are_safe(host: str, port: int, *, permit_private=False):
+    if _is_loopback(host):
+        return True
+    try:
+        infos=socket.getaddrinfo(host,port,type=socket.SOCK_STREAM)
+    except socket.gaierror as exc:
+        raise ValueError("SAFE_HTTP_DNS_UNRESOLVED") from exc
+    addresses={item[4][0] for item in infos}
+    if not addresses:
+        raise ValueError("SAFE_HTTP_DNS_EMPTY")
+    for raw in addresses:
+        try:
+            ip=ipaddress.ip_address(raw)
+        except ValueError as exc:
+            raise ValueError("SAFE_HTTP_DNS_INVALID") from exc
+        if not permit_private and (
+            ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast
+            or ip.is_reserved or ip.is_unspecified
+        ):
+            raise ValueError("SAFE_HTTP_DNS_PRIVATE_ADDRESS")
+    return True
+
+
 def request(url: str, *, method="GET", data=None, headers=None, timeout=30,
             allowed_hosts=(), allow_loopback_http=False, allow_private_http=False,
             max_bytes=8_000_000, raise_for_status=True):
-    scheme, host, port, path = validate_url(
+    scheme, host, port, _path = validate_url(
         url, allowed_hosts=allowed_hosts, allow_loopback_http=allow_loopback_http,
         allow_private_http=allow_private_http)
     timeout = max(1.0, min(float(timeout), 180.0))
     max_bytes = max(1, min(int(max_bytes), 32_000_000))
     payload = None if data is None else bytes(data)
     safe_headers = {str(k): str(v) for k, v in dict(headers or {}).items()}
-    safe_headers.setdefault("User-Agent", "arbm-sist-safe-http/1")
-    connection = None
+    safe_headers.setdefault("User-Agent", "arbm-sist-safe-http/2")
+    permit_private=bool(allow_loopback_http or allow_private_http)
+    _resolved_addresses_are_safe(host,port,permit_private=permit_private)
+    session=requests.Session()
+    session.trust_env=False
     try:
-        if scheme == "https":
-            connection = http.client.HTTPSConnection(
-                host, port, timeout=timeout, context=ssl.create_default_context())
-        else:
-            connection = http.client.HTTPConnection(host, port, timeout=timeout)
-        connection.request(str(method or "GET").upper(), path, body=payload, headers=safe_headers)
-        response = connection.getresponse()
-        body = response.read(max_bytes + 1)
-        if len(body) > max_bytes:
-            raise ValueError("SAFE_HTTP_RESPONSE_TOO_LARGE")
-        result = SafeResponse(
-            status=int(response.status), body=body,
-            headers={str(k).casefold(): str(v) for k, v in response.getheaders()})
-        if 300 <= result.status < 400:
+        response=session.request(
+            str(method or "GET").upper(),str(url),data=payload,headers=safe_headers,
+            timeout=(min(timeout,15.0),timeout),allow_redirects=False,stream=True,verify=True)
+        if 300 <= int(response.status_code) < 400:
             raise ValueError("SAFE_HTTP_REDIRECT_FORBIDDEN")
+        chunks=[]; size=0
+        for chunk in response.iter_content(chunk_size=65536):
+            if not chunk:
+                continue
+            size += len(chunk)
+            if size > max_bytes:
+                raise ValueError("SAFE_HTTP_RESPONSE_TOO_LARGE")
+            chunks.append(chunk)
+        body=b"".join(chunks)
+        result=SafeResponse(
+            status=int(response.status_code),body=body,
+            headers={str(k).casefold():str(v) for k,v in response.headers.items()})
         if raise_for_status and result.status >= 400:
-            raise SafeHTTPError(result.status, result.body, url)
+            raise SafeHTTPError(result.status,result.body,url)
         return result
-    except (socket.timeout, TimeoutError):
-        raise TimeoutError("SAFE_HTTP_TIMEOUT")
+    except requests.Timeout as exc:
+        raise TimeoutError("SAFE_HTTP_TIMEOUT") from exc
+    except requests.RequestException as exc:
+        raise OSError("SAFE_HTTP_TRANSPORT_ERROR") from exc
     finally:
-        if connection is not None:
-            connection.close()
+        session.close()
 
 
 def json_request(url: str, *, method="GET", payload=None, headers=None, timeout=30,
