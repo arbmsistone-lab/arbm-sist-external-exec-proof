@@ -31,7 +31,6 @@ def tabular_accessibility(tree):
 
 def resolve_import_profile_with_specialist(env, obs, evidence, state):
     tree=str((obs or {}).get('accessibility_tree') or '')
-    low=tree.casefold()
     if not profile_conversion_modal(tree):
         return obs, False
     tab=tabular_accessibility(tree)
@@ -43,7 +42,6 @@ def resolve_import_profile_with_specialist(env, obs, evidence, state):
     if target.get('source')!='accessibility' or target.get('label')!='Convert' or target.get('role')!='push-button':
         raise RuntimeError('PROFILE_MODAL_SPECIALIST_WRONG_TARGET')
     command=grounded.get('command') or ''
-    before=file_sha(evidence/'profile-before.a11y.txt') if (evidence/'profile-before.a11y.txt').is_file() else None
     obs=step(env, command, 2)
     after_tree=str((obs or {}).get('accessibility_tree') or '')
     proof={'status':'PROFILE_CONVERT_SPECIALIST_PROVEN','target':target,'command':command,
@@ -338,7 +336,7 @@ def prove_export_via_gui(env, obs, evidence):
     # Export As is already rooted in the source image folder. Select Pictures explicitly,
     # then edit the dedicated Name field (Alt+N) instead of abusing Ctrl+L.
     if has(tree,'Pictures','table-cell'):
-        obs=click(env,obs,'Pictures','table-cell',1)
+        click(env,obs,'Pictures','table-cell',1)
     obs=step(env,"pyautogui.hotkey('alt','n'); pyautogui.hotkey('ctrl','a'); pyautogui.write('"+OUTPUT+"', interval=0.02)",1)
     tree=save_obs(evidence,'81-export-name',obs)
     values=editable_text_values(tree)
@@ -350,8 +348,7 @@ def prove_export_via_gui(env, obs, evidence):
     obs=click(env,obs,'Export','push-button',2)
     for i in range(12):
         tree=save_obs(evidence,f'82-export-state-{i:02d}',obs)
-        low=tree.casefold()
-        alert=export_alert_name(tree)
+            alert=export_alert_name(tree)
         if alert:
             if alert.casefold()==TARGET.casefold():
                 raise RuntimeError('ORIGINAL_OVERWRITE_ATTEMPT_BLOCKED')
@@ -380,7 +377,7 @@ def prove_export_via_gui(env, obs, evidence):
     obs=step(env,"pyautogui.hotkey('ctrl','o')",2)
     tree=save_obs(evidence,'90-output-chooser',obs)
     if has(tree,'Pictures','table-cell'):
-        obs=click(env,obs,'Pictures','table-cell',1)
+        click(env,obs,'Pictures','table-cell',1)
         tree=save_obs(evidence,'91-output-pictures',obs)
     if not has(tree,OUTPUT,'table-cell'):
         raise RuntimeError('EXPORTED_OUTPUT_NOT_VISIBLE_IN_CHOOSER')
