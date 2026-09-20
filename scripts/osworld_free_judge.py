@@ -70,9 +70,9 @@ class Handler(BaseHTTPRequestHandler):
             print(json.dumps(event,ensure_ascii=False),flush=True)
             if not result:return self.reply(503,{'error':{'message':'ALL_DISCOVERED_FREE_JUDGE_ROUTES_UNAVAILABLE'}})
             # Return the vendor response, not a locally constructed verdict.
-            self.reply(200,response)
+            return self.reply(200,response)
         except (ValueError,KeyError,TypeError) as exc:
-            self.reply(400,{'error':{'message':str(exc)[:200]}})
+            return self.reply(400,{'error':{'message':str(exc)[:200]}})
 
 
 if __name__=='__main__':
