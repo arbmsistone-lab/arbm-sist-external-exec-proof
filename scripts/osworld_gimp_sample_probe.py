@@ -4,7 +4,7 @@ import json
 import os
 import re
 import sys
-import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as ET
 from pathlib import Path
 from osworld_gimp_style_transfer import next_recovery_action, profile_conversion_modal
 from osworld_control import ground_action
