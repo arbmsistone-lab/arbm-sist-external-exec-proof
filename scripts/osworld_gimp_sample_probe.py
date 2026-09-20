@@ -78,6 +78,7 @@ def controls(tree):
                                 'x': x, 'y': y, 'w': w, 'h': h,
                                 'cx': x + w // 2, 'cy': y + h // 2})
             return out
+    return out
 
 
 def matches(tree, label, role=None):
