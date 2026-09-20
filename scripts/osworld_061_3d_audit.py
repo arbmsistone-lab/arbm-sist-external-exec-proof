@@ -26,11 +26,15 @@ if len(sys.argv)>1:
     for p in root.rglob('result.txt'):
         if p.is_file():
             try: official_scores.append(float(p.read_text(errors='replace').strip()))
-            except ValueError:\n                # Ignore malformed historical score evidence; only valid floats are admissible.\n                pass
+            except ValueError:
+                # Ignore malformed historical score evidence; only valid floats are admissible.
+                pass
     for p in root.rglob('results.json'):
         if p.is_file():
             try: official_summaries.append(json.loads(p.read_text(errors='replace')))
-            except json.JSONDecodeError:\n                # Ignore malformed historical summary evidence; invalid JSON cannot satisfy the gate.\n                pass
+            except json.JSONDecodeError:
+                # Ignore malformed historical summary evidence; invalid JSON cannot satisfy the gate.
+                pass
 approved_sha=os.environ.get('APPROVED_FOCAL_SHA')
 candidate_sha_proven=bool(approved_sha and candidate_shas==[approved_sha])
 official_full_score=(len(official_scores)==1 and official_scores[0]==1.0)
