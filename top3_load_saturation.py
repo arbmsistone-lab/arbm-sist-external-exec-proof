@@ -1,4 +1,4 @@
-import concurrent.futures, json, os, random, statistics, time
+import concurrent.futures, json, os, time
 from pathlib import Path
 import psycopg
 
