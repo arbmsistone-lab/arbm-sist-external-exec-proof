@@ -1,4 +1,4 @@
-import argparse, json, sys
+import argparse, json
 from pathlib import Path
 from osworld_v32_policy import extract_state, enforce_policy, decision_from_agent
 import osworld_free_mesh_shim as shim
