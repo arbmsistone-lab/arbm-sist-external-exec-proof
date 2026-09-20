@@ -8,6 +8,7 @@ import hashlib
 import json
 import logging
 import time
+import urllib.error
 from arbm_safe_http import SafeHttpError, request_json
 import uuid
 from pathlib import Path
