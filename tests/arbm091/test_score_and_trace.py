@@ -507,7 +507,7 @@ class ForegroundTests(unittest.TestCase):
         fatal=shim.next_091_specialist_action(task,'WPS 2019','',interrupted_state,copy.deepcopy(transient))
         self.assertEqual(fatal['reason'],'TASK091_EDIT_INTERRUPTED_BY_TRANSIENT')
 
-    def test_task091_table_cell_uses_signed_hint_without_viewport_reprojection(self):
+    def test_task091_table_cell_uses_observed_pptx_geometry_not_stale_hint(self):
         body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2594)
         body['window']['bbox'] = [70,27,1850,1053]
         body['screen'] = [0,0,1920,1080]
@@ -521,8 +521,10 @@ class ForegroundTests(unittest.TestCase):
                              'sha256':'a'*64,'slide_size':{'w':12191365,'h':6858000}}
         point=shim._task091_shape_point(body,3,'$42.8M',843,404)
         self.assertIsNotNone(point)
-        self.assertEqual(point['selection_basis'],'signed-table-cell-hint')
-        self.assertEqual((point['cx'],point['cy']),(843,404))
+        self.assertEqual(point['selection_basis'],'pptx-table-cell-geometry')
+        self.assertEqual((point['cx'],point['cy']),(983,471))
+        self.assertEqual(point['shape_bbox'],[892,436,181,70])
+        self.assertGreater(point['hint_drift'],100)
         self.assertEqual(point['shape']['kind'],'table-cell')
 
     def test_task091_collateral_table_edit_is_detected_before_generic_verify_failure(self):
