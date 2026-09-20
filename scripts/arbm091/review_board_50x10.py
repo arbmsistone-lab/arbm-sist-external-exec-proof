@@ -40,7 +40,6 @@ def senior_reviews(actual, expected, plan, shape, before_sha, after_sha):
     check('15-expected-nonempty',bool(expected),len(expected))
     check('16-actual-differs',actual!=expected,None)
     rebuilt=list(actual)
-    delta=0
     try:
         for row in plan:
             idx=int(row['index'])
