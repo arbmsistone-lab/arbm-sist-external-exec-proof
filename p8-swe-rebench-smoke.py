@@ -4,6 +4,7 @@ from datasets import load_dataset
 from scripts.arbm_safe_http import request as safe_request, SafeHTTPError
 
 DATASET = 'ibragim-bad/SWE-rebench-V2-sample'
+DATASET_REVISION = '9a7cd16b2431fc9f0abaf4c359e21fd3fae12ae3'
 HF_OFFSET = int(os.environ.get('HF_OFFSET', '0'))
 MODEL = os.environ.get('MODEL_PATH', 'model.gguf')
 LLAMA = os.environ.get('LLAMA_CLI', './llama-cli')
@@ -772,7 +773,7 @@ def load_public_sample_with_backoff():
         if delay:
             time.sleep(delay)
         try:
-            return load_dataset(DATASET, split='train')
+            return load_dataset(DATASET, split='train', revision=DATASET_REVISION)
         except Exception as exc:
             last = exc
             msg = str(exc).lower()
