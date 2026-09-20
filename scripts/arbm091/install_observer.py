@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 EXPECTED_UPSTREAM = 'd578d2d4e0dc82b43e270fdaa7fa89d9708cd154'
-EXPECTED_BLOB = '005edd53421f5c1bf7512f3ff377ee7d9fe209aa'
+EXPECTED_RUNTIME_SHA256 = 'e51faa67be1a15b3bd35e620e4be1e97053175f9d8c02bba892ad0f17491ace6'
 HOOK = '''
 
 # ARBM_091_READ_ONLY_OBSERVER_V1: runtime instrumentation, not an evaluator patch.
@@ -26,9 +26,9 @@ def main():
         raise SystemExit('UPSTREAM_SHA_MISMATCH')
     path = root / 'desktop_env/desktop_env.py'
     raw = path.read_bytes()
-    blob = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
-    if blob != EXPECTED_BLOB:
-        raise SystemExit('UPSTREAM_RUNTIME_BLOB_CHANGED')
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest != EXPECTED_RUNTIME_SHA256:
+        raise SystemExit('UPSTREAM_RUNTIME_SHA256_CHANGED')
     text = raw.decode()
     if 'class DesktopEnv' not in text or 'import os' not in text:
         raise SystemExit('UPSTREAM_RUNTIME_CONTRACT_CHANGED')
