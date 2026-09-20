@@ -3,9 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [cert/security-load-failure-20260909]
-permissions:
-  contents: read
-  id-token: write
+permissions: read-all
 jobs:
   proof:
     runs-on: ubuntu-24.04
