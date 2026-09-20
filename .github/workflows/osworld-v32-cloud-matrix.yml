@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install pinned dependencies
-        run: python -m pip install -r scripts/requirements-osworld.txt
+        run: python -m pip install --require-hashes -r scripts/requirements-osworld.txt
       - name: Execute distinct cloud strategy
         run: python scripts/osworld_v32_cloud_matrix.py "${{ matrix.route }}"
       - name: Prove zero spend hard
