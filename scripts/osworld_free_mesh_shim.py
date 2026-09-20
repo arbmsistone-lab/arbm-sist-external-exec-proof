@@ -790,7 +790,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
         pending=state.get('pending_edit')
         if isinstance(pending,dict):
             stage=str(pending.get('stage') or '')
-            if stage in ('select-issued','reselect-required'):
+            if stage in ('select-issued','table-select-issued','table-cell-enter-issued','reselect-required'):
                 interrupts=int(pending.get('selection_interrupts') or 0)+1
                 pending['selection_interrupts']=interrupts
                 if interrupts > 3:
@@ -873,6 +873,8 @@ def next_091_specialist_action(instruction, active_application, observation, sta
         stage=pending.get('stage')
         state['mode']={'reselect-required':'TARGET_RESELECT_REQUIRED',
                        'select-issued':'TARGET_SELECTION_PENDING',
+                       'table-select-issued':'TARGET_TABLE_SELECTED_PENDING',
+                       'table-cell-enter-issued':'TARGET_CELL_TEXTMODE_PENDING',
                        'edit-issued':'TARGET_EDITING',
                        'commit-issued':'TARGET_COMMITTED','save-issued':'TARGET_VERIFYING',
                        'repair-reselect-required':'TARGET_RESELECT_REQUIRED',
@@ -916,13 +918,72 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             pending['text_hit_y']=cy
             pending['selection_before_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
             pending['selection_foreground_sha256']=target['foreground_sha256']
-            pending['stage']='select-issued'
-            command=f"pyautogui.doubleClick({cx}, {cy}, interval=0.08)"
+            is_table_cell=str(shape.get('kind') or '') == 'table-cell'
+            pending['stage']='table-select-issued' if is_table_cell else 'select-issued'
+            command=(f"pyautogui.click({cx}, {cy})" if is_table_cell
+                     else f"pyautogui.doubleClick({cx}, {cy}, interval=0.08)")
             pending['selection_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
                     'target':target,
-                    'plan':'Re-select the exact PPTX shape after transient invalidated the previous unacknowledged selection.',
-                    'specialist_phase':'reselect-pending-target'}
+                    'plan':('Re-select the exact table cell container before a separately observed text-entry click.'
+                            if is_table_cell else
+                            'Re-select the exact PPTX shape after transient invalidated the previous unacknowledged selection.'),
+                    'specialist_phase':('table-reselect-container' if is_table_cell else 'reselect-pending-target')}
+        if stage == 'table-select-issued':
+            current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
+            current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
+            current_fg=_task091_foreground_sha(window_state)
+            current_shot=str(window_state.get('screenshot_sha256') or '')
+            before_shot=str(pending.get('selection_before_screenshot_sha256') or pending.get('before_screenshot_sha256') or '')
+            shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
+            siblings=_task091_other_shapes_signature(window_state,pending['slide'],pending.get('shape_id'))
+            ack=(current_sha == str(pending.get('before_deck_sha256') or '')
+                 and int(window_state.get('active_slide') or 0) == int(pending.get('slide') or 0)
+                 and shape is not None
+                 and str(shape.get('kind') or '') == 'table-cell'
+                 and str(shape.get('text') or '') == str(pending.get('old') or '')
+                 and siblings == str(pending.get('before_sibling_signature') or '')
+                 and len(current_fg)==64
+                 and current_fg == str(pending.get('selection_foreground_sha256') or '')
+                 and len(current_shot)==64 and len(before_shot)==64 and current_shot != before_shot)
+            if not ack:
+                return _task091_terminal('TASK091_TABLE_SELECTION_NOT_ACKNOWLEDGED',state)
+            pending['table_selected_screenshot_sha256']=current_shot
+            pending['table_selected_sibling_signature']=siblings
+            pending['stage']='table-cell-enter-issued'
+            cx=int(pending.get('text_hit_x') or 0); cy=int(pending.get('text_hit_y') or 0)
+            command=f"pyautogui.click({cx}, {cy})"
+            pending['cell_enter_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+            return {'action':'exec','command':command,
+                    'target':pending.get('target'),
+                    'plan':'The table container is positively selected; issue one separate click into the exact cell and observe again before any text key.',
+                    'specialist_phase':'enter-table-cell-text-mode'}
+        if stage == 'table-cell-enter-issued':
+            current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
+            current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
+            current_shot=str(window_state.get('screenshot_sha256') or '')
+            table_shot=str(pending.get('table_selected_screenshot_sha256') or '')
+            shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
+            siblings=_task091_other_shapes_signature(window_state,pending['slide'],pending.get('shape_id'))
+            ack=(current_sha == str(pending.get('before_deck_sha256') or '')
+                 and int(window_state.get('active_slide') or 0) == int(pending.get('slide') or 0)
+                 and shape is not None
+                 and str(shape.get('kind') or '') == 'table-cell'
+                 and str(shape.get('text') or '') == str(pending.get('old') or '')
+                 and siblings == str(pending.get('before_sibling_signature') or '')
+                 and siblings == str(pending.get('table_selected_sibling_signature') or '')
+                 and len(current_shot)==64 and len(table_shot)==64 and current_shot != table_shot)
+            if not ack:
+                return _task091_terminal('TASK091_TABLE_CELL_TEXT_MODE_UNPROVEN',state)
+            pending['selected_screenshot_sha256']=current_shot
+            pending['selection_ack_foreground_sha256']=_task091_foreground_sha(window_state)
+            pending['explicit_text_mode']=True
+            pending['stage']='edit-issued'
+            command=_task091_write_command(pending['new'], ensure_text_mode=False)
+            pending['action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+            return {'action':'exec','command':command,
+                    'plan':f"Edit the twice-observed exact table cell from {pending['old']!r} to {pending['new']!r}; sibling signature is unchanged.",
+                    'specialist_phase':'edit-proven-table-cell','expected_change':pending['new']}
         if stage == 'select-issued':
             current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
             current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
@@ -1153,9 +1214,13 @@ def next_091_specialist_action(instruction, active_application, observation, sta
 
         state['target_retries']=0
         state['mode']='TARGET_VISIBLE'
-        command=f"pyautogui.doubleClick({int(target['cx'])}, {int(target['cy'])}, interval=0.08)"
+        is_table_cell=str(shape.get('kind') or '') == 'table-cell'
+        command=(f"pyautogui.click({int(target['cx'])}, {int(target['cy'])})"
+                 if is_table_cell else
+                 f"pyautogui.doubleClick({int(target['cx'])}, {int(target['cy'])}, interval=0.08)")
         state['pending_edit']={
-            'slide':slide,'old':old,'new':new,'stage':'select-issued',
+            'slide':slide,'old':old,'new':new,
+            'stage':('table-select-issued' if is_table_cell else 'select-issued'),
             'target':{'label':target['label'],'role':target['role'],
                       'bbox':[target['x'],target['y'],target['w'],target['h']],
                       'cx':target['cx'],'cy':target['cy'],'source':source,
@@ -1163,6 +1228,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                       'deck_sha256':target.get('deck_sha256'),'proof_sha256':target.get('proof_sha256')},
             'shape_id':int(shape.get('id') or 0),
             'shape_name':str(shape.get('name') or ''),
+            'shape_kind':str(shape.get('kind') or ''),
             'shape_geometry':dict(shape.get('geometry') or {}),
             'shape_bbox':list(shape_target.get('shape_bbox') or []),
             'shape_center_cx':shape_target.get('shape_center_cx'),
@@ -1189,8 +1255,10 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                                    'deck_sha256','proof_sha256')})
         return {'action':'exec','command':command,
                 'target':action_target,
-                'plan':f'Select the signed Task 091 point derived from the unique target-PPTX shape geometry for {old!r} on slide {slide}.',
-                'specialist_phase':'select-pending-target'}
+                'plan':(f'Select the exact table containing {old!r}; text entry requires a second separately observed cell click.'
+                        if is_table_cell else
+                        f'Select the signed Task 091 point derived from the unique target-PPTX shape geometry for {old!r} on slide {slide}.'),
+                'specialist_phase':('select-table-container' if is_table_cell else 'select-pending-target')}
 
     if state.get('pending_edit'):
         return _task091_terminal('TASK091_EDIT_NOT_COMMITTED',state)
