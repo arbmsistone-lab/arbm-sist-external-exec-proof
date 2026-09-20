@@ -18,7 +18,7 @@ let mission=null;
 try{
   await call('heartbeat',{healthy:true,zeroSpendVerified:true,capabilities:['git','tests','build','cloud','circleci-runner','arbm-control-resilience'],detail:{source:'circleci-arbm-control-resilience-worker',mode:'exact-sha-inline-bundle'}});
   const claim=await call('claim');
-  if(!claim.claimed){console.log(JSON.stringify({ok:true,claimed:false,state:'IDLE'}));process.exit(0)}
+  if(!claim.claimed){console.log(JSON.stringify({ok:true,claimed:false,state:'IDLE'}));process.exit(0);}
   mission=claim.mission;
   if(mission.mission_kind!=='arbm-control-resilience-v1') throw new Error('unexpected_mission_kind');
   const p=mission.payload||{},b=p.bundle||{};
