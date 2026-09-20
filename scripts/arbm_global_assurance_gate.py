@@ -46,6 +46,51 @@ def _read(root: Path, rel: str) -> str:
         return ""
     return path.read_text(encoding="utf-8",errors="replace")
 
+
+def _actions_sha_pinned(workflow_text: str) -> bool:
+    refs=[]
+    for line in workflow_text.splitlines():
+        match=re.search(r"\buses:\s*([^\s#]+)@([^\s#]+)",line)
+        if not match:
+            continue
+        action,ref=match.groups()
+        if action.startswith("./"):
+            continue
+        refs.append((action,ref))
+    return bool(refs) and all(re.fullmatch(r"[0-9a-f]{40}",ref,re.I) for _,ref in refs)
+
+def _requirements_sha256_locked(requirements_text: str) -> bool:
+    """Validate uv/pip hash-lock syntax without accepting loose ranges or unhashed pins."""
+    logical=[]
+    current=[]
+    for raw in requirements_text.splitlines():
+        stripped=raw.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.startswith("--hash=sha256:"):
+            if not current:
+                return False
+            digest=stripped.split(":",1)[1].rstrip(" \\")
+            if not re.fullmatch(r"[0-9a-f]{64}",digest,re.I):
+                return False
+            current.append(("hash",digest))
+            continue
+        if stripped.startswith("--"):
+            return False
+        if current:
+            logical.append(current)
+            current=[]
+        req=stripped.rstrip(" \\")
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+(?:\[[A-Za-z0-9_,.-]+\])?==[^\s;]+",req):
+            return False
+        current=[("req",req)]
+    if current:
+        logical.append(current)
+    if not logical:
+        return False
+    return all(group and group[0][0]=="req" and any(kind=="hash" for kind,_ in group[1:])
+               for group in logical)
+
 def inspect_repo(root="."):
     root=Path(root)
     shim=_read(root,"scripts/osworld_free_mesh_shim.py")
@@ -69,8 +114,7 @@ def inspect_repo(root="."):
     lanes=re.search(r"LANES\s*=\s*\((.*?)\)\s*\n",board,re.S)
     lane_count=len(re.findall(r'"[a-z_]+"',lanes.group(1))) if lanes else 0
     board_calls=shim.count("require_senior_elite(")
-    pinned_actions=all("@" in line for line in workflow.splitlines()
-                       if re.search(r"\buses:\s*actions/",line))
+    pinned_actions=_actions_sha_pinned(workflow)
     exact_sha_gate=("same_sha_required" in _read(root,"scripts/test_osworld_elite_board_100.py")
                     and "required_consecutive_runs" in _read(root,"scripts/test_osworld_elite_board_100.py"))
     no_secret_literals=not bool(re.search(
@@ -102,9 +146,7 @@ def inspect_repo(root="."):
                  and "test_task091" in score_tests
                  and "test_security_vetoes_shell_capability" in senior_tests)
     privacy=(no_secret_literals and "Authorization" in shim and "oidc_token" in shim)
-    requirements_pinned=bool(req.strip()) and all(
-        ("==" in line or line.lstrip().startswith("#") or not line.strip())
-        for line in req.splitlines())
+    requirements_pinned=_requirements_sha256_locked(req)
     release_gate=("official_score_gate" in _read(root,"scripts/test_osworld_elite_board_100.py")
                   and exact_sha_gate and "release_default_blocked" in _read(root,"scripts/test_osworld_elite_board_100.py"))
     proof_admission=("needs:" in workflow and "proof-tests" in workflow
