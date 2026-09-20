@@ -1,6 +1,11 @@
 name: ARBM ONE Private Source Proof
 
 on:
+  push:
+    branches:
+      - chatgpt/arbm-one-runner-0023aa3-20260920
+    paths:
+      - '.github/workflows/arbm-one-private-source-proof.yml'
   workflow_dispatch: {}
 
 permissions:
