@@ -6,11 +6,12 @@ on:
         description: Rotation generation
         required: true
         default: '0'
-permissions:
-  contents: read
-  actions: write
+permissions: read-all
 jobs:
   rotate:
+    permissions:
+      contents: read
+      actions: write
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
