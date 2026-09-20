@@ -229,7 +229,7 @@ jobs:
       - name: Keyless-sign and verify SBOM
         run: |
           cosign sign-blob --yes --bundle supply-evidence/sbom.sigstore.json supply-evidence/sbom.cdx.json
-          cosign verify-blob supply-evidence/sbom.cdx.json --bundle supply-evidence/sbom.sigstore.json --certificate-identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/arbm-world-free-codeql-scorecard.yml@refs/heads/chatgpt/arbm-world-free-assurance-20260920" --certificate-oidc-issuer="https://token.actions.githubusercontent.com"
+          cosign verify-blob supply-evidence/sbom.cdx.json --bundle supply-evidence/sbom.sigstore.json --certificate-identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/arbm-world-free-codeql-scorecard.yml@refs/heads/${GITHUB_REF_NAME}" --certificate-oidc-issuer="https://token.actions.githubusercontent.com"
       - name: Attest source provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
