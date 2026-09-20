@@ -2,6 +2,7 @@
 import copy
 import hashlib
 import json
+import os
 import io
 from PIL import Image
 import tempfile
@@ -506,6 +507,132 @@ class ForegroundTests(unittest.TestCase):
         fatal=shim.next_091_specialist_action(task,'WPS 2019','',interrupted_state,copy.deepcopy(transient))
         self.assertEqual(fatal['reason'],'TASK091_EDIT_INTERRUPTED_BY_TRANSIENT')
 
+    def test_task091_table_cell_uses_observed_pptx_geometry_not_stale_hint(self):
+        body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2594)
+        body['window']['bbox'] = [70,27,1850,1053]
+        body['screen'] = [0,0,1920,1080]
+        body['active_slide'] = 3
+        body['deck_slide_text'] = {'3':'$42.8M'}
+        body['deck_slide_shapes'] = {'3':[{
+            'id':-13001003,'kind':'table-cell','frame_id':13,'row':1,'col':2,
+            'name':'Table 12#r1c2','text':'$42.8M',
+            'geometry':{'x':3877056,'y':2088750,'w':1563624,'h':607422}}]}
+        body['deck_file'] = {'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                             'sha256':'a'*64,'slide_size':{'w':12191365,'h':6858000}}
+        point=shim._task091_shape_point(body,3,'$42.8M',843,404)
+        self.assertIsNotNone(point)
+        self.assertEqual(point['selection_basis'],'pptx-table-cell-geometry')
+        self.assertEqual((point['cx'],point['cy']),(983,471))
+        self.assertEqual(point['shape_bbox'],[892,436,182,71])
+        self.assertGreater(point['hint_drift'],100)
+        self.assertEqual(point['shape']['kind'],'table-cell')
+
+    def test_task091_collateral_table_edit_is_detected_before_generic_verify_failure(self):
+        pending={
+            'slide':3,'old':'$42.8M','new':'$40.9M','shape_id':-13001003,
+            'before_old_count':2,'before_new_count':0,
+            'before_deck_sha256':'a'*64,
+            'before_sibling_signature':'before-siblings',
+            'target':{'bbox':[842,403,2,2],'cx':843,'cy':404},
+        }
+        body={
+            'deck_slide_text':{'3':'$40.9MM ARR $39.6M $42.8M'},
+            'deck_slide_shapes':{'3':[
+                {'id':-13001003,'kind':'table-cell','name':'Table 12#r1c2','text':'$42.8M',
+                 'geometry':{'x':3877056,'y':2088750,'w':1563624,'h':607422}},
+                {'id':-13000003,'kind':'table-cell','name':'Table 12#r0c0','text':'$40.9MM',
+                 'geometry':{'x':0,'y':0,'w':1,'h':1}},
+            ]},
+            'deck_file':{'sha256':'b'*64},
+        }
+        ok,status,detail=shim._task091_verify_pending('',pending,body)
+        self.assertFalse(ok)
+        self.assertEqual(status,'collateral-mutation')
+        self.assertEqual(detail['actual_shape_text'],'$42.8M')
+
+    def test_task091_drifted_short_text_uses_interior_text_band(self):
+        body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2594)
+        body['window']['bbox'] = [70,27,1850,1053]
+        body['screen'] = [0,0,1920,1080]
+        body['active_slide'] = 1
+        body['deck_slide_text'] = {'1':'$42.8M'}
+        body['deck_slide_shapes'] = {'1':[{
+            'id':13,'name':'CoverStatValue_0','text':'$42.8M',
+            'geometry':{'x':8339327,'y':2167128,'w':2560320,'h':219456}}]}
+        body['deck_file'] = {'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                             'sha256':'a'*64,'size':1234,'mtime_ns':1,
+                             'slide_size':{'w':12191365,'h':6858000}}
+        point=shim._task091_shape_point(body,1,'$42.8M',1338,393)
+        self.assertIsNotNone(point)
+        left,top,width,height=point['shape_bbox']
+        self.assertEqual(point['selection_basis'],'unique-exact-pptx-geometry')
+        self.assertEqual(point['cy'],top+height//2)
+        self.assertGreater(point['cx'],left+4)
+        self.assertLess(point['cx'],left+width-1)
+
+    def test_task091_nonpersisted_edit_invalidates_visual_ack_and_reselects(self):
+        task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
+              'The COO has asked you to rebaseline the H2 Operating Committee pack. '
+              'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
+              'Reforecast_Model_H2.xlsx is the source of truth.')
+        deck={
+          'schema':1,'stable':True,
+          'window':{'id':44040210,'pid':2598,
+                    'title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Office',
+                    'owner_title':'','wm_class':'wpsoffice wpsoffice','bbox':[70,27,1850,1053]},
+          'screen':[0,0,1920,1080],
+          'active_slide':1,
+          'screenshot_sha256':'1'*64,
+          'deck_slide_text':{'1':'$42.8M'},
+          'deck_slide_shapes':{'1':[{
+              'id':13,'name':'CoverStatValue_0','text':'$42.8M',
+              'geometry':{'x':8339327,'y':2167128,'w':2560320,'h':219456}}]},
+          'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                       'sha256':'a'*64,'size':1234,'mtime_ns':1,
+                       'slide_size':{'w':12191365,'h':6858000}},
+        }
+        obs='text\t$42.8M\t$42.8M\t\t\t(1420,450)\t(90,24)'
+        task_id_patch=patch.dict(os.environ,{'TASK_ID':'091'},clear=False)
+        task_id_patch.start()
+        self.addCleanup(task_id_patch.stop)
+        state={'anchored':True,'slide':1,'spatial_index':2}
+
+        first=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,copy.deepcopy(deck))
+        self.assertIn('doubleClick',first['command'])
+        initial_command=first['command']
+
+        ack=copy.deepcopy(deck); ack['screenshot_sha256']='2'*64
+        edit=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,ack)
+        self.assertEqual(edit['specialist_phase'],'edit-pending-target')
+        self.assertEqual(state['pending_edit']['stage'],'edit-issued')
+
+        edited=copy.deepcopy(deck); edited['screenshot_sha256']='3'*64
+        commit=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,edited)
+        self.assertEqual(commit['specialist_phase'],'commit-pending-target')
+
+        committed=copy.deepcopy(deck); committed['screenshot_sha256']='4'*64
+        save=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,committed)
+        self.assertEqual(save['specialist_phase'],'save-pending-target')
+        self.assertEqual(state['pending_edit']['stage'],'save-issued')
+
+        verify1=copy.deepcopy(deck); verify1['screenshot_sha256']='5'*64
+        wait=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,verify1)
+        self.assertEqual(wait['specialist_phase'],'reobserve-pending-target')
+
+        verify2=copy.deepcopy(deck); verify2['screenshot_sha256']='6'*64
+        recover=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,verify2)
+        self.assertEqual(recover['specialist_phase'],'recover-nonpersisted-text-selection')
+        self.assertEqual(state['pending_edit']['stage'],'reselect-required')
+        self.assertEqual(state['pending_edit']['selection_recovery_attempts'],1)
+        self.assertFalse(bool(state['pending_edit'].get('selection_ack_foreground_sha256')))
+
+        retry=copy.deepcopy(deck); retry['screenshot_sha256']='7'*64
+        reselection=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,retry)
+        self.assertEqual(reselection['specialist_phase'],'reselect-pending-target')
+        self.assertIn('doubleClick',reselection['command'])
+        self.assertNotEqual(reselection['command'],initial_command)
+        self.assertEqual(state['pending_edit']['stage'],'select-issued')
+
     def test_task091_text_hitpoint_must_belong_to_exactly_one_shape(self):
         body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2594)
         body['window']['bbox'] = [70, 27, 1850, 1053]
@@ -716,6 +843,107 @@ class TraceTests(unittest.TestCase):
     def test_missing_trace_rejected(self):
         with self.assertRaisesRegex(ValueError, 'WPS_TRACE_MISSING'):
             verify_trace(self.root, SHA, '10', '1')
+
+
+class Task091FinalAtomicTableCellTests(unittest.TestCase):
+    def _deck(self, shot='1'):
+        return {
+          'schema':1,'stable':True,
+          'window':{'id':12582927,'pid':2594,
+                    'title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Office',
+                    'owner_title':'','wm_class':'wpsoffice wpsoffice','bbox':[70,27,1850,1053]},
+          'screen':[0,0,1920,1080],
+          'active_slide':3,
+          'screenshot_sha256':shot*64,
+          'deck_slide_text':{'3':'KPI Scorecard ARR $39.6M $42.8M Repeated metrics $42.8M'},
+          'deck_slide_shapes':{'3':[
+              {'id':-13000001,'kind':'table-cell','frame_id':13,'row':0,'col':0,
+               'name':'Table 12#r0c0','text':'Metric',
+               'geometry':{'x':749808,'y':1481328,'w':1563624,'h':607422}},
+              {'id':-13001003,'kind':'table-cell','frame_id':13,'row':1,'col':2,
+               'name':'Table 12#r1c2','text':'$42.8M',
+               'geometry':{'x':3877056,'y':2088750,'w':1563624,'h':607422}},
+              {'id':16,'kind':'shape','name':'KpiReadout_Body',
+               'text':'• ARR and NRR are both positioned as ahead of plan in the current draft.\\n• Headcount plan still assumes 5 Growth Ops hires land in H2.\\n• Burn improvement relies on expansion payback from Q4.',
+               'geometry':{'x':9034272,'y':1883664,'w':2148840,'h':1353312}},
+          ]},
+          'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
+                       'sha256':'a'*64,'size':113361,'mtime_ns':1,
+                       'slide_size':{'w':12191365,'h':6858000}},
+        }
+
+    def _task(self):
+        return ('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
+                'The COO has asked you to rebaseline the H2 Operating Committee pack. '
+                'The draft deck Operating_Committee_Rebaseline_Draft.pptx is already open. '
+                'Reforecast_Model_H2.xlsx is the source of truth.')
+
+    def test_table_cell_requires_geometric_caret_before_bounded_writer(self):
+        with patch.dict(os.environ,{'TASK_ID':'091'},clear=False), \
+             patch.object(shim,'_task091_region_sha256',return_value='a'*64), \
+             patch.object(shim,'_task091_table_visual_signature',return_value='b'*64), \
+             patch.object(shim,'_task091_caret_delta_geometry',
+                          return_value={'proven':True,'reason':'caret-geometry',
+                                        'count':22,'width':1,'height':22,
+                                        'dominant_column':22,'bbox':[91,3,1,22]}):
+            state={'anchored':True,'slide':3,'spatial_index':10}
+            deck=self._deck('1')
+            first=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(deck))
+            self.assertEqual(first['command'],'pyautogui.click(983, 471)')
+            self.assertEqual(first['specialist_phase'],'select-table-container')
+            self.assertEqual(state['pending_edit']['stage'],'table-select-issued')
+            self.assertNotIn("ctrl', 'a",first['command'])
+
+            table_selected=self._deck('2')
+            second=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(table_selected))
+            self.assertEqual(second['command'],'pyautogui.click(983, 471)')
+            self.assertEqual(second['specialist_phase'],'enter-table-cell-caret-candidate')
+            self.assertEqual(state['pending_edit']['stage'],'table-cell-enter-issued')
+
+            cell_entered=self._deck('3')
+            third=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(cell_entered))
+            self.assertEqual(third['specialist_phase'],'edit-geometry-proven-table-cell')
+            self.assertEqual(state['pending_edit']['stage'],'edit-issued')
+            self.assertTrue(state['pending_edit']['explicit_text_mode'])
+            self.assertEqual(state['pending_edit']['caret_geometry']['width'],1)
+            self.assertNotIn("ctrl', 'a",third['command'])
+            self.assertTrue(third['command'].startswith("pyautogui.press('end')"))
+            self.assertIn("backspace', presses=6",third['command'])
+
+    def test_table_cell_sibling_drift_blocks_second_click(self):
+        with patch.dict(os.environ,{'TASK_ID':'091'},clear=False):
+            state={'anchored':True,'slide':3,'spatial_index':10}
+            deck=self._deck('1')
+            shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(deck))
+            drift=self._deck('2')
+            drift['deck_slide_shapes']['3'][0]['text']='CORRUPTED'
+            result=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,drift)
+            self.assertEqual(result['action'],'terminal')
+            self.assertEqual(result['reason'],'TASK091_TABLE_SELECTION_NOT_ACKNOWLEDGED')
+
+
+class Task091CaretBoundedWriterTests(unittest.TestCase):
+    def test_table_cell_bounded_writer_never_uses_ctrl_a(self):
+        command=shim._task091_table_cell_bounded_write_command('$42.8M','$40.9M')
+        self.assertNotIn("hotkey('ctrl', 'a')",command)
+        self.assertEqual(command.splitlines()[0],"pyautogui.press('end')")
+        self.assertIn("pyautogui.press('backspace', presses=6",command)
+        self.assertTrue(command.splitlines()[-1].startswith("pyautogui.write('$40.9M'"))
+
+    def test_table_cell_bounded_writer_rejects_multiline_or_empty_old(self):
+        with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_BOUNDED_EDIT_INVALID'):
+            shim._task091_table_cell_bounded_write_command('','x')
+        with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_BOUNDED_EDIT_INVALID'):
+            shim._task091_table_cell_bounded_write_command('a'+chr(10)+'b','x')
+
+    def test_table_cell_writer_contract_forbids_global_selection(self):
+        source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+        start=source.index("def _task091_table_cell_bounded_write_command")
+        end=source.index("def _task091_foreground_sha",start)
+        body=source[start:end]
+        self.assertNotIn("ctrl', 'a",body)
+        self.assertIn("press('end')",body)
+        self.assertIn("press('backspace'",body)
 
 
 if __name__ == '__main__':
