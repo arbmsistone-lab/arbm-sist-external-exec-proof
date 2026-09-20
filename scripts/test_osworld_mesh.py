@@ -113,29 +113,31 @@ class MeshTests(unittest.TestCase):
   self.assertTrue(all(x.get('provider_hint')!='local-only' for x in bodies))
   self.assertEqual([x.get('provider_hint') for x in bodies],[None,'openrouter','text'])
  def test_corrupt_http_input_terminates_without_client_retry(self):
-  import threading,urllib.request,urllib.error
+  import http.client,threading
   server=shim.ThreadingHTTPServer(('127.0.0.1',0),shim.Handler)
   thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+  connection=http.client.HTTPConnection('127.0.0.1',server.server_port,timeout=10)
   try:
-   req=urllib.request.Request('http://127.0.0.1:%s/v1/chat/completions'%server.server_port,data=b'{bad',headers={'Content-Type':'application/json'})
-   with urllib.request.urlopen(req) as res:
-    self.assertEqual(res.status,200);data=json.loads(res.read())
+   connection.request('POST','/v1/chat/completions',body=b'{bad',headers={'Content-Type':'application/json'})
+   res=connection.getresponse();self.assertEqual(res.status,200);data=json.loads(res.read())
    self.assertEqual(data['choices'][0]['message']['content'],'FAIL')
    self.assertTrue(shim.STATE['terminal'].startswith('INPUT_REJECTED:'))
-  finally:server.shutdown();server.server_close();thread.join()
+  finally:connection.close();server.shutdown();server.server_close();thread.join()
  def test_http_run38_sized_history_reaches_mesh_once(self):
-  import threading,urllib.request
+  import http.client,threading
   calls=[]
   def mesh(messages):calls.append(messages);return 'WAIT'
   server=shim.ThreadingHTTPServer(('127.0.0.1',0),shim.Handler)
   thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+  connection=http.client.HTTPConnection('127.0.0.1',server.server_port,timeout=20)
   try:
    raw=json.dumps({'messages':[{'role':'system','content':'task'}]+[{'role':'user','content':'x'*1_700_000} for _ in range(20)]}).encode()
-   req=urllib.request.Request('http://127.0.0.1:%s/v1/chat/completions'%server.server_port,data=raw,headers={'Content-Type':'application/json'})
-   with patch.object(shim,'call_mesh',mesh),urllib.request.urlopen(req,timeout=20) as res:
-    self.assertEqual(res.status,200);self.assertEqual(json.loads(res.read())['choices'][0]['message']['content'],'WAIT')
+   with patch.object(shim,'call_mesh',mesh):
+    connection.request('POST','/v1/chat/completions',body=raw,headers={'Content-Type':'application/json'})
+    res=connection.getresponse();self.assertEqual(res.status,200)
+    self.assertEqual(json.loads(res.read())['choices'][0]['message']['content'],'WAIT')
    self.assertEqual(len(calls),1);self.assertEqual(len(calls[0]),2)
-  finally:server.shutdown();server.server_close();thread.join()
+  finally:connection.close();server.shutdown();server.server_close();thread.join()
  def test_future_claims_do_not_poison_durable_memory(self):
   shim.request_mesh=lambda b:(200,self.response({'action':'exec','command':"pyautogui.press('enter')",'memory_patch':'All appointments created and saved'}))
   shim.call_mesh(self.msgs)
