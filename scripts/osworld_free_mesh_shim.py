@@ -1,5 +1,5 @@
 """OpenAI-compatible OSWorld bridge. All guest execution stays in official OSWorld."""
-import argparse, json, os, re, time, urllib.request, urllib.error, hashlib, threading
+import argparse, json, os, re, time, hashlib, threading
 from pathlib import Path
 from PIL import Image
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -14,6 +14,7 @@ from osworld_local_vlm import LOCAL_VLM_ROUTE, warm_runtime
 from osworld_recovery import recovery_policy, rejects_visual_navigation_loop, semantic_terminal
 from osworld_elite_controller import EliteController
 from arbm_senior_elite_board import require_unanimous as require_senior_elite
+from arbm_safe_http import SafeHttpError, request_json
 from osworld_gimp_style_transfer import next_recovery_action
 from osworld_061_calibrated_grade import next_calibrated_action, DONE as CAL_DONE
 
@@ -1582,8 +1583,15 @@ def content_parts(content):
 
 def oidc_token():
     url=os.environ['ACTIONS_ID_TOKEN_REQUEST_URL'];token=os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']
-    req=urllib.request.Request(url+('&' if '?' in url else '?')+'audience=arbm-sist-benchmark',headers={'Authorization':'Bearer '+token})
-    with urllib.request.urlopen(req,timeout=20) as res:return json.loads(res.read())['value']
+    target=url+('&' if '?' in url else '?')+'audience=arbm-sist-benchmark'
+    try:
+        status,data,_=request_json(
+            target,headers={'Authorization':'Bearer '+token},timeout=20)
+    except (SafeHttpError,OSError,TimeoutError,ValueError) as exc:
+        raise RuntimeError('OIDC_TRANSPORT_FAILED:'+type(exc).__name__) from exc
+    if status != 200 or not isinstance(data,dict) or not str(data.get('value') or ''):
+        raise RuntimeError('OIDC_TOKEN_UNAVAILABLE:'+str(status))
+    return data['value']
 
 def task_from(messages):
     import re
@@ -1637,14 +1645,13 @@ def track_attempts(data):
 
 def request_gateway(body, timeout=75):
     raw=json.dumps(body,ensure_ascii=False).encode()
-    req=urllib.request.Request(UPSTREAM,data=raw,method='POST',headers={'Authorization':'Bearer '+oidc_token(),'Content-Type':'application/json'})
+    headers={'Authorization':'Bearer '+oidc_token(),'Content-Type':'application/json'}
     try:
-        with urllib.request.urlopen(req,timeout=max(2,min(float(timeout),75))) as res:return res.status,json.loads(res.read())
-    except urllib.error.HTTPError as err:
-        try:data=json.loads(err.read())
-        except (json.JSONDecodeError, UnicodeDecodeError):data={'status':'INVALID_UPSTREAM_RESPONSE'}
-        return err.code,data
-    except (urllib.error.URLError,TimeoutError,json.JSONDecodeError) as exc:
+        status,data,_=request_json(
+            UPSTREAM,method='POST',headers=headers,data=raw,
+            timeout=max(2,min(float(timeout),75)))
+        return status,data if isinstance(data,dict) else {'status':'INVALID_UPSTREAM_RESPONSE'}
+    except (SafeHttpError,OSError,TimeoutError,ValueError,json.JSONDecodeError) as exc:
         return 503,{'status':'TRANSPORT_ERROR','error_type':type(exc).__name__}
 
 
