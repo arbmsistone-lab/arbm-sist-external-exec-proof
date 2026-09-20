@@ -954,8 +954,19 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             cx=int(pending.get('text_hit_x') or 0); cy=int(pending.get('text_hit_y') or 0)
             command=f"pyautogui.click({cx}, {cy})"
             pending['cell_enter_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+            stored=pending.get('target') if isinstance(pending.get('target'),dict) else {}
+            bbox=stored.get('bbox') if isinstance(stored.get('bbox'),list) else []
+            if len(bbox)!=4:
+                return _task091_terminal('TASK091_TABLE_CANONICAL_PROOF_MISSING',state)
+            action_target={'source':'task091-pptx-canonical','label':stored.get('label'),
+                           'role':stored.get('role'),'slide':stored.get('slide'),
+                           'x':int(bbox[0]),'y':int(bbox[1]),'w':int(bbox[2]),'h':int(bbox[3]),
+                           'cx':int(stored.get('cx') or 0),'cy':int(stored.get('cy') or 0),
+                           'foreground_sha256':stored.get('foreground_sha256'),
+                           'deck_sha256':stored.get('deck_sha256'),
+                           'proof_sha256':stored.get('proof_sha256')}
             return {'action':'exec','command':command,
-                    'target':pending.get('target'),
+                    'target':action_target,
                     'plan':'The table container is positively selected; issue one separate click into the exact cell and observe again before any text key.',
                     'specialist_phase':'enter-table-cell-text-mode'}
         if stage == 'table-cell-enter-issued':
