@@ -757,6 +757,7 @@ def public_validation(repo, changed_paths, issue_text='', full=False):
         try:
             if probe_path and probe_path.exists(): probe_path.unlink()
         except Exception:
+            # Probe cleanup is intentionally best-effort during teardown.
             pass
     return False,0,'NO_SAFE_PUBLIC_VALIDATION'
 
