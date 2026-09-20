@@ -9,8 +9,7 @@ import json
 import logging
 import os
 import time
-import urllib.error
-import urllib.request
+from arbm_safe_http import SafeHttpError, request_json
 import uuid
 from pathlib import Path
 
@@ -101,11 +100,16 @@ class UploadError(RuntimeError):
 
 
 def vm_execute(server, command):
-    request = urllib.request.Request(server.rstrip('/') + '/setup/execute',
-        data=json.dumps({'command': command, 'shell': False, 'timeout': 120}).encode(),
-        headers={'Content-Type': 'application/json'}, method='POST')
-    with urllib.request.urlopen(request, timeout=180) as response:
-        data = json.loads(response.read())
+    payload=json.dumps({'command':command,'shell':False,'timeout':120}).encode()
+    try:
+        status,data,_=request_json(
+            server.rstrip('/') + '/setup/execute', method='POST',
+            data=payload, headers={'Content-Type':'application/json'},
+            timeout=180, allow_plain_http=True)
+    except (SafeHttpError,OSError,TimeoutError,ValueError) as exc:
+        raise UploadError('VM_UPLOAD_TRANSPORT_FAILED:'+type(exc).__name__) from exc
+    if status < 200 or status >= 300:
+        raise UploadError('VM_UPLOAD_HTTP_FAILED:'+str(status))
     if data.get('status') != 'success' or data.get('returncode') != 0:
         raise UploadError('VM_UPLOAD_COMMAND_FAILED:' + json.dumps(data))
     return json.loads(data.get('output', ''))
