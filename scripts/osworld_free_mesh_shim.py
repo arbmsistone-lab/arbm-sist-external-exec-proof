@@ -1692,6 +1692,7 @@ def request_mesh(body):
                 'agent_build':EXPECTED_BUILD,**result,'provider_attempts':router_attempts,
                 'mandatory_cost_usd':0,'paid_fallback_used':False,'scoreable':False,
                 'github_sha':os.environ.get('GITHUB_SHA'),'github_run_id':os.environ.get('GITHUB_RUN_ID')}
+        return None
     if os.environ.get('ARBM_VALIDATION_SPEND_MODE','zero') != 'zero':
         return 503,{'status':'NON_ZERO_SPEND_MODE_FORBIDDEN','provider_attempts':router_attempts,
                     'mandatory_cost_usd':0,'paid_fallback_used':False}
@@ -2106,7 +2107,7 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError,TimeoutError) as exc: content=terminal('INPUT_REJECTED:'+str(exc)[:120])
             except Exception as exc:
                 log_event({'status':'SHIM_ERROR','error_type':type(exc).__name__,'reason':str(exc)[:200]}); content=terminal('SHIM_INTERNAL_ERROR:'+type(exc).__name__)
-        self.send_json(200,{'id':'arbm-osworld-v32-isolated','object':'chat.completion','created':int(time.time()),'model':'gpt-arbm-osworld-v32-isolated','choices':[{'index':0,'message':{'role':'assistant','content':content},'finish_reason':'stop'}],'usage':{'prompt_tokens':0,'completion_tokens':0,'total_tokens':0}})
+        return self.send_json(200,{'id':'arbm-osworld-v32-isolated','object':'chat.completion','created':int(time.time()),'model':'gpt-arbm-osworld-v32-isolated','choices':[{'index':0,'message':{'role':'assistant','content':content},'finish_reason':'stop'}],'usage':{'prompt_tokens':0,'completion_tokens':0,'total_tokens':0}})
 
 def isolated_self_test(run_id,task,verify_budget=False,enforce_session_isolation=False):
     result={'status':'PASS','run_id':str(run_id),'task':str(task),'zero_spend':os.environ.get('ZERO_SPEND_MODE')=='HARD'}
