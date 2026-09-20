@@ -1,6 +1,11 @@
 name: ARBM Temporary Hash Lock Generator
 
 on:
+  push:
+    branches:
+      - chatgpt/arbm-world-free-assurance-20260920
+    paths:
+      - .github/workflows/arbm-lockfile-generator-temp.yml
   workflow_dispatch:
 
 permissions: read-all
