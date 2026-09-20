@@ -18,7 +18,7 @@ jobs:
           git -C src checkout 6d8b31168fd0e2ad57c0d1daa3df1556df014320
           test "$(cat src/manifests/BENCHMARK_VERSION)" = "v1.0.2"
       - name: Install harness dependencies
-        run: python -m pip install -q ./src
+        run: python -m pip install --require-hashes -q -r audit/locks/swe-milestone-base.txt
       - name: Pull exact element-web offline image
         run: |
           set -euo pipefail
