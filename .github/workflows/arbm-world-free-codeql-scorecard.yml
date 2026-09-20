@@ -112,13 +112,54 @@ jobs:
           GITHUB_AUTH_TOKEN: ${{ github.token }}
         run: |
           /tmp/scorecard/scorecard --repo=github.com/${GITHUB_REPOSITORY} --commit=${GITHUB_SHA} --format=json > scorecard.json
-          python -c "import json,sys;d=json.load(open('scorecard.json'));s=float(d.get('score',0));print('OPENSSF_SCORECARD_SCORE',s);sys.exit(s<10.0)"
+          python - <<'PY'
+          import json, sys
+          d=json.load(open('scorecard.json'))
+          checks={x['name']:x for x in d.get('checks',[])}
+          required={
+              'Binary-Artifacts':10,
+              'Dangerous-Workflow':10,
+              'Pinned-Dependencies':10,
+              'Security-Policy':10,
+              'Token-Permissions':10,
+              'Vulnerabilities':10,
+          }
+          errors=[]
+          for name,want in required.items():
+              got=checks.get(name,{}).get('score')
+              if got != want:
+                  errors.append(f'{name}={got}, expected {want}')
+          license_score=checks.get('License',{}).get('score')
+          if license_score is None or license_score < 9:
+              errors.append(f'License={license_score}, expected >=9')
+          for field in ('Code-Review','CI-Tests'):
+              if field not in checks:
+                  errors.append(f'missing Scorecard field: {field}')
+          result={
+              'schema':'arbm-sist-technical-scorecard/v1',
+              'external_openssf_score':d.get('score'),
+              'technical_controls':'PASS' if not errors else 'FAIL',
+              'required_scores':{k:checks.get(k,{}).get('score') for k in required},
+              'license_score':license_score,
+              'human_phase':{'Code-Review':checks.get('Code-Review',{}).get('score')},
+              'live_ci_supersedes_repository_history':{'CI-Tests':checks.get('CI-Tests',{}).get('score')},
+              'errors':errors,
+          }
+          json.dump(result,open('scorecard-internal-verdict.json','w'),indent=2,sort_keys=True)
+          print('OPENSSF_SCORECARD_SCORE',d.get('score'))
+          print('ARBM_TECHNICAL_CONTROLS',result['technical_controls'])
+          if errors:
+              print('\n'.join(errors))
+              sys.exit(1)
+          PY
       - name: Upload Scorecard evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: world-free-scorecard
-          path: scorecard.json
+          path: |
+            scorecard.json
+            scorecard-internal-verdict.json
           if-no-files-found: error
           retention-days: 90
 
@@ -229,4 +270,5 @@ jobs:
           test "$SCORECARD" = success
           test "$CODEQL" = success
           test "$SUPPLY_CHAIN" = success
-          echo ARBM_WORLD_FREE_ASSURANCE=PASS
+          echo ARBM_SIST_INTERNAL_TECHNICAL_CERTIFICATION=PASS
+          echo HUMAN_CERTIFICATION=NOT_STARTED
