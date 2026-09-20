@@ -1,0 +1,137 @@
+name: ZPC Cloudflare Admin Cutover
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "probe | cutover | rollback"
+        required: true
+        default: "probe"
+        type: choice
+        options:
+          - probe
+          - cutover
+          - rollback
+      target_url:
+        description: "Hardened target URL for /central"
+        required: false
+        default: "https://fxjytqscrnttcqovigpp.supabase.co/functions/v1/zevanory-universal-router-v1/"
+
+permissions:
+  contents: read
+
+jobs:
+  cloudflare-admin:
+    runs-on: ubuntu-latest
+    env:
+      ZERO_SPEND_MODE: HARD
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+      CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      ZPC_TARGET: ${{ inputs.target_url }}
+      ZPC_MODE: ${{ inputs.mode }}
+    steps:
+      - name: Fail closed policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = HARD
+          test "$ZPC_MODE" = probe -o "$ZPC_MODE" = cutover -o "$ZPC_MODE" = rollback
+
+      - name: Probe Cloudflare admin capability without exposing secrets
+        id: probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          token=false; zone=false; account=false
+          test -n "${CF_TOKEN:-}" && token=true || true
+          test -n "${CF_ZONE_ID:-}" && zone=true || true
+          test -n "${CF_ACCOUNT_ID:-}" && account=true || true
+          echo "token_present=$token" >> "$GITHUB_OUTPUT"
+          echo "zone_present=$zone" >> "$GITHUB_OUTPUT"
+          echo "account_present=$account" >> "$GITHUB_OUTPUT"
+          printf '{"token_present":%s,"zone_present":%s,"account_present":%s}\n' "$token" "$zone" "$account"
+          if [ "$ZPC_MODE" != "probe" ]; then
+            test "$token" = true
+            test "$zone" = true
+          fi
+
+      - name: Verify token scope read-only
+        if: inputs.mode != 'probe'
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$(curl -sS -o /tmp/verify.json -w '%{http_code}'             -H "Authorization: Bearer $CF_TOKEN"             -H 'Content-Type: application/json'             https://api.cloudflare.com/client/v4/user/tokens/verify)"
+          test "$code" = 200
+          jq -e '.success == true and .result.status == "active"' /tmp/verify.json >/dev/null
+          echo "cloudflare_token_active=true"
+
+      - name: Snapshot current /central rules
+        if: inputs.mode != 'probe'
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$(curl -sS -o /tmp/rulesets.json -w '%{http_code}'             -H "Authorization: Bearer $CF_TOKEN"             -H 'Content-Type: application/json'             "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/rulesets/phases/http_request_dynamic_redirect/entrypoint")"
+          if [ "$code" = 200 ]; then
+            jq '{result:.result}' /tmp/rulesets.json > current-ruleset.json
+            echo "snapshot=available"
+          else
+            printf '{"result":null}\n' > current-ruleset.json
+            echo "snapshot=unavailable_http_$code"
+          fi
+
+      - name: Cut over /central to hardened control
+        if: inputs.mode == 'cutover'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${ZPC_TARGET#https://}" != "$ZPC_TARGET"
+          payload="$(jq -nc --arg target "$ZPC_TARGET" '{
+            description:"ZEVANORY hardened central cutover",
+            expression:"(http.host eq \"zevanory.api.br\" and http.request.uri.path eq \"/central\")",
+            action:"redirect",
+            action_parameters:{from_value:{status_code:302,target_url:{expression:("\"" + $target + "\"")},preserve_query_string:true}},
+            enabled:true
+          }')"
+          entry="$(curl -sS             -H "Authorization: Bearer $CF_TOKEN"             -H 'Content-Type: application/json'             "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/rulesets/phases/http_request_dynamic_redirect/entrypoint")"
+          rid="$(printf '%s' "$entry" | jq -r '.result.id // empty')"
+          if [ -z "$rid" ]; then
+            create="$(curl -sS -X POST               -H "Authorization: Bearer $CF_TOKEN"               -H 'Content-Type: application/json'               --data '{"name":"ZEVANORY dynamic redirects","kind":"zone","phase":"http_request_dynamic_redirect","rules":[]}'               "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/rulesets")"
+            rid="$(printf '%s' "$create" | jq -r '.result.id')"
+          fi
+          current="$(curl -sS             -H "Authorization: Bearer $CF_TOKEN"             -H 'Content-Type: application/json'             "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/rulesets/$rid")"
+          rules="$(printf '%s' "$current" | jq --argjson new "$payload" '[.result.rules[]? | select(.description != "ZEVANORY hardened central cutover")] + [$new]')"
+          body="$(jq -nc --argjson rules "$rules" '{rules:$rules}')"
+          code="$(curl -sS -o /tmp/update.json -w '%{http_code}' -X PUT             -H "Authorization: Bearer $CF_TOKEN"             -H 'Content-Type: application/json'             --data "$body"             "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/rulesets/$rid")"
+          test "$code" = 200
+          jq -e '.success == true' /tmp/update.json >/dev/null
+          echo "cutover_applied=true"
+
+      - name: Rollback hardened /central redirect
+        if: inputs.mode == 'rollback'
+        shell: bash
+        run: |
+          set -euo pipefail
+          entry="$(curl -sS             -H "Authorization: Bearer $CF_TOKEN"             -H 'Content-Type: application/json'             "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/rulesets/phases/http_request_dynamic_redirect/entrypoint")"
+          rid="$(printf '%s' "$entry" | jq -r '.result.id // empty')"
+          test -n "$rid"
+          current="$(curl -sS             -H "Authorization: Bearer $CF_TOKEN"             -H 'Content-Type: application/json'             "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/rulesets/$rid")"
+          rules="$(printf '%s' "$current" | jq '[.result.rules[]? | select(.description != "ZEVANORY hardened central cutover")]')"
+          body="$(jq -nc --argjson rules "$rules" '{rules:$rules}')"
+          code="$(curl -sS -o /tmp/update.json -w '%{http_code}' -X PUT             -H "Authorization: Bearer $CF_TOKEN"             -H 'Content-Type: application/json'             --data "$body"             "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/rulesets/$rid")"
+          test "$code" = 200
+          jq -e '.success == true' /tmp/update.json >/dev/null
+          echo "rollback_applied=true"
+
+      - name: Final public verification
+        if: inputs.mode != 'probe'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sleep 3
+          if [ "$ZPC_MODE" = cutover ]; then
+            code="$(curl -sS -L -o /tmp/central.html -w '%{http_code}' https://zevanory.api.br/central)"
+            test "$code" = 200
+            grep -q "ZEVANORY Secure Control" /tmp/central.html
+            echo "canonical_central_hardened=true"
+          fi
