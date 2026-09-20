@@ -19,8 +19,8 @@ jobs:
           test "$(git -C src rev-parse HEAD)" = "6d8b31168fd0e2ad57c0d1daa3df1556df014320"
       - name: Install exact harness dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e './src[dev]'
+          python -m pip install --require-hashes -r audit/locks/swe-milestone-dev.txt
+          echo "PYTHONPATH=$PWD/src" >> "$GITHUB_ENV"
       - name: Run full harness test suite
         id: tests
         continue-on-error: true
