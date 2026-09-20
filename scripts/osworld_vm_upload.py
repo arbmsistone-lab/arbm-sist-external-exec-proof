@@ -9,8 +9,7 @@ import json
 import logging
 import os
 import time
-import urllib.error
-import urllib.request
+from arbm_safe_http import request as safe_request, SafeHTTPError
 import uuid
 from pathlib import Path
 
@@ -101,11 +100,12 @@ class UploadError(RuntimeError):
 
 
 def vm_execute(server, command):
-    request = urllib.request.Request(server.rstrip('/') + '/setup/execute',
+    response = safe_request(
+        server.rstrip('/') + '/setup/execute', method='POST',
         data=json.dumps({'command': command, 'shell': False, 'timeout': 120}).encode(),
-        headers={'Content-Type': 'application/json'}, method='POST')
-    with urllib.request.urlopen(request, timeout=180) as response:
-        data = json.loads(response.read())
+        headers={'Content-Type':'application/json'}, timeout=180,
+        allow_loopback_http=True, allow_private_http=True, max_bytes=4_000_000)
+    data = json.loads(response.read())
     if data.get('status') != 'success' or data.get('returncode') != 0:
         raise UploadError('VM_UPLOAD_COMMAND_FAILED:' + json.dumps(data))
     return json.loads(data.get('output', ''))
@@ -127,8 +127,8 @@ def upload(server, source, destination, execute=None, sleep=time.sleep):
         for attempt in range(3):
             try:
                 return execute(command)
-            except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
-                if isinstance(exc, urllib.error.HTTPError) and exc.code not in (500, 502, 503, 504): raise
+            except (SafeHTTPError, TimeoutError, ConnectionError, OSError) as exc:
+                if isinstance(exc, SafeHTTPError) and exc.code not in (500, 502, 503, 504): raise
                 if attempt == 2: raise
                 LOG.warning('VM_UPLOAD_RETRY mode=%s offset=%s attempt=%s error=%s',
                             mode, offset, attempt + 1, type(exc).__name__)
