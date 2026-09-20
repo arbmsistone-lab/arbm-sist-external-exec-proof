@@ -898,7 +898,9 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     pattern=r'\('+re.escape(form)+r'\b'
                     if len(re.findall(pattern,new)) < len(re.findall(pattern,old)):
                         errs.append('public_invariant_control_flow_removed:'+form+':'+rel)
-            except Exception:\n                # Public-spec heuristic is best-effort; malformed optional source context is ignored.\n                pass
+            except Exception:
+                # Public-spec heuristic is best-effort; malformed optional source context is ignored.
+                pass
         if overflow and edits:
             touches_overflow_site=False
             for e in edits if isinstance(edits,list) else []:
@@ -910,7 +912,9 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     old='\n'.join(lines[st-1:en])
                     if re.search(r'\b(?:int|integer|int32|uint32)\b|\(int\s',old,re.I):
                         touches_overflow_site=True; break
-                except Exception:\n                # Public-spec heuristic is best-effort; malformed optional source context is ignored.\n                pass
+                except Exception:
+                # Public-spec heuristic is best-effort; malformed optional source context is ignored.
+                pass
             if not touches_overflow_site: errs.append('public_invariant_no_overflow_site_touched')
         return errs
     def public_causal_fixed_width_hints(repo, edits):
@@ -925,7 +929,9 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     line=lines[idx]
                     if re.search(r'\b(?:int|integer|int32|uint32)\b|\(int\s',line,re.I):
                         hints.append({'path':rel,'line':idx+1,'source':line.strip()})
-            except Exception:\n                # Public-spec heuristic is best-effort; malformed optional source context is ignored.\n                pass
+            except Exception:
+                # Public-spec heuristic is best-effort; malformed optional source context is ignored.
+                pass
         return hints[:4]
 
     def public_deterministic_overflow_repair(repo, paths, issue_text):
@@ -977,7 +983,6 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                 dattempted,dvcode,dvout=public_validation(td,[m['path'] for m in dmeta],problem)
             if dapplied>0 and not derrs and (not dattempted or dvcode==0):
                 cand_a=deterministic; code=0; err=''
-                data={'edits':deterministic,'model':'deterministic-public-overflow-repair','pipeline':'public-source-rule'}
             else:
                 deterministic=[]
         if not cand_a and not cand_b:
@@ -1123,7 +1128,7 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
         edits=candidate_results[passing[0]]['edits'] if len(passing)==1 else []
     run(['git','reset','--hard',base],td,60)
     edit_errors,applied_meta,applied_edits=apply_candidate(td,edits,allowed_paths) if edits else (['semantic_arbiter_no_choice'],[],0)
-    validation_attempted=False; validation_code=0; validation_output='NOT_RUN'; repair_attempted=False
+    validation_attempted=False; validation_code=0; validation_output='NOT_RUN'
     if applied_edits>0 and not edit_errors:
         validation_attempted,validation_code,validation_output=public_validation(td,[m['path'] for m in applied_meta],problem,full=True)
         if validation_attempted and validation_code!=0:
