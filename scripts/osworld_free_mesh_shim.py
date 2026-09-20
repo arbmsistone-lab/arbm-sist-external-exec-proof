@@ -1,6 +1,7 @@
 """OpenAI-compatible OSWorld bridge. All guest execution stays in official OSWorld."""
 import argparse, json, os, re, time, urllib.request, urllib.error, hashlib, threading
 from pathlib import Path
+from PIL import Image
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from osworld_ingress import project_messages
 from osworld_milestones import Milestones, verified_facts
@@ -204,6 +205,18 @@ def _task091_write_command(value, interval=TASK091_TYPE_INTERVAL, ensure_text_mo
             commands.append("pyautogui.hotkey('shift', 'enter')")
     return '\n'.join(commands)
 
+def _task091_table_cell_bounded_write_command(old, new, interval=TASK091_TYPE_INTERVAL):
+    """Replace one single-line cell value without any global selection command."""
+    old=str(old or '')
+    new=str(new or '')
+    if not old or '\n' in old or '\n' in new or len(old) > 64 or len(new) > 128:
+        raise ValueError('TASK091_TABLE_CELL_BOUNDED_EDIT_INVALID')
+    commands=["pyautogui.press('end')",
+              f"pyautogui.press('backspace', presses={len(old)}, interval=0.03)"]
+    if new:
+        commands.append(f"pyautogui.write({new!r}, interval={float(interval):g})")
+    return '\n'.join(commands)
+
 def _task091_foreground_sha(window_state):
     window=window_state.get('window',{}) if isinstance(window_state,dict) else {}
     payload=json.dumps(window,sort_keys=True,separators=(',',':'),ensure_ascii=False)
@@ -224,6 +237,60 @@ def _task091_window_state():
     if value.get('schema') != 1 or value.get('stable') is not True or not isinstance(value.get('window'),dict):
         return None
     return value
+
+def _task091_screenshot_path(window_state):
+    if not isinstance(window_state,dict):
+        return None
+    root=os.environ.get('ARBM_WPS_EVIDENCE_DIR')
+    source=str(window_state.get('source') or '')
+    if not root or not re.fullmatch(r'\d{4}-\d{2}-(?:before|after)',source):
+        return None
+    path=Path(root)/'wps-observations'/(source+'.png')
+    return path if path.is_file() else None
+
+def _task091_region_sha256(window_state, bbox, inset=6):
+    path=_task091_screenshot_path(window_state)
+    if path is None or not isinstance(bbox,list) or len(bbox)!=4:
+        return ''
+    if not all(type(v) is int for v in bbox):
+        return ''
+    x,y,w,h=bbox
+    if w <= 2*inset or h <= 2*inset:
+        return ''
+    try:
+        with Image.open(path) as image:
+            rgb=image.convert('RGB')
+            left=max(0,x+inset); top=max(0,y+inset)
+            right=min(rgb.width,x+w-inset); bottom=min(rgb.height,y+h-inset)
+            if right <= left or bottom <= top:
+                return ''
+            payload=rgb.crop((left,top,right,bottom)).tobytes()
+    except Exception:
+        return ''
+    return hashlib.sha256(payload).hexdigest()
+
+def _task091_table_visual_signature(window_state, slide, frame_id, exclude_shape_id=None):
+    rows=[]
+    for row in _task091_shape_rows(window_state,slide):
+        if str(row.get('kind') or '') != 'table-cell':
+            continue
+        if int(row.get('frame_id') or 0) != int(frame_id or 0):
+            continue
+        if exclude_shape_id is not None and int(row.get('id') or 0) == int(exclude_shape_id):
+            continue
+        box=_task091_shape_bbox(window_state,row)
+        if box is None:
+            return ''
+        digest=_task091_region_sha256(
+            window_state,[int(box['x']),int(box['y']),int(box['w']),int(box['h'])])
+        if len(digest)!=64:
+            return ''
+        rows.append((int(row.get('id') or 0),str(row.get('name') or ''),digest))
+    if not rows:
+        return ''
+    rows.sort()
+    payload=json.dumps(rows,separators=(',',':'),ensure_ascii=False)
+    return hashlib.sha256(payload.encode()).hexdigest()
 
 def _task091_atspi_candidates(observation, label):
     wanted=' '.join(str(label or '').replace('\u200b','').casefold().split())
@@ -790,7 +857,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
         pending=state.get('pending_edit')
         if isinstance(pending,dict):
             stage=str(pending.get('stage') or '')
-            if stage in ('select-issued','table-select-issued','table-cell-enter-issued','reselect-required'):
+            if stage in ('select-issued','table-select-issued','table-cell-enter-issued','table-caret-blink-wait','reselect-required'):
                 interrupts=int(pending.get('selection_interrupts') or 0)+1
                 pending['selection_interrupts']=interrupts
                 if interrupts > 3:
@@ -875,6 +942,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                        'select-issued':'TARGET_SELECTION_PENDING',
                        'table-select-issued':'TARGET_TABLE_SELECTED_PENDING',
                        'table-cell-enter-issued':'TARGET_CELL_TEXTMODE_PENDING',
+                       'table-caret-blink-wait':'TARGET_CARET_PROOF_PENDING',
                        'edit-issued':'TARGET_EDITING',
                        'commit-issued':'TARGET_COMMITTED','save-issued':'TARGET_VERIFYING',
                        'repair-reselect-required':'TARGET_RESELECT_REQUIRED',
@@ -937,6 +1005,10 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             before_shot=str(pending.get('selection_before_screenshot_sha256') or pending.get('before_screenshot_sha256') or '')
             shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
             siblings=_task091_other_shapes_signature(window_state,pending['slide'],pending.get('shape_id'))
+            frame_id=int(shape.get('frame_id') or 0) if isinstance(shape,dict) else 0
+            target_visual=_task091_region_sha256(window_state,list(pending.get('shape_bbox') or []))
+            sibling_visual=_task091_table_visual_signature(
+                window_state,pending['slide'],frame_id,pending.get('shape_id'))
             ack=(current_sha == str(pending.get('before_deck_sha256') or '')
                  and int(window_state.get('active_slide') or 0) == int(pending.get('slide') or 0)
                  and shape is not None
@@ -945,11 +1017,15 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                  and siblings == str(pending.get('before_sibling_signature') or '')
                  and len(current_fg)==64
                  and current_fg == str(pending.get('selection_foreground_sha256') or '')
-                 and len(current_shot)==64 and len(before_shot)==64 and current_shot != before_shot)
+                 and len(current_shot)==64 and len(before_shot)==64 and current_shot != before_shot
+                 and len(target_visual)==64 and len(sibling_visual)==64)
             if not ack:
                 return _task091_terminal('TASK091_TABLE_SELECTION_NOT_ACKNOWLEDGED',state)
             pending['table_selected_screenshot_sha256']=current_shot
             pending['table_selected_sibling_signature']=siblings
+            pending['table_frame_id']=frame_id
+            pending['table_selected_target_visual_sha256']=target_visual
+            pending['table_selected_sibling_visual_sha256']=sibling_visual
             pending['stage']='table-cell-enter-issued'
             cx=int(pending.get('text_hit_x') or 0); cy=int(pending.get('text_hit_y') or 0)
             command=f"pyautogui.click({cx}, {cy})"
@@ -967,34 +1043,71 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                            'proof_sha256':stored.get('proof_sha256')}
             return {'action':'exec','command':command,
                     'target':action_target,
-                    'plan':'The table container is positively selected; issue one separate click into the exact cell and observe again before any text key.',
-                    'specialist_phase':'enter-table-cell-text-mode'}
+                    'plan':'The exact table container is selected; click the target cell once more, then prove a blinking caret before any text mutation.',
+                    'specialist_phase':'enter-table-cell-caret-candidate'}
         if stage == 'table-cell-enter-issued':
             current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
             current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
-            current_shot=str(window_state.get('screenshot_sha256') or '')
-            table_shot=str(pending.get('table_selected_screenshot_sha256') or '')
             shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
             siblings=_task091_other_shapes_signature(window_state,pending['slide'],pending.get('shape_id'))
-            ack=(current_sha == str(pending.get('before_deck_sha256') or '')
-                 and int(window_state.get('active_slide') or 0) == int(pending.get('slide') or 0)
-                 and shape is not None
-                 and str(shape.get('kind') or '') == 'table-cell'
-                 and str(shape.get('text') or '') == str(pending.get('old') or '')
-                 and siblings == str(pending.get('before_sibling_signature') or '')
-                 and siblings == str(pending.get('table_selected_sibling_signature') or '')
-                 and len(current_shot)==64 and len(table_shot)==64 and current_shot != table_shot)
-            if not ack:
-                return _task091_terminal('TASK091_TABLE_CELL_TEXT_MODE_UNPROVEN',state)
-            pending['selected_screenshot_sha256']=current_shot
+            target_visual=_task091_region_sha256(window_state,list(pending.get('shape_bbox') or []))
+            sibling_visual=_task091_table_visual_signature(
+                window_state,pending['slide'],pending.get('table_frame_id'),pending.get('shape_id'))
+            safe=(current_sha == str(pending.get('before_deck_sha256') or '')
+                  and int(window_state.get('active_slide') or 0) == int(pending.get('slide') or 0)
+                  and shape is not None
+                  and str(shape.get('kind') or '') == 'table-cell'
+                  and str(shape.get('text') or '') == str(pending.get('old') or '')
+                  and siblings == str(pending.get('before_sibling_signature') or '')
+                  and siblings == str(pending.get('table_selected_sibling_signature') or '')
+                  and len(target_visual)==64 and len(sibling_visual)==64
+                  and sibling_visual == str(pending.get('table_selected_sibling_visual_sha256') or ''))
+            if not safe:
+                return _task091_terminal('TASK091_TABLE_CELL_ENTRY_DRIFT',state)
+            pending['caret_probe_visual_sha256']=target_visual
+            pending['caret_probe_sibling_visual_sha256']=sibling_visual
+            pending['caret_probe_attempts']=0
+            pending['stage']='table-caret-blink-wait'
+            return {'action':'exec','command':"pyautogui.sleep(0.45)",
+                    'plan':'Wait only for the insertion caret blink; no text key is allowed until the change is localized to the exact target cell.',
+                    'specialist_phase':'prove-table-cell-caret-blink'}
+        if stage == 'table-caret-blink-wait':
+            current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
+            current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
+            shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
+            siblings=_task091_other_shapes_signature(window_state,pending['slide'],pending.get('shape_id'))
+            target_visual=_task091_region_sha256(window_state,list(pending.get('shape_bbox') or []))
+            sibling_visual=_task091_table_visual_signature(
+                window_state,pending['slide'],pending.get('table_frame_id'),pending.get('shape_id'))
+            safe=(current_sha == str(pending.get('before_deck_sha256') or '')
+                  and int(window_state.get('active_slide') or 0) == int(pending.get('slide') or 0)
+                  and shape is not None
+                  and str(shape.get('kind') or '') == 'table-cell'
+                  and str(shape.get('text') or '') == str(pending.get('old') or '')
+                  and siblings == str(pending.get('before_sibling_signature') or '')
+                  and len(target_visual)==64 and len(sibling_visual)==64
+                  and sibling_visual == str(pending.get('caret_probe_sibling_visual_sha256') or ''))
+            if not safe:
+                return _task091_terminal('TASK091_TABLE_CARET_PROOF_DRIFT',state)
+            baseline=str(pending.get('caret_probe_visual_sha256') or '')
+            if target_visual == baseline:
+                attempts=int(pending.get('caret_probe_attempts') or 0)+1
+                pending['caret_probe_attempts']=attempts
+                if attempts >= 3:
+                    return _task091_terminal('TASK091_TABLE_CELL_CARET_UNPROVEN',state)
+                return {'action':'exec','command':"pyautogui.sleep(0.45)",
+                        'plan':'Caret phase matched the prior frame; wait one bounded blink interval and prove target-local change.',
+                        'specialist_phase':'reprobe-table-cell-caret-blink'}
+            pending['selected_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
             pending['selection_ack_foreground_sha256']=_task091_foreground_sha(window_state)
             pending['explicit_text_mode']=True
+            pending['caret_proven_target_visual_sha256']=target_visual
             pending['stage']='edit-issued'
-            command=_task091_write_command(pending['new'], ensure_text_mode=False)
+            command=_task091_table_cell_bounded_write_command(pending['old'],pending['new'])
             pending['action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
-                    'plan':f"Edit the twice-observed exact table cell from {pending['old']!r} to {pending['new']!r}; sibling signature is unchanged.",
-                    'specialist_phase':'edit-proven-table-cell','expected_change':pending['new']}
+                    'plan':f"Replace only the proven one-line table cell {pending['old']!r} using End + bounded Backspace + write; Ctrl+A is forbidden.",
+                    'specialist_phase':'edit-caret-proven-table-cell','expected_change':pending['new']}
         if stage == 'select-issued':
             current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
             current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
