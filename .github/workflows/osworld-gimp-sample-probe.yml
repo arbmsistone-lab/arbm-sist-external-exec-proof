@@ -39,7 +39,7 @@ jobs:
           set -euo pipefail
           git clone --depth 1 --branch v2026.08.08 https://github.com/xlang-ai/OSWorld-V2.git osworld
           test "$(git -C osworld rev-parse HEAD)" = d578d2d4e0dc82b43e270fdaa7fa89d9708cd154
-          python -m pip install --disable-pip-version-check -q uv==0.8.15 huggingface_hub==0.35.3
+          python -m pip install --disable-pip-version-check --require-hashes -q -r audit/locks/uv-hf.txt
           cd osworld
           uv sync --frozen
           uv run python scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
