@@ -349,7 +349,7 @@ def prove_export_via_gui(env, obs, evidence):
     obs=click(env,obs,'Export','push-button',2)
     for i in range(12):
         tree=save_obs(evidence,f'82-export-state-{i:02d}',obs)
-            alert=export_alert_name(tree)
+        alert=export_alert_name(tree)
         if alert:
             if alert.casefold()==TARGET.casefold():
                 raise RuntimeError('ORIGINAL_OVERWRITE_ATTEMPT_BLOCKED')
