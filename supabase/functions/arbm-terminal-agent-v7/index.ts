@@ -363,9 +363,9 @@ Deno.serve(async (req: Request) => {
   } catch (error: any) {
     const message = String(error?.message || error);
     const unauthorized = message.startsWith("OIDC_") || message.includes("JWT") || message.includes("signature");
+    console.error(JSON.stringify({ event: "terminal_agent_failed", category: unauthorized ? "auth" : "internal" }));
     return respond({
-      error: unauthorized ? "OIDC_UNAUTHORIZED" : "INTERNAL_ERROR",
-      detail: unauthorized ? message : undefined
+      error: unauthorized ? "OIDC_UNAUTHORIZED" : "INTERNAL_ERROR"
     }, unauthorized ? 401 : 500);
   }
 });
