@@ -4,9 +4,8 @@ import json
 import math
 import os
 import time
-import urllib.error
-import urllib.request
 from osworld_control import canonical_action
+from arbm_safe_http import SafeHttpError, request_json
 
 BASE = 'https://openrouter.ai/api/v1'
 ROUTE = 'openrouter-multimodal-free'
@@ -89,17 +88,12 @@ class FreeRoute:
 
     @staticmethod
     def http(path, key, payload=None, timeout=35):
-        headers = {'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json'}
-        request = urllib.request.Request(BASE + path, headers=headers,
-            data=None if payload is None else json.dumps(payload, ensure_ascii=False).encode())
+        headers={'Authorization':'Bearer ' + key, 'Content-Type':'application/json'}
+        data=None if payload is None else json.dumps(payload, ensure_ascii=False).encode()
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
-                return response.status, json.loads(response.read()), dict(response.headers)
-        except urllib.error.HTTPError as error:
-            try: data = json.loads(error.read())
-            except (ValueError, UnicodeError): data = {}
-            return error.code, data, dict(error.headers)
-        except (urllib.error.URLError, TimeoutError, ValueError):
+            return request_json(BASE + path, method='GET' if data is None else 'POST',
+                                headers=headers, data=data, timeout=timeout)
+        except (SafeHttpError, OSError, TimeoutError, ValueError):
             return 503, {}, {}
 
     def state(self, model):
