@@ -109,6 +109,8 @@ jobs:
           git -C osworld diff -- scripts/python/run_multienv.py > osworld-docker-provider.patch
           test -s osworld-docker-provider.patch
           python scripts/osworld_docker_volume.py osworld
+          cp scripts/arbm_safe_http.py osworld/arbm_safe_http.py
+          PYTHONPATH=osworld python -c 'import arbm_safe_http; print("ARBM_SAFE_HTTP_IMPORT=PASS")'
           git -C osworld diff -- scripts/python/run_multienv.py desktop_env/providers/docker/provider.py > osworld-volume.patch
           test -s osworld-volume.patch
           python scripts/osworld_vm_upload.py osworld/desktop_env/controllers/setup.py
