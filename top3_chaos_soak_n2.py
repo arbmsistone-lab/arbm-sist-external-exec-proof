@@ -42,7 +42,7 @@ def new_conn(cell): return psycopg.connect(DSNS[cell],autocommit=True,connect_ti
 def fill_pool(cell):
     while not pools[cell].empty():
         try: pools[cell].get_nowait().close()
-        except Exception: pass
+        except Exception:\n            # Pool entry may already be invalid/closed; cleanup is intentionally best-effort.\n            pass
     with concurrent.futures.ThreadPoolExecutor(max_workers=min(16,POOL_PER_CELL)) as ex:
         conns=list(ex.map(lambda _: new_conn(cell),range(POOL_PER_CELL)))
     for conn in conns: pools[cell].put(conn)
