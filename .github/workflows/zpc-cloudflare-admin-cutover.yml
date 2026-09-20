@@ -1,6 +1,11 @@
 name: ZPC Cloudflare Admin Cutover
 
 on:
+  push:
+    branches:
+      - chatgpt/zpc-cloudflare-admin-20260920
+    paths:
+      - .github/workflows/zpc-cloudflare-admin-cutover.yml
   workflow_dispatch:
     inputs:
       mode:
@@ -29,7 +34,7 @@ jobs:
       CF_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
       CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       ZPC_TARGET: ${{ inputs.target_url }}
-      ZPC_MODE: ${{ inputs.mode }}
+      ZPC_MODE: ${{ inputs.mode || 'probe' }}
     steps:
       - name: Fail closed policy
         shell: bash
