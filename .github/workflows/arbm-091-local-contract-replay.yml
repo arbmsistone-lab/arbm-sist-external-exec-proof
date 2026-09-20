@@ -41,8 +41,8 @@ jobs:
       - name: Install pinned local VLM runtime
         run: |
           set -euo pipefail
-          python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
-          python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
+          python -m pip install --disable-pip-version-check --require-hashes -q -r scripts/requirements-osworld.txt
+          python -m pip install --disable-pip-version-check --require-hashes -q -r audit/locks/osworld-ml.txt
 
       - name: Replay exact Step 1 through promoted selector route twice
         shell: bash
