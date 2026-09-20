@@ -146,6 +146,15 @@ jobs:
         uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28
         with:
           category: /language:${{ matrix.language }}
+          output: codeql-results
+      - name: Upload CodeQL SARIF evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: world-free-codeql-${{ matrix.language }}
+          path: codeql-results
+          if-no-files-found: error
+          retention-days: 90
 
   supply-chain:
     permissions:
