@@ -195,5 +195,6 @@ def validate_release_receipts(receipts, candidate_sha):
 
 if __name__=='__main__':
     import sys
-    payload=json.load(open(sys.argv[1]))
+    with open(sys.argv[1],encoding='utf-8') as handle:
+        payload=json.load(handle)
     print(json.dumps(evaluate(payload),indent=2,sort_keys=True))
