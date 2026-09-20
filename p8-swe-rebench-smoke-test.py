@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+import types
 
 
 SCRIPT = Path(__file__).with_name('p8-swe-rebench-smoke.py')
@@ -18,9 +19,13 @@ def load_function(name, namespace):
         if isinstance(node, ast.FunctionDef) and node.name == name
     )
     module = ast.fix_missing_locations(ast.Module(body=[function], type_ignores=[]))
-    scope = dict(namespace)
-    exec(compile(module, str(SCRIPT), 'exec'), scope)
-    return scope[name]
+    compiled = compile(module, str(SCRIPT), 'exec')
+    function_code = next(
+        value for value in compiled.co_consts
+        if isinstance(value, types.CodeType) and value.co_name == name
+    )
+    scope = {'__builtins__': __builtins__, **dict(namespace)}
+    return types.FunctionType(function_code, scope, name)
 
 
 class SmokePolicyTests(unittest.TestCase):
