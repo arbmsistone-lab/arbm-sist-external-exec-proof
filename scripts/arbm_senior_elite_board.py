@@ -71,12 +71,12 @@ def review_action(action, *, task_id="", source="generic", state=None,
     rows.append(_lane("provenance",provenance_ok,
         "critical execution must be bound to an exact 40-hex commit when SHA is present"))
 
-    ownership_ok=not (
-        str(task_id)=="091"
-        and bool(task091.get("owned"))
-        and not bool(task091.get("handoff"))
-        and source!="task091-specialist"
-    )
+    ownership_ok=True
+    if (str(task_id)=="091"
+            and bool(task091.get("owned"))
+            and not bool(task091.get("handoff"))
+            and source!="task091-specialist"):
+        ownership_ok=False
     rows.append(_lane("specialist_ownership",ownership_ok,
         "Task 091 specialist ownership cannot be bypassed by the generic mesh"))
 
