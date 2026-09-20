@@ -1,14 +1,14 @@
 name: ZEVANORY AI3 FREE Proof Transfer
 on:
   workflow_dispatch:
-permissions:
-  contents: read
-  id-token: write
+permissions: read-all
 concurrency:
   group: zevanory-ai3-free-transfer
   cancel-in-progress: false
 jobs:
   proof-transfer:
+    permissions:
+      id-token: write
     if: github.repository == 'arbmsistone-lab/arbm-sist-external-exec-proof' && github.ref == 'refs/heads/g3-free-cert-lane-20260910'
     runs-on: ubuntu-24.04
     timeout-minutes: 8
