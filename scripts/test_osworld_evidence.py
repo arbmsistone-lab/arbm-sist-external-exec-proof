@@ -1,6 +1,6 @@
 import unittest,tempfile,json
 from pathlib import Path
-from osworld_evidence import seal,verify,aggregate
+from osworld_evidence import seal,aggregate
 class EvidenceTests(unittest.TestCase):
  def setUp(self):
   self.t=tempfile.TemporaryDirectory();self.addCleanup(self.t.cleanup);self.root=Path(self.t.name)
