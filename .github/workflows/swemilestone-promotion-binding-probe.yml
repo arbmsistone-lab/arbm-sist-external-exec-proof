@@ -16,7 +16,8 @@ jobs:
         run: |
           git clone --filter=blob:none https://github.com/DeepCommit-ai/SWE-Milestone.git src
           git -C src checkout 6d8b31168fd0e2ad57c0d1daa3df1556df014320
-          python -m pip install -e ./src
+          python -m pip install --require-hashes -r audit/locks/swe-milestone-base.txt
+          echo "PYTHONPATH=$PWD/src" >> "$GITHUB_ENV"
       - name: Materialize exact benchmark data
         run: |
           git clone --depth 1 --branch v1.0.2 https://huggingface.co/datasets/DeepCommit-ai/SWE-Milestone-data data
