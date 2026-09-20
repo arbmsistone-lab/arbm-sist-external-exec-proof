@@ -32,7 +32,10 @@ class MasterInvariantTests(unittest.TestCase):
         workflow=(ROOT/'.github/workflows/osworld-v32-official-18.yml').read_text()
         self.assertIn('- '+MASTER,workflow)
         self.assertNotIn('chatgpt/osworld-v32-rescue-20260912',workflow)
-        self.assertIn("'safetensors==0.8.0'",workflow)
+        self.assertIn("--require-hashes -q -r audit/locks/osworld-ml.txt",workflow)
+        lock=(ROOT/'audit/locks/osworld-ml.txt').read_text()
+        self.assertIn('safetensors==0.8.0',lock)
+        self.assertIn('--hash=sha256:',lock)
         for wf in (ROOT/'.github/workflows').glob('*.yml'):
             for use in re.findall(r'uses:\s*([^\s#]+)',wf.read_text()):
                 if use.startswith('actions/'):
