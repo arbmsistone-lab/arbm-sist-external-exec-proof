@@ -24,8 +24,15 @@ def load_function(name, namespace):
         value for value in compiled.co_consts
         if isinstance(value, types.CodeType) and value.co_name == name
     )
+    positional_defaults = tuple(ast.literal_eval(node) for node in function.args.defaults)
     scope = {'__builtins__': __builtins__, **dict(namespace)}
-    return types.FunctionType(function_code, scope, name)
+    loaded = types.FunctionType(function_code, scope, name, positional_defaults)
+    kwdefaults = {}
+    for arg, node in zip(function.args.kwonlyargs, function.args.kw_defaults):
+        if node is not None:
+            kwdefaults[arg.arg] = ast.literal_eval(node)
+    loaded.__kwdefaults__ = kwdefaults or None
+    return loaded
 
 
 class SmokePolicyTests(unittest.TestCase):
