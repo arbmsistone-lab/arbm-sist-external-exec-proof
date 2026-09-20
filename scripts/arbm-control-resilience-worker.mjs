@@ -33,4 +33,4 @@ try{
   need(validator,"gate: 'ARBM_CONTROL_INTERRUPTION_RESILIENCE_V1'");need(validator,'blind_write_retry: false');need(validator,'single_provider_dependency: false');
   const done=await call('complete',{missionId:mission.mission_id,state:'SUCCEEDED'});if(done.ok!==true)throw new Error('completion_rejected');
   console.log(JSON.stringify({ok:true,missionId:mission.mission_id,state:'SUCCEEDED',sourceSha:p.sourceSha,provider:'circleci'}));
-}catch(e){const error=String(e?.message||e).slice(0,1600);if(mission?.mission_id){try{await call('complete',{missionId:mission.mission_id,state:'FAILED_FINAL',error})}catch{}}console.error(JSON.stringify({ok:false,missionId:mission?.mission_id||null,error}));process.exitCode=1;}
+}catch(e){const error=String(e?.message||e).slice(0,1600);if(mission?.mission_id){try{await call('complete',{missionId:mission.mission_id,state:'FAILED_FINAL',error});}catch{}}console.error(JSON.stringify({ok:false,missionId:mission?.mission_id||null,error}));process.exitCode=1;}
