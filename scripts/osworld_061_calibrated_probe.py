@@ -23,7 +23,7 @@ def main(image,evidence):
         task=load_task_from_file('evaluation_examples/task_class/task_061.py')
         env=DesktopEnv(provider_name='docker',path_to_vm=str(image),headless=True,
                        action_space='pyautogui',require_a11y_tree=True,volume_size=50)
-        obs=env.reset(task_config=task)
+        env.reset(task_config=task)
         obs=step(env,"pyautogui.hotkey('ctrl','alt','t'); pyautogui.sleep(2)",3)
         for _ in range(12):
             if 'terminal' in tree(obs).casefold(): break
@@ -33,7 +33,7 @@ def main(image,evidence):
         shell="python3 -c \"import base64;open('/tmp/arbm061.py','wb').write(base64.b64decode('"+payload+"'))\"; echo ARBM061_SCRIPT_READY"
         obs=step(env,"pyautogui.write(%r, interval=0.001); pyautogui.press('enter'); pyautogui.sleep(2)"%shell,2)
         if 'ARBM061_SCRIPT_READY' not in tree(obs): raise RuntimeError('CALIBRATION_SCRIPT_NOT_VISIBLE')
-        obs=step(env,"pyautogui.write('python3 /tmp/arbm061.py', interval=0.03); pyautogui.press('enter')",1)
+        step(env,"pyautogui.write('python3 /tmp/arbm061.py', interval=0.03); pyautogui.press('enter')",1)
         match=None
         for i in range(90):
             obs=step(env,"pyautogui.sleep(2)",2)
