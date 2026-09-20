@@ -492,6 +492,7 @@ def _runtime_cleanup(*objects):
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
     except Exception:
+        # Optional accelerator cleanup/tuning is best-effort and cannot invalidate the primary result.
         pass
 
 
@@ -505,14 +506,17 @@ def _configure_cpu_runtime(torch):
     try:
         torch.set_num_interop_threads(1)
     except RuntimeError:
+        # Torch permits setting interop threads only before some runtime initialization paths.
         pass
     try:
         torch.backends.mkldnn.enabled=True
     except Exception:
+        # Optional accelerator cleanup/tuning is best-effort and cannot invalidate the primary result.
         pass
     try:
         torch.set_float32_matmul_precision('high')
     except Exception:
+        # Optional accelerator cleanup/tuning is best-effort and cannot invalidate the primary result.
         pass
     return {'cpu_cores':cores,'torch_threads':threads,'interop_threads':1}
 
@@ -679,7 +683,6 @@ def default_select_action(body, image_b64):
         restricted=torch.tensor([adjusted[s] for s in symbols],dtype=torch.float32)
         probs=torch.softmax(restricted,dim=0)
         confidence=float(probs[chosen_index])
-        ordered_probs=torch.sort(probs,descending=True).values
         margin=float(adjusted[chosen]-max((v for s,v in adjusted.items() if s!=chosen),default=adjusted[chosen]-999.0))
         entropy=float(-(probs*torch.log(probs.clamp_min(1e-12))).sum())
         action=dict(candidates[chosen_index]['action'])
@@ -705,14 +708,8 @@ def default_select_action(body, image_b64):
               **runtime_meta}
         return action,meta
     finally:
-        try:
-            del inputs
-        except Exception:
-            pass
-        try:
-            del logits
-        except Exception:
-            pass
+        del inputs
+        del logits
         _runtime_cleanup()
 
 
@@ -956,7 +953,6 @@ class LocalVLMRoute:
                                  'latency_seconds':round(elapsed,3),'budget_overrun':bool(elapsed>budget),**_output_evidence(output)})
                 return result,attempts
             except Exception as exc:
-                last_error=str(exc) if isinstance(exc,ValueError) else type(exc).__name__
                 attempts.append({**base,'status':'local_model_error','error_type':type(exc).__name__,'repair_index':repair_index,
                                  **({'contract_error':str(exc)} if isinstance(exc,ValueError) else {})})
                 return None,attempts
