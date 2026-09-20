@@ -1758,6 +1758,13 @@ def try_061_calibrated(body, obs, focused_obs):
     try:
         action=ground_action(candidate,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
         decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
+        senior_review=require_senior_elite(
+            action,task_id=os.environ.get('TASK_ID'),source='061-calibrated',
+            state=STATE,verifier=VERIFIER.last_result,
+            recent_commands=[x['command'] for x in STATE['history'][-6:]])
+        log_event({'status':'SENIOR_ELITE_BOARD_PASS','source':'061-calibrated',
+                   'pass':senior_review['pass'],'total':senior_review['total'],
+                   'lanes':senior_review['lanes']})
     except ValueError as exc:
         log_event({'status':'GRADE061_POLICY_REJECTED','reason':str(exc),'action':candidate})
         return 'WAIT' if state.get('owned') else None
@@ -1841,6 +1848,13 @@ def try_gimp_specialist(body, obs, focused_obs):
     try:
         action=ground_action(candidate,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
         decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
+        senior_review=require_senior_elite(
+            action,task_id=os.environ.get('TASK_ID'),source='gimp-specialist',
+            state=STATE,verifier=VERIFIER.last_result,
+            recent_commands=[x['command'] for x in STATE['history'][-6:]])
+        log_event({'status':'SENIOR_ELITE_BOARD_PASS','source':'gimp-specialist',
+                   'pass':senior_review['pass'],'total':senior_review['total'],
+                   'lanes':senior_review['lanes']})
     except ValueError as exc:
         log_event({'status':'GIMP_SPECIALIST_POLICY_REJECTED','reason':str(exc),'action':candidate})
         if specialist_state.get('owned'):
