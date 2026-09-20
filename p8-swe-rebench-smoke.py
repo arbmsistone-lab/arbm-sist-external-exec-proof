@@ -912,9 +912,9 @@ with tempfile.TemporaryDirectory(prefix='arbm-swe-') as td:
                     old='\n'.join(lines[st-1:en])
                     if re.search(r'\b(?:int|integer|int32|uint32)\b|\(int\s',old,re.I):
                         touches_overflow_site=True; break
-                except Exception:
-                # Public-spec heuristic is best-effort; malformed optional source context is ignored.
-                pass
+                except (AttributeError, OSError, TypeError, ValueError):
+                    # Optional source metadata may be absent or malformed; skip this candidate.
+                    continue
             if not touches_overflow_site: errs.append('public_invariant_no_overflow_site_touched')
         return errs
     def public_causal_fixed_width_hints(repo, edits):
