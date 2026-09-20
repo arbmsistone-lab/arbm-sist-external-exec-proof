@@ -87,7 +87,8 @@ jobs:
           test "$(sha256sum "data/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh" | awk '{print $1}')" = "6869ee39355d4ddfca7dfb5bddf9f1b32e9651c94a31b522a8435d3810f2d099"
           chmod +x "data/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh"
           sha256sum "data/$REPO_ID/metadata.json" "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_classification.json" "data/$REPO_ID/test_results/$TASK_ID/${TASK_ID}_filter_list.json" "data/config/$REPO_ID.yaml" "data/$REPO_ID/dockerfiles/evaluation_post_snapshot.sh" "data/$REPO_ID/dockerfiles/$TASK_ID/test_config.json" > public-data-SHA256SUMS.txt
-          python -m pip install -q -e ./harness-src
+          python -m pip install --require-hashes -q -r audit/locks/swe-milestone-base.txt
+          echo "PYTHONPATH=$PWD/harness-src" >> "$GITHUB_ENV"
       - name: Bind verified CPU capacity and protected runtime
         shell: bash
         run: |
@@ -213,7 +214,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install -q -e ./harness-src
+          python -m pip install --require-hashes -q -r audit/locks/swe-milestone-base.txt
+          echo "PYTHONPATH=$PWD/harness-src" >> "$GITHUB_ENV"
           python - <<'PY'
           import hashlib,json,os,pathlib,sys,yaml
           sys.path.insert(0,'harness-src')
@@ -243,7 +245,8 @@ jobs:
           SWE_MILESTONE_IMAGE_TAG: v1.0.2
         run: |
           set -euo pipefail
-          python -m pip install -q -e ./harness-src
+          python -m pip install --require-hashes -q -r audit/locks/swe-milestone-base.txt
+          echo "PYTHONPATH=$PWD/harness-src" >> "$GITHUB_ENV"
           cfg="data/config/$REPO_ID.yaml"
           cfg_sha=$(sha256sum "$cfg" | awk '{print $1}')
           set +e

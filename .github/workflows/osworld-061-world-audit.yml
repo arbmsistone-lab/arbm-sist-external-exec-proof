@@ -1,0 +1,227 @@
+name: OSWorld 061 world audit
+on:
+  push:
+    branches: [chatgpt/arbm-agent-elite-v2-20260914]
+    paths:
+      - .github/workflows/osworld-061-world-audit.yml
+      - scripts/osworld_061_*.py
+      - scripts/osworld_free_mesh_shim.py
+      - scripts/osworld_gimp_style_transfer.py
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Approved official focal run to audit
+        required: true
+        default: '35148173044'
+      artifact_name:
+        description: Official shard evidence artifact
+        required: true
+        default: 'osworld-v32-official18-B'
+permissions:
+  actions: read
+  contents: read
+concurrency:
+  group: osworld-061-world-audit-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  world-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      ZERO_SPEND_MODE: HARD
+      ARBM_ENABLE_LOCAL_VLM: '1'
+      ARBM_LOCAL_TEXT_CACHE_MODELS: '1'
+      ARBM_LOCAL_TEXT_PROMPT_TOKENS: '2048'
+      ARBM_SWARM_REMOTE_WORKERS: '3'
+      ARBM_SWARM_OPENROUTER_BUDGET_S: '45'
+      ARBM_SWARM_GROQ_BUDGET_S: '30'
+      ARBM_SWARM_REPAIR_BUDGET_S: '20'
+      APPROVED_FOCAL_RUN_ID: '35148173044'
+      APPROVED_FOCAL_SHA: '71146c8239467af9efbe11572f40a433bd4009d6'
+      APPROVED_EVIDENCE_MANIFEST_SHA256: 'e67e3fa9680bc8fa46a76e16251ed2fbfc07b04518bb6c6e6c090256e3e535e9'
+      DIAGNOSTIC_PROBE_RUN_ID: '35145804545'
+      DIAGNOSTIC_PROBE_SHA: '71146c8239467af9efbe11572f40a433bd4009d6'
+      TRUSTED_SWARM_RUN_ID: '35205586391'
+      TRUSTED_SWARM_SOURCE_SHA: '73772dbe40650d2e4561693db00ade48e3134ac1'
+      TRUSTED_SWARM_JSON_SHA256: 'd2b5f67bf46771c968e4f58437f90d22d7636b4db31ab3b2422eff6bfe9f07f7'
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Purge stale homologation evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf incident-evidence current-probe-evidence trusted-world-audit
+          rm -f osworld-061-*-lane-receipt.json osworld-061-specialist-replay.json osworld-061-evidence-bundle.json osworld-061-evidence-bundle.sha256
+          mkdir -p incident-evidence current-probe-evidence
+          echo "STALE_EVIDENCE_PURGED=1" >> "$GITHUB_ENV"
+      - name: Download official focal evidence
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: ${{ github.event_name == 'workflow_dispatch' && inputs.artifact_name || 'osworld-v32-official18-B' }}
+          run-id: ${{ github.event_name == 'workflow_dispatch' && inputs.run_id || env.APPROVED_FOCAL_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: incident-evidence
+      - name: Verify approved focal SHA and evidence manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t candidates < <(find incident-evidence -type f -name candidate-sha.txt -print)
+          test "${#candidates[@]}" -eq 1
+          test "$(tr -d '\r\n' < "${candidates[0]}")" = "$APPROVED_FOCAL_SHA"
+          mapfile -t manifests < <(find incident-evidence -type f -name SHA256SUMS.txt -print)
+          test "${#manifests[@]}" -eq 1
+          actual_manifest_sha=$(sha256sum "${manifests[0]}" | cut -d' ' -f1)
+          test "$actual_manifest_sha" = "$APPROVED_EVIDENCE_MANIFEST_SHA256"
+          echo "APPROVED_FOCAL_EVIDENCE_BOUND=1" >> "$GITHUB_ENV"
+      - name: Download calibrated diagnostic probe evidence
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: osworld-061-calibrated-probe
+          run-id: ${{ env.DIAGNOSTIC_PROBE_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: current-probe-evidence/calibrated
+      - name: Download GIMP diagnostic probe evidence
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: osworld-gimp-sample-colorize-probe
+          run-id: ${{ env.DIAGNOSTIC_PROBE_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: current-probe-evidence/gimp
+      - name: Verify diagnostic probe execution parity
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin "$DIAGNOSTIC_PROBE_SHA"
+          git diff --exit-code "$DIAGNOSTIC_PROBE_SHA" HEAD -- scripts/osworld_free_mesh_shim.py scripts/osworld_061_calibrated_grade.py scripts/osworld_gimp_style_transfer.py
+          echo "DIAGNOSTIC_EXECUTION_PARITY=1" >> "$GITHUB_ENV"
+      - name: Install lightweight pinned audit runtime
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = HARD
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$STALE_EVIDENCE_PURGED" = 1
+          test "$APPROVED_FOCAL_EVIDENCE_BOUND" = 1
+          timeout --signal=TERM --kill-after=10s 120s python -m pip install --disable-pip-version-check -q --only-binary=:all: -r scripts/requirements-osworld.txt
+      - name: Run 500 deterministic adversarial perspectives
+        run: timeout --signal=TERM --kill-after=10s 60s python scripts/osworld_061_champion_audit.py
+      - name: Run 10-robot specialist remote fast path
+        id: swarm_fast
+        shell: bash
+        continue-on-error: true
+        run: |
+          set +e
+          started=$(date +%s)
+          timeout --signal=TERM --kill-after=10s 360s python scripts/osworld_061_performance_swarm.py incident-evidence
+          rc=$?
+          finished=$(date +%s)
+          python scripts/osworld_061_lane_receipt.py fast "$rc" "$started" "$finished"
+          exit "$rc"
+      - name: Download trusted accepted specialist quorum
+        if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1'
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: osworld-061-world-audit
+          run-id: ${{ env.TRUSTED_SWARM_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: trusted-world-audit
+      - name: Revalidate immutable accepted specialist quorum
+        id: swarm_replay
+        if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1'
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          test "$(sha256sum trusted-world-audit/osworld-061-specialist-swarm.json | cut -d' ' -f1)" = "$TRUSTED_SWARM_JSON_SHA256"
+          git fetch --no-tags --depth=1 origin "$TRUSTED_SWARM_SOURCE_SHA"
+          git diff --exit-code "$TRUSTED_SWARM_SOURCE_SHA" HEAD -- scripts/osworld_free_mesh_shim.py scripts/osworld_061_calibrated_grade.py scripts/osworld_gimp_style_transfer.py
+          export TRUSTED_SWARM_FOCAL_PARITY=1
+          timeout --signal=TERM --kill-after=10s 30s python scripts/osworld_061_trusted_replay.py trusted-world-audit/osworld-061-specialist-swarm.json
+      - name: Preflight heavyweight local audit fallback
+        id: heavy_preflight
+        if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1' && steps.swarm_replay.outcome != 'success'
+        run: timeout --signal=TERM --kill-after=10s 30s python scripts/osworld_061_heavy_runtime_preflight.py
+      - name: Install heavyweight local audit fallback
+        if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1' && steps.swarm_replay.outcome != 'success' && steps.heavy_preflight.outputs.capacity_ok == '1' && steps.heavy_preflight.outputs.install_required == '1'
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = HARD
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          timeout --signal=TERM --kill-after=20s 180s python -m pip install --disable-pip-version-check -q --only-binary=:all: --index-url https://download.pytorch.org/whl/cpu 'torch==2.7.1'
+          timeout --signal=TERM --kill-after=10s 120s python -m pip install --disable-pip-version-check -q --only-binary=:all: 'transformers==4.52.4' 'safetensors==0.8.0'
+      - name: Verify heavyweight local audit runtime
+        if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1' && steps.swarm_replay.outcome != 'success'
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import importlib.metadata
+          required={'torch':'2.7.1+cpu','transformers':'4.52.4','safetensors':'0.8.0'}
+          actual={name:importlib.metadata.version(name) for name in required}
+          assert actual==required, (actual, required)
+          PY
+      - name: Run full specialist failover
+        id: swarm_full
+        if: steps.swarm_fast.outcome != 'success' && steps.swarm_fast.outputs.fallback_eligible == '1' && steps.swarm_replay.outcome != 'success'
+        shell: bash
+        continue-on-error: true
+        run: |
+          set +e
+          started=$(date +%s)
+          timeout --signal=TERM --kill-after=20s 600s python scripts/osworld_061_evidence_aware_swarm.py incident-evidence
+          rc=$?
+          finished=$(date +%s)
+          python scripts/osworld_061_lane_receipt.py full "$rc" "$started" "$finished"
+          exit "$rc"
+      - name: Run 20 final 3D audits
+        id: audit3d
+        if: always()
+        continue-on-error: true
+        run: timeout --signal=TERM --kill-after=10s 60s python scripts/osworld_061_3d_audit.py incident-evidence
+      - name: Build verified evidence bundle
+        id: evidence_bundle
+        if: always()
+        env:
+          FAST_OUTCOME: ${{ steps.swarm_fast.outcome }}
+          REPLAY_OUTCOME: ${{ steps.swarm_replay.outcome }}
+          FULL_OUTCOME: ${{ steps.swarm_full.outcome }}
+          AUDIT3D_OUTCOME: ${{ steps.audit3d.outcome }}
+        run: timeout --signal=TERM --kill-after=10s 60s python scripts/osworld_061_evidence_bundle.py
+      - name: Enforce supreme audit verdict
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.swarm_fast.outputs.substantive_blocked }}" = 1 ]; then
+            echo 'SUBSTANTIVE_SPECIALIST_BLOCKER'
+            exit 1
+          fi
+          if [ "${{ steps.swarm_fast.outcome }}" != success ] && [ "${{ steps.swarm_replay.outcome }}" != success ] && [ "${{ steps.swarm_full.outcome }}" != success ]; then
+            echo 'SPECIALIST_SWARM_NOT_ACCEPTED'
+            exit 1
+          fi
+          test "${{ steps.audit3d.outcome }}" = success
+          test "${{ steps.evidence_bundle.outcome }}" = success
+          test -s osworld-061-evidence-bundle.json
+          test -s osworld-061-evidence-bundle.sha256
+          sha256sum -c osworld-061-evidence-bundle.sha256
+      - name: Preserve world-audit evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: osworld-061-world-audit
+          path: |
+            osworld-061-champion-audit.json
+            osworld-061-fast-lane-receipt.json
+            osworld-061-full-lane-receipt.json
+            osworld-061-specialist-fast-path.json
+            osworld-061-specialist-replay.json
+            osworld-061-heavy-runtime-preflight.json
+            osworld-061-specialist-swarm.json
+            osworld-061-final-3d-audit.json
+            osworld-061-evidence-bundle.json
+            osworld-061-evidence-bundle.sha256
+            current-probe-evidence/
+          if-no-files-found: error
+          retention-days: 90

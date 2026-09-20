@@ -35,7 +35,7 @@ jobs:
       - name: Lightweight contract tests
         shell: bash
         run: |
-          python -m pip install -q 'openai>=1.50,<3' 'pillow==11.3.0' 'pyyaml==6.0.2'
+          python -m pip install --require-hashes -q -r audit/locks/g3-openai-pillow11.txt
           python -m unittest discover -s tests -p 'test_g3_free*.py' -v 2>&1 | tee free-tests.txt
           python -m pip freeze > free-runtime.txt
       - name: Assert FREE lane before VM preparation
@@ -97,9 +97,9 @@ jobs:
           git clone --depth 1 --branch v2026.08.08 https://github.com/xlang-ai/OSWorld-V2.git osworld
           test "$(git -C osworld rev-parse HEAD)" = "d578d2d4e0dc82b43e270fdaa7fa89d9708cd154"
           cd osworld
-          python -m pip install --disable-pip-version-check -q -U uv huggingface_hub
+          python -m pip install --disable-pip-version-check --require-hashes -q -r audit/locks/uv-hf.txt
           uv sync --frozen
-          uv pip install --python .venv/bin/python 'openai>=1.50,<3'
+          uv pip install --python .venv/bin/python --require-hashes -r ../audit/locks/openai-only.txt
           mkdir -p certification/g3-computer-use-snapshot
           cp ../certification/g3-computer-use-snapshot/*.mjs certification/g3-computer-use-snapshot/
           cp ../certification/vendor-gemini-agent.py mm_agents/gemini_agent.py

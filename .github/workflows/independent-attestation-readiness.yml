@@ -5,12 +5,12 @@ on:
       - 'certification/attestation-readiness-subject.json'
       - '.github/workflows/independent-attestation-readiness.yml'
   workflow_dispatch:
-permissions:
-  contents: read
-  id-token: write
-  attestations: write
+permissions: read-all
 jobs:
   attest-and-verify:
+    permissions:
+      id-token: write
+      attestations: write
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

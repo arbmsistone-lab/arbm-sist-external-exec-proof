@@ -54,7 +54,9 @@ def one_op(i):
             except Exception:
                 if conn is not None:
                     try: conn.close()
-                    except Exception: pass
+                    except Exception:
+                        # Connection may already be closed after failure; cleanup is intentionally best-effort.
+                        pass
                 with lock: state['down'].add(cell)
         time.sleep(.001)
     return (time.perf_counter()-started)*1000,-1,'unavailable_after_reroute'

@@ -1,0 +1,15 @@
+name: ARBM Hash Lock Generator (retired)
+
+on:
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  retired:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Retired after reproducible locks were generated
+        run: |
+          echo "LOCK_GENERATOR_RETIRED=1"
+          echo "Use committed SHA256-hashed lockfiles under audit/locks/."

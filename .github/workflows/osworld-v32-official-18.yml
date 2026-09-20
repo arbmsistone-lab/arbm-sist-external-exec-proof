@@ -1,0 +1,351 @@
+name: OSWorld v32 official 18 cloud gate
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Full official gate or explicitly labeled focal diagnostic
+        type: choice
+        options: [full, focal-061, providers-only]
+        default: full
+  push:
+    branches:
+      - chatgpt/arbm-agent-elite-v2-20260914
+    paths:
+      - .github/workflows/osworld-v32-official-18.yml
+      - scripts/**
+      - endpoint/**
+permissions: read-all
+concurrency:
+  group: ${{ github.event_name == 'push' && format('osworld-v32-preflight-{0}', github.sha) || github.event.inputs.mode == 'providers-only' && 'osworld-v32-providers' || 'osworld-v32-official-18' }}
+  cancel-in-progress: false
+jobs:
+  preflight:
+    permissions:
+      id-token: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      ZERO_SPEND_MODE: HARD
+      ARBM_ENABLE_LOCAL_VLM: '1'
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - run: python -m pip install --disable-pip-version-check --require-hashes -q -r scripts/requirements-osworld.txt
+      - run: python -m unittest discover -s scripts -p 'test_osworld_*.py'
+      - name: Enforce task 061 twenty-point blind-spot audit
+        run: python scripts/osworld_061_blindspot_audit.py
+      - name: Enforce task 061 champion 500+100 adversarial audit
+        run: python scripts/osworld_061_champion_audit.py
+      - name: Enforce task 061 final 20x3D audit
+        run: python scripts/osworld_061_3d_audit.py
+      - run: node scripts/test_endpoint.mjs
+      - run: git diff --check
+      - name: Fetch real recorded observation for provider admission
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: osworld-v32-official18-A
+          run-id: 34733419571
+          github-token: ${{ github.token }}
+          path: provider-observation
+      - name: Install quota-independent local VLM fallback
+        if: github.event_name == 'workflow_dispatch'
+        run: python -m pip install --disable-pip-version-check --require-hashes -q -r audit/locks/osworld-ml.txt
+      - name: Prove quota-independent local VLM admission
+        if: github.event_name == 'workflow_dispatch'
+        run: python scripts/osworld_local_vlm_smoke.py provider-observation
+      - name: Preserve local VLM admission proof
+        if: always() && github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: osworld-v32-local-vlm-smoke
+          path: osworld-v32-local-vlm-smoke.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Live OIDC and FREE provider admission
+        if: github.event_name == 'workflow_dispatch'
+        run: python scripts/osworld_v32_preflight.py provider-observation
+      - name: Preserve live preflight proof
+        if: always() && github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: osworld-v32-live-preflight
+          path: |
+            osworld-v32-live-preflight.json
+            osworld-v32-initial-admission.json
+            osworld-v32-independent-failover.json
+            osworld-v32-judge-admission.json
+          if-no-files-found: error
+          retention-days: 90
+  shard:
+    needs: preflight
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'providers-only'
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        shard: ${{ fromJSON(github.event.inputs.mode == 'focal-061' && '[{"id":"B","tasks":"061"}]' || '[{"id":"A","tasks":"001 019 037 055 073 091"},{"id":"B","tasks":"007 025 043 061 079 097"},{"id":"C","tasks":"013 031 049 067 085 103"}]') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
+      ZERO_SPEND_MODE: HARD
+      ARBM_ENABLE_LOCAL_VLM: '1'
+      OPENAI_BASE_URL: http://127.0.0.1:8088/v1
+      OPENAI_API_KEY: zero-spend-oidc-shim
+      OSWORLD_EVAL_MODEL_PROVIDER: openai_compatible
+      OSWORLD_EVAL_MODEL_NAME: nex-agi/nex-n2.5-pro:free
+      OSWORLD_EVAL_MODEL_BASE_URL: http://127.0.0.1:8089/v1
+      OSWORLD_EVAL_MODEL_API_KEY_ENV: OPENAI_API_KEY
+      OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
+      ARBM_MAX_STEPS: '500'
+      ARBM_TASK_SECONDS: '2400'
+      ARBM_RUN_MULTIENV_TIMEOUT_SECONDS: '2520'
+      ARBM_VM_VOLUME_GB: '50'
+      AWS_REGION: us-east-1
+      WEBSITE_HOST_SUFFIX: site.hku.icu
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Prepare pinned shim runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --require-hashes -q -r scripts/requirements-osworld.txt
+          python -c "import ijson; from PIL import Image; print('SHIM_RUNTIME_DEPS_OK')"
+      - name: Prove cloud KVM
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$ZERO_SPEND_MODE" = HARD
+          test "$ARBM_MAX_STEPS" = 500
+          test -c /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - name: Hydrate pinned OSWorld release
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v2026.08.08 https://github.com/xlang-ai/OSWorld-V2.git osworld
+          test "$(git -C osworld rev-parse HEAD)" = d578d2d4e0dc82b43e270fdaa7fa89d9708cd154
+          python -m pip install --disable-pip-version-check --require-hashes -q -r audit/locks/uv-hf.txt
+          cd osworld
+          uv sync --frozen
+          uv run python scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
+          test "$(find evaluation_examples/task_class -maxdepth 1 -name 'task_*.py' -type f | wc -l)" -eq 108
+          uv run python - <<'PY' > /tmp/osworld_asset_dirs.txt
+          import os
+          from huggingface_hub import HfApi
+          files = HfApi(token=os.environ['HF_TOKEN']).list_repo_files(
+              repo_id='xlangai/osworld_v2_assets_gated', repo_type='dataset', revision='v2026.08.08')
+          assert files, 'OFFICIAL_ASSET_REPO_EMPTY_OR_UNREADABLE'
+          dirs = sorted({x.split('/')[0] for x in files if x.startswith('task_') and '/' in x})
+          print('\n'.join(dirs))
+          PY
+          for id in ${{ matrix.shard.tasks }}; do
+            test -f "evaluation_examples/task_class/task_${id}.py"
+            matches=$(grep -E "^task_${id}($|_)" /tmp/osworld_asset_dirs.txt || true)
+            if [ -n "$matches" ]; then
+              while IFS= read -r asset_dir; do
+                test -n "$asset_dir"
+                echo "OFFICIAL_ASSET_DIR task_${id} -> ${asset_dir}"
+                uv run python scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08 --allow-pattern "${asset_dir}/**" --target-dir cache/osworld_v2_assets
+              done <<< "$matches"
+            else
+              echo "NO_EXTERNAL_ASSETS task_${id} verified_against_official_dataset"
+            fi
+          done
+      - name: Verify official pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd osworld
+          python - <<'PY'
+          import hashlib, os
+          from huggingface_hub import hf_hub_download
+          p=hf_hub_download('xlangai/osworld_v2_tasks','manifests/task_hashes.json',repo_type='dataset',revision='v2026.08.08',token=os.environ['HF_TOKEN'])
+          d=hashlib.sha256(open(p,'rb').read()).hexdigest()
+          assert d=='42f8f6f8939b8712997d5891456a575f8a2a5f53465e9e3e6747af5d6efd0915', d
+          print('TASK_HASH_MANIFEST_SHA256='+d)
+          PY
+          cd ..
+          docker pull happysixd/osworld-docker@sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9
+          docker tag happysixd/osworld-docker@sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9 happysixd/osworld-docker:latest
+          docker inspect happysixd/osworld-docker:latest --format '{{json .RepoDigests}}' | grep -F 'sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9'
+      - name: Patch upstream Docker isolation bug
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('osworld/scripts/python/run_multienv.py')
+          s=p.read_text()
+          old='''        from desktop_env.providers.aws.manager import IMAGE_ID_MAP\n        REGION = args.region\n        screen_size = (args.screen_width, args.screen_height)\n        ami_id = IMAGE_ID_MAP[REGION].get(screen_size, IMAGE_ID_MAP[REGION][(1920, 1080)])\n'''
+          new='''        REGION = args.region\n        screen_size = (args.screen_width, args.screen_height)\n        if args.provider_name == "aws":\n            from desktop_env.providers.aws.manager import IMAGE_ID_MAP\n            ami_id = IMAGE_ID_MAP[REGION].get(screen_size, IMAGE_ID_MAP[REGION][(1920, 1080)])\n        else:\n            ami_id = "init_state"\n'''
+          assert old in s, 'UPSTREAM_DOCKER_AWS_IMPORT_BLOCK_CHANGED'
+          p.write_text(s.replace(old,new,1))
+          print('OSWORLD_DOCKER_AWS_IMPORT_PATCH_APPLIED')
+          PY
+          git -C osworld diff -- scripts/python/run_multienv.py > osworld-docker-provider.patch
+          test -s osworld-docker-provider.patch
+          sha256sum osworld-docker-provider.patch
+      - name: Configure upstream guest volume API with fail-closed capacity verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$ARBM_VM_VOLUME_GB" = 50
+          python scripts/osworld_docker_volume.py osworld
+          git -C osworld diff -- scripts/python/run_multienv.py desktop_env/providers/docker/provider.py > osworld-volume.patch
+          test -s osworld-volume.patch
+          sha256sum osworld-volume.patch osworld/desktop_env/providers/docker/arbm_volume.py
+      - name: Install verified single-copy upload transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/osworld_vm_upload.py osworld/desktop_env/controllers/setup.py
+          git -C osworld diff -- desktop_env/controllers/setup.py > osworld-upload-transport.patch
+          test -s osworld-upload-transport.patch
+          sha256sum osworld-upload-transport.patch osworld/desktop_env/controllers/arbm_vm_upload.py
+      - name: Download pinned official VM
+        shell: bash
+        run: |
+          set -euo pipefail
+          export HF_XET_HIGH_PERFORMANCE=1
+          hf download xlangai/v2-image osworld-v2-ubuntu-x86.qcow2.zip --repo-type dataset --revision 8213366932c553e5fe758d0f2c8c8b81ffc3be8c --local-dir hf-vm
+          echo 'eb737ae70b49849e24af407de6a518439a23de05a8497096a948334ce0a909aa  hf-vm/osworld-v2-ubuntu-x86.qcow2.zip' | sha256sum -c -
+          unzip -q hf-vm/osworld-v2-ubuntu-x86.qcow2.zip -d vm
+          rm -f hf-vm/osworld-v2-ubuntu-x86.qcow2.zip
+          QCOW=$(find vm -type f -name '*.qcow2' | head -1)
+          test -n "$QCOW"
+          python scripts/osworld_docker_volume.py --check-image "$QCOW"
+          echo "QCOW_PATH=$PWD/$QCOW" >> "$GITHUB_ENV"
+          sha256sum "$QCOW" | cut -d' ' -f1 > qcow-base.sha256
+          PYTHONPATH=scripts python -c 'import json; from osworld_v32_gate import PINS; open("official-pins.json","w").write(json.dumps(PINS,sort_keys=True))'
+      - name: Prove real cloud upload and official Docker reset
+        if: matrix.shard.id == 'B'
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIR="$GITHUB_WORKSPACE/osworld-v32-integration/reset"
+          mkdir -p "$DIR"
+          (cd osworld && PYTHONPATH="$GITHUB_WORKSPACE/scripts:$PWD" uv run python ../scripts/osworld_vm_reset_probe.py "$QCOW_PATH" "$DIR" 2>&1 | tee "$DIR/reset-runtime.log")
+          PYTHONPATH=scripts python -c 'from pathlib import Path; from osworld_evidence import seal; seal(Path("osworld-v32-integration/reset"))'
+      - name: Preserve cloud reset integration evidence
+        if: always() && matrix.shard.id == 'B'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: osworld-v32-cloud-reset-integration
+          path: osworld-v32-integration
+          if-no-files-found: warn
+          retention-days: 90
+      - name: Install quota-independent local VLM fallback
+        shell: bash
+        run: python -m pip install --disable-pip-version-check --require-hashes -q -r audit/locks/osworld-ml.txt
+      - name: Execute fixed subset
+        shell: bash
+        run: |
+          set -euo pipefail
+          overall=0
+          for TASK_ID in ${{ matrix.shard.tasks }}; do
+            DIR="$GITHUB_WORKSPACE/osworld-v32-evidence/task-${TASK_ID}"
+            mkdir -p "$DIR"
+            export TASK_ID
+            export ARBM_OSWORLD_SHIM_LOG="$DIR/shim.jsonl"
+            export ARBM_OSWORLD_OBSERVATIONS="$DIR/shim-observations"
+            export ARBM_JUDGE_EVIDENCE="$DIR/judge"
+            export OSWORLD_EVAL_SAVE_RAW_DIR="$DIR/official-evaluator-raw"
+            touch "$DIR/shim.jsonl"
+            printf '%s\n' "$TASK_ID" > "$DIR/task-id.txt"
+            printf '%s\n' "$ZERO_SPEND_MODE" > "$DIR/zero-spend-mode.txt"
+            printf '%s\n' "$RUNNER_ENVIRONMENT" > "$DIR/runner-environment.txt"
+            printf '%s\n' "$GITHUB_SHA" > "$DIR/candidate-sha.txt"
+            printf '%s\n' osworld-v2-2026.08.08 > "$DIR/release.txt"
+            printf '%s\n' 500 > "$DIR/max-steps.txt"
+            cp official-pins.json "$DIR/pins.json"
+            cp osworld-docker-provider.patch osworld-volume.patch osworld-upload-transport.patch "$DIR/"
+            python scripts/osworld_v32_integrity.py snapshot osworld "$DIR/evaluator-before.json"
+            printf '{"tasks":["%s"]}\n' "$TASK_ID" > "$GITHUB_WORKSPACE/osworld/evaluation_examples/test_arbm_v32.json"
+            test "$(sha256sum "$QCOW_PATH" | cut -d' ' -f1)" = "$(cat qcow-base.sha256)"
+            python scripts/osworld_free_mesh_shim.py > "$DIR/shim-runtime.log" 2>&1 &
+            SHIM_PID=$!
+            python scripts/osworld_free_judge.py > "$DIR/judge-runtime.log" 2>&1 &
+            JUDGE_PID=$!
+            ready=0
+            for i in $(seq 1 30); do
+              if curl -fsS http://127.0.0.1:8088/health >/dev/null && curl -fsS http://127.0.0.1:8089/health >/dev/null; then ready=1; break; fi
+              if ! kill -0 "$SHIM_PID" 2>/dev/null || ! kill -0 "$JUDGE_PID" 2>/dev/null; then break; fi
+              sleep 1
+            done
+            if [ "$ready" -ne 1 ]; then
+              echo "SHIM_HEALTHCHECK_FAILED task-${TASK_ID}" >&2
+              cat "$DIR/shim-runtime.log" >&2 || true
+              kill "$SHIM_PID" 2>/dev/null || true
+              wait "$SHIM_PID" 2>/dev/null || true
+              kill "$JUDGE_PID" 2>/dev/null || true
+              wait "$JUDGE_PID" 2>/dev/null || true
+              overall=1
+              break
+            fi
+            set +e
+            (cd osworld && timeout --signal=TERM --kill-after=30s "${ARBM_RUN_MULTIENV_TIMEOUT_SECONDS}s" uv run python scripts/python/run_multienv.py --headless --provider_name docker --path_to_vm "$QCOW_PATH" --eval_version v2 --test_all_meta_path evaluation_examples/test_arbm_v32.json --domain tasks --observation_type screenshot_a11y_tree --action_space pyautogui --model gpt-arbm-osworld-v32-isolated --temperature 0 --max_steps 500 --max_trajectory_length 8 --max_tokens 4096 --num_envs 1 --result_dir "../osworld-v32-evidence/task-${TASK_ID}/results" 2>&1 | tee "../osworld-v32-evidence/task-${TASK_ID}/osworld.log")
+            rc=$?
+            if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+              printf '%s\n' "$rc" > "$DIR/run-multienv-timeout.txt"
+              echo "TASK_${TASK_ID}_RUN_MULTIENV_TIMEOUT rc=$rc" >&2
+            fi
+            set -e
+            kill "$SHIM_PID" 2>/dev/null || true
+            wait "$SHIM_PID" 2>/dev/null || true
+            kill "$JUDGE_PID" 2>/dev/null || true
+            wait "$JUDGE_PID" 2>/dev/null || true
+            printf '%s\n' "$rc" > "$DIR/task-rc.txt"
+            QCOW_AFTER=$(sha256sum "$QCOW_PATH" | cut -d' ' -f1)
+            test "$QCOW_AFTER" = "$(cat qcow-base.sha256)"
+            printf '%s\n' "$QCOW_AFTER" > "$DIR/qcow-base-sha256.txt"
+            python scripts/osworld_v32_integrity.py verify osworld "$DIR/evaluator-before.json" "$DIR/evaluator-integrity.json"
+            python scripts/osworld_v32_gate.py seal "$DIR"
+            if ! python scripts/osworld_v32_gate.py task "$DIR" --task "$TASK_ID"; then
+              echo "TASK_${TASK_ID}_OFFICIAL_GATE_FAILED"
+              overall=1
+            fi
+          done
+          exit "$overall"
+      - name: Upload shard evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: osworld-v32-official18-${{ matrix.shard.id }}
+          path: osworld-v32-evidence
+          if-no-files-found: error
+          retention-days: 90
+  aggregate:
+    needs: shard
+    if: always() && github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'providers-only'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          pattern: osworld-v32-official18-*
+          path: evidence
+      - name: Audit official scores, exact task set, provenance and evidence hashes
+        shell: bash
+        env:
+          GATE_MODE: ${{ github.event.inputs.mode }}
+          SHARD_RESULT: ${{ needs.shard.result }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [ "$GATE_MODE" = focal-061 ]; then args+=(--focal); fi
+          python scripts/osworld_v32_gate.py aggregate evidence "${args[@]}"
+          test "$SHARD_RESULT" = success
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: osworld-v32-official18-summary
+          path: osworld-v32-official18-summary.json
+          if-no-files-found: error
+          retention-days: 90

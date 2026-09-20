@@ -1,0 +1,104 @@
+"""Live GitHub OIDC and zero-cost provider admission before cloud VM boot."""
+import base64
+import json
+import os
+from pathlib import Path
+import time
+from osworld_control import pack_payload, validate_response
+import osworld_free_mesh_shim as shim
+from osworld_openrouter_free import FreeRoute
+from osworld_local_vlm import LOCAL_VLM_ROUTE
+
+
+def binary_token(text):
+    value=str(text or '').strip().strip(' .!?').upper()
+    return value if value in ('YES','NO') else ''
+
+
+def free_capacity_proven(data):
+    if not isinstance(data,dict): return False
+    for attempt in data.get('provider_attempts') or []:
+        if (attempt.get('status')==200 and attempt.get('parsed') is True
+                and attempt.get('free_plan_proven') is True
+                and attempt.get('mandatory_cost_usd',0)==0
+                and attempt.get('paid_fallback_used') is False):
+            return True
+    return False
+
+
+def main(root):
+    if os.environ.get('ZERO_SPEND_MODE') != 'HARD': raise RuntimeError('HARD_MODE_REQUIRED')
+    http, data = shim.request_mesh({})
+    if http != 400 or data.get('error') != 'INSTRUCTION_REQUIRED':
+        raise RuntimeError('LIVE_OIDC_REJECTED:' + json.dumps({'http':http,'data':data}))
+    pngs = sorted(root.glob('**/task-001/results/**/tasks/001/*.png'))
+    if not pngs: raise RuntimeError('REAL_RECORDED_SCREENSHOT_REQUIRED')
+    body, metrics = pack_payload({'instruction':"Dismiss any open notification or menu with pyautogui.press('esc'). Do not open files. This is provider admission only.",
+        'observation':'', 'screenshot_data_url':'data:image/png;base64,' + base64.b64encode(pngs[0].read_bytes()).decode(),
+        'expected_build':shim.EXPECTED_BUILD, 'phase':'execute','step':1,'memory':'', 'verified_milestones':[]})
+    third_result,third_attempts=shim.GROQ_FREE_ROUTE.call(body,budget=100)
+    third_proof={'status':'LIVE_FREE_PROBE_PASS' if third_result else 'UNAVAILABLE',
+                 'purpose':'provider admission only; no benchmark action executed',
+                 'result':third_result,'attempts':third_attempts}
+    # Preserve the first provider response even when its authentication probe
+    # places the shared route on cooldown before the later binary judge runs.
+    # This contains only sanitized attempts and is essential for diagnosing a
+    # rejected repository secret without leaking its value.
+    Path('osworld-v32-initial-admission.json').write_text(json.dumps(third_proof,indent=2))
+    independent_messages=[{'role':'system','content':'Output exactly YES or NO.'},
+        {'role':'user','content':[{'type':'text','text':'Is this a desktop screenshot? Answer only YES or NO.'},
+            {'type':'image_url','image_url':{'url':body['screenshot_data_url'],'detail':'high'}}]}]
+    failover_result,failover_attempts=shim.FREE_ROUTE.call({},budget=100,raw_messages=independent_messages,raw_tokens=10)
+    if not failover_result:
+        local_result,local_attempts=LOCAL_VLM_ROUTE.call({},budget=180,raw_messages=independent_messages,raw_tokens=10)
+        failover_attempts.extend(local_attempts); failover_result=local_result
+    failover_ok=bool(failover_result and binary_token(failover_result.get('text')) in ('YES','NO'))
+    failover_proof={'result':failover_result,'attempts':failover_attempts,
+        'status':'LIVE_INDEPENDENT_FREE_FAILOVER_PASS' if failover_ok else 'UNAVAILABLE',
+        'purpose':'direct OpenRouter FREE, then direct local-cloud binary admission; Groq excluded from this proof'}
+    Path('osworld-v32-independent-failover.json').write_text(json.dumps(failover_proof,indent=2))
+    if not failover_ok: raise RuntimeError('INDEPENDENT_FREE_FAILOVER_UNPROVEN')
+    judge_messages=[{'role':'system','content':'You are a strict binary classifier. Output MUST be exactly one token: YES or NO. No punctuation, no extra words, no explanations.'},
+        {'role':'user','content':[{'type':'text','text':'Does this image show a full-screen photograph of a football field with football players? Answer only YES or NO.'},
+            {'type':'image_url','image_url':{'url':body['screenshot_data_url'],'detail':'high'}}]}]
+    judge_result,judge_attempts=shim.GROQ_FREE_ROUTE.call({},budget=100,raw_messages=judge_messages,raw_tokens=10)
+    if not judge_result:
+        # Keep the existing free route as a secondary evaluator only when the
+        # independently rate-limited Groq plan has no capacity.
+        judge_route=FreeRoute()
+        judge_result,openrouter_attempts=judge_route.call({},budget=100,raw_messages=judge_messages,raw_tokens=10)
+        judge_attempts.extend(openrouter_attempts)
+    if not judge_result:
+        judge_result,local_attempts=LOCAL_VLM_ROUTE.call({},budget=180,raw_messages=judge_messages,raw_tokens=10)
+        judge_attempts.extend(local_attempts)
+    judge_proof={'purpose':'negative binary model-client admission using real recorded desktop; not a benchmark score',
+        'result':judge_result,'attempts':judge_attempts,'status':'UNAVAILABLE'}
+    if judge_result and binary_token(judge_result.get('text'))=='NO':judge_proof['status']='LIVE_FREE_NEGATIVE_BINARY_PASS'
+    Path('osworld-v32-judge-admission.json').write_text(json.dumps(judge_proof,indent=2))
+    if judge_proof['status']!='LIVE_FREE_NEGATIVE_BINARY_PASS':raise RuntimeError('FREE_JUDGE_BINARY_ADMISSION_FAILED')
+    attempts=[]
+    for attempt in range(3):
+        http, data = shim.request_mesh(body)
+        attempts.append({'http':http,'data':data,'payload':metrics})
+        Path('osworld-v32-live-preflight.json').write_text(json.dumps({'screenshot_source_run':34733419571,
+            'purpose':'provider admission only; not a benchmark result','candidate_sha':os.environ['GITHUB_SHA'],
+            'oidc':'PASS','third_provider':third_proof,
+            'free_failover':failover_proof,'judge_provider':judge_proof,'attempts':attempts},indent=2))
+        if http == 200:
+            validate_response(data,shim.EXPECTED_PIPELINE,shim.EXPECTED_BUILD)
+            if data.get('github_sha') != os.environ['GITHUB_SHA']: raise RuntimeError('OIDC_SHA_MISMATCH')
+            print('LIVE_OIDC_AND_FREE_PROVIDER_PASS'); return
+        if http == 409 and data.get('status') == 'REPLAN_REQUIRED':
+            validate_response(data,shim.EXPECTED_PIPELINE,shim.EXPECTED_BUILD)
+            body['memory']='Independent review requires replanning: ' + str(data.get('review_reason'))
+            continue
+        if http == 503 and free_capacity_proven(data):
+            print('LIVE_OIDC_AND_FREE_PROVIDER_CAPACITY_PASS'); return
+        if http not in (429,503): break
+        time.sleep(25)
+    raise RuntimeError('LIVE_FREE_CAPACITY_NOT_PROVEN:' + json.dumps(attempts))
+
+
+if __name__ == '__main__':
+    import sys
+    main(Path(sys.argv[1]))

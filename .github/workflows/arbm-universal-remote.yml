@@ -49,3 +49,30 @@ jobs:
           path: ${{ env.ARBM_RUN_ROOT }}/evidence
           if-no-files-found: error
           retention-days: 7
+
+  lock-generator:
+    if: ${{ inputs.request_id == 'arbm-aabbccddeeff0011' }}
+    needs: universal-remote
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout lock branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: chatgpt/arbm-world-free-assurance-20260920
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Generate SHA256 dependency locks
+        run: bash scripts/generate_hash_locks_temp.sh
+      - name: Commit locks
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name armb-lock-bot
+          git config user.email armb-lock-bot@users.noreply.github.com
+          git add scripts/requirements-osworld.in scripts/requirements-osworld.txt audit/locks
+          git diff --cached --quiet && exit 0
+          git commit -m "security: generate SHA256-hashed Python dependency locks"
+          git push origin HEAD:chatgpt/arbm-world-free-assurance-20260920

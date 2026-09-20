@@ -32,7 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           cd osworld
-          python -m pip install --disable-pip-version-check -q -U uv huggingface_hub
+          python -m pip install --disable-pip-version-check --require-hashes -q -r audit/locks/uv-hf.txt
           uv sync --frozen
       - name: Download gated task classes
         shell: bash

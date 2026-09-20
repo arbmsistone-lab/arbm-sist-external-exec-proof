@@ -11,6 +11,7 @@ on:
       - 'certification/provider-candidate-evidence.json'
       - 'certification/provider-candidate-evidence-check.mjs'
       - '.github/workflows/provider-candidate-evidence.yml'
+permissions: read-all
 jobs:
   validate:
     runs-on: ubuntu-24.04

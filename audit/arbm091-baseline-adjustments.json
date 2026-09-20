@@ -1,0 +1,20 @@
+[
+  {
+    "after_sha256": "e07478808009a149d863e204f3646bfbf2394b9d75e8e685bb867fddfc5055c3",
+    "before_sha256": "c91f6ef9e15dde53221874c55a240e40b58829c6dc599100d5d0d6d010e2f1b0",
+    "path": "endpoint/index.ts",
+    "source_sha": "1e7ef74fc83b715a9bb23dd8db334cc63ead5fde",
+    "transformation": "remove-final-empty-lines-only"
+  },
+  {
+    "after_sha256": "804d30b0114217e216afd3cd1c4ef5eef9e5b2028cb83cd2595d050ee1b09192",
+    "before_sha256": "c22bce14462dd86d46ea8e2d055198d3b631d77fbdfeed29bdf4fa7751dda60f",
+    "path": ".github/workflows/zevanory-ai3-free-transfer.yml",
+    "pins": {
+      "actions/checkout@v4": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+      "actions/upload-artifact@v4": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    "source_sha": "cf008c04e9bf01e87fca80799dfc25b1de68d888",
+    "transformation": "pin-observed-v4-tag-commit-without-job-changes"
+  }
+]

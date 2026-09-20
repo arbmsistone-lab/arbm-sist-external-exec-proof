@@ -43,7 +43,7 @@ jobs:
       - name: Validate 30-role panel
         run: node certification/n2-performance-panel.mjs
       - name: Install dependency
-        run: python -m pip install --disable-pip-version-check 'psycopg[binary]==3.2.10'
+        run: python -m pip install --disable-pip-version-check --require-hashes -r audit/locks/psycopg.txt
       - name: Run N-2 audit
         run: python top3_chaos_soak_n2.py
       - name: Verify runtime evidence

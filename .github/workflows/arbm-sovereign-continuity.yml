@@ -11,6 +11,8 @@ permissions:
 
 jobs:
   sovereign-continuity:
+    permissions:
+      id-token: write
     runs-on: ubuntu-latest
     timeout-minutes: 65
     steps:

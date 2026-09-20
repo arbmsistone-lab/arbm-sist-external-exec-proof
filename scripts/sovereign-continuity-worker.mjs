@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { validatePayload } from './universal-remote-runner.mjs';
 import { executePayloadSupervised } from './continuity-execution-supervisor.mjs';
 
@@ -18,7 +19,16 @@ async function call(action,payload={}){
   if(!res.ok)throw new Error(`continuity_${action}_http_${res.status}:${body?.error||text}`);
   return body;
 }
-function output(k,v){if(process.env.GITHUB_OUTPUT)fs.appendFileSync(process.env.GITHUB_OUTPUT,`${k}=${String(v).replace(/[\r\n]/g,' ')}\n`);}
+function output(k,v){
+  const out=String(process.env.GITHUB_OUTPUT||'');
+  if(!out)return;
+  const key=String(k||'');
+  const value=String(v??'').replace(/[\r\n]/g,' ');
+  if(!/^[a-z_][a-z0-9_]{0,63}$/i.test(key)||value.length>512)throw new Error('invalid_github_output');
+  execFileSync('/usr/bin/env',['bash','-c','umask 077; printf "%s=%s\\n" "$ARBM_KEY" "$ARBM_VALUE" >> "$GITHUB_OUTPUT"'],{
+    env:{...process.env,ARBM_KEY:key,ARBM_VALUE:value,GITHUB_OUTPUT:out},stdio:'ignore'
+  });
+}
 function errorText(error){return String(error?.code||error?.message||error).slice(0,1800);}
 
 let leased=null;
@@ -32,7 +42,7 @@ try{
   if(payload.source.repo!==leased.source_repo||payload.source.ref.toLowerCase()!==String(leased.source_sha||'').toLowerCase())throw new Error('claimed_source_binding_mismatch');
   const report=await executePayloadSupervised(payload,{root:ROOT,renew:()=>call('renew',{missionId:leased.mission_id}),renewEveryMs:60000,maxRenewMisses:2});
   fs.mkdirSync(path.join(ROOT,'evidence'),{recursive:true});
-  fs.writeFileSync(path.join(ROOT,'evidence','continuity-claim.json'),JSON.stringify({missionId:leased.mission_id,leaseUntil:leased.lease_until,provider:PROVIDER_ID,supervisedLease:true},null,2)+'\n');
+  fs.writeFileSync(path.join(ROOT,'evidence','continuity-claim.json'),JSON.stringify({claimed:true,provider:PROVIDER_ID,supervisedLease:true},null,2)+'\n',{mode:0o600});
   const state=report.success?'SUCCEEDED':'FAILED_FINAL';
   const done=await call('complete',{missionId:leased.mission_id,state,error:report.success?null:'mission_result_failed'});
   if(done.ok!==true)throw new Error('continuity_complete_rejected');
