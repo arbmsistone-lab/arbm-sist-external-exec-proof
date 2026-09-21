@@ -31,7 +31,7 @@ jobs:
           PY
       - name: Generate public SLSA provenance attestation
         id: attest
-        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
           subject-path: certification/attestation-readiness-subject.json
       - name: Verify attestation through GitHub CLI
