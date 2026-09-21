@@ -6,6 +6,8 @@ mutation.
 """
 from __future__ import annotations
 import ast
+import hashlib
+import json
 import os
 import re
 
@@ -95,7 +97,8 @@ def review_action(action, *, task_id="", source="generic", state=None,
     rows.append(_lane("target_grounding",target_ok,
         "pointer actions require an explicit grounded target source"))
 
-    repeated=bool(command and recent and command==recent[-1])
+    previous_command=recent[-1] if recent else ""
+    repeated=bool(command and previous_command and command==previous_command)
     no_progress=int(verifier.get("no_progress") or 0)
     phase=str(a.get("specialist_phase") or "")
     task091_state=state.get("task091_specialist") if isinstance(state.get("task091_specialist"),dict) else {}
@@ -132,7 +135,20 @@ def review_action(action, *, task_id="", source="generic", state=None,
         and bool(str(pending091.get("table_selected_sibling_visual_sha256") or ""))
     )
     bounded_semantic_retry=bounded_observation_retry or bounded_table_cell_entry
-    anti_repeat=not (repeated and no_progress>0 and not bounded_semantic_retry)
+    pending_stage=str(pending091.get("stage") or "")
+    progress=verifier.get("progress")
+    before_hash=str(verifier.get("before_hash") or verifier.get("before_sha256") or "")
+    after_hash=str(verifier.get("after_hash") or verifier.get("after_sha256") or "")
+    visual_changed=bool(before_hash and after_hash and before_hash != after_hash)
+    previous_context=task091_state.get("last_action_context") if isinstance(task091_state.get("last_action_context"),dict) else {}
+    previous_phase=str(previous_context.get("specialist_phase") or "")
+    previous_stage=str(previous_context.get("pending_edit_stage") or "")
+    causal_advance=bool(
+        (previous_phase and phase and previous_phase != phase)
+        or (previous_stage and pending_stage and previous_stage != pending_stage)
+        or progress is True
+    )
+    anti_repeat=not (repeated and no_progress>0 and not causal_advance and not bounded_semantic_retry)
     rows.append(_lane("anti_repetition",anti_repeat,
         "no-progress repetition is forbidden except state-bound Task 091 observation resync or the single evidence-proven table-cell text-entry click"))
 
@@ -156,6 +172,23 @@ def review_action(action, *, task_id="", source="generic", state=None,
         "critical specialist actions must execute inside a tracked specialist state"))
 
     failed=[row for row in rows if not row["pass"]]
+    diagnostic={
+        "command_hash":hashlib.sha256(command.encode()).hexdigest() if command else "",
+        "previous_command_hash":hashlib.sha256(previous_command.encode()).hexdigest() if previous_command else "",
+        "command_repeated":repeated,
+        "specialist_phase":phase,
+        "previous_specialist_phase":previous_phase,
+        "pending_edit_stage":pending_stage,
+        "previous_pending_edit_stage":previous_stage,
+        "no_progress":no_progress,
+        "progress":progress,
+        "before_hash":before_hash,
+        "after_hash":after_hash,
+        "visual_changed":visual_changed,
+        "causal_advance":causal_advance,
+        "bounded_semantic_retry":bounded_semantic_retry,
+        "github_sha":sha,
+    }
     return {
         "allow":not failed,
         "pass":len(rows)-len(failed),
@@ -163,6 +196,7 @@ def review_action(action, *, task_id="", source="generic", state=None,
         "unanimous":not failed,
         "lanes":rows,
         "failed":[row["lane"] for row in failed],
+        "diagnostic":diagnostic,
     }
 
 def require_unanimous(*args,**kwargs):
