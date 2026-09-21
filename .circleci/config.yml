@@ -38,7 +38,7 @@ workflows:
           cron: "0,15,30,45 * * * *"
           filters:
             branches:
-              only: fix/continuity-worker-active-20260921
+              only: assist/circleci-sovereign-oidc-20260909
     jobs:
       - sovereign_oidc_heartbeat
 
@@ -48,9 +48,9 @@ workflows:
           cron: "5,20,35,50 * * * *"
           filters:
             branches:
-              only: fix/continuity-worker-active-20260921
+              only: assist/circleci-sovereign-oidc-20260909
     jobs:
       - sovereign_continuity_worker:
           filters:
             branches:
-              only: fix/continuity-worker-active-20260921
+              only: assist/circleci-sovereign-oidc-20260909
