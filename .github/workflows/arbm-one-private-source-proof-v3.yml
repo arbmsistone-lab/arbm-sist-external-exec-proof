@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - fix/arbm-one-cloud-bridge-push-20260921
+      - fix/exact-a293-push-trigger-20260921
   workflow_dispatch:
 
 permissions:
