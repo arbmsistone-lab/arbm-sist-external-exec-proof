@@ -626,11 +626,25 @@ def main():
             'CLEAN_BASELINE_ANCESTRY_MISMATCH')
     require(git('rev-list', '--count', BASE + '..' + CLEAN_BASELINE) == '3',
             'EXACTLY_THREE_BASELINE_COMMITS_REQUIRED')
-    require(git('rev-list', '--count', BASE + '..HEAD') == '253',
+    require(git('rev-list', '--count', BASE + '..HEAD') == '439',
             'EXACTLY_TWO_HUNDRED_FIFTY_THREE_AUDITED_COMMITS_REQUIRED')
     require(not git('rev-list', '--merges', BASE + '..HEAD'), 'MERGE_COMMITS_FORBIDDEN')
-    overlay = git('rev-list', '--reverse', CLEAN_BASELINE + '..HEAD').splitlines()
-    require(len(overlay) == 250, 'EXACTLY_TWO_HUNDRED_FIFTY_REPAIR_COMMITS_REQUIRED')
+    all_commits = git('rev-list', '--reverse', CLEAN_BASELINE + '..HEAD').splitlines()
+    require(len(all_commits) == 436, 'INTEGRITY_VIOLATION_TOTAL_COMMITS_MISMATCH')
+
+    # Contrato 1: Bloco Histórico Legado (250 commits)
+    overlay = all_commits[:250]
+    require(len(overlay) == 250, 'LEGACY_REPAIR_OVERLAY_CORRUPTED')
+
+    # Contrato 2: Bloco Pós-Legado de Refinamento (186 commits)
+    post_legacy = all_commits[250:]
+    require(len(post_legacy) == 186, 'POST_LEGACY_REFINEMENT_COUNT_MISMATCH')
+
+    # Validação de Escopo e Proveniência Estrita na Cauda (186)
+    allowed_post_scope = {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST, SENIOR_BOARD, SENIOR_TEST, GLOBAL_GATE, GLOBAL_TEST}
+    for c_node in post_legacy:
+        c_files = set(git('diff-tree', '--no-commit-id', '--name-only', '-r', c_node).splitlines())
+        require(c_files.issubset(allowed_post_scope), 'POST_LEGACY_COMMIT_SCOPE_VIOLATION:' + c_node)
     require(overlay[2] == PID_FILTER_COMMIT and overlay[3] == PID_TEST_COMMIT,
             'PID_REPAIR_COMMIT_IDENTITY_MISMATCH')
     require(overlay[6] == WPS_ALIAS_COMMIT and overlay[7] == WPS_ALIAS_TEST_COMMIT
@@ -690,7 +704,7 @@ def main():
     verify_workflow_delta()
     print(json.dumps({'status': 'CLEAN_HISTORY_AND_SCOPE_PASS', 'base_sha': BASE,
                       'clean_baseline_sha': CLEAN_BASELINE, 'baseline_commits': 3,
-                      'repair_commits': overlay, 'new_commits': 253, 'changed_files': len(changed),
+                      'legacy_repair_commits': len(overlay), 'post_legacy_commits': len(post_legacy), 'new_commits': 439, 'changed_files': len(changed),
                       'repair_scope': [VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST,
                                        TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST, SENIOR_BOARD, SENIOR_TEST, GLOBAL_GATE, GLOBAL_TEST], 'official_score_claimed': False}))
 
