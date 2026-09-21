@@ -38,8 +38,14 @@ class FreeAgentTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.log = Path(self.temp.name) / 'usage.jsonl'
+        # Each contract selects its observation mode explicitly. Workflow inputs
+        # must not leak into tests for the default mode or another provider.
         self.env = patch.dict(os.environ, {'ARBM_G3_USAGE_LOG': str(self.log),
                                           'ARBM_G3_FREE_MODEL': agent_module.MODEL,
+                                          'ARBM_G3_PROVIDER': 'openrouter',
+                                          'ARBM_G3_COORDINATE_GRID': '0',
+                                          'ARBM_G3_SQUARE_OBSERVATION': '0',
+                                          'ARBM_G3_SCREENSHOT_OCR': '0',
                                           'GITHUB_RUN_ID': 'test', 'GITHUB_SHA': 'test-sha'})
         self.env.start()
         self.calls = []

@@ -1,0 +1,50 @@
+{
+  "observed_at_utc": "2026-09-21T00:19:44.305969+00:00",
+  "branch": "g3-free-cert-recovery-20260915",
+  "A": "PASS: all 57 unchanged contract tests pass with the same square/grid environment that failed remotely; py_compile, ruff and diff checks pass",
+  "B": "PASS: only test fixture environment isolated; production agent, workflow, task/evaluator/assets/VM and protected lanes unchanged",
+  "C": "PASS_FOR_ONE_GATED_RUN: public FREE catalog current, all listed prices zero; fixed :free model; max_price prompt/completion=0; hidden fallback disabled; SDK retries=0; quota reset timestamp passed, actual current availability not yet proven",
+  "provider": "openrouter",
+  "model": "dots-studio/dots-3-note-preview:free",
+  "ZERO_SPEND": true,
+  "HEAVY_LOCAL": 0,
+  "coordinate_grid": true,
+  "square_observation": true,
+  "probe_only": false,
+  "hypothesis": "A square model coordinate frame with inverse projection and visible grid corrects the previous synthetic-grounding failure. Probe uses unchanged target and acceptance thresholds. If it fails, no VM. Dots selected explicitly because it previously issued 20 structured GUI actions; the Groq authenticated account receipt cannot currently be refreshed.",
+  "hashes_match": {
+    "certification/g3-openrouter-free-adapter.py": true,
+    "tests/test_g3_free_agent.py": true,
+    ".github/workflows/osworld-g3-free-smoke-v1.yml": true
+  },
+  "tests_receipt_sha256": "e42edf79d215d625bf073cc154d723b87873da1e0a0bff7586fdabf4ade013a3",
+  "quota_reset_elapsed": true,
+  "quota_remaining_verified": false,
+  "max_new_spend_usd": "0",
+  "latest_other_actor_g3_run": 35213558562,
+  "latest_other_actor_g3_result": "BLOCKED before inference: account proof missing; no official score",
+  "groq_status": "BLOCKED_STALE_ACCOUNT_EVIDENCE; browser runtime unavailable; alternate browser disconnected; no receipt renewed and no Groq inference",
+  "official_score": null,
+  "historical_paid_usage": "Separate prior ledger; unknown historical gaps remain unknown; no new paid authorization used",
+  "next": "One gated Dots execution after committing this fixture correction. Prior dispatch performed no capability probe and no smoke.",
+  "base_sha": "bac27635417410e513f0e355c375a562480a2e15",
+  "previous_run": 35547057276,
+  "previous_result": "NO_RESULT; unit-test environment leakage; 0 provider requests, 0 VM preparations",
+  "correction": "Set fixture provider and all observation-mode flags explicitly; retain every existing assertion; mode-specific tests still opt in explicitly.",
+  "local_tests": 57,
+  "local_test_duration_seconds": 2.493,
+  "local_ci_environment": {
+    "ARBM_G3_COORDINATE_GRID": "1",
+    "ARBM_G3_SQUARE_OBSERVATION": "1",
+    "ARBM_G3_FREE_MODEL": "dots-studio/dots-3-note-preview:free"
+  },
+  "files_sha256_lf": {
+    "tests/test_g3_free_agent.py": "7b3fcbb58ca535d91cc43e0674bb0a38b5d43b9dfbfad37d3d31df5300b95db5",
+    "certification/g3-openrouter-free-adapter.py": "6ac96edc3691c250dfa576acbae07602be1b341b6c5ff65cc0eaf4fb606c08e8",
+    ".github/workflows/osworld-g3-free-smoke-v1.yml": "b92c5b70b82524caafde264d3a34f78565c10633fe6695c92cca3a7dfe1ba450"
+  },
+  "prior_artifact": {
+    "id": 10617105364,
+    "sha256": "6750420e88f04d247c2203acf013f78d26f2359d943de91c59b0159ab08bb6a2"
+  }
+}
