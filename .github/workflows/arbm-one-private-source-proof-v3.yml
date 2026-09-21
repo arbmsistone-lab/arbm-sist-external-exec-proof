@@ -1,0 +1,73 @@
+name: ARBM ONE Private Source Proof V3
+
+on:
+  push:
+    branches:
+      - fix/arbm-one-cloud-bridge-push-20260921
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arbm-one-private-source-proof-v3
+  cancel-in-progress: true
+
+jobs:
+  exact-private-source-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TARGET_SHA: a293c83e5280c2812a519f0fccabf5a6dc02f0bf
+      ARBM_CI_PROVIDER: github-external
+      ARBM_CI_SCOPE: provider
+    steps:
+      - name: Validate private-source credential without exposing it
+        shell: bash
+        env:
+          ARBM_ONE_SOURCE_TOKEN: ${{ secrets.ARBM_ONE_RUNNER_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${ARBM_ONE_SOURCE_TOKEN:-}"
+          http_code="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}'             --header "Accept: application/vnd.github+json"             --header "Authorization: Bearer $ARBM_ONE_SOURCE_TOKEN"             --header "X-GitHub-Api-Version: 2022-11-28"             "https://api.github.com/repos/arbmsistone-lab/ARBM-one" || true)"
+          echo "ARBM_PRIVATE_SOURCE_HTTP=$http_code"
+          test "$http_code" = "200"
+
+      - name: Checkout ARBM ONE exact protected SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: arbmsistone-lab/ARBM-one
+          ref: a293c83e5280c2812a519f0fccabf5a6dc02f0bf
+          token: ${{ secrets.ARBM_ONE_RUNNER_TOKEN }}
+          persist-credentials: false
+          fetch-depth: 1
+          path: arbm-one
+
+      - name: Prepare Node 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+
+      - name: Assert exact source provenance
+        shell: bash
+        working-directory: arbm-one
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          test "$(node -p "process.versions.node.split('.')[0]")" = "24"
+          echo "ARBM_EXACT_SOURCE=PASS sha=$TARGET_SHA"
+
+      - name: Run portable provider gate
+        shell: bash
+        working-directory: arbm-one
+        run: |
+          set -euo pipefail
+          npm run ci:portable:core
+
+      - name: Run exact 12P and quorum contracts
+        shell: bash
+        working-directory: arbm-one
+        run: |
+          set -euo pipefail
+          node --test tests/visual-12p-global-contract-v1.test.mjs tests/github-main-oidc-quorum-v1.test.mjs
+          echo "ARBM_EXTERNAL_EXACT_PROVIDER_PROOF=PASS sha=$TARGET_SHA"
