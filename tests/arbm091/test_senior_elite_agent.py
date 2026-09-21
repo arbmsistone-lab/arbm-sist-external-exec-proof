@@ -60,6 +60,11 @@ class SeniorEliteBoardTests(unittest.TestCase):
         self.assertFalse(result['allow'])
         self.assertIn('anti_repetition',result['failed'])
 
+    def test_task091_table_text_mode_path_is_double_click(self):
+        command="pyautogui.doubleClick(843, 452, interval=0.08)"
+        self.assertTrue(command.startswith("pyautogui.doubleClick("))
+        self.assertNotIn("pyautogui.click(843, 452)", command)
+
     def test_task091_second_table_click_uses_issued_command_hash_not_shape_center(self):
         command="pyautogui.click(843, 404)"
         state={'task091_specialist':{
