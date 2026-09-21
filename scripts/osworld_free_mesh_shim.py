@@ -1155,7 +1155,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             pending['table_text_ink_source']=str(text_ink['source'])
             pending['stage']='table-cell-enter-issued'
             cx=int(text_ink['cx']); cy=int(text_ink['cy'])
-            command=f"pyautogui.click({cx}, {cy})"
+            command=f"pyautogui.doubleClick({cx}, {cy}, interval=0.08)"
             pending['cell_enter_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             stored=pending.get('target') if isinstance(pending.get('target'),dict) else {}
             action_target={'source':'task091-pptx-canonical','label':stored.get('label'),
@@ -1167,7 +1167,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             pending['table_text_action_proof_sha256']=action_target['proof_sha256']
             return {'action':'exec','command':command,
                     'target':action_target,
-                    'plan':'The exact table container is selected; click the raster-proven text ink point, then require visible caret evidence before any text mutation.',
+                    'plan':'The exact table container is selected; double-click the raster-proven text ink point to request WPS table-cell text mode, then require visible caret evidence before any text mutation.',
                     'specialist_phase':'enter-table-cell-caret-candidate'}
         if stage in ('table-cell-enter-issued','table-cell-caret-probe-issued'):
             current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
