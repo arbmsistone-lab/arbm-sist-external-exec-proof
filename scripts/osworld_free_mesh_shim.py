@@ -1153,10 +1153,11 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             pending['table_text_ink_pixels']=int(text_ink['ink_pixels'])
             pending['table_text_ink_proof_sha256']=str(text_ink['proof_sha256'])
             pending['table_text_ink_source']=str(text_ink['source'])
-            pending['stage']='table-cell-enter-issued'
+            pending['stage']='table-cell-text-hit-issued'
+            pending['textmode_baseline_source']=str(window_state.get('source') or '')
             cx=int(text_ink['cx']); cy=int(text_ink['cy'])
-            command=f"pyautogui.doubleClick({cx}, {cy}, interval=0.08)"
-            pending['cell_enter_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+            command=f"pyautogui.click({cx}, {cy})"
+            pending['cell_text_hit_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             stored=pending.get('target') if isinstance(pending.get('target'),dict) else {}
             action_target={'source':'task091-pptx-canonical','label':stored.get('label'),
                            'role':stored.get('role'),'slide':stored.get('slide'),
@@ -1167,9 +1168,9 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             pending['table_text_action_proof_sha256']=action_target['proof_sha256']
             return {'action':'exec','command':command,
                     'target':action_target,
-                    'plan':'The exact table container is selected; double-click the raster-proven text ink point to request WPS table-cell text mode, then require visible caret evidence before any text mutation.',
-                    'specialist_phase':'enter-table-cell-caret-candidate'}
-        if stage in ('table-cell-enter-issued','table-cell-caret-probe-issued'):
+                    'plan':'The exact table container is selected; click the raster-proven text ink point once, re-observe all invariants, then issue one separately audited text-mode click. No text mutation is allowed yet.',
+                    'specialist_phase':'table-cell-text-hit-candidate'}
+        if stage == 'table-cell-text-hit-issued':
             current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
             current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
             current_fg=_task091_foreground_sha(window_state)
@@ -1177,11 +1178,6 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             siblings=_task091_other_shapes_signature(window_state,pending['slide'],pending.get('shape_id'))
             sibling_visual=_task091_table_visual_signature(
                 window_state,pending['slide'],pending.get('table_frame_id'),pending.get('shape_id'))
-            bbox=list(pending.get('shape_bbox') or [])
-            before_source=(pending.get('table_selected_source')
-                           if stage=='table-cell-enter-issued'
-                           else pending.get('caret_probe_source'))
-            caret=_task091_caret_delta_geometry(before_source,window_state.get('source'),bbox)
             safe=(current_sha == str(pending.get('before_deck_sha256') or '')
                   and int(window_state.get('active_slide') or 0) == int(pending.get('slide') or 0)
                   and shape is not None
@@ -1194,35 +1190,76 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                   and len(sibling_visual)==64
                   and sibling_visual == str(pending.get('table_selected_sibling_visual_sha256') or '')
                   and len(str(pending.get('table_text_ink_proof_sha256') or ''))==64
-                  and len(str(pending.get('cell_enter_command_hash') or ''))==64)
+                  and len(str(pending.get('cell_text_hit_command_hash') or ''))==64)
+            if not safe:
+                return _task091_terminal('TASK091_TABLE_TEXT_HIT_DRIFT',state)
+            source=str(window_state.get('source') or '')
+            baseline=str(pending.get('textmode_baseline_source') or '')
+            if (not re.fullmatch(r'\d{4}-\d{2}-(?:before|after)',source)
+                    or not re.fullmatch(r'\d{4}-\d{2}-(?:before|after)',baseline)):
+                return _task091_terminal('TASK091_TABLE_TEXTMODE_EVIDENCE_MISSING',state)
+            cx=int(pending.get('table_text_hit_x') or 0); cy=int(pending.get('table_text_hit_y') or 0)
+            if cx<=0 or cy<=0:
+                return _task091_terminal('TASK091_TABLE_TEXT_HIT_GEOMETRY_UNPROVEN',state)
+            pending['stage']='table-cell-enter-issued'
+            pending['textmode_first_hit_source']=source
+            command=f"pyautogui.click({cx}, {cy})"
+            pending['cell_enter_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+            stored=pending.get('target') if isinstance(pending.get('target'),dict) else {}
+            action_target={'source':'task091-pptx-canonical','label':stored.get('label'),
+                           'role':stored.get('role'),'slide':stored.get('slide'),
+                           'x':cx-1,'y':cy-1,'w':2,'h':2,'cx':cx,'cy':cy,
+                           'foreground_sha256':stored.get('foreground_sha256'),
+                           'deck_sha256':stored.get('deck_sha256')}
+            action_target['proof_sha256']=task091_spatial_target_proof(action_target)
+            return {'action':'exec','command':command,'target':action_target,
+                    'plan':'The first raster-proven text hit preserved every deck/table invariant. Issue exactly one separately observed second click at the same signed ink point, then prove text mode against the immutable pre-hit baseline.',
+                    'specialist_phase':'enter-table-cell-caret-candidate'}
+        if stage in ('table-cell-enter-issued','table-cell-caret-probe-issued'):
+            current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
+            current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
+            current_fg=_task091_foreground_sha(window_state)
+            shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
+            siblings=_task091_other_shapes_signature(window_state,pending['slide'],pending.get('shape_id'))
+            sibling_visual=_task091_table_visual_signature(
+                window_state,pending['slide'],pending.get('table_frame_id'),pending.get('shape_id'))
+            bbox=list(pending.get('shape_bbox') or [])
+            baseline=str(pending.get('textmode_baseline_source') or '')
+            caret=_task091_caret_delta_geometry(baseline,window_state.get('source'),bbox)
+            safe=(current_sha == str(pending.get('before_deck_sha256') or '')
+                  and int(window_state.get('active_slide') or 0) == int(pending.get('slide') or 0)
+                  and shape is not None
+                  and str(shape.get('kind') or '') == 'table-cell'
+                  and str(shape.get('text') or '') == str(pending.get('old') or '')
+                  and siblings == str(pending.get('before_sibling_signature') or '')
+                  and siblings == str(pending.get('table_selected_sibling_signature') or '')
+                  and len(current_fg)==64
+                  and current_fg == str(pending.get('selection_foreground_sha256') or '')
+                  and len(sibling_visual)==64
+                  and sibling_visual == str(pending.get('table_selected_sibling_visual_sha256') or '')
+                  and len(str(pending.get('table_text_ink_proof_sha256') or ''))==64
+                  and len(str(pending.get('cell_enter_command_hash') or ''))==64
+                  and re.fullmatch(r'\d{4}-\d{2}-(?:before|after)',baseline) is not None)
             if not safe:
                 return _task091_terminal('TASK091_TABLE_CELL_ENTRY_DRIFT',state)
             pending['caret_geometry']=caret
+            pending['caret_baseline_source']=baseline
+            pending['caret_observed_source']=str(window_state.get('source') or '')
             if caret.get('proven') is not True:
                 attempts=int(pending.get('caret_probe_attempts') or 0)
                 source=str(window_state.get('source') or '')
                 if not re.fullmatch(r'\d{4}-\d{2}-(?:before|after)',source):
                     return _task091_terminal('TASK091_TABLE_CELL_CARET_EVIDENCE_MISSING',state)
-                if attempts >= 2 and not pending.get('table_f2_probe_issued'):
-                    pending['table_f2_probe_issued']=True
-                    pending['caret_probe_source']=source
-                    pending['stage']='table-cell-caret-probe-issued'
-                    command="pyautogui.press('f2')\npyautogui.sleep(0.30)"
-                    pending['table_f2_probe_command_hash']=hashlib.sha256(command.encode()).hexdigest()
-                    return {'action':'exec','command':command,
-                            'plan':'The raster-proven table text hit produced no observable caret. Issue one non-destructive F2 text-mode request scoped to the already selected cell, then require the same strict caret geometry before any mutation.',
-                            'specialist_phase':'table-cell-f2-textmode-probe'}
                 if attempts >= 4:
                     return _task091_terminal('TASK091_TABLE_CELL_CARET_GEOMETRY_UNPROVEN',state)
                 pending['caret_probe_attempts']=attempts+1
-                pending['caret_probe_source']=source
                 pending['stage']='table-cell-caret-probe-issued'
-                delay=(0.30,0.55,0.30,0.55)[attempts]
+                delay=(0.30,0.55,0.80,1.05)[attempts]
                 command=f"pyautogui.sleep({delay:.2f})"
                 pending['caret_probe_command_hash']=hashlib.sha256(command.encode()).hexdigest()
                 return {'action':'exec','command':command,
-                        'plan':'Hold the proven table text target unchanged and sample caret blink geometry; no text mutation is allowed during this probe.',
-                        'specialist_phase':f'table-cell-caret-blink-probe-{attempts+1}'}
+                        'plan':'Sample the unchanged signed cell against the immutable pre-text-mode baseline. Mutation remains forbidden until narrow caret geometry is positively proven.',
+                        'specialist_phase':f'table-cell-caret-baseline-probe-{attempts+1}'}
             pending['selected_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
             pending['selection_ack_foreground_sha256']=current_fg
             pending['explicit_text_mode']=True
