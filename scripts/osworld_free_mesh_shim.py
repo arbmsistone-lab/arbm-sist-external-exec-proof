@@ -298,6 +298,68 @@ def _task091_caret_delta_geometry(before_source, after_source, bbox):
             'count':count,'width':dw,'height':dh,'dominant_column':dominant,
             'bbox':[min(xs),min(ys),dw,dh]}
 
+def _task091_table_cell_text_ink_point(window_state, bbox, inset=8, threshold=24):
+    """Derive a click point from observed text ink inside one proven table cell.
+
+    The PPTX geometry proves which cell is targeted; the current screenshot proves
+    where visible glyph ink actually sits inside that cell. Borders are excluded,
+    the dominant interior background is estimated by per-channel median, and only
+    bounded high-contrast ink is admitted.
+    """
+    path=_task091_screenshot_path(window_state)
+    if path is None or not isinstance(bbox,list) or len(bbox)!=4:
+        return None
+    if not all(type(v) is int for v in bbox):
+        return None
+    x,y,w,h=bbox
+    if w <= 2*inset+4 or h <= 2*inset+4:
+        return None
+    try:
+        with Image.open(path) as image:
+            rgb=image.convert('RGB')
+            left=x+inset; top=y+inset; right=x+w-inset; bottom=y+h-inset
+            crop=rgb.crop((left,top,right,bottom))
+            iw,ih=crop.size
+            pixels=list(crop.getdata())
+    except Exception:
+        return None
+    if not pixels:
+        return None
+    channels=[]
+    for channel in range(3):
+        values=sorted(int(px[channel]) for px in pixels)
+        channels.append(values[len(values)//2])
+    background=tuple(channels)
+    xs=[]; ys=[]
+    for py in range(ih):
+        for px in range(iw):
+            value=crop.getpixel((px,py))
+            if max(abs(int(value[i])-background[i]) for i in range(3)) < int(threshold):
+                continue
+            xs.append(px); ys.append(py)
+    count=len(xs)
+    if count < 12 or count > min(2000,max(12,(iw*ih)//2)):
+        return None
+    ink_w=max(xs)-min(xs)+1; ink_h=max(ys)-min(ys)+1
+    if ink_w < 2 or ink_h < 5 or ink_h > min(40,ih) or ink_w > iw-2:
+        return None
+    cx=left+int(round(sum(xs)/count))
+    cy=top+int(round(sum(ys)/count))
+    if not (left <= cx < right and top <= cy < bottom):
+        return None
+    payload={
+        'source':str(window_state.get('source') or ''),
+        'screenshot_sha256':str(window_state.get('screenshot_sha256') or ''),
+        'cell_bbox':[x,y,w,h],
+        'background':list(background),
+        'threshold':int(threshold),
+        'ink_bbox':[left+min(xs),top+min(ys),ink_w,ink_h],
+        'ink_pixels':count,
+        'point':[cx,cy],
+    }
+    proof=hashlib.sha256(json.dumps(payload,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+    return {**payload,'cx':cx,'cy':cy,'proof_sha256':proof}
+
 def _task091_region_sha256(window_state, bbox, inset=6):
     path=_task091_screenshot_path(window_state)
     if path is None or not isinstance(bbox,list) or len(bbox)!=4:
@@ -1081,35 +1143,45 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             pending['table_frame_id']=frame_id
             pending['table_selected_target_visual_sha256']=target_visual
             pending['table_selected_sibling_visual_sha256']=sibling_visual
+            text_ink=_task091_table_cell_text_ink_point(
+                window_state,list(pending.get('shape_bbox') or []))
+            if text_ink is None:
+                return _task091_terminal('TASK091_TABLE_TEXT_INK_UNPROVEN',state)
+            pending['table_text_hit_x']=int(text_ink['cx'])
+            pending['table_text_hit_y']=int(text_ink['cy'])
+            pending['table_text_ink_bbox']=list(text_ink['ink_bbox'])
+            pending['table_text_ink_pixels']=int(text_ink['ink_pixels'])
+            pending['table_text_ink_proof_sha256']=str(text_ink['proof_sha256'])
+            pending['table_text_ink_source']=str(text_ink['source'])
             pending['stage']='table-cell-enter-issued'
-            cx=int(pending.get('text_hit_x') or 0); cy=int(pending.get('text_hit_y') or 0)
+            cx=int(text_ink['cx']); cy=int(text_ink['cy'])
             command=f"pyautogui.click({cx}, {cy})"
             pending['cell_enter_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             stored=pending.get('target') if isinstance(pending.get('target'),dict) else {}
-            bbox=stored.get('bbox') if isinstance(stored.get('bbox'),list) else []
-            if len(bbox)!=4:
-                return _task091_terminal('TASK091_TABLE_CANONICAL_PROOF_MISSING',state)
             action_target={'source':'task091-pptx-canonical','label':stored.get('label'),
                            'role':stored.get('role'),'slide':stored.get('slide'),
-                           'x':int(bbox[0]),'y':int(bbox[1]),'w':int(bbox[2]),'h':int(bbox[3]),
-                           'cx':int(stored.get('cx') or 0),'cy':int(stored.get('cy') or 0),
+                           'x':cx-1,'y':cy-1,'w':2,'h':2,'cx':cx,'cy':cy,
                            'foreground_sha256':stored.get('foreground_sha256'),
-                           'deck_sha256':stored.get('deck_sha256'),
-                           'proof_sha256':stored.get('proof_sha256')}
+                           'deck_sha256':stored.get('deck_sha256')}
+            action_target['proof_sha256']=task091_spatial_target_proof(action_target)
+            pending['table_text_action_proof_sha256']=action_target['proof_sha256']
             return {'action':'exec','command':command,
                     'target':action_target,
-                    'plan':'The exact table container is selected; click the target cell once more, then prove a blinking caret before any text mutation.',
+                    'plan':'The exact table container is selected; click the raster-proven text ink point, then require visible caret evidence before any text mutation.',
                     'specialist_phase':'enter-table-cell-caret-candidate'}
-        if stage == 'table-cell-enter-issued':
+        if stage in ('table-cell-enter-issued','table-cell-caret-probe-issued'):
             current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
             current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
+            current_fg=_task091_foreground_sha(window_state)
             shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
             siblings=_task091_other_shapes_signature(window_state,pending['slide'],pending.get('shape_id'))
             sibling_visual=_task091_table_visual_signature(
                 window_state,pending['slide'],pending.get('table_frame_id'),pending.get('shape_id'))
             bbox=list(pending.get('shape_bbox') or [])
-            caret=_task091_caret_delta_geometry(
-                pending.get('table_selected_source'),window_state.get('source'),bbox)
+            before_source=(pending.get('table_selected_source')
+                           if stage=='table-cell-enter-issued'
+                           else pending.get('caret_probe_source'))
+            caret=_task091_caret_delta_geometry(before_source,window_state.get('source'),bbox)
             safe=(current_sha == str(pending.get('before_deck_sha256') or '')
                   and int(window_state.get('active_slide') or 0) == int(pending.get('slide') or 0)
                   and shape is not None
@@ -1117,17 +1189,34 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                   and str(shape.get('text') or '') == str(pending.get('old') or '')
                   and siblings == str(pending.get('before_sibling_signature') or '')
                   and siblings == str(pending.get('table_selected_sibling_signature') or '')
+                  and len(current_fg)==64
+                  and current_fg == str(pending.get('selection_foreground_sha256') or '')
                   and len(sibling_visual)==64
-                  and sibling_visual == str(pending.get('table_selected_sibling_visual_sha256') or ''))
+                  and sibling_visual == str(pending.get('table_selected_sibling_visual_sha256') or '')
+                  and len(str(pending.get('table_text_ink_proof_sha256') or ''))==64
+                  and len(str(pending.get('cell_enter_command_hash') or ''))==64)
             if not safe:
                 return _task091_terminal('TASK091_TABLE_CELL_ENTRY_DRIFT',state)
-            if caret.get('proven') is not True:
-                pending['caret_geometry']=caret
-                return _task091_terminal('TASK091_TABLE_CELL_CARET_GEOMETRY_UNPROVEN',state)
-            pending['selected_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
-            pending['selection_ack_foreground_sha256']=_task091_foreground_sha(window_state)
-            pending['explicit_text_mode']=True
             pending['caret_geometry']=caret
+            if caret.get('proven') is not True:
+                attempts=int(pending.get('caret_probe_attempts') or 0)
+                if attempts >= 2:
+                    return _task091_terminal('TASK091_TABLE_CELL_CARET_GEOMETRY_UNPROVEN',state)
+                source=str(window_state.get('source') or '')
+                if not re.fullmatch(r'\d{4}-\d{2}-(?:before|after)',source):
+                    return _task091_terminal('TASK091_TABLE_CELL_CARET_EVIDENCE_MISSING',state)
+                pending['caret_probe_attempts']=attempts+1
+                pending['caret_probe_source']=source
+                pending['stage']='table-cell-caret-probe-issued'
+                delay=0.30 if attempts==0 else 0.55
+                command=f"pyautogui.sleep({delay:.2f})"
+                pending['caret_probe_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+                return {'action':'exec','command':command,
+                        'plan':'Hold the proven table text target unchanged and sample caret blink geometry; no text mutation is allowed during this probe.',
+                        'specialist_phase':f'table-cell-caret-blink-probe-{attempts+1}'}
+            pending['selected_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
+            pending['selection_ack_foreground_sha256']=current_fg
+            pending['explicit_text_mode']=True
             pending['stage']='edit-issued'
             command=_task091_table_cell_bounded_write_command(pending['old'],pending['new'])
             pending['action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
