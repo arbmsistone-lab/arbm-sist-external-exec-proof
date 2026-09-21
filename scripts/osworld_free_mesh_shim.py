@@ -1154,8 +1154,13 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             pending['table_text_ink_proof_sha256']=str(text_ink['proof_sha256'])
             pending['table_text_ink_source']=str(text_ink['source'])
             pending['stage']='table-cell-enter-issued'
+            # Keep the selected-cell frame as an immutable caret baseline.  A
+            # single text-ink click is deliberately separated from the container
+            # selection and from every later observation so WPS must prove the
+            # transition into text mode before destructive keys are admitted.
+            pending['caret_baseline_source']=str(window_state.get('source') or '')
             cx=int(text_ink['cx']); cy=int(text_ink['cy'])
-            command=f"pyautogui.doubleClick({cx}, {cy}, interval=0.08)"
+            command=f"pyautogui.click({cx}, {cy})"
             pending['cell_enter_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             stored=pending.get('target') if isinstance(pending.get('target'),dict) else {}
             action_target={'source':'task091-pptx-canonical','label':stored.get('label'),
@@ -1167,7 +1172,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             pending['table_text_action_proof_sha256']=action_target['proof_sha256']
             return {'action':'exec','command':command,
                     'target':action_target,
-                    'plan':'The exact table container is selected; double-click the raster-proven text ink point to request WPS table-cell text mode, then require visible caret evidence before any text mutation.',
+                    'plan':'The exact table container is selected; click the raster-proven text ink point in a separate observed transition to request WPS table-cell text mode, then require visible caret evidence before any text mutation.',
                     'specialist_phase':'enter-table-cell-caret-candidate'}
         if stage in ('table-cell-enter-issued','table-cell-caret-probe-issued'):
             current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
@@ -1178,9 +1183,10 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             sibling_visual=_task091_table_visual_signature(
                 window_state,pending['slide'],pending.get('table_frame_id'),pending.get('shape_id'))
             bbox=list(pending.get('shape_bbox') or [])
-            before_source=(pending.get('table_selected_source')
-                           if stage=='table-cell-enter-issued'
-                           else pending.get('caret_probe_source'))
+            # Every sample is compared with the immutable selected-cell
+            # baseline. Comparing N with N-1 can miss a blinking caret when both
+            # captures happen in the same blink phase.
+            before_source=str(pending.get('caret_baseline_source') or pending.get('table_selected_source') or '')
             caret=_task091_caret_delta_geometry(before_source,window_state.get('source'),bbox)
             safe=(current_sha == str(pending.get('before_deck_sha256') or '')
                   and int(window_state.get('active_slide') or 0) == int(pending.get('slide') or 0)
@@ -1203,15 +1209,9 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 source=str(window_state.get('source') or '')
                 if not re.fullmatch(r'\d{4}-\d{2}-(?:before|after)',source):
                     return _task091_terminal('TASK091_TABLE_CELL_CARET_EVIDENCE_MISSING',state)
-                if attempts >= 2 and not pending.get('table_f2_probe_issued'):
-                    pending['table_f2_probe_issued']=True
-                    pending['caret_probe_source']=source
-                    pending['stage']='table-cell-caret-probe-issued'
-                    command="pyautogui.press('f2')\npyautogui.sleep(0.30)"
-                    pending['table_f2_probe_command_hash']=hashlib.sha256(command.encode()).hexdigest()
-                    return {'action':'exec','command':command,
-                            'plan':'The raster-proven table text hit produced no observable caret. Issue one non-destructive F2 text-mode request scoped to the already selected cell, then require the same strict caret geometry before any mutation.',
-                            'specialist_phase':'table-cell-f2-textmode-probe'}
+                # F2 is intentionally not used here: the official evidence showed
+                # a valid F2 action with zero local visual delta, so it is not
+                # admissible as proof of WPS text mode.
                 if attempts >= 4:
                     return _task091_terminal('TASK091_TABLE_CELL_CARET_GEOMETRY_UNPROVEN',state)
                 pending['caret_probe_attempts']=attempts+1
