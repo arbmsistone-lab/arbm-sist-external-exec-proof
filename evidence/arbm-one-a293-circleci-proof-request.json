@@ -1,0 +1,17 @@
+{
+  "schema": "arbm-continuity-proof-request-v1",
+  "mission_id": "arbm-one-a293-circleci-exact-20260921",
+  "target_sha": "a293c83e5280c2812a519f0fccabf5a6dc02f0bf",
+  "provider": "circleci-free-public",
+  "required_capabilities": [
+    "git",
+    "tests",
+    "build",
+    "circleci-runner"
+  ],
+  "zero_spend": true,
+  "remote_only": true,
+  "heavy_local": false,
+  "policy": "fail-closed",
+  "requested_at": "2026-09-21T22:24:00Z"
+}
