@@ -1207,7 +1207,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                     pending['table_f2_probe_issued']=True
                     pending['caret_probe_source']=source
                     pending['stage']='table-cell-caret-probe-issued'
-                    command="pyautogui.press('f2')\\npyautogui.sleep(0.30)"
+                    command="pyautogui.press('f2')\npyautogui.sleep(0.30)"
                     pending['table_f2_probe_command_hash']=hashlib.sha256(command.encode()).hexdigest()
                     return {'action':'exec','command':command,
                             'plan':'The raster-proven table text hit produced no observable caret. Issue one non-destructive F2 text-mode request scoped to the already selected cell, then require the same strict caret geometry before any mutation.',
