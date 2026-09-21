@@ -1,20 +1,26 @@
 version: 2.1
 jobs:
-  sovereign_oidc_heartbeat:
+  sovereign_oidc_heartbeat_claim:
     docker:
-      - image: cimg/base:stable
+      - image: cimg/node:lts
     resource_class: small
+    environment:
+      ARBM_PROVIDER_ID: circleci-free-public
+      ARBM_EXTRA_CAPABILITIES: circleci-runner
     steps:
       - checkout
       - run:
-          name: Send sovereign heartbeat via CircleCI OIDC
+          name: Heartbeat and immediately claim mission
           command: |
+            set -euo pipefail
             test -n "$CIRCLE_OIDC_TOKEN_V2"
             curl -fsS --retry 2 --max-time 15 \
               -H "Authorization: Bearer $CIRCLE_OIDC_TOKEN_V2" \
               -H 'content-type: application/json' \
-              --data '{"action":"heartbeat","healthy":true,"zeroSpendVerified":true,"capabilities":["git","tests","build","cloud","circleci-runner"],"detail":{"source":"circleci-oidc-heartbeat","mode":"autonomous-continuity-worker"}}' \
+              --data '{"action":"heartbeat","healthy":true,"zeroSpendVerified":true,"capabilities":["git","tests","build","cloud","circleci-runner"],"detail":{"source":"circleci-oidc-heartbeat","mode":"heartbeat-claim-master"}}' \
               https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-continuity-coordinator-v1
+            ARBM_OIDC="$CIRCLE_OIDC_TOKEN_V2" ARBM_RUN_ROOT="$PWD/.arbm-run" node scripts/sovereign-continuity-worker.mjs
+
   arbm_control_resilience_worker:
     docker:
       - image: cimg/node:24.8
@@ -27,16 +33,25 @@ jobs:
             set -euo pipefail
             test -n "$CIRCLE_OIDC_TOKEN_V2"
             node scripts/arbm-control-resilience-worker.mjs
+
 workflows:
-  sovereign_oidc_heartbeat:
+  sovereign_master_active:
+    jobs:
+      - sovereign_oidc_heartbeat_claim:
+          filters:
+            branches:
+              only: master
+
+  sovereign_master_scheduled:
     triggers:
       - schedule:
           cron: "0,15,30,45 * * * *"
           filters:
             branches:
-              only: assist/circleci-sovereign-oidc-20260909
+              only: master
     jobs:
-      - sovereign_oidc_heartbeat
+      - sovereign_oidc_heartbeat_claim
+
   arbm_control_resilience:
     jobs:
       - arbm_control_resilience_worker:
