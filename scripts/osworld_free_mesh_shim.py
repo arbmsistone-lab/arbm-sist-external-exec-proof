@@ -1200,15 +1200,24 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             pending['caret_geometry']=caret
             if caret.get('proven') is not True:
                 attempts=int(pending.get('caret_probe_attempts') or 0)
-                if attempts >= 2:
-                    return _task091_terminal('TASK091_TABLE_CELL_CARET_GEOMETRY_UNPROVEN',state)
                 source=str(window_state.get('source') or '')
-                if not re.fullmatch(r'\d{4}-\d{2}-(?:before|after)',source):
+                if not re.fullmatch(r'\\d{4}-\\d{2}-(?:before|after)',source):
                     return _task091_terminal('TASK091_TABLE_CELL_CARET_EVIDENCE_MISSING',state)
+                if attempts >= 2 and not pending.get('table_f2_probe_issued'):
+                    pending['table_f2_probe_issued']=True
+                    pending['caret_probe_source']=source
+                    pending['stage']='table-cell-caret-probe-issued'
+                    command="pyautogui.press('f2')\\npyautogui.sleep(0.30)"
+                    pending['table_f2_probe_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+                    return {'action':'exec','command':command,
+                            'plan':'The raster-proven table text hit produced no observable caret. Issue one non-destructive F2 text-mode request scoped to the already selected cell, then require the same strict caret geometry before any mutation.',
+                            'specialist_phase':'table-cell-f2-textmode-probe'}
+                if attempts >= 4:
+                    return _task091_terminal('TASK091_TABLE_CELL_CARET_GEOMETRY_UNPROVEN',state)
                 pending['caret_probe_attempts']=attempts+1
                 pending['caret_probe_source']=source
                 pending['stage']='table-cell-caret-probe-issued'
-                delay=0.30 if attempts==0 else 0.55
+                delay=(0.30,0.55,0.30,0.55)[attempts]
                 command=f"pyautogui.sleep({delay:.2f})"
                 pending['caret_probe_command_hash']=hashlib.sha256(command.encode()).hexdigest()
                 return {'action':'exec','command':command,
