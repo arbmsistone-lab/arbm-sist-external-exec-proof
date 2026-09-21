@@ -5,11 +5,16 @@ on:
     inputs:
       runner_name:
         description: Ephemeral runner name
-        required: true
+        required: false
+        default: arbm-one-cloud-bridge
         type: string
 
 permissions:
   contents: read
+
+concurrency:
+  group: arbm-one-cloud-runner-bootstrap
+  cancel-in-progress: true
 
 jobs:
   bootstrap:
@@ -21,23 +26,40 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Mint fresh ARBM ONE runner registration token
+        shell: bash
+        env:
+          ARBM_ONE_RUNNER_AUTH: ${{ secrets.ARBM_ONE_RUNNER_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${ARBM_ONE_RUNNER_AUTH:-}"
+          endpoint="https://api.github.com/repos/arbmsistone-lab/ARBM-one/actions/runners/registration-token"
+          response_file="$RUNNER_TEMP/registration-token.json"
+          http_code="$(curl --silent --show-error --output "$response_file" --write-out '%{http_code}'             --request POST             --header "Accept: application/vnd.github+json"             --header "Authorization: Bearer $ARBM_ONE_RUNNER_AUTH"             --header "X-GitHub-Api-Version: 2022-11-28"             "$endpoint" || true)"
+          if [ "$http_code" != "201" ]; then
+            rm -f "$response_file"
+            echo "ARBM_RUNNER_TOKEN_MINT=FAIL http=$http_code" >&2
+            echo "ARBM_ONE_RUNNER_TOKEN must be a credential allowed to create repository runner registration tokens." >&2
+            exit 1
+          fi
+          fresh_token="$(node -e 'const fs=require("fs");const p=process.argv[1];const j=JSON.parse(fs.readFileSync(p,"utf8"));if(typeof j.token!=="string"||!j.token)process.exit(1);process.stdout.write(j.token)' "$response_file")"
+          rm -f "$response_file"
+          echo "::add-mask::$fresh_token"
+          printf 'ARBM_ONE_REGISTRATION_TOKEN=%s\n' "$fresh_token" >> "$GITHUB_ENV"
+          echo "ARBM_RUNNER_TOKEN_MINT=PASS"
+
       - name: Register ephemeral private runner
         shell: bash
         env:
-          ARBM_ONE_RUNNER_TOKEN: ${{ secrets.ARBM_ONE_RUNNER_TOKEN }}
-          REQUESTED_RUNNER_NAME: ${{ inputs.runner_name }}
+          REQUESTED_RUNNER_NAME: ${{ inputs.runner_name || 'arbm-one-cloud-bridge' }}
         run: |
           set -euo pipefail
-          test -n "$ARBM_ONE_RUNNER_TOKEN"
+          test -n "${ARBM_ONE_REGISTRATION_TOKEN:-}"
           test "$(node -p "process.versions.node.split('.')[0]")" = "24"
           mkdir -p "$RUNNER_TEMP/arbm-one-runner"
           cd "$RUNNER_TEMP/arbm-one-runner"
           version="2.337.0"
           curl -fsSL -o runner.tgz "https://github.com/actions/runner/releases/download/v${version}/actions-runner-linux-x64-${version}.tar.gz"
           tar xzf runner.tgz
-          ./config.sh --unattended --ephemeral --disableupdate \
-            --url https://github.com/arbmsistone-lab/ARBM-one \
-            --token "$ARBM_ONE_RUNNER_TOKEN" \
-            --name "$REQUESTED_RUNNER_NAME" \
-            --labels "arbm-cloud,arbm-final,arbm-free,arbm-core"
+          ./config.sh --unattended --ephemeral --disableupdate             --url https://github.com/arbmsistone-lab/ARBM-one             --token "$ARBM_ONE_REGISTRATION_TOKEN"             --name "$REQUESTED_RUNNER_NAME"             --labels "arbm-cloud,arbm-final,arbm-free,arbm-core,remote-zero-spend,arbm-one,pr408"
           ./run.sh
