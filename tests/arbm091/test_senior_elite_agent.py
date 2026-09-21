@@ -104,6 +104,45 @@ class SeniorEliteBoardTests(unittest.TestCase):
         self.assertIn('anti_repetition',result['failed'])
 
 
+class TableTextInkTests(unittest.TestCase):
+    def _state(self, source):
+        return {'source':source,'screenshot_sha256':'a'*64}
+
+    def test_table_text_ink_point_tracks_visible_glyph_band_not_cell_center(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            obs=root/'wps-observations'
+            obs.mkdir()
+            image=Image.new('RGB',(240,140),'white')
+            draw=ImageDraw.Draw(image)
+            # Synthetic glyph-like strokes in the upper text band of the cell.
+            draw.rectangle((96,49,101,63),fill='black')
+            draw.rectangle((104,49,109,63),fill='black')
+            draw.rectangle((112,49,117,63),fill='black')
+            image.save(obs/'0001-01-after.png')
+            with patch.dict(os.environ,{'ARBM_WPS_EVIDENCE_DIR':str(root)},clear=False):
+                point=shim._task091_table_cell_text_ink_point(
+                    self._state('0001-01-after'),[60,35,140,80])
+            self.assertIsNotNone(point)
+            self.assertEqual(len(point['proof_sha256']),64)
+            self.assertGreaterEqual(point['cx'],96)
+            self.assertLessEqual(point['cx'],117)
+            self.assertGreaterEqual(point['cy'],49)
+            self.assertLessEqual(point['cy'],63)
+            self.assertLess(point['cy'],35+80//2)
+
+    def test_table_text_ink_point_rejects_blank_cell(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            obs=root/'wps-observations'
+            obs.mkdir()
+            Image.new('RGB',(240,140),'white').save(obs/'0001-01-after.png')
+            with patch.dict(os.environ,{'ARBM_WPS_EVIDENCE_DIR':str(root)},clear=False):
+                point=shim._task091_table_cell_text_ink_point(
+                    self._state('0001-01-after'),[60,35,140,80])
+            self.assertIsNone(point)
+
+
 class CaretGeometryTests(unittest.TestCase):
     def test_one_pixel_vertical_delta_is_proven_caret(self):
         with tempfile.TemporaryDirectory() as tmp:
