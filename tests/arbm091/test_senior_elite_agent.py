@@ -76,13 +76,16 @@ class SeniorEliteBoardTests(unittest.TestCase):
                 'table_selected_screenshot_sha256':'1'*64,
                 'table_selected_target_visual_sha256':'2'*64,
                 'table_selected_sibling_visual_sha256':'3'*64,
+                'textmode_baseline_source':'0041-01-after',
+                'textmode_first_hit_source':'0042-01-after',
+                'cell_text_hit_command_hash':hashlib.sha256(command.encode()).hexdigest(),
             },
         }}
         action={'action':'exec','command':command,'specialist_phase':'enter-table-cell-caret-candidate',
                 'target':{'source':'task091-pptx-canonical','slide':3,'role':'task091-canonical-point','label':'$42.8M'}}
         with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','GITHUB_SHA':'f'*40},clear=False):
             result=review_action(action,task_id='091',source='task091-specialist',
-                                 state=state,verifier={'progress':False,'no_progress':1},
+                                 state=state,verifier={'progress':False,'no_progress':2},
                                  recent_commands=[command])
         self.assertTrue(result['allow'],result)
         self.assertEqual(result['pass'],10)
@@ -105,6 +108,23 @@ class SeniorEliteBoardTests(unittest.TestCase):
             result=review_action(action,task_id='091',source='task091-specialist',
                                  state=state,verifier={'progress':False,'no_progress':1},
                                  recent_commands=[command])
+        self.assertFalse(result['allow'])
+        self.assertIn('anti_repetition',result['failed'])
+
+    def test_task091_third_identical_table_click_remains_vetoed(self):
+        command="pyautogui.click(843, 404)"
+        state={'task091_specialist':{'owned':True,'handoff':False,'pending_edit':{
+            'stage':'table-cell-enter-issued','shape_kind':'table-cell','slide':3,
+            'cell_enter_command_hash':hashlib.sha256(command.encode()).hexdigest(),
+            'cell_text_hit_command_hash':hashlib.sha256(command.encode()).hexdigest(),
+            'textmode_baseline_source':'0041-01-after','textmode_first_hit_source':'0042-01-after',
+            'table_selected_screenshot_sha256':'1'*64,'table_selected_target_visual_sha256':'2'*64,
+            'table_selected_sibling_visual_sha256':'3'*64}}}
+        action={'action':'exec','command':command,'specialist_phase':'enter-table-cell-caret-candidate',
+                'target':{'source':'task091-pptx-canonical','slide':3}}
+        with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','GITHUB_SHA':'f'*40},clear=False):
+            result=review_action(action,task_id='091',source='task091-specialist',state=state,
+                                 verifier={'progress':False,'no_progress':3},recent_commands=[command])
         self.assertFalse(result['allow'])
         self.assertIn('anti_repetition',result['failed'])
 
