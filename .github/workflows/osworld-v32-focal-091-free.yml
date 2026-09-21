@@ -41,6 +41,7 @@ jobs:
           test "$ARBM_MAX_STEPS" = 500
           python -m pip install --disable-pip-version-check --require-hashes -q -r scripts/requirements-osworld.txt
           python -m unittest scripts/test_osworld_groq_free.py scripts/test_osworld_groq_local_fallback.py scripts/test_osworld_failover_matrix.py -v
+          PYTHONPATH=scripts python tests/arbm091/test_senior_elite_agent.py
           PYTHONPATH=scripts python -c 'import arbm_senior_elite_board as b; b._self_test_bounded_091_resync(); print("TASK091_BOUNDED_RESYNC_POLICY=PASS")'
           git diff --check
       - name: Prove cloud KVM
