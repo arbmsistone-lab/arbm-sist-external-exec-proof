@@ -126,10 +126,11 @@ def review_action(action, *, task_id="", source="generic", state=None,
         and str(pending091.get("shape_kind") or "")=="table-cell"
         and command==expected_table_click
         and repeated
-        and no_progress==1
+        and no_progress in (1,2)
         and bool(str(pending091.get("table_selected_screenshot_sha256") or ""))
         and bool(str(pending091.get("table_selected_target_visual_sha256") or ""))
         and bool(str(pending091.get("table_selected_sibling_visual_sha256") or ""))
+        and str(pending091.get("cell_enter_command_hash") or "") == __import__("hashlib").sha256(command.encode()).hexdigest()
     )
     bounded_semantic_retry=bounded_observation_retry or bounded_table_cell_entry
     anti_repeat=not (repeated and no_progress>0 and not bounded_semantic_retry)
