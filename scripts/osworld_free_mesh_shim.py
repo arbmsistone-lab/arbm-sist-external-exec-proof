@@ -1201,7 +1201,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             if caret.get('proven') is not True:
                 attempts=int(pending.get('caret_probe_attempts') or 0)
                 source=str(window_state.get('source') or '')
-                if not re.fullmatch(r'\\d{4}-\\d{2}-(?:before|after)',source):
+                if not re.fullmatch(r'\d{4}-\d{2}-(?:before|after)',source):
                     return _task091_terminal('TASK091_TABLE_CELL_CARET_EVIDENCE_MISSING',state)
                 if attempts >= 2 and not pending.get('table_f2_probe_issued'):
                     pending['table_f2_probe_issued']=True
