@@ -1,3 +1,4 @@
+import hashlib
 import os
 import tempfile
 import unittest
@@ -56,6 +57,49 @@ class SeniorEliteBoardTests(unittest.TestCase):
             result=review_action(action,task_id='001',source='generic-mesh',
                                  state={},verifier={'progress':False,'no_progress':1},
                                  recent_commands=[action['command']])
+        self.assertFalse(result['allow'])
+        self.assertIn('anti_repetition',result['failed'])
+
+    def test_task091_second_table_click_uses_issued_command_hash_not_shape_center(self):
+        command="pyautogui.click(843, 404)"
+        state={'task091_specialist':{
+            'owned':True,'handoff':False,
+            'pending_edit':{
+                'stage':'table-cell-enter-issued','shape_kind':'table-cell','slide':3,
+                'target':{'cx':811,'cy':391},
+                'cell_enter_command_hash':hashlib.sha256(command.encode()).hexdigest(),
+                'table_selected_screenshot_sha256':'1'*64,
+                'table_selected_target_visual_sha256':'2'*64,
+                'table_selected_sibling_visual_sha256':'3'*64,
+            },
+        }}
+        action={'action':'exec','command':command,'specialist_phase':'enter-table-cell-caret-candidate',
+                'target':{'source':'task091-pptx-canonical','slide':3,'role':'task091-canonical-point','label':'$42.8M'}}
+        with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','GITHUB_SHA':'f'*40},clear=False):
+            result=review_action(action,task_id='091',source='task091-specialist',
+                                 state=state,verifier={'progress':False,'no_progress':1},
+                                 recent_commands=[command])
+        self.assertTrue(result['allow'],result)
+        self.assertEqual(result['pass'],10)
+
+    def test_task091_second_table_click_hash_mismatch_is_vetoed(self):
+        command="pyautogui.click(843, 404)"
+        state={'task091_specialist':{
+            'owned':True,'handoff':False,
+            'pending_edit':{
+                'stage':'table-cell-enter-issued','shape_kind':'table-cell','slide':3,
+                'cell_enter_command_hash':'0'*64,
+                'table_selected_screenshot_sha256':'1'*64,
+                'table_selected_target_visual_sha256':'2'*64,
+                'table_selected_sibling_visual_sha256':'3'*64,
+            },
+        }}
+        action={'action':'exec','command':command,'specialist_phase':'enter-table-cell-caret-candidate',
+                'target':{'source':'task091-pptx-canonical','slide':3,'role':'task091-canonical-point','label':'$42.8M'}}
+        with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','GITHUB_SHA':'f'*40},clear=False):
+            result=review_action(action,task_id='091',source='task091-specialist',
+                                 state=state,verifier={'progress':False,'no_progress':1},
+                                 recent_commands=[command])
         self.assertFalse(result['allow'])
         self.assertIn('anti_repetition',result['failed'])
 
