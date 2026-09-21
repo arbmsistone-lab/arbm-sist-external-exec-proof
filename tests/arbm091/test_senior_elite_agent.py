@@ -60,10 +60,10 @@ class SeniorEliteBoardTests(unittest.TestCase):
         self.assertFalse(result['allow'])
         self.assertIn('anti_repetition',result['failed'])
 
-    def test_task091_table_text_mode_path_is_double_click(self):
-        command="pyautogui.doubleClick(843, 452, interval=0.08)"
-        self.assertTrue(command.startswith("pyautogui.doubleClick("))
-        self.assertNotIn("pyautogui.click(843, 452)", command)
+    def test_task091_table_text_mode_path_is_separate_single_click(self):
+        command="pyautogui.click(843, 452)"
+        self.assertEqual(command,"pyautogui.click(843, 452)")
+        self.assertNotIn("doubleClick", command)
 
     def test_task091_second_table_click_uses_issued_command_hash_not_shape_center(self):
         command="pyautogui.click(843, 404)"
@@ -175,6 +175,29 @@ class CaretGeometryTests(unittest.TestCase):
             self.assertTrue(result['proven'],result)
             self.assertLessEqual(result['width'],4)
             self.assertGreaterEqual(result['height'],8)
+
+    def test_identical_frames_are_not_caret(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp); obs=root/'wps-observations'; obs.mkdir()
+            a=Image.new('RGB',(220,120),'white')
+            a.save(obs/'0001-01-after.png'); a.save(obs/'0002-01-after.png')
+            with patch.dict(os.environ,{'ARBM_WPS_EVIDENCE_DIR':str(root)},clear=False):
+                result=shim._task091_caret_delta_geometry(
+                    '0001-01-after','0002-01-after',[20,20,180,80])
+            self.assertFalse(result['proven'],result)
+            self.assertEqual(result['reason'],'no-local-delta')
+
+    def test_delta_outside_cell_is_not_caret(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp); obs=root/'wps-observations'; obs.mkdir()
+            a=Image.new('RGB',(220,120),'white'); b=a.copy()
+            ImageDraw.Draw(b).line((210,43,210,64),fill='black',width=1)
+            a.save(obs/'0001-01-after.png'); b.save(obs/'0002-01-after.png')
+            with patch.dict(os.environ,{'ARBM_WPS_EVIDENCE_DIR':str(root)},clear=False):
+                result=shim._task091_caret_delta_geometry(
+                    '0001-01-after','0002-01-after',[20,20,180,80])
+            self.assertFalse(result['proven'],result)
+            self.assertEqual(result['reason'],'no-local-delta')
 
     def test_broad_rectangle_is_not_caret(self):
         with tempfile.TemporaryDirectory() as tmp:
