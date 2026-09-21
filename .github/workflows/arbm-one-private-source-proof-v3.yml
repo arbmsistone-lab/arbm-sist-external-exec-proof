@@ -21,27 +21,17 @@ jobs:
       TARGET_SHA: a293c83e5280c2812a519f0fccabf5a6dc02f0bf
       ARBM_CI_PROVIDER: github-external
       ARBM_CI_SCOPE: provider
+      # Legacy ARBM_ONE_RUNNER_TOKEN path intentionally disabled after reproducible HTTP 401.
+      # Private exact-SHA execution must use a short-lived identity broker; fail closed until configured.
     steps:
-      - name: Validate private-source credential without exposing it
+      - name: Require short-lived private-source identity broker
         shell: bash
-        env:
-          ARBM_ONE_SOURCE_TOKEN: ${{ secrets.ARBM_ONE_RUNNER_TOKEN }}
         run: |
           set -euo pipefail
-          test -n "${ARBM_ONE_SOURCE_TOKEN:-}"
-          http_code="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}'             --header "Accept: application/vnd.github+json"             --header "Authorization: Bearer $ARBM_ONE_SOURCE_TOKEN"             --header "X-GitHub-Api-Version: 2022-11-28"             "https://api.github.com/repos/arbmsistone-lab/ARBM-one" || true)"
-          echo "ARBM_PRIVATE_SOURCE_HTTP=$http_code"
-          test "$http_code" = "200"
+          echo "ARBM_PRIVATE_SOURCE_AUTH=BLOCKED_LEGACY_TOKEN_DISABLED" >&2
+          echo "Static ARBM_ONE_RUNNER_TOKEN is prohibited after reproducible HTTP 401. Configure an approved short-lived GitHub App/OIDC broker before exact-SHA checkout." >&2
+          exit 1
 
-      - name: Checkout ARBM ONE exact protected SHA
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          repository: arbmsistone-lab/ARBM-one
-          ref: a293c83e5280c2812a519f0fccabf5a6dc02f0bf
-          token: ${{ secrets.ARBM_ONE_RUNNER_TOKEN }}
-          persist-credentials: false
-          fetch-depth: 1
-          path: arbm-one
 
       - name: Prepare Node 24
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
