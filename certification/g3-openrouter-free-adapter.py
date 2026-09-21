@@ -61,13 +61,17 @@ TOOLS = [{'type': 'function', 'function': {
     'parameters': obj({
         'action': {'type': 'string', 'enum': list(ACTIONS)}, 'parameters': obj(PARAMS),
         'state_summary': {'type': 'string', 'maxLength': 1200,
-                          'description': 'Working memory: observed facts, completed subgoals, next subgoal.'},
+                          'description': 'Bounded memory: required literal references, observed facts, completed subgoals, next subgoal.'},
         'target': {'type': 'string', 'maxLength': 240,
                    'description': 'Visible target and reason. For done: evidence ALL requested outcomes exist. For infeasible: observed external blocker.'},
         'expected_change': {'type': 'string', 'maxLength': 240},
     }, ('action', 'parameters', 'state_summary', 'target', 'expected_change')),
 }}]
 SYSTEM = """Control the OSWorld desktop exclusively with desktop_action. Issue exactly ONE action.
+Follow the user task exactly, including its requested operation and output requirements.
+A click means one click. Use double_click or right_click only when the task or visible application
+requires that operation. Preserve explicitly requested literal references in state_summary without
+paraphrasing them. Observation metadata is evidence for the task, not a replacement for its goals.
 The screenshot is the authority for visible state. Coordinates are normalized 0..1000 across the
 ENTIRE screenshot: x=1000*pixel_x/image_width, y=1000*pixel_y/image_height. Aim at the center of a
 visible control. Never guess coordinates for an unseen control. Inspect menus and labels first.
@@ -389,7 +393,7 @@ class ArbmG3Agent:
             'latency_ms': round((time.monotonic() - started) * 1000, 3)}
 
     def _messages_for(self, screenshot, correction):
-        summary = {'task': self._instruction, 'working_memory': self._memory,
+        summary = {'working_memory': self._memory,
                    'recent_actions_issued_verify_effect': list(self._history),
                    'screen_changed': self._context['screen_changed'],
                    'unchanged_steps': self._same_screen_steps,
@@ -419,6 +423,7 @@ class ArbmG3Agent:
                 'over the entire unchanged-size image. Interpolate between grid lines.')
         return [{'role': 'system', 'content': SYSTEM}, {'role': 'user', 'content': [
             {'type': 'text', 'text': json.dumps(summary, ensure_ascii=False)},
+            {'type': 'text', 'text': 'Task instruction (authoritative user request):\n' + self._instruction},
             {'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,' +
                                              base64.b64encode(self._model_screenshot).decode('ascii')}},
         ]}]
@@ -428,7 +433,8 @@ class ArbmG3Agent:
         if self._groq_account is not None:
             from g3_groq_account import account_contract, pace_quota
             self._groq_account = account_contract()
-            text_chars = len(messages[0]['content']) + len(messages[1]['content'][0]['text'])
+            text_chars = len(messages[0]['content']) + sum(
+                len(part['text']) for part in messages[1]['content'] if part['type'] == 'text')
             reserve = self._groq_prompt_tokens + 1024 + max(0, text_chars - self._groq_text_chars)
             delay = pace_quota(self._groq_quota, self._groq_quota_at, reserve)
             self._context['quota_wait_ms'] = round(delay * 1000, 3)

@@ -1,0 +1,50 @@
+{
+  "observed_at_utc": "2026-09-21T00:25:39.946852+00:00",
+  "base_sha": "3ed95708c5c4180dfcbda8b080e75b9e99bb6294",
+  "branch": "g3-free-cert-recovery-20260915",
+  "A": "PASS: 58 contracts under actual CI flags; compile, lint and scoped diff checks; exact task content transmitted once, preserved across steps, cleared at task reset",
+  "B": "PASS: unchanged probe, thresholds, workflow, benchmark pins, task/evaluator/assets/VM; GUI restrictions retained; no task-specific detection, answers or evaluator data",
+  "C": "PASS_FOR_ONE_GATED_RETEST: previous real response cost=0; explicit Dots :free route, max_price=0, no provider fallback, retries=0 for quota; no VM unless unchanged capability probe passes",
+  "provider": "openrouter",
+  "model": "dots-studio/dots-3-note-preview:free",
+  "ZERO_SPEND": true,
+  "HEAVY_LOCAL": 0,
+  "coordinate_grid": true,
+  "square_observation": true,
+  "max_output_tokens": 1024,
+  "previous_run": 35547384237,
+  "previous_candidate": "3ed95708c5c4180dfcbda8b080e75b9e99bb6294",
+  "previous_official_score": null,
+  "previous_probe": {
+    "geometry_checks": "PASS",
+    "requested_action": "FAIL: double_click instead of click",
+    "context_reference": "FAIL: missing",
+    "completed_calls": 1,
+    "input_tokens": 2638,
+    "output_tokens": 1024,
+    "reported_cost_usd": "0",
+    "latency_ms": 10288.17,
+    "vm_prepared": false,
+    "artifact_id": 10617240163,
+    "artifact_sha256": "b0e6d3d190d514ec8ea8a31b84bfb78d9434b48de1645c8980b2e7071b48c79a"
+  },
+  "dominant_failure": "Semantic instruction compliance, with geometric grounding now inside unchanged target. No claim about provider internals.",
+  "hypothesis": "Task nested inside observation JSON may be treated as summarized data. Transmit its exact text once as a separate user content block, explicitly preserve requested operations and literal references. Same synthetic probe must pass both previously failed checks before VM.",
+  "correction": "General task/observation boundary and memory contract; no runtime special case for probe marker or target. Token-reservation calculation now includes every text block.",
+  "tests_passed": 58,
+  "test_duration_seconds": 3.159,
+  "tests_receipt_sha256": "0e0fd03b70bcadbe2adf75a21f2c5f855481fd7a04f3d5e81079d3c6b5aaf19f",
+  "files_sha256_lf": {
+    "certification/g3-openrouter-free-adapter.py": "b807796f976163afc8c582f215ddbaba850ef0dc91d902d59a0805d808e15bda",
+    "tests/test_g3_free_agent.py": "96817e7d99eb8148fef5c306817a78dabe3159e9cc8f6cdd09af7bbc5d4f0341",
+    ".github/workflows/osworld-g3-free-smoke-v1.yml": "b92c5b70b82524caafde264d3a34f78565c10633fe6695c92cca3a7dfe1ba450",
+    "certification/g3_free_control.py": "fe4a6e24538bf48a08ec77b722052b45b4d224e17c3cbcb968bb1bceb1aa5349"
+  },
+  "unchanged_protected_files": {
+    ".github/workflows/osworld-g3-free-smoke-v1.yml": true,
+    "certification/g3_free_control.py": true
+  },
+  "official_score": null,
+  "functional_status": "NOT_YET_RETESTED",
+  "max_new_spend_usd": "0"
+}

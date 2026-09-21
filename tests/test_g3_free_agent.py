@@ -100,7 +100,7 @@ class FreeAgentTests(unittest.TestCase):
         self.responses = [response([]), response()]
         _, commands = self.predict()
         self.assertEqual(len(commands), 1)
-        self.assertEqual(self.calls[0]['messages'][1]['content'][1], self.calls[1]['messages'][1]['content'][1])
+        self.assertEqual(self.calls[0]['messages'][1]['content'][-1], self.calls[1]['messages'][1]['content'][-1])
         self.assertIn('EXACTLY_ONE_TOOL_REQUIRED', self.calls[1]['messages'][1]['content'][0]['text'])
         self.assertEqual(self.assert_accounted(2)['structural_rejections'], 1)
 
@@ -233,6 +233,24 @@ class FreeAgentTests(unittest.TestCase):
         self.assertEqual(len(self.agent._messages_for(self.obs['screenshot'], None)), 2)
         self.assertEqual(self.agent._history.maxlen, 6)
 
+    def test_task_instruction_remains_exact_and_separate_from_observations(self):
+        instruction = 'Keep identifier K8-204 unchanged. Select the visible field; do not submit.'
+        self.responses = [response()]
+        self.agent.predict(instruction, self.obs)
+        parts = self.calls[0]['messages'][1]['content']
+        observation = json.loads(parts[0]['text'])
+        self.assertNotIn('task', observation)
+        self.assertEqual(parts[1]['text'].split('\n', 1)[1], instruction)
+        self.assertEqual(parts[2]['type'], 'image_url')
+        self.assertEqual(sum(instruction in p.get('text', '') for p in parts), 1)
+        self.agent.reset()
+        self.responses = [response()]
+        replacement = 'Select another visible field.'
+        self.agent.predict(replacement, self.obs)
+        next_parts = self.calls[-1]['messages'][1]['content']
+        self.assertNotIn(instruction, json.dumps(next_parts))
+        self.assertEqual(next_parts[1]['text'].split('\n', 1)[1], replacement)
+
     def test_action_intent_mismatch_rejected(self):
         action = payload('type', text='Inbox')
         action['expected_change'] = 'Click on the Inbox tab.'
@@ -335,7 +353,7 @@ class FreeAgentTests(unittest.TestCase):
         with patch.dict(os.environ, {'ARBM_G3_COORDINATE_GRID': '1'}):
             _, commands = self.predict()
         self.assertEqual(commands, ['pyautogui.click(x=960, y=540)'])
-        self.assertEqual(len(self.calls[0]['messages'][1]['content']), 2)
+        self.assertEqual(len(self.calls[0]['messages'][1]['content']), 3)
         self.assertIn('coordinate_ruler', self.calls[0]['messages'][1]['content'][0]['text'])
         terminal = json.loads(self.log.read_text().splitlines()[-1])
         self.assertEqual(terminal['screenshot_hash'], hashlib.sha256(self.obs['screenshot']).hexdigest())
