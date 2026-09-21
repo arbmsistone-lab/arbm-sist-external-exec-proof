@@ -3,6 +3,7 @@ name: Sovereign Continuity Worker GitHub
 on:
   push:
     branches:
+      - master
       - fix/github-continuity-worker-active-20260921
   workflow_dispatch:
   schedule:
