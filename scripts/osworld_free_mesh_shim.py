@@ -1452,10 +1452,36 @@ def try_091_specialist(body, obs, focused_obs):
                              allow_canonical=True,verifier_result=VERIFIER.last_result,
                              recent_commands=[x['command'] for x in STATE['history'][-6:]])
         decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
+        recent_commands=[x['command'] for x in STATE['history'][-6:]]
+        diagnostic_review=__import__('arbm_senior_elite_board').review_action(
+            action,task_id=os.environ.get('TASK_ID'),source='task091-specialist',
+            state=STATE,verifier=VERIFIER.last_result,recent_commands=recent_commands)
+        command=str(action.get('command') or '')
+        previous_command=recent_commands[-1] if recent_commands else ''
+        pending=state.get('pending_edit') if isinstance(state.get('pending_edit'),dict) else {}
+        diagnostic={
+            'ordinal':STATE.get('executed',0)+1,'step':STATE.get('step'),
+            'substep':state.get('spatial_index'),'command':command,
+            'command_hash':hashlib.sha256(command.encode()).hexdigest(),
+            'previous_command_hash':hashlib.sha256(previous_command.encode()).hexdigest() if previous_command else '',
+            'specialist_phase':action.get('specialist_phase'),
+            'pending_edit_stage':pending.get('stage'),'no_progress':VERIFIER.last_result.get('no_progress'),
+            'before_hash':pending.get('before_screenshot_sha256'),
+            'after_hash':str(window_state.get('screenshot_sha256') or ''),
+            'visual_changed':VERIFIER.last_result.get('visual_changed'),
+            'causal_progress':bool(VERIFIER.last_result.get('progress')),
+            'action_fingerprint':hashlib.sha256(json.dumps({'command':command,'target':action.get('target') or {}},sort_keys=True,separators=(',',':')).encode()).hexdigest(),
+            'previous_action_fingerprint':hashlib.sha256(previous_command.encode()).hexdigest() if previous_command else '',
+            'repetition_similarity':1.0 if command and command==previous_command else 0.0,
+            'veto_components':diagnostic_review.get('failed',[]),
+            'run_id':os.environ.get('GITHUB_RUN_ID'),'run_attempt':os.environ.get('GITHUB_RUN_ATTEMPT'),
+            'commit_sha':os.environ.get('GITHUB_SHA')}
+        log_event({'status':'TASK091_VETO_DIAGNOSTIC','diagnostic':diagnostic,
+                   'diagnostic_evidence':'trace_gate_required_before_acceptance'})
+        print('TASK091_VETO_DIAGNOSTIC='+json.dumps(diagnostic,sort_keys=True,separators=(',',':')),flush=True)
         senior_review=require_senior_elite(
             action,task_id=os.environ.get('TASK_ID'),source='task091-specialist',
-            state=STATE,verifier=VERIFIER.last_result,
-            recent_commands=[x['command'] for x in STATE['history'][-6:]])
+            state=STATE,verifier=VERIFIER.last_result,recent_commands=recent_commands)
         log_event({'status':'SENIOR_ELITE_BOARD_PASS','source':'task091-specialist',
                    'pass':senior_review['pass'],'total':senior_review['total'],
                    'lanes':senior_review['lanes']})
