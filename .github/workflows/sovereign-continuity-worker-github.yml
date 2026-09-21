@@ -1,0 +1,42 @@
+name: Sovereign Continuity Worker GitHub
+
+on:
+  push:
+    branches:
+      - fix/github-continuity-worker-active-20260921
+  workflow_dispatch:
+  schedule:
+    - cron: "10,25,40,55 * * * *"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: sovereign-continuity-worker-github
+  cancel-in-progress: false
+
+jobs:
+  claim-and-execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      ARBM_PROVIDER_ID: github-public-standard
+      ARBM_RUN_ROOT: ${{ github.workspace }}/.arbm-run
+    steps:
+      - name: Checkout worker repository
+        uses: actions/checkout@v4
+
+      - name: Require GitHub OIDC token
+        id: oidc
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const token = await core.getIDToken();
+            core.setSecret(token);
+            core.setOutput('token', token);
+
+      - name: Claim and execute sovereign mission
+        env:
+          ARBM_OIDC: ${{ steps.oidc.outputs.token }}
+        run: node scripts/sovereign-continuity-worker.mjs
