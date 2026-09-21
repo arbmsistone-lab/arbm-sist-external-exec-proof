@@ -148,6 +148,52 @@ class TableTextInkTests(unittest.TestCase):
             self.assertIsNone(point)
 
 
+class CaretEvidenceSourceContractTests(unittest.TestCase):
+    def test_runtime_source_regex_accepts_canonical_observation_ids(self):
+        source = '0042-01-after'
+        self.assertRegex(source, r'\d{4}-\d{2}-(?:before|after)')
+
+    def test_runtime_source_regex_rejects_untrusted_paths(self):
+        self.assertNotRegex('/tmp/0042-01-after.png', r'^\d{4}-\d{2}-(?:before|after)    def test_one_pixel_vertical_delta_is_proven_caret(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            obs=root/'wps-observations'
+            obs.mkdir()
+            a=Image.new('RGB',(220,120),'white')
+            b=a.copy()
+            draw=ImageDraw.Draw(b)
+            draw.line((111,43,111,64),fill='black',width=1)
+            a.save(obs/'0001-01-after.png')
+            b.save(obs/'0002-01-after.png')
+            with patch.dict(os.environ,{'ARBM_WPS_EVIDENCE_DIR':str(root)},clear=False):
+                result=shim._task091_caret_delta_geometry(
+                    '0001-01-after','0002-01-after',[20,20,180,80])
+            self.assertTrue(result['proven'],result)
+            self.assertLessEqual(result['width'],4)
+            self.assertGreaterEqual(result['height'],8)
+
+    def test_broad_rectangle_is_not_caret(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            obs=root/'wps-observations'
+            obs.mkdir()
+            a=Image.new('RGB',(220,120),'white')
+            b=a.copy()
+            draw=ImageDraw.Draw(b)
+            draw.rectangle((90,40,130,75),fill='black')
+            a.save(obs/'0001-01-after.png')
+            b.save(obs/'0002-01-after.png')
+            with patch.dict(os.environ,{'ARBM_WPS_EVIDENCE_DIR':str(root)},clear=False):
+                result=shim._task091_caret_delta_geometry(
+                    '0001-01-after','0002-01-after',[20,20,180,80])
+            self.assertFalse(result['proven'],result)
+
+
+if __name__ == '__main__':
+    unittest.main()
+)
+
+
 class CaretGeometryTests(unittest.TestCase):
     def test_one_pixel_vertical_delta_is_proven_caret(self):
         with tempfile.TemporaryDirectory() as tmp:
