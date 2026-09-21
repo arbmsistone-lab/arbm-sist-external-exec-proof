@@ -127,7 +127,13 @@ def review_action(action, *, task_id="", source="generic", state=None,
         and bool(re.fullmatch(r"[0-9a-f]{64}",issued_table_click_hash,re.I))
         and command_hash==issued_table_click_hash
         and repeated
-        and no_progress==1
+        and no_progress==2
+        and str(pending091.get("textmode_first_hit_source") or "") != ""
+        and bool(re.fullmatch(r"\d{4}-\d{2}-(?:before|after)",str(pending091.get("textmode_first_hit_source") or "")))
+        and bool(re.fullmatch(r"\d{4}-\d{2}-(?:before|after)",str(pending091.get("textmode_baseline_source") or "")))
+        and str(pending091.get("textmode_first_hit_source")) != str(pending091.get("textmode_baseline_source"))
+        and bool(re.fullmatch(r"[0-9a-f]{64}",str(pending091.get("cell_text_hit_command_hash") or ""),re.I))
+        and str(pending091.get("cell_text_hit_command_hash")) == issued_table_click_hash
         and bool(str(pending091.get("table_selected_screenshot_sha256") or ""))
         and bool(str(pending091.get("table_selected_target_visual_sha256") or ""))
         and bool(str(pending091.get("table_selected_sibling_visual_sha256") or ""))
