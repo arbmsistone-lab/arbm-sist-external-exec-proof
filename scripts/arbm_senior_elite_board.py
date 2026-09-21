@@ -6,6 +6,7 @@ mutation.
 """
 from __future__ import annotations
 import ast
+import hashlib
 import os
 import re
 
@@ -113,18 +114,18 @@ def review_action(action, *, task_id="", source="generic", state=None,
         )
     )
     pending091=task091_state.get("pending_edit") if isinstance(task091_state.get("pending_edit"),dict) else {}
-    target091=pending091.get("target") if isinstance(pending091.get("target"),dict) else {}
-    expected_table_click=(
-        f"pyautogui.click({int(target091.get('cx') or 0)}, {int(target091.get('cy') or 0)})"
-        if target091 else ""
-    )
+    issued_table_click_hash=str(pending091.get("cell_enter_command_hash") or "")
+    command_hash=hashlib.sha256(command.encode()).hexdigest() if command else ""
     bounded_table_cell_entry=(
         str(task_id)=="091"
         and source=="task091-specialist"
         and phase=="enter-table-cell-caret-candidate"
         and str(pending091.get("stage") or "")=="table-cell-enter-issued"
         and str(pending091.get("shape_kind") or "")=="table-cell"
-        and command==expected_table_click
+        and str(target.get("source") or "")=="task091-pptx-canonical"
+        and int(target.get("slide") or 0)==int(pending091.get("slide") or 0)
+        and bool(re.fullmatch(r"[0-9a-f]{64}",issued_table_click_hash,re.I))
+        and command_hash==issued_table_click_hash
         and repeated
         and no_progress==1
         and bool(str(pending091.get("table_selected_screenshot_sha256") or ""))
