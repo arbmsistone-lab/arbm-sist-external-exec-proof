@@ -1,22 +1,6 @@
 version: 2.1
 jobs:
-  sovereign_oidc_heartbeat:
-    docker:
-      - image: cimg/base:stable
-    resource_class: small
-    steps:
-      - checkout
-      - run:
-          name: Send sovereign heartbeat via CircleCI OIDC
-          command: |
-            test -n "$CIRCLE_OIDC_TOKEN_V2"
-            curl -fsS --retry 2 --max-time 15 \
-              -H "Authorization: Bearer $CIRCLE_OIDC_TOKEN_V2" \
-              -H 'content-type: application/json' \
-              --data '{"action":"heartbeat","healthy":true,"zeroSpendVerified":true,"capabilities":["git","tests","build","cloud","circleci-runner"],"detail":{"source":"circleci-oidc-heartbeat","mode":"autonomous-continuity-worker"}}' \
-              https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-continuity-coordinator-v1
-
-  sovereign_continuity_worker:
+  sovereign_oidc_heartbeat_claim:
     docker:
       - image: cimg/node:lts
     resource_class: small
@@ -26,26 +10,26 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Claim and execute sovereign mission
+          name: Heartbeat and immediately claim mission
           command: |
+            set -euo pipefail
             test -n "$CIRCLE_OIDC_TOKEN_V2"
+            curl -fsS --retry 2 --max-time 15 \
+              -H "Authorization: Bearer $CIRCLE_OIDC_TOKEN_V2" \
+              -H 'content-type: application/json' \
+              --data '{"action":"heartbeat","healthy":true,"zeroSpendVerified":true,"capabilities":["git","tests","build","cloud","circleci-runner"],"detail":{"source":"circleci-oidc-heartbeat","mode":"heartbeat-claim-same-job"}}' \
+              https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-continuity-coordinator-v1
             ARBM_OIDC="$CIRCLE_OIDC_TOKEN_V2" ARBM_RUN_ROOT="$PWD/.arbm-run" node scripts/sovereign-continuity-worker.mjs
 
 workflows:
-  sovereign_active_chain:
+  sovereign_active:
     jobs:
-      - sovereign_oidc_heartbeat:
-          filters:
-            branches:
-              only: assist/circleci-sovereign-oidc-20260909
-      - sovereign_continuity_worker:
-          requires:
-            - sovereign_oidc_heartbeat
+      - sovereign_oidc_heartbeat_claim:
           filters:
             branches:
               only: assist/circleci-sovereign-oidc-20260909
 
-  sovereign_scheduled_chain:
+  sovereign_scheduled:
     triggers:
       - schedule:
           cron: "0,15,30,45 * * * *"
@@ -53,7 +37,4 @@ workflows:
             branches:
               only: assist/circleci-sovereign-oidc-20260909
     jobs:
-      - sovereign_oidc_heartbeat
-      - sovereign_continuity_worker:
-          requires:
-            - sovereign_oidc_heartbeat
+      - sovereign_oidc_heartbeat_claim
