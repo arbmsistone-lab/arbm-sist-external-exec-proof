@@ -154,7 +154,11 @@ class CaretEvidenceSourceContractTests(unittest.TestCase):
         self.assertRegex(source, r'\d{4}-\d{2}-(?:before|after)')
 
     def test_runtime_source_regex_rejects_untrusted_paths(self):
-        self.assertNotRegex('/tmp/0042-01-after.png', r'^\d{4}-\d{2}-(?:before|after)    def test_one_pixel_vertical_delta_is_proven_caret(self):
+        self.assertNotRegex('/tmp/0042-01-after.png', r'^\d{4}-\d{2}-(?:before|after)$')
+
+
+class CaretGeometryTests(unittest.TestCase):
+    def test_one_pixel_vertical_delta_is_proven_caret(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp)
             obs=root/'wps-observations'
