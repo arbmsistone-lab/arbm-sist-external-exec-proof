@@ -123,7 +123,7 @@ jobs:
           PY
       - name: Preserve calibrated diagnostic evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: osworld-061-calibrated-probe
           path: calibrated-probe
@@ -131,7 +131,7 @@ jobs:
           retention-days: 90
       - name: Preserve diagnostic evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: osworld-gimp-sample-colorize-probe
           path: gimp-sample-probe
