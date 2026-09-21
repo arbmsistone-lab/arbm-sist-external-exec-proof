@@ -1,6 +1,9 @@
 name: Sovereign Continuity Worker GitHub
 
 on:
+  push:
+    branches:
+      - fix/github-continuity-worker-active-20260921
   workflow_dispatch:
   schedule:
     - cron: "10,25,40,55 * * * *"
