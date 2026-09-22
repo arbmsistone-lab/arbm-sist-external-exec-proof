@@ -218,29 +218,26 @@ def _task091_table_cell_selection_presses(old):
     return presses
 
 
-def _task091_table_cell_start_navigation_presses(old):
-    """Account for the proven WPS terminal cell marker during non-selecting navigation.
+def _task091_table_cell_start_navigation_command():
+    """Anchor the caret at the start of the current single-line WPS table cell.
 
-    Focal run 35775754024 proved that len(old) plain Left presses from the
-    geometrically proven end caret landed logically after the first visible
-    glyph, yielding '$40.9M'. One additional plain Left is therefore required
-    before start-caret proof. This helper is never used with Shift.
+    Focal runs proved that deriving the logical start from an assumed end caret
+    is brittle because WPS exposes an invisible terminal cell marker and may
+    place the caret differently after a raster click. Home is issued only after
+    text-mode caret geometry is independently proven, never with Shift, and no
+    mutation follows until start-caret geometry is separately proven.
     """
-    visible=_task091_table_cell_selection_presses(old)
-    presses=visible+1
-    if not 2 <= presses <= 31:
-        raise ValueError('TASK091_TABLE_CELL_START_NAV_LENGTH_INVALID')
-    return presses
+    return "pyautogui.press('home')\npyautogui.sleep(0.20)"
 
 
 def _task091_table_cell_bounded_write_command(old, new, interval=TASK091_TYPE_INTERVAL):
     """Replace one single-line cell from a separately proven start caret.
 
-    The end-of-cell marker is never selected: the state machine first proves the
-    caret at the visual end, moves exactly len(old) positions left without Shift,
-    proves the caret at the visual start, then this command selects exactly the
-    visible text to the right and overwrites it. No residual Delete, End, Home,
-    Ctrl+A, or Backspace sweep is allowed.
+    The end-of-cell marker is never selected: the state machine independently
+    anchors and proves the caret at the visual start before this writer runs.
+    This command then selects exactly the visible text to the right and
+    overwrites it. No residual Delete, End, Home, Ctrl+A, Backspace, or leftward
+    sweep is allowed inside the mutation command.
     """
     old=str(old or '')
     new=str(new or '')
@@ -1563,25 +1560,25 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 return {'action':'exec','command':command,
                         'plan':'Sample the unchanged signed cell against the immutable pre-text-mode baseline. Mutation remains forbidden until narrow caret geometry is positively proven.',
                         'specialist_phase':f'table-cell-caret-baseline-probe-{attempts+1}'}
-            caret_end=_task091_caret_at_text_end(
+            # Entry caret position is diagnostic only. WPS may place a proven
+            # text caret before/inside/after the last glyph because the logical
+            # terminal cell marker is not the same as the raster text edge.
+            # Never derive the start from an assumed end position.
+            pending['caret_entry_geometry']=caret
+            pending['caret_entry_end_diagnostic']=_task091_caret_at_text_end(
                 caret,bbox,list(pending.get('table_text_ink_bbox') or []),
                 pending.get('table_text_end_x'))
-            pending['caret_end_geometry']=caret_end
-            if caret_end.get('proven') is not True:
-                return _task091_terminal('TASK091_TABLE_CELL_CARET_NOT_AT_END',state)
             pending['selected_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
             pending['selection_ack_foreground_sha256']=current_fg
             pending['explicit_text_mode']=True
             selection_presses=_task091_table_cell_selection_presses(pending['old'])
-            start_nav_presses=_task091_table_cell_start_navigation_presses(pending['old'])
             pending['selection_press_count']=selection_presses
-            pending['start_navigation_press_count']=start_nav_presses
+            pending['start_navigation_method']='home'
             pending['stage']='table-cell-start-nav-issued'
-            command=(f"pyautogui.press('left', presses={start_nav_presses}, interval=0.03)\n"
-                     "pyautogui.sleep(0.20)")
+            command=_task091_table_cell_start_navigation_command()
             pending['start_nav_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
-                    'plan':f"Move exactly {start_nav_presses} positions left without Shift: {selection_presses} visible glyph positions plus the one focal-proven WPS terminal-marker offset. Re-prove the caret before any selection.",
+                    'plan':'Text mode is positively proven. Anchor this single-line table cell with Home without Shift, then independently prove the start caret before selecting any text.',
                     'specialist_phase':'move-table-caret-to-proven-start'}
 
         if stage in ('table-cell-start-nav-issued','table-cell-start-caret-probe-issued','table-cell-start-normalize-issued'):
