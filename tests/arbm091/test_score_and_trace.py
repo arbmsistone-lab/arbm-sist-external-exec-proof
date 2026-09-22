@@ -996,6 +996,7 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         self.assertIn("TASK091_SECTION_E_FORMAT",source)
         self.assertIn("'shape_id': 16",source)
         self.assertIn("'shape_name': 'KpiReadout_Body'",source)
+        self.assertIn("'font_decrements': 2",source)
         self.assertIn("_task091_caret_delta_geometry",source)
         self.assertIn("pyautogui.hotkey('ctrl', '[')",source)
         self.assertIn("TASK091_SECTION_E_FONT_DELTA_UNPROVEN",source)
