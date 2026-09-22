@@ -1,0 +1,30 @@
+{
+  "observed_at_utc": "2026-09-22T00:09:42.789417+00:00",
+  "base_sha": "dbf1b4527dd6d110cf171a7792e4e0684692b9dd",
+  "branch": "g3-free-cert-recovery-20260915",
+  "A": "PASS: 60 tests, compile, lint, diff; narrative click/type contradiction rejected before dispatch; explicit bounded feedback keeps screenshot and exact user task unchanged",
+  "B": "PASS: probe/workflow hashes unchanged; task/evaluator/assets/VM/pins and PAID/production unchanged; GUI-only guards retained; no benchmark-specific handling",
+  "C": "PASS_FOR_ONE_GATED_NEX_RUN: live :free catalog all prices zero, image/tools/context supported; max_price=0, fallback disabled, terminal quota retries=0; before-VM probe mandatory",
+  "model": "nex-agi/nex-n2.5-mini:free",
+  "provider": "openrouter",
+  "coordinate_grid": true,
+  "square_observation": true,
+  "ZERO_SPEND": true,
+  "HEAVY_LOCAL": 0,
+  "max_new_spend_usd": "0",
+  "tests_passed": 60,
+  "tests_receipt_sha256": "9f3419eebccf26dfa39f76d8f581bbe7c3db5141cd3fed2fdbe7483ab373b4de",
+  "files_sha256_lf": {
+    "certification/g3-openrouter-free-adapter.py": "51d2ec8e980cc4f8496b018fb84a1f6bf4ccb3823b52b070ac9e1b292b6f9aa3",
+    "tests/test_g3_free_agent.py": "46fb89c0988937ae974aa5894120be19dda3b7868d248c625ac0673e47c9859f",
+    "certification/g3_free_control.py": "fe4a6e24538bf48a08ec77b722052b45b4d224e17c3cbcb968bb1bceb1aa5349",
+    ".github/workflows/osworld-g3-free-smoke-v1.yml": "b92c5b70b82524caafde264d3a34f78565c10633fe6695c92cca3a7dfe1ba450"
+  },
+  "previous_run": 35547668470,
+  "previous_result": "NO_RESULT; no official score",
+  "hypothesis": "After blocking self-contradictory actions and presenting explicit rejection feedback, the newly selected FREE model must pass the unchanged probe and make coherent GUI progress. Model change and guard correction are combined; a PASS will not isolate their individual causal effects.",
+  "no_repeat_dots_smoke": true,
+  "groq": "BLOCKED: account evidence stale and browser runtime still unavailable; no calls or receipt renewal",
+  "full_suite_and_stability": "NOT_ADMITTED",
+  "score": null
+}

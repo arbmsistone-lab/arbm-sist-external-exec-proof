@@ -101,7 +101,7 @@ class FreeAgentTests(unittest.TestCase):
         _, commands = self.predict()
         self.assertEqual(len(commands), 1)
         self.assertEqual(self.calls[0]['messages'][1]['content'][-1], self.calls[1]['messages'][1]['content'][-1])
-        self.assertIn('EXACTLY_ONE_TOOL_REQUIRED', self.calls[1]['messages'][1]['content'][0]['text'])
+        self.assertIn('EXACTLY_ONE_TOOL_REQUIRED', self.calls[1]['messages'][1]['content'][-2]['text'])
         self.assertEqual(self.assert_accounted(2)['structural_rejections'], 1)
 
     def test_multiple_calls_bounded_and_never_issued(self):
@@ -256,6 +256,31 @@ class FreeAgentTests(unittest.TestCase):
         action['expected_change'] = 'Click on the Inbox tab.'
         with self.assertRaisesRegex(agent_module.StructuralError, 'ACTION_INTENT_MISMATCH'):
             agent_module.validate_action(action)
+
+    def test_click_target_cannot_dispatch_type_with_narrative_expected_change(self):
+        action = payload('type', text='Example application')
+        action['target'] = 'Click the visible application icon.'
+        action['expected_change'] = 'The task requires opening that application. I will start there.'
+        self.responses = [response([action]), response()]
+        _, commands = self.predict()
+        self.assertEqual(commands, ['pyautogui.click(x=960, y=540)'])
+        self.assertEqual(len(self.agent._history), 1)
+        parts = self.calls[1]['messages'][1]['content']
+        self.assertNotIn('correction', json.loads(parts[0]['text']))
+        feedback = json.loads(parts[-2]['text'].split('\n', 1)[1])
+        self.assertEqual(feedback['rejected_reason'], 'ACTION_INTENT_MISMATCH')
+        self.assertEqual(feedback['actions_executed_from_rejected_response'], 0)
+        self.assertEqual(feedback['action_candidate']['action'], 'type')
+        self.assertEqual(feedback['action_candidate']['target'], action['target'])
+        self.assertNotIn('Example application', parts[-2]['text'])
+        self.assertEqual(self.calls[0]['messages'][1]['content'][-1], parts[-1])
+        self.assertEqual(self.assert_accounted(2)['structural_rejections'], 1)
+
+    def test_literal_click_text_in_focused_input_remains_valid(self):
+        action = payload('type', text='Click here')
+        action['target'] = 'Visible focused text field.'
+        action['expected_change'] = 'The text field contains the requested literal words.'
+        self.assertEqual(agent_module.validate_action(action)[0], 'type')
 
     def test_quota_metadata_sanitized(self):
         error = RuntimeError('secret must never be logged')

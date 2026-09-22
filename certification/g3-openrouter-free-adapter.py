@@ -115,7 +115,11 @@ def validate_action(payload):
             raise StructuralError('ACTION_GROUNDING_REQUIRED')
     if re.search(r'(?i)\b(terminal|shell|console|powershell|command launcher|devtools)\b', payload['target']):
         raise StructuralError('TERMINAL_FORBIDDEN')
-    declared_click = re.match(r'(?i)^\s*(?:double[- ]click|right[- ]click|click)\b', payload['expected_change'])
+    # Validate the immediate intent where the model can declare it. A target
+    # starting with an explicit click instruction cannot be executed by typing
+    # the application's name, even when expected_change contains a longer plan.
+    declared_click = any(re.match(r'(?i)^\s*(?:double[- ]click|right[- ]click|click)\b',
+                                  payload[field]) for field in ('target', 'expected_change'))
     if declared_click and name in ('type', 'scroll', 'wait', 'take_screenshot'):
         raise StructuralError('ACTION_INTENT_MISMATCH')
     for key, value in params.items():
@@ -397,7 +401,7 @@ class ArbmG3Agent:
                    'recent_actions_issued_verify_effect': list(self._history),
                    'screen_changed': self._context['screen_changed'],
                    'unchanged_steps': self._same_screen_steps,
-                   'screen_pixels': [self._width, self._height], 'correction': correction}
+                   'screen_pixels': [self._width, self._height]}
         summary['visible_text_from_same_screenshot'] = self._ocr
         if self._visual_frame is not None:
             frame = self._visual_frame
@@ -421,12 +425,15 @@ class ArbmG3Agent:
                 'Each line is 100 normalized units; top labels are x, left labels are y. '
                 'Read x and y independently from the grid. Coordinates remain 0..1000 '
                 'over the entire unchanged-size image. Interpolate between grid lines.')
-        return [{'role': 'system', 'content': SYSTEM}, {'role': 'user', 'content': [
+        content = [
             {'type': 'text', 'text': json.dumps(summary, ensure_ascii=False)},
-            {'type': 'text', 'text': 'Task instruction (authoritative user request):\n' + self._instruction},
-            {'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,' +
-                                             base64.b64encode(self._model_screenshot).decode('ascii')}},
-        ]}]
+            {'type': 'text', 'text': 'Task instruction (authoritative user request):\n' + self._instruction}]
+        if correction is not None:
+            content.append({'type': 'text', 'text': 'Rejected response feedback; no action was executed:\n' +
+                            json.dumps(correction, ensure_ascii=False)})
+        content.append({'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,' +
+                                                        base64.b64encode(self._model_screenshot).decode('ascii')}})
+        return [{'role': 'system', 'content': SYSTEM}, {'role': 'user', 'content': content}]
 
     def _request(self, messages):
         results = queue.Queue(maxsize=1)
@@ -531,6 +538,10 @@ class ArbmG3Agent:
             payload = json.loads(function.get('arguments') or '{}')
         except (ValueError, TypeError):
             raise StructuralError('TOOL_JSON_INVALID') from None
+        if isinstance(payload, dict):
+            self._context['action_candidate'] = {
+                k: payload[k][:240] for k in ('action', 'target', 'expected_change')
+                if isinstance(payload.get(k), str)}
         name, params = validate_action(payload)
         if self._visual_frame is not None:
             self._context['model_action_before_projection'] = payload
@@ -612,6 +623,7 @@ class ArbmG3Agent:
                     self._task_terminal = payload['action']
                 return json.dumps(payload, ensure_ascii=False), [command]
             correction = {'rejected_reason': retry_reason, 'actions_executed_from_rejected_response': 0,
-                          'instruction': 'Correct the structure or choose a different grounded action. Screenshot unchanged. Call desktop_action exactly once.'}
+                          'action_candidate': self._context.get('action_candidate'),
+                          'instruction': 'Resolve this rejection before acting. Match the action to your visible target and immediate expected effect. Do not repeat the rejected action. Screenshot unchanged. Call desktop_action exactly once.'}
         self._task_terminal = 'STRUCTURAL_RETRY_EXHAUSTED'
         raise RuntimeError('G3_FREE_STRUCTURAL_RETRY_EXHAUSTED')
