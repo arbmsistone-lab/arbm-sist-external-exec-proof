@@ -447,25 +447,32 @@ def _task091_caret_at_text_end(caret, shape_bbox, ink_bbox, expected_x, toleranc
 
 
 def _task091_caret_at_text_start(caret, shape_bbox, ink_bbox, tolerance=8):
-    """Require the proven caret to sit immediately before the first visible cell glyph."""
+    """Classify the proven caret relative to the first visible cell glyph."""
     if not isinstance(caret,dict) or caret.get('proven') is not True:
-        return {'proven':False,'reason':'caret-unproven'}
+        return {'proven':False,'reason':'caret-unproven','relation':'unknown'}
     if not isinstance(shape_bbox,list) or len(shape_bbox)!=4 or not isinstance(ink_bbox,list) or len(ink_bbox)!=4:
-        return {'proven':False,'reason':'geometry-missing'}
+        return {'proven':False,'reason':'geometry-missing','relation':'unknown'}
     cb=caret.get('bbox')
     if not isinstance(cb,list) or len(cb)!=4:
-        return {'proven':False,'reason':'caret-bbox-missing'}
+        return {'proven':False,'reason':'caret-bbox-missing','relation':'unknown'}
     if not all(type(v) is int for v in shape_bbox+ink_bbox+cb):
-        return {'proven':False,'reason':'geometry-invalid'}
+        return {'proven':False,'reason':'geometry-invalid','relation':'unknown'}
     caret_x=int(shape_bbox[0])+int(cb[0])
     ink_left=int(ink_bbox[0])
     tolerance=int(tolerance)
-    proven=(caret_x >= ink_left-tolerance-4 and caret_x <= ink_left+2)
+    delta=caret_x-ink_left
+    proven=(-tolerance-4 <= delta <= 2)
+    relation=('at-start' if proven else
+              'right-of-start' if 2 < delta <= 24 else
+              'left-of-start' if delta < -tolerance-4 else
+              'far-right')
     return {
         'proven':proven,
         'reason':'caret-at-text-start' if proven else 'caret-not-at-text-start',
+        'relation':relation,
         'caret_x':caret_x,
         'ink_left':ink_left,
+        'delta_to_start':delta,
         'tolerance':tolerance,
     }
 
@@ -1560,7 +1567,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                     'plan':f"Move exactly {selection_presses} positions left from the proven end caret without selecting anything. This keeps the WPS end-of-cell marker outside every selection.",
                     'specialist_phase':'move-table-caret-to-proven-start'}
 
-        if stage in ('table-cell-start-nav-issued','table-cell-start-caret-probe-issued'):
+        if stage in ('table-cell-start-nav-issued','table-cell-start-caret-probe-issued','table-cell-start-normalize-issued'):
             current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
             current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
             current_fg=_task091_foreground_sha(window_state)
@@ -1605,6 +1612,16 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 caret,bbox,list(pending.get('table_text_ink_bbox') or []))
             pending['caret_start_boundary']=caret_start
             if caret_start.get('proven') is not True:
+                normalize_attempts=int(pending.get('start_normalize_attempts') or 0)
+                if (caret_start.get('relation')=='right-of-start'
+                        and normalize_attempts < 1):
+                    pending['start_normalize_attempts']=normalize_attempts+1
+                    pending['stage']='table-cell-start-normalize-issued'
+                    command="pyautogui.press('left')\npyautogui.sleep(0.20)"
+                    pending['start_normalize_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+                    return {'action':'exec','command':command,
+                            'plan':'Caret geometry proves the WPS logical end marker consumed one navigation position. Move exactly one additional character left, then re-prove the visual start before selecting anything.',
+                            'specialist_phase':'normalize-wps-terminal-marker-offset'}
                 return _task091_terminal('TASK091_TABLE_CELL_CARET_NOT_AT_START',state)
             pending['stage']='edit-issued'
             command=_task091_table_cell_bounded_write_command(pending['old'],pending['new'])
