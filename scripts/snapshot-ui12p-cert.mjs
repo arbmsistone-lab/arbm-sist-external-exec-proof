@@ -23,8 +23,10 @@ function gitBlobSha(bytes){
   const header=Buffer.from(`blob ${bytes.length}\0`);
   return crypto.createHash("sha1").update(header).update(bytes).digest("hex");
 }
-async function fetchSnapshot(){
-  const base=required("ARBM_SNAPSHOT_REST_URL");
+async function fetchSnapshot(expectedSha){
+  const configured=required("ARBM_SNAPSHOT_REST_URL");
+  const origin=new URL(configured).origin;
+  const base=`${origin}/rest/v1/arbm_ci_source_files_v2?sha=eq.${encodeURIComponent(expectedSha)}&select=path,content_base64,blob_sha,size_bytes&order=path.asc`;
   const apiKey=required("ARBM_SNAPSHOT_API_KEY");
   const proofToken=required("ARBM_SNAPSHOT_PROOF_TOKEN");
   const response=await fetch(base,{
@@ -44,7 +46,7 @@ export async function runSnapshotUi12pCert(){
   const expectedSha=required("ARBM_EXPECTED_SHA").toLowerCase();
   const expectedDigest=required("ARBM_SNAPSHOT_PACKAGE_DIGEST").toLowerCase();
   const expectedCount=Number(required("ARBM_SNAPSHOT_FILE_COUNT"));
-  const rows=await fetchSnapshot();
+  const rows=await fetchSnapshot(expectedSha);
   if(rows.length!==expectedCount) throw new Error(`snapshot_count_mismatch:${rows.length}:${expectedCount}`);
 
   const normalized=rows.map((row)=>{
