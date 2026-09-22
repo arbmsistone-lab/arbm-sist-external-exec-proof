@@ -1203,7 +1203,7 @@ class Task091FinalCertificationBoardTests(unittest.TestCase):
         ]}}
         (obs/'9999-01-after.json').write_text(json.dumps(row),encoding='utf-8')
         self.assertEqual(_verify_slide3_table(root),expected)
-        row['deck_slide_shapes']['3'][0]['text']='$40.9M'
+        row['deck_slide_shapes']['3'][0]['text']='BROKEN_TABLE_VALUE'
         (obs/'9999-01-after.json').write_text(json.dumps(row),encoding='utf-8')
         with self.assertRaisesRegex((ValueError,SystemExit),'FINAL_SLIDE3_TABLE_MISMATCH'):
             _verify_slide3_table(root)
