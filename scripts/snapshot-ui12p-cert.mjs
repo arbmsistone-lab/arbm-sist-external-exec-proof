@@ -51,7 +51,7 @@ export async function runSnapshotUi12pCert(){
     const rel=String(row.path||"");
     const segments=rel.split("/");
     if(!rel||rel.length>320||rel.startsWith("/")||rel.includes("\\")||segments.some((part)=>part===""||part===".."||part===".")||/[\x00-\x1f\x7f]/.test(rel)||BLOCKED.test(rel)) throw new Error(`unsafe_path:${rel}`);
-    const bytes=Buffer.from(String(row.content_b64||""),"base64");
+    const bytes=Buffer.from(String(row.content_b64 ?? row.content_base64 ?? ""),"base64");
     const size=Number(row.size_bytes);
     if(bytes.length!==size) throw new Error(`size_mismatch:${rel}`);
     const blob=gitBlobSha(bytes);
