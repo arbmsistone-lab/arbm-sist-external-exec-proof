@@ -738,11 +738,21 @@ class Task091TransactionalTableCellTests(unittest.TestCase):
   from osworld_control import canonical_action
   self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
 
- def test_table_cell_start_caret_guard_rejects_end_position(self):
+ def test_table_cell_start_caret_guard_and_single_marker_normalization(self):
   shape_bbox=[892,507,182,70]
   ink_bbox=[965,516,35,12]
-  self.assertTrue(shim._task091_caret_at_text_start({'proven':True,'bbox':[72,2,1,22]},shape_bbox,ink_bbox)['proven'])
-  self.assertFalse(shim._task091_caret_at_text_start({'proven':True,'bbox':[108,2,1,22]},shape_bbox,ink_bbox)['proven'])
+  at_start=shim._task091_caret_at_text_start({'proven':True,'bbox':[72,2,1,22]},shape_bbox,ink_bbox)
+  self.assertTrue(at_start['proven'],at_start)
+  self.assertEqual(at_start['relation'],'at-start')
+  marker_offset=shim._task091_caret_at_text_start({'proven':True,'bbox':[80,2,1,22]},shape_bbox,ink_bbox)
+  self.assertFalse(marker_offset['proven'],marker_offset)
+  self.assertEqual(marker_offset['relation'],'right-of-start')
+  at_end=shim._task091_caret_at_text_start({'proven':True,'bbox':[108,2,1,22]},shape_bbox,ink_bbox)
+  self.assertFalse(at_end['proven'],at_end)
+  self.assertEqual(at_end['relation'],'far-right')
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("normalize_attempts < 1",source)
+  self.assertIn("normalize-wps-terminal-marker-offset",source)
 
  def test_section_e_font_correction_uses_proven_caret_and_one_point_decrement(self):
   spec=shim.TASK091_SECTION_E_FORMAT
