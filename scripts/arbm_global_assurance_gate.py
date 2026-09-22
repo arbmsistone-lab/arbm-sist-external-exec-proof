@@ -100,16 +100,18 @@ def inspect_repo(root="."):
         bool(selection_body) and bool(writer_body)
         and "presses=len(old)" in selection_body
         and "1 <= presses <= 30" in selection_body
-        and "pyautogui.press('left', presses={presses}" in writer_body
-        and writer_body.count("pyautogui.press('delete')")==1
+        and "pyautogui.press('right', presses={presses}" in writer_body
+        and "pyautogui.press('delete')" not in writer_body
+        and "pyautogui.press('left'" not in writer_body
         and "pyautogui.keyDown('shift')" in writer_body
         and "pyautogui.keyUp('shift')" in writer_body
         and "pyautogui.press('end')" not in writer_body
         and "pyautogui.press('home')" not in writer_body
         and "pyautogui.press('backspace'" not in writer_body
         and "hotkey('ctrl', 'a')" not in writer_body
-        and rollback_marker in shim
-        and "TASK091_TABLE_CELL_TRANSACTION_ROLLED_BACK" in shim)
+        and "def _task091_caret_at_text_start" in shim
+        and "TASK091_TABLE_CELL_CARET_NOT_AT_START" in shim
+        and "TASK091_TABLE_CELL_POSTSAVE_MISMATCH_NO_UNDO" in shim)
     section_e_containment=(
         "TASK091_SECTION_E_FORMAT" in shim
         and "'shape_id': 16" in shim
@@ -156,7 +158,7 @@ def inspect_repo(root="."):
         result("deterministic_execution",caret and "temperature 0" in workflow,
                ("geometric_caret_proof","official_agent_temperature_zero")),
         result("bounded_mutation",bounded_table_edit and section_e_containment and direct_gui,
-               ("in_cell_bounded_table_writer_with_residual_delete","rollback_verified","section_e_caret_proven_font_delta","bounded_action_compiler")),
+               ("proven_start_caret_rightward_table_writer","global_undo_quarantined_on_mismatch","section_e_caret_proven_font_delta","bounded_action_compiler")),
         result("specialist_ownership",specialist_sources and "specialist_ownership" in board,
                ("all_specialist_routes_governed","091_generic_bypass_veto")),
         result("observability_auditability",audit_logging and bool(trace),
