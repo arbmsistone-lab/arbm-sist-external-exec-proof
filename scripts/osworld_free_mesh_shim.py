@@ -207,22 +207,39 @@ def _task091_write_command(value, interval=TASK091_TYPE_INTERVAL, ensure_text_mo
             commands.append("pyautogui.hotkey('shift', 'enter')")
     return '\n'.join(commands)
 
-def _task091_table_cell_bounded_write_command(old, new, interval=TASK091_TYPE_INTERVAL):
-    """Replace exactly one single-line cell after an independently proven end caret.
+def _task091_table_cell_selection_presses(old):
+    """Bound selection to the cell text plus WPS's single terminal marker."""
+    old=str(old or '')
+    if not old or '\n' in old or len(old) > 30:
+        raise ValueError('TASK091_TABLE_CELL_BOUNDED_EDIT_INVALID')
+    presses=len(old)+1
+    if not 1 <= presses <= 31:
+        raise ValueError('TASK091_TABLE_CELL_SELECTION_LENGTH_INVALID')
+    return presses
 
-    The caller must prove that the caret is already at the visual end of the
-    target cell. Selection is bounded to exactly len(old) characters; End,
-    Home, Ctrl+A, and Backspace sweeps are forbidden.
+
+def _task091_table_cell_bounded_write_command(old, new, interval=TASK091_TYPE_INTERVAL):
+    """Replace one single-line cell after an independently proven end caret.
+
+    WPS exposes one non-text terminal cell marker after the final glyph. The
+    first Shift+Left is consumed by that marker, so selection is bounded to
+    len(old)+1 positions. Each press call remains <=30 and the total is <=31.
+    End, Home, Ctrl+A, and Backspace sweeps remain forbidden.
     """
     old=str(old or '')
     new=str(new or '')
-    if not old or '\n' in old or '\n' in new or len(old) > 30 or len(new) > 128:
+    if '\n' in new or len(new) > 128:
         raise ValueError('TASK091_TABLE_CELL_BOUNDED_EDIT_INVALID')
+    presses=_task091_table_cell_selection_presses(old)
+    first=min(30,max(0,presses))
+    remaining=max(0,presses-first)
     commands=[
         "pyautogui.keyDown('shift')",
-        f"pyautogui.press('left', presses={len(old)}, interval=0.03)",
-        "pyautogui.keyUp('shift')",
+        f"pyautogui.press('left', presses={first}, interval=0.03)",
     ]
+    if remaining:
+        commands.append(f"pyautogui.press('left', presses={remaining}, interval=0.03)")
+    commands.append("pyautogui.keyUp('shift')")
     if new:
         commands.append(f"pyautogui.write({new!r}, interval={float(interval):g})")
     return '\n'.join(commands)
@@ -1370,10 +1387,12 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             pending['selection_ack_foreground_sha256']=current_fg
             pending['explicit_text_mode']=True
             pending['stage']='edit-issued'
+            selection_presses=_task091_table_cell_selection_presses(pending['old'])
+            pending['selection_press_count']=selection_presses
             command=_task091_table_cell_bounded_write_command(pending['old'],pending['new'])
             pending['action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
-                    'plan':f"Replace exactly the {len(str(pending['old']))} characters immediately left of the independently proven end caret for {pending['old']!r}; End, Home, Ctrl+A and Backspace sweeps are forbidden.",
+                    'plan':f"Replace exactly {pending['old']!r} using {selection_presses} bounded Shift+Left positions: {len(str(pending['old']))} text characters plus the single WPS terminal-cell marker; End, Home, Ctrl+A and Backspace sweeps are forbidden.",
                     'specialist_phase':'edit-end-caret-proven-table-cell','expected_change':pending['new']}
         if stage == 'select-issued':
             current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
