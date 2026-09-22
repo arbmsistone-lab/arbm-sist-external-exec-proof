@@ -648,11 +648,50 @@ def main():
     post_legacy = all_commits[250:]
     require(len(post_legacy) >= 186, 'POST_LEGACY_REFINEMENT_COUNT_MISMATCH')
 
-    # Validação de Escopo e Proveniência Estrita na Cauda (186)
-    allowed_post_scope = {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST, SENIOR_BOARD, SENIOR_TEST, GLOBAL_GATE, GLOBAL_TEST, ".github/workflows/arbm-world-free-codeql-scorecard.yml", "SECURITY.md", ".github/dependabot.yml", "audit/arbm-world-free-assurance.json", ".github/CODEOWNERS", "scripts/arbm_safe_http.py", "scripts/requirements-osworld.txt", "scripts/osworld_gimp_sample_probe.py", "scripts/arbm091/install_observer.py", "scripts/osworld_groq_free.py", "scripts/osworld_openrouter_free.py", "scripts/osworld_docker_volume.py", "scripts/osworld_vm_upload.py", "tests/arbm091/test_safe_http.py", "scripts/arbm_workflow_supply_chain_audit.py", ".github/workflows/arbm-sovereign-capacity-rotation.yml", ".github/workflows/external-proof.yml", ".github/workflows/provider-candidate-evidence.yml", "scripts/osworld_vm_download.py", "Dockerfile", ".github/workflows/arbm-lockfile-generator-temp.yml"}
+    # Validação de Escopo e Proveniência Estrita na Cauda (186+)
+    # Regra geral: somente superfícies permanentes já auditadas.
+    allowed_post_scope = {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST, SENIOR_BOARD, SENIOR_TEST, GLOBAL_GATE, GLOBAL_TEST, ".github/workflows/arbm-world-free-codeql-scorecard.yml", "SECURITY.md", ".github/dependabot.yml", "audit/arbm-world-free-assurance.json", ".github/CODEOWNERS", "scripts/arbm_safe_http.py", "scripts/requirements-osworld.txt", "scripts/osworld_gimp_sample_probe.py", "scripts/arbm091/install_observer.py", "scripts/osworld_groq_free.py", "scripts/osworld_openrouter_free.py", "scripts/osworld_docker_volume.py", "scripts/osworld_vm_upload.py", "tests/arbm091/test_safe_http.py", "scripts/arbm_workflow_supply_chain_audit.py", ".github/workflows/arbm-sovereign-capacity-rotation.yml", ".github/workflows/external-proof.yml", ".github/workflows/provider-candidate-evidence.yml", "scripts/osworld_vm_download.py"}
+
+    # Exceções históricas fechadas: SHA exato -> escopo exato.
+    # Não amplia a allowlist global e impede que commits futuros reutilizem
+    # superfícies temporárias/lock-generation sem nova aprovação explícita.
+    approved_post_commit_scopes = {
+        "d1eb3099293166a983a61e8c682e25b96a0fb307": {"Dockerfile"},
+        "35324847a428fce082bd17b5f9a8b9286121a737": {".github/workflows/arbm-lockfile-generator-temp.yml"},
+        "74b499056642ed4180f3a7e0d92a96f40d0368fe": {"scripts/generate_hash_locks_temp.sh"},
+        "3fcf5f55d068e6b9f614d957ac4d0b641f264591": {".github/workflows/arbm-universal-remote.yml"},
+        "a26ca3e689f18e998e78bf2623055d0eebcb9d1a": {".github/workflows/arbm-lockfile-generator-temp.yml"},
+        "93752e93a22f4d5255a99fc4ea990e3b015c22da": {
+            "audit/locks/datasets.in", "audit/locks/datasets.txt",
+            "audit/locks/openai-probe.in", "audit/locks/openai-probe.txt",
+            "audit/locks/osworld-ml.in", "audit/locks/osworld-ml.txt",
+            "audit/locks/provider-preflight.in", "audit/locks/provider-preflight.txt",
+            "audit/locks/psycopg.in", "audit/locks/psycopg.txt",
+            "audit/locks/uv-hf.in", "audit/locks/uv-hf.txt",
+            "audit/locks/world-free-scanners.in", "audit/locks/world-free-scanners.txt",
+            "scripts/requirements-osworld.in", "scripts/requirements-osworld.txt",
+        },
+        "e0809c47d7202cc90c9de67d2d4c54c36b24bbbe": {".github/workflows/arbm-lockfile-generator-temp.yml"},
+        "bc8cb41cacff8519f4b22b07f498b22363d78df9": {".github/workflows/arbm-lockfile-generator-temp.yml"},
+        "010d6e3a1ba77e815046d2948eb432d0ce7b7099": {
+            "audit/locks/g3-openai-pillow11.in", "audit/locks/g3-openai-pillow11.txt",
+            "audit/locks/huggingface-only.in", "audit/locks/huggingface-only.txt",
+            "audit/locks/openai-only.in", "audit/locks/openai-only.txt",
+            "audit/locks/pyyaml.in", "audit/locks/pyyaml.txt",
+            "audit/locks/swe-milestone-base.txt", "audit/locks/swe-milestone-dev.txt",
+            "audit/locks/swe-rebench-v2.txt",
+        },
+        "ff3ce980ec7bc431120d6b31029fe1eeff7c6e4c": {".github/workflows/arbm-lockfile-generator-temp.yml"},
+        "1dc073ddc5a5468b42028646aa15ed4168405a97": {"Dockerfile"},
+        "1d41b0f6db80d4757f9a72af4dcdd3cf38c71f64": {".github/workflows/arbm-lockfile-generator-temp.yml"},
+    }
     for c_node in post_legacy:
         c_files = set(git('diff-tree', '--no-commit-id', '--name-only', '-r', c_node).splitlines())
-        require(c_files.issubset(allowed_post_scope), 'POST_LEGACY_COMMIT_SCOPE_VIOLATION:' + c_node)
+        exact_scope = approved_post_commit_scopes.get(c_node)
+        if exact_scope is not None:
+            require(c_files == exact_scope, 'POST_LEGACY_COMMIT_SCOPE_DRIFT:' + c_node)
+        else:
+            require(c_files.issubset(allowed_post_scope), 'POST_LEGACY_COMMIT_SCOPE_VIOLATION:' + c_node)
     require(overlay[2] == PID_FILTER_COMMIT and overlay[3] == PID_TEST_COMMIT,
             'PID_REPAIR_COMMIT_IDENTITY_MISMATCH')
     require(overlay[6] == WPS_ALIAS_COMMIT and overlay[7] == WPS_ALIAS_TEST_COMMIT
