@@ -76,15 +76,17 @@ jobs:
         plan=shim._task091_restricted_repair_plan(actual,expected)
         shape={'id':6,'name':'CoverTitle','text':actual}
         verdict=evaluate(actual,expected,plan,shape,'a'*64,'b'*64)
+        assert verdict['status']=='PRE_FOCAL_ADVISORY_PASS', verdict
+        assert verdict['release_approval'] is False, verdict
         assert verdict['senior_pass']==50 and verdict['master_pass']==10, verdict
-        print('TASK091_REVIEW_BOARD_50X10_PASS senior=50/50 master=10/10')
+        print('TASK091_REVIEW_BOARD_50X10_ADVISORY_PASS senior=50/50 master=10/10 NOT_A_RELEASE_APPROVAL')
         PY
     - name: Run 100-lane elite engineering council gate
       shell: bash
       run: |
         set -euo pipefail
         python scripts/test_osworld_elite_board_100.py
-        echo 'TASK091_ELITE_BOARD_100_PASS elite=100/100 councils=10/10 release_runs_required=10'
+        echo 'TASK091_ELITE_BOARD_100_ADVISORY_PASS elite=100/100 councils=10/10 NOT_A_RELEASE_APPROVAL'
   replay:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -825,3 +827,68 @@ jobs:
     - policy
     - proof-tests
     - replay
+
+  final-certification:
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    needs:
+    - proof-tests
+    - policy
+    - replay
+    - focal-091
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PROOF_TESTS_RESULT: ${{ needs.proof-tests.result }}
+      POLICY_RESULT: ${{ needs.policy.result }}
+      REPLAY_RESULT: ${{ needs.replay.result }}
+      FOCAL_RESULT: ${{ needs.focal-091.result }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+    - name: Install final certification dependencies
+      run: |
+        python -m pip install -r scripts/requirements-osworld.txt
+        python -m pip install PyYAML==6.0.2
+    - name: Download focal evidence from this exact run
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p final-evidence
+        gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name osworld-v32-focal-091-free --dir final-evidence
+        test -d final-evidence/task-091
+        test "$(cat final-evidence/task-091/candidate-sha.txt)" = "$GITHUB_SHA"
+        test "$(cat final-evidence/task-091/run-id.txt)" = "$GITHUB_RUN_ID"
+        test "$(cat final-evidence/task-091/run-attempt.txt)" = "$GITHUB_RUN_ATTEMPT"
+    - name: Final certification board - sole release authority
+      shell: bash
+      run: |
+        set -euo pipefail
+        JOBS_JSON="$(python - <<'PY'
+        import json, os
+        print(json.dumps({
+            'proof-tests': os.environ['PROOF_TESTS_RESULT'],
+            'policy': os.environ['POLICY_RESULT'],
+            'replay': os.environ['REPLAY_RESULT'],
+            'focal-091': os.environ['FOCAL_RESULT'],
+        }, sort_keys=True))
+        PY
+        )"
+        python -m arbm091.final_certification_board final-evidence/task-091 \
+          --sha "$GITHUB_SHA" \
+          --run-id "$GITHUB_RUN_ID" \
+          --run-attempt "$GITHUB_RUN_ATTEMPT" \
+          --jobs-json "$JOBS_JSON" \
+          | tee arbm091-final-certification.json
+        grep -F '"status": "TASK091_FINAL_CERTIFICATION_PASS"' arbm091-final-certification.json
+        grep -F '"release_approval": true' arbm091-final-certification.json
+    - name: Preserve final certification verdict
+      if: ${{ always() }}
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: arbm091-final-certification
+        path: arbm091-final-certification.json
+        if-no-files-found: warn
+        retention-days: 90
