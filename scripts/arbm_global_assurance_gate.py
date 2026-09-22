@@ -100,11 +100,12 @@ def inspect_repo(root="."):
         bool(selection_body) and bool(writer_body)
         and "presses=len(old)" in selection_body
         and "1 <= presses <= 30" in selection_body
-        and "first=min(30,max(0,presses))" in writer_body
-        and "remaining=max(0,presses-first)" in writer_body
+        and "pyautogui.press('left', presses={presses}" in writer_body
+        and writer_body.count("pyautogui.press('delete')")==1
         and "pyautogui.keyDown('shift')" in writer_body
         and "pyautogui.keyUp('shift')" in writer_body
         and "pyautogui.press('end')" not in writer_body
+        and "pyautogui.press('home')" not in writer_body
         and "pyautogui.press('backspace'" not in writer_body
         and "hotkey('ctrl', 'a')" not in writer_body
         and rollback_marker in shim
