@@ -127,7 +127,8 @@ def review_action(action, *, task_id="", source="generic", state=None,
         and bool(re.fullmatch(r"[0-9a-f]{64}",issued_table_click_hash,re.I))
         and command_hash==issued_table_click_hash
         and repeated
-        and no_progress==2
+        and no_progress>0
+        and recent.count(command)==1
         and str(pending091.get("textmode_first_hit_source") or "") != ""
         and bool(re.fullmatch(r"\d{4}-\d{2}-(?:before|after)",str(pending091.get("textmode_first_hit_source") or "")))
         and bool(re.fullmatch(r"\d{4}-\d{2}-(?:before|after)",str(pending091.get("textmode_baseline_source") or "")))
