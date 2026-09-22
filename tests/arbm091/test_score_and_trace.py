@@ -937,12 +937,13 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
             self.assertTrue(state['pending_edit']['explicit_text_mode'])
             self.assertEqual(state['pending_edit']['caret_geometry']['width'],1)
             self.assertNotIn("ctrl', 'a",fourth['command'])
-            self.assertIn("press('left', presses=7",fourth['command'])
-            self.assertEqual(state['pending_edit']['start_navigation_press_count'],7)
+            self.assertEqual(fourth['command'].splitlines()[0],"pyautogui.press('home')")
+            self.assertEqual(state['pending_edit']['start_navigation_method'],'home')
             self.assertNotIn("keyDown('shift')",fourth['command'])
-            self.assertNotIn("press('end')",fourth['command'])
+            self.assertNotIn("press('left'",fourth['command'])
+            self.assertNotIn("press('right'",fourth['command'])
             self.assertNotIn("press('backspace'",fourth['command'])
-            self.assertTrue(state['pending_edit']['caret_end_geometry']['proven'])
+            self.assertIn('caret_entry_end_diagnostic',state['pending_edit'])
 
             caret_at_start=self._deck('5')
             fifth=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(caret_at_start))
@@ -1037,16 +1038,17 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         self.assertIn("normalize-wps-terminal-marker-offset",source)
         self.assertIn("table-cell-start-normalize-issued",source)
 
-    def test_nonselecting_start_navigation_consumes_one_terminal_marker(self):
-        self.assertEqual(shim._task091_table_cell_start_navigation_presses('$42.8M'),7)
-        self.assertEqual(shim._task091_table_cell_start_navigation_presses('112%'),5)
-        self.assertEqual(shim._task091_table_cell_start_navigation_presses('2'),2)
-        self.assertEqual(shim._task091_table_cell_start_navigation_presses('x'*30),31)
+    def test_nonselecting_start_navigation_uses_home_after_positive_text_mode_proof(self):
+        command=shim._task091_table_cell_start_navigation_command()
+        self.assertEqual(command.splitlines()[0],"pyautogui.press('home')")
+        self.assertNotIn("keyDown('shift')",command)
+        self.assertNotIn("press('left'",command)
+        self.assertNotIn("press('right'",command)
+        self.assertNotIn("pyautogui.write(",command)
         source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
-        self.assertIn("visible=_task091_table_cell_selection_presses(old)",source)
-        self.assertIn("presses=visible+1",source)
-        self.assertIn("start_navigation_press_count",source)
-        self.assertIn("without Shift",source)
+        self.assertIn("start_navigation_method']='home'",source)
+        self.assertIn("explicit_text_mode']=True",source)
+        self.assertIn("TASK091_TABLE_CELL_START_CARET_GEOMETRY_UNPROVEN",source)
 
     def test_500_case_end_marker_red_team_matrix(self):
         alphabet="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz$%.-_"
@@ -1073,7 +1075,7 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
             "TASK091_TABLE_CELL_START_CARET_EVIDENCE_MISSING",
             "TASK091_TABLE_CELL_START_CARET_GEOMETRY_UNPROVEN",
             "TASK091_TABLE_CELL_CARET_NOT_AT_START",
-            "TASK091_TABLE_CELL_CARET_NOT_AT_END",
+            "caret_entry_end_diagnostic",
             "TASK091_TABLE_CELL_ENTRY_DRIFT",
             "TASK091_TABLE_CELL_ROLLBACK_UNPROVEN",
             "before_sibling_signature",
