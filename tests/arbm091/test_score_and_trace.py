@@ -1163,6 +1163,66 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         self.assertIn("TASK091_SECTION_E_POSTSAVE_DRIFT",source)
 
 
+class Task091FinalCertificationBoardTests(unittest.TestCase):
+    def _root(self):
+        root=Path(self.tmp.name)/'final-board'
+        root.mkdir(parents=True,exist_ok=True)
+        return root
+
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_final_board_requires_visual_13_of_13_and_zero_penalty(self):
+        from arbm091.final_certification_board import _verify_visual
+        root=self._root()
+        (root/'osworld.log').write_text(
+            'TASK091_SECTION_E_SCORE=0.3000/0.3000 VISUAL_GATES=13/13 E_PENALTY=0.0000\n'
+            'TASK091_SECTION_E_FAILURES=NONE\n',encoding='utf-8')
+        verdict=_verify_visual(root)
+        self.assertEqual(verdict['visual_gates'],'13/13')
+        self.assertEqual(verdict['section_e_score'],'0.3000')
+        (root/'osworld.log').write_text(
+            'TASK091_SECTION_E_SCORE=0.2769/0.3000 VISUAL_GATES=12/13 E_PENALTY=0.0231\n'
+            'TASK091_SECTION_E_FAILURES=slide3:rounded_text_containment\n',encoding='utf-8')
+        with self.assertRaisesRegex((ValueError,SystemExit),'SECTION_E_NOT_FULL_SCORE|VISUAL_GATES_NOT_13_OF_13'):
+            _verify_visual(root)
+
+    def test_final_board_requires_exact_slide3_table_values(self):
+        from arbm091.final_certification_board import _verify_slide3_table
+        root=self._root()
+        obs=root/'wps-observations'
+        obs.mkdir()
+        expected={
+            'Table 12#r1c2':'$40.9M','Table 12#r2c2':'104%',
+            'Table 12#r3c2':'71%','Table 12#r4c2':'$2.8M',
+            'Table 12#r5c2':'3','Table 12#r6c2':'206',
+        }
+        row={'deck_slide_shapes':{'3':[
+            {'kind':'table-cell','name':name,'text':value} for name,value in expected.items()
+        ]}}
+        (obs/'9999-01-after.json').write_text(json.dumps(row),encoding='utf-8')
+        self.assertEqual(_verify_slide3_table(root),expected)
+        row['deck_slide_shapes']['3'][0]['text']='$40.9M'
+        (obs/'9999-01-after.json').write_text(json.dumps(row),encoding='utf-8')
+        with self.assertRaisesRegex((ValueError,SystemExit),'FINAL_SLIDE3_TABLE_MISMATCH'):
+            _verify_slide3_table(root)
+
+    def test_prefocal_boards_are_never_release_authorities(self):
+        from arbm091.review_board_50x10 import evaluate as review_evaluate
+        from arbm091.elite_board_100 import evaluate as elite_evaluate
+        actual='H2 Operating Committee PPackSStabilize-and-Recover RRebaseline'
+        expected='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
+        plan=shim._task091_restricted_repair_plan(actual,expected)
+        review=review_evaluate(actual,expected,plan,{'id':6,'name':'CoverTitle','text':actual},'a'*64,'b'*64)
+        self.assertEqual(review['status'],'PRE_FOCAL_ADVISORY_PASS')
+        self.assertFalse(review['release_approval'])
+        source=Path('scripts/arbm091/elite_board_100.py').read_text(encoding='utf-8')
+        self.assertIn("'status':'PRE_FOCAL_ADVISORY_PASS'",source)
+        self.assertIn("'release_approval':False",source)
+
+
+
 if __name__ == '__main__':
     unittest.main()
 
