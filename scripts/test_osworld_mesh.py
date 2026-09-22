@@ -675,7 +675,7 @@ class Task091TransactionalTableCellTests(unittest.TestCase):
   self.assertNotIn("hotkey('ctrl', 'a')",command)
   self.assertNotIn("press('backspace'",command)
   self.assertIn("keyDown('shift')",command)
-  self.assertIn("press('left', presses=7",command)
+  self.assertIn("press('left', presses=6",command)
   self.assertIn("keyUp('shift')",command)
   self.assertIn("write('$40.9M'",command)
   from osworld_control import canonical_action
@@ -726,12 +726,12 @@ class Task091TransactionalTableCellTests(unittest.TestCase):
   self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
 
  def test_table_cell_terminal_marker_selection_is_bounded_and_compilable(self):
-  self.assertEqual(shim._task091_table_cell_selection_presses('$42.8M'),7)
-  self.assertEqual(shim._task091_table_cell_selection_presses('x'*30),31)
+  self.assertEqual(shim._task091_table_cell_selection_presses('$42.8M'),6)
+  self.assertEqual(shim._task091_table_cell_selection_presses('x'*30),30)
   command=shim._task091_table_cell_bounded_write_command('x'*30,'y')
   self.assertIn("press('left', presses=30",command)
-  self.assertIn("press('left', presses=1",command)
   self.assertNotIn("press('left', presses=31",command)
+  self.assertEqual(command.count("press('delete')"),1)
   from osworld_control import canonical_action
   self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
 
