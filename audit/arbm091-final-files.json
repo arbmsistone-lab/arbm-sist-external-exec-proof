@@ -27,6 +27,7 @@
   "scripts/arbm091/verify_transplant.py",
   "scripts/arbm091/wps_observer.py",
   "scripts/arbm_global_assurance_gate.py",
+  "scripts/arbm_safe_http.py",
   "scripts/arbm_senior_elite_board.py",
   "scripts/osworld_061_3d_audit.py",
   "scripts/osworld_061_blindspot_audit.py",
