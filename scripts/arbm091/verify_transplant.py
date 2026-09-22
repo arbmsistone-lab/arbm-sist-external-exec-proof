@@ -747,6 +747,9 @@ def main():
         '66ee832947cd0a4c7732923de68c3539f8b6270d': {TRACE_TEST},
         'f6a0ff18d051d37287476a1b55cbbc45d69dd299': {TRACE_TEST},
         '7421f06fbd19537381b9bb9a97baf0d92f2664d6': {GLOBAL_GATE},
+        'b0d4d3c2dcfa0d69316ce4e12cfb8e8249bbe3df': {SHIM},
+        '97558261e8e8c889385bfbf602e9711a3ae3bec8': {MESH_TEST},
+        '28f22bc8ee1d63fb3877ee75ad0c9ecaae04576a': {TRACE_TEST},
     }
     for c_node in post_legacy:
         c_files = set(git('diff-tree', '--no-commit-id', '--name-only', '-r', c_node).splitlines())
