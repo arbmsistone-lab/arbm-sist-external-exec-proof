@@ -698,6 +698,13 @@ def main():
         "9170dcaedb4c36339ee3b20f01ff2cff97e01e2e": {".github/workflows/osworld-g3-free-openrouter-probe-v2.yml"},
         "ff2ab783999324cc0076696905147da9e412276f": {".github/workflows/osworld-g3-free-smoke-v1.yml"},
         "e68833d2f55ede17fe0bd049a94a6541f8673234": {".github/workflows/osworld-g3-paid-smoke-v2.yml"},
+        "08c7ac598b599fe7226709a9e4f49f40d309ed77": {".github/workflows/p8-swe-rebench-matrix.yml"},
+        "ef30fa76e72fb1ca09cf05396ed83840476d9d67": {".github/workflows/p8-swe-rebench-smoke.yml"},
+        "134ca8b32dc03e8f16947c5b32cde84fb0ad0c74": {".github/workflows/swerebench-capacity-probe.yml"},
+        "675b10e59059d339fada40d4190425aacd42f0c4": {".github/workflows/top3-n2-audit-10x.yml"},
+        "bcbc062c66f8188e25bda3462c78f867c88d5931": {".github/workflows/top3-security-load-failure.yml"},
+        "9c01c94379326d03513873f8ab3b440712e875bd": {".github/workflows/p9-dubbo-m0031-cloud-plan.yml"},
+        "cf859a0e352f81a744e0194dd93fc07e1f54fe6b": {".github/workflows/p9-dubbo-m0031-solve.yml"},
         "1dc073ddc5a5468b42028646aa15ed4168405a97": {"Dockerfile"},
         "1d41b0f6db80d4757f9a72af4dcdd3cf38c71f64": {".github/workflows/arbm-lockfile-generator-temp.yml"},
     }
