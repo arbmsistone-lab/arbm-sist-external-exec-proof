@@ -8,7 +8,7 @@ permissions:
   contents: read
 jobs:
   account:
-    if: github.repository == 'arbmsistone-lab/arbm-sist-external-exec-proof' && github.ref == 'refs/heads/g3-free-cert-lane-20260910'
+    if: github.repository == 'arbmsistone-lab/arbm-sist-external-exec-proof' && (github.ref == 'refs/heads/g3-free-cert-lane-20260910' || github.ref == 'refs/heads/g3-free-cert-recovery-20260915')
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     steps:
