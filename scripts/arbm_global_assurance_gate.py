@@ -89,14 +89,20 @@ def inspect_repo(root="."):
            and "TASK091_TABLE_CELL_CARET_GEOMETRY_UNPROVEN" in shim
            and "TASK091_TABLE_CELL_CARET_NOT_AT_END" in shim
            and "_task091_table_cell_bounded_write_command" in shim)
+    writer_marker="def _task091_table_cell_bounded_write_command"
+    rollback_marker="def _task091_table_cell_rollback_command"
+    writer_body=(shim.split(writer_marker,1)[1].split(rollback_marker,1)[0]
+                 if writer_marker in shim and rollback_marker in shim else "")
     bounded_table_edit=(
-        "def _task091_table_cell_bounded_write_command" in shim
-        and "pyautogui.keyDown('shift')" in shim
-        and "pyautogui.press('left', presses={len(old)}" in shim
-        and "pyautogui.keyUp('shift')" in shim
-        and "def _task091_table_cell_rollback_command" in shim
-        and "TASK091_TABLE_CELL_TRANSACTION_ROLLED_BACK" in shim
-        and "End, Home, Ctrl+A, and Backspace sweeps are forbidden" in shim)
+        bool(writer_body)
+        and "pyautogui.keyDown('shift')" in writer_body
+        and "pyautogui.press('left', presses={len(old)}" in writer_body
+        and "pyautogui.keyUp('shift')" in writer_body
+        and "pyautogui.press('end')" not in writer_body
+        and "pyautogui.press('backspace'" not in writer_body
+        and "hotkey('ctrl', 'a')" not in writer_body
+        and rollback_marker in shim
+        and "TASK091_TABLE_CELL_TRANSACTION_ROLLED_BACK" in shim)
     specialist_sources=all(x in shim for x in (
         "source='task091-specialist'","source='generic-mesh'",
         "source='061-calibrated'","source='gimp-specialist'"))
