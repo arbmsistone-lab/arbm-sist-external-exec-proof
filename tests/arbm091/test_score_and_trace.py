@@ -1153,6 +1153,19 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         failed=[name for name,ok in audits if not ok]
         self.assertEqual(failed,[],failed)
 
+    def test_table_cell_suffix_duplicate_repair_contract(self):
+        source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+        command=shim._task091_table_cell_suffix_duplicate_repair_command('104%%','104%')
+        self.assertIn("_task091_table_cell_suffix_duplicate_repair_command",source)
+        self.assertEqual(command.splitlines()[0],"pyautogui.press('home')")
+        self.assertIn("press('right', presses=4",command)
+        self.assertEqual(command.count("press('delete')"),1)
+        self.assertNotIn("ctrl', 'a",command)
+        self.assertNotIn("ctrl', 'z",command)
+        self.assertIn("actual_text==expected_text+expected_text[-1]",source)
+        self.assertIn("sibling_unchanged",source)
+        self.assertIn("TASK091_TABLE_CELL_SUFFIX_REPAIR_NOT_PROVEN",source)
+
     def test_slide3_section_e_correction_is_caret_proven_and_text_preserving(self):
         source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
         self.assertIn("TASK091_SECTION_E_FORMAT",source)
