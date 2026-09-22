@@ -1770,17 +1770,13 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 corrupt_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
                 corrupt_shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
                 if len(corrupt_sha)!=64 or not isinstance(corrupt_shape,dict):
-                    return _task091_terminal('TASK091_TABLE_CELL_ROLLBACK_SOURCE_UNPROVEN',state)
-                pending['rollback_reason']=status
-                pending['rollback_corrupt_deck_sha256']=corrupt_sha
-                pending['rollback_corrupt_text']=str(corrupt_shape.get('text') or '')
-                pending['stage']='table-cell-rollback-issued'
-                command=_task091_table_cell_rollback_command()
-                pending['rollback_command_hash']=hashlib.sha256(command.encode()).hexdigest()
-                return {'action':'exec','command':command,
-                        'plan':'A table-cell transaction violated its exact delta contract. Undo exactly that transaction, persist the restored deck, and fail closed unless the original cell plus sibling signature are proven restored.',
-                        'specialist_phase':'rollback-invalid-table-cell-transaction',
-                        'expected_change':pending['old']}
+                    return _task091_terminal('TASK091_TABLE_CELL_FAILURE_SOURCE_UNPROVEN',state)
+                pending['failure_reason']=status
+                pending['failure_deck_sha256']=corrupt_sha
+                pending['failure_text']=str(corrupt_shape.get('text') or '')
+                pending['undo_quarantined']=True
+                state['mode']='TARGET_FAIL_CLOSED'
+                return _task091_terminal('TASK091_TABLE_CELL_POSTSAVE_MISMATCH_NO_UNDO',state)
             if status=='collateral-mutation':
                 return _task091_terminal('TASK091_COLLATERAL_EDIT_DETECTED',state)
             if status=='disk-text-mismatch' and int(pending.get('repair_steps') or pending.get('repair_attempts') or 0)==0:
