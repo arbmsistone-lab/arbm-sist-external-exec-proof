@@ -1848,9 +1848,16 @@ def try_gimp_specialist(body, obs, focused_obs):
     try:
         action=ground_action(candidate,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
         decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
+        board_verifier=VERIFIER.last_result
+        if (action.get('action')=='finish'
+                and specialist_state.get('output_physical_provenance') is True
+                and re.fullmatch(r'[0-9a-f]{64}',str(specialist_state.get('output_provenance_sha256') or ''),re.I)
+                and VERIFIER.changes > 0 and VERIFIER.no_progress < 2):
+            board_verifier={**VERIFIER.last_result,'progress':True,'no_progress':0,
+                            'reason':'gimp_physical_provenance_verified'}
         senior_review=require_senior_elite(
             action,task_id=os.environ.get('TASK_ID'),source='gimp-specialist',
-            state=STATE,verifier=VERIFIER.last_result,
+            state=STATE,verifier=board_verifier,
             recent_commands=[x['command'] for x in STATE['history'][-6:]])
         log_event({'status':'SENIOR_ELITE_BOARD_PASS','source':'gimp-specialist',
                    'pass':senior_review['pass'],'total':senior_review['total'],
