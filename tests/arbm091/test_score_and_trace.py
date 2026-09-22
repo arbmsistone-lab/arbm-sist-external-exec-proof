@@ -847,8 +847,9 @@ class TraceTests(unittest.TestCase):
 
 class Task091FinalAtomicTableCellTests(unittest.TestCase):
     def _deck(self, shot='1'):
+        source_map={'1':'0063-01-after','2':'0064-01-after','3':'0065-01-after','4':'0066-01-after'}
         return {
-          'schema':1,'stable':True,
+          'schema':1,'stable':True,'source':source_map.get(str(shot),'0069-01-after'),
           'window':{'id':12582927,'pid':2594,
                     'title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Office',
                     'owner_title':'','wm_class':'wpsoffice wpsoffice','bbox':[70,27,1850,1053]},
@@ -882,6 +883,17 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
         with patch.dict(os.environ,{'TASK_ID':'091'},clear=False), \
              patch.object(shim,'_task091_region_sha256',return_value='a'*64), \
              patch.object(shim,'_task091_table_visual_signature',return_value='b'*64), \
+             patch.object(shim,'_task091_table_cell_text_ink_point',
+                          return_value={'source':'0064-01-after',
+                                        'screenshot_sha256':'2'*64,
+                                        'cell_bbox':[892,436,182,71],
+                                        'background':[255,255,255],
+                                        'threshold':24,
+                                        'ink_bbox':[970,460,30,18],
+                                        'ink_pixels':120,
+                                        'point':[983,471],
+                                        'cx':983,'cy':471,
+                                        'proof_sha256':'d'*64}), \
              patch.object(shim,'_task091_caret_delta_geometry',
                           return_value={'proven':True,'reason':'caret-geometry',
                                         'count':22,'width':1,'height':22,
@@ -897,18 +909,31 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
             table_selected=self._deck('2')
             second=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(table_selected))
             self.assertEqual(second['command'],'pyautogui.click(983, 471)')
-            self.assertEqual(second['specialist_phase'],'enter-table-cell-caret-candidate')
-            self.assertEqual(state['pending_edit']['stage'],'table-cell-enter-issued')
+            self.assertEqual(second['specialist_phase'],'table-cell-text-hit-candidate')
+            self.assertEqual(state['pending_edit']['stage'],'table-cell-text-hit-issued')
+            self.assertEqual(state['pending_edit']['textmode_baseline_source'],'0064-01-after')
+            self.assertEqual(len(state['pending_edit']['cell_text_hit_command_hash']),64)
 
-            cell_entered=self._deck('3')
-            third=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(cell_entered))
-            self.assertEqual(third['specialist_phase'],'edit-geometry-proven-table-cell')
+            text_hit_observed=self._deck('3')
+            third=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(text_hit_observed))
+            self.assertEqual(third['command'],'pyautogui.click(983, 471)')
+            self.assertEqual(third['specialist_phase'],'enter-table-cell-caret-candidate')
+            self.assertEqual(state['pending_edit']['stage'],'table-cell-enter-issued')
+            self.assertEqual(state['pending_edit']['textmode_first_hit_source'],'0065-01-after')
+            self.assertNotEqual(state['pending_edit']['textmode_first_hit_source'],
+                                state['pending_edit']['textmode_baseline_source'])
+            self.assertEqual(state['pending_edit']['cell_text_hit_command_hash'],
+                             state['pending_edit']['cell_enter_command_hash'])
+
+            cell_entered=self._deck('4')
+            fourth=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(cell_entered))
+            self.assertEqual(fourth['specialist_phase'],'edit-geometry-proven-table-cell')
             self.assertEqual(state['pending_edit']['stage'],'edit-issued')
             self.assertTrue(state['pending_edit']['explicit_text_mode'])
             self.assertEqual(state['pending_edit']['caret_geometry']['width'],1)
-            self.assertNotIn("ctrl', 'a",third['command'])
-            self.assertTrue(third['command'].startswith("pyautogui.press('end')"))
-            self.assertIn("backspace', presses=6",third['command'])
+            self.assertNotIn("ctrl', 'a",fourth['command'])
+            self.assertTrue(fourth['command'].startswith("pyautogui.press('end')"))
+            self.assertIn("backspace', presses=6",fourth['command'])
 
     def test_table_cell_sibling_drift_blocks_second_click(self):
         with patch.dict(os.environ,{'TASK_ID':'091'},clear=False):
