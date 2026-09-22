@@ -691,6 +691,13 @@ def main():
         "195e1c72836f3f5327ea7933930bf931b16d4f44": {".github/workflows/osworld-g3-smoke-v2.yml"},
         "81fb09fa0da2c9267391e4270592066892ae33f4": {".github/workflows/osworld-g3-smoke.yml"},
         "31f704f20cf543270c5d777c864fed9305728563": {".github/workflows/osworld-gated-preflight.yml"},
+        "3a2f6ae60e7184c41780384478a4427950f18d99": {".github/workflows/arbm-091-clean-proof.yml"},
+        "7038b8178bd3b2383c350e45dedfbc15aa6d2882": {".github/workflows/osworld-provider-preflight.yml"},
+        "96cf5e962a348418b79059a2e1200333e1cb2fd3": {".github/workflows/osworld-real-boot.yml"},
+        "bd73f4cc92984d4a3805d1b50d07e787cad40b75": {".github/workflows/g3-groq-free-admission.yml"},
+        "9170dcaedb4c36339ee3b20f01ff2cff97e01e2e": {".github/workflows/osworld-g3-free-openrouter-probe-v2.yml"},
+        "ff2ab783999324cc0076696905147da9e412276f": {".github/workflows/osworld-g3-free-smoke-v1.yml"},
+        "e68833d2f55ede17fe0bd049a94a6541f8673234": {".github/workflows/osworld-g3-paid-smoke-v2.yml"},
         "1dc073ddc5a5468b42028646aa15ed4168405a97": {"Dockerfile"},
         "1d41b0f6db80d4757f9a72af4dcdd3cf38c71f64": {".github/workflows/arbm-lockfile-generator-temp.yml"},
     }
