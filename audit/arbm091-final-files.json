@@ -18,6 +18,7 @@
   "reports/historical-workflows/osworld-v31-official-108.yml",
   "scripts/arbm091/__init__.py",
   "scripts/arbm091/elite_board_100.py",
+  "scripts/arbm091/final_certification_board.py",
   "scripts/arbm091/finalize_evidence.py",
   "scripts/arbm091/guest_probe.py",
   "scripts/arbm091/install_observer.py",
