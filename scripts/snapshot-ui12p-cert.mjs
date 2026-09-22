@@ -93,7 +93,7 @@ export async function runSnapshotUi12pCert(){
   const candidates=fs.readdirSync(path.join(root,"cf-release-bundle")).filter((name)=>name.endsWith(".js"));
   if(!candidates.length) throw new Error("cloudflare_entry_missing");
   const entry=path.join(root,"cf-release-bundle",candidates[0]);
-  const wrangler=spawn("npx",["wrangler","dev",entry,"--local","--local-protocol","http","--port","3000","--config","wrangler.jsonc"],{
+  const wrangler=spawn("npx",["wrangler","dev",entry,"--local","--local-protocol","https","--port","3000","--config","wrangler.jsonc"],{
     cwd:root,env,stdio:["ignore","pipe","pipe"],shell:false,
   });
   let runtimeLog="";
@@ -102,14 +102,12 @@ export async function runSnapshotUi12pCert(){
   try{
     let ready=false;
     for(let i=0;i<90;i++){
-      try{
-        const res=await fetch("http://127.0.0.1:3000/login",{signal:AbortSignal.timeout(2000)});
-        if(res.status===200){ready=true;break;}
-      }catch{}
+      const probe=spawnSync("curl",["-k","--silent","--show-error","--output","/dev/null","--write-out","%{http_code}","--max-time","2","https://127.0.0.1:3000/login"],{cwd:root,env,encoding:"utf8",stdio:"pipe",timeout:4000,shell:false});
+      if(probe.status===0 && String(probe.stdout||"").trim()==="200"){ready=true;break;}
       await new Promise((resolve)=>setTimeout(resolve,1000));
     }
     if(!ready) throw new Error("candidate_startup_failed:"+runtimeLog.slice(-4000));
-    run("node",["scripts/audit-pr-public-visual.mjs"],root,{...env,ARBM_PR_BASE_URL:"http://127.0.0.1:3000"},600000);
+    run("node",["scripts/audit-pr-public-visual.mjs"],root,{...env,ARBM_PR_BASE_URL:"https://127.0.0.1:3000"},600000);
   } finally {
     wrangler.kill("SIGTERM");
   }
