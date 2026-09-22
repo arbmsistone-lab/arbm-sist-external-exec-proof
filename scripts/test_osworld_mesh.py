@@ -673,7 +673,7 @@ class Task091TransactionalTableCellTests(unittest.TestCase):
   self.assertNotIn("hotkey('ctrl', 'a')",command)
   self.assertNotIn("press('backspace'",command)
   self.assertIn("keyDown('shift')",command)
-  self.assertIn("press('left', presses=6",command)
+  self.assertIn("press('left', presses=7",command)
   self.assertIn("keyUp('shift')",command)
   self.assertIn("write('$40.9M'",command)
   from osworld_control import canonical_action
@@ -722,6 +722,27 @@ class Task091TransactionalTableCellTests(unittest.TestCase):
   self.assertNotIn('pyautogui.write(',command)
   from osworld_control import canonical_action
   self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_table_cell_terminal_marker_selection_is_bounded_and_compilable(self):
+  self.assertEqual(shim._task091_table_cell_selection_presses('$42.8M'),7)
+  self.assertEqual(shim._task091_table_cell_selection_presses('x'*30),31)
+  command=shim._task091_table_cell_bounded_write_command('x'*30,'y')
+  self.assertIn("press('left', presses=30",command)
+  self.assertIn("press('left', presses=1",command)
+  self.assertNotIn("press('left', presses=31",command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_section_e_font_correction_uses_proven_caret_and_one_point_decrement(self):
+  spec=shim.TASK091_SECTION_E_FORMAT
+  self.assertEqual(spec['slide'],3)
+  self.assertEqual(spec['shape_id'],16)
+  self.assertEqual(spec['shape_name'],'KpiReadout_Body')
+  self.assertEqual(spec['font_decrements'],1)
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("TASK091_SECTION_E_CARET_UNPROVEN",source)
+  self.assertIn("TASK091_SECTION_E_FONT_DELTA_UNPROVEN",source)
+  self.assertIn("pyautogui.hotkey('ctrl', '[')",source)
 
 
 if __name__=='__main__':unittest.main()
