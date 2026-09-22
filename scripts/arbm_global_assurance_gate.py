@@ -123,7 +123,11 @@ def inspect_repo(root="."):
         and "hotkey('ctrl', 'a')" not in writer_body
         and "def _task091_caret_at_text_start" in shim
         and "TASK091_TABLE_CELL_CARET_NOT_AT_START" in shim
-        and "TASK091_TABLE_CELL_POSTSAVE_MISMATCH_NO_UNDO" in shim)
+        and "TASK091_TABLE_CELL_POSTSAVE_MISMATCH_NO_UNDO" in shim
+        and "def _task091_table_cell_suffix_duplicate_repair_command" in shim
+        and "actual_text==expected_text+expected_text[-1]" in shim
+        and "sibling_unchanged" in shim
+        and "TASK091_TABLE_CELL_SUFFIX_REPAIR_NOT_PROVEN" in shim)
     section_e_containment=(
         "TASK091_SECTION_E_FORMAT" in shim
         and "'shape_id': 16" in shim
