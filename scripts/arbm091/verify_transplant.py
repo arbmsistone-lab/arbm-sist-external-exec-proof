@@ -624,6 +624,7 @@ def main():
     allowed_post_scope = {VERIFIER, SHIM, SENIOR_BOARD, SENIOR_TEST}
     approved_post_commit_scopes = {
         'fdd1c8ef17c7f52352b60c1afd7bffca958182a1': {SAFE_HTTP},
+        'f60da82e96d92b0de454d9564d860cba56fad563': {SAFE_HTTP},
     }
     for c_node in post_legacy:
         c_files = set(git('diff-tree', '--no-commit-id', '--name-only', '-r', c_node).splitlines())
