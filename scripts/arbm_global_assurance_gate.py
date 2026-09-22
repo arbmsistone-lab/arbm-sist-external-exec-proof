@@ -85,10 +85,18 @@ def inspect_repo(root="."):
     zero_spend=("ZERO_SPEND_MODE: HARD" in workflow
                 and "NON_ZERO_SPEND_MODE_FORBIDDEN" in shim)
     caret=("def _task091_caret_delta_geometry" in shim
+           and "def _task091_caret_at_text_end" in shim
            and "TASK091_TABLE_CELL_CARET_GEOMETRY_UNPROVEN" in shim
+           and "TASK091_TABLE_CELL_CARET_NOT_AT_END" in shim
            and "_task091_table_cell_bounded_write_command" in shim)
-    no_table_ctrl_a=("def _task091_table_cell_bounded_write_command" in shim
-                     and "Ctrl+A is forbidden" in shim)
+    bounded_table_edit=(
+        "def _task091_table_cell_bounded_write_command" in shim
+        and "pyautogui.keyDown('shift')" in shim
+        and "pyautogui.press('left', presses={len(old)}" in shim
+        and "pyautogui.keyUp('shift')" in shim
+        and "def _task091_table_cell_rollback_command" in shim
+        and "TASK091_TABLE_CELL_TRANSACTION_ROLLED_BACK" in shim
+        and "End, Home, Ctrl+A, and Backspace sweeps are forbidden" in shim)
     specialist_sources=all(x in shim for x in (
         "source='task091-specialist'","source='generic-mesh'",
         "source='061-calibrated'","source='gimp-specialist'"))
@@ -126,8 +134,8 @@ def inspect_repo(root="."):
                ("no_hardcoded_secret_literals","OIDC_secret_transport")),
         result("deterministic_execution",caret and "temperature 0" in workflow,
                ("geometric_caret_proof","official_agent_temperature_zero")),
-        result("bounded_mutation",no_table_ctrl_a and direct_gui,
-               ("bounded_table_cell_writer","bounded_action_compiler")),
+        result("bounded_mutation",bounded_table_edit and direct_gui,
+               ("end_caret_bounded_table_cell_writer","rollback_verified","bounded_action_compiler")),
         result("specialist_ownership",specialist_sources and "specialist_ownership" in board,
                ("all_specialist_routes_governed","091_generic_bypass_veto")),
         result("observability_auditability",audit_logging and bool(trace),
