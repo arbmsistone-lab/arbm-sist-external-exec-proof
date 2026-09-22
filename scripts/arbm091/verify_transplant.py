@@ -30,6 +30,7 @@ SENIOR_BOARD = 'scripts/arbm_senior_elite_board.py'
 SENIOR_TEST = 'tests/arbm091/test_senior_elite_agent.py'
 GLOBAL_GATE = 'scripts/arbm_global_assurance_gate.py'
 GLOBAL_TEST = 'tests/arbm091/test_global_assurance_gate.py'
+FINAL_BOARD = 'scripts/arbm091/final_certification_board.py'
 SAFE_HTTP = 'scripts/arbm_safe_http.py'
 WPS_ALIAS_COMMIT = 'f0a49b84c95808b501cd91aed14bd702e8230a9c'
 WPS_ALIAS_TEST_COMMIT = '51f63478520b3e8fa89152460dc12dd7da446945'
@@ -300,8 +301,10 @@ expected='H2 Operating Committee Pack\\nStabilize-and-Recover Rebaseline'
 plan=shim._task091_restricted_repair_plan(actual,expected)
 shape={'id':6,'name':'CoverTitle','text':actual}
 verdict=evaluate(actual,expected,plan,shape,'a'*64,'b'*64)
+assert verdict['status']=='PRE_FOCAL_ADVISORY_PASS', verdict
+assert verdict['release_approval'] is False, verdict
 assert verdict['senior_pass']==50 and verdict['master_pass']==10, verdict
-print('TASK091_REVIEW_BOARD_50X10_PASS senior=50/50 master=10/10')
+print('TASK091_REVIEW_BOARD_50X10_ADVISORY_PASS senior=50/50 master=10/10 NOT_A_RELEASE_APPROVAL')
 PY
 '''
 }
@@ -359,7 +362,7 @@ ELITE_BOARD_GATE = {
     'shell': 'bash',
     'run': '''set -euo pipefail
 python scripts/test_osworld_elite_board_100.py
-echo 'TASK091_ELITE_BOARD_100_PASS elite=100/100 councils=10/10 release_runs_required=10'
+echo 'TASK091_ELITE_BOARD_100_ADVISORY_PASS elite=100/100 councils=10/10 NOT_A_RELEASE_APPROVAL'
 '''
 }
 
@@ -488,6 +491,74 @@ printf 'TASK091_ENVIRONMENT_PREFLIGHT_PASS task=%s runner=%s spend=%s\\n' "$TASK
 }
 
 
+FINAL_CERTIFICATION_JOB_YAML = r'''
+final-certification:
+  if: ${{ always() }}
+  runs-on: ubuntu-24.04
+  timeout-minutes: 10
+  permissions:
+    actions: read
+    contents: read
+  needs:
+  - proof-tests
+  - policy
+  - replay
+  - focal-091
+  env:
+    GH_TOKEN: ${{ github.token }}
+    PROOF_TESTS_RESULT: ${{ needs.proof-tests.result }}
+    POLICY_RESULT: ${{ needs.policy.result }}
+    REPLAY_RESULT: ${{ needs.replay.result }}
+    FOCAL_RESULT: ${{ needs.focal-091.result }}
+  steps:
+  - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+  - name: Install final certification dependencies
+    run: |
+      python -m pip install -r scripts/requirements-osworld.txt
+      python -m pip install PyYAML==6.0.2
+  - name: Download focal evidence from this exact run
+    shell: bash
+    run: |
+      set -euo pipefail
+      mkdir -p final-evidence
+      gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name osworld-v32-focal-091-free --dir final-evidence
+      test -d final-evidence/task-091
+      test "$(cat final-evidence/task-091/candidate-sha.txt)" = "$GITHUB_SHA"
+      test "$(cat final-evidence/task-091/run-id.txt)" = "$GITHUB_RUN_ID"
+      test "$(cat final-evidence/task-091/run-attempt.txt)" = "$GITHUB_RUN_ATTEMPT"
+  - name: Final certification board - sole release authority
+    shell: bash
+    run: |
+      set -euo pipefail
+      JOBS_JSON="$(python - <<'PY'
+      import json, os
+      print(json.dumps({
+          'proof-tests': os.environ['PROOF_TESTS_RESULT'],
+          'policy': os.environ['POLICY_RESULT'],
+          'replay': os.environ['REPLAY_RESULT'],
+          'focal-091': os.environ['FOCAL_RESULT'],
+      }, sort_keys=True))
+      PY
+      )"
+      python -m arbm091.final_certification_board final-evidence/task-091 \
+        --sha "$GITHUB_SHA" \
+        --run-id "$GITHUB_RUN_ID" \
+        --run-attempt "$GITHUB_RUN_ATTEMPT" \
+        --jobs-json "$JOBS_JSON" \
+        | tee arbm091-final-certification.json
+      grep -F '"status": "TASK091_FINAL_CERTIFICATION_PASS"' arbm091-final-certification.json
+      grep -F '"release_approval": true' arbm091-final-certification.json
+  - name: Preserve final certification verdict
+    if: ${{ always() }}
+    uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+    with:
+      name: arbm091-final-certification
+      path: arbm091-final-certification.json
+      if-no-files-found: warn
+      retention-days: 90
+'''
+
+
 def git(*args):
     return subprocess.check_output(['git', *args], text=True).strip()
 
@@ -593,6 +664,7 @@ test -s /tmp/091-repair-geometry/task-091/wps-trace.jsonl
     replay.insert(11, RUN35444915125_SHAPE_TARGET_REPLAY)
     replay.insert(12, RUN35448424940_REPAIR_GEOMETRY_REPLAY)
     replay[13]['with']['path'] = '/tmp/091-local-contract-replay.json\n/tmp/run35391431490-modal-regression.json\n/tmp/run35400883826-enter-regression.json\n/tmp/run35404537401-deck-regression.json\n/tmp/run35407234122-pointer-regression.json\n/tmp/run35411705196-keyrepeat-regression.json\n/tmp/run35439821335-delete-repair-regression.json\n/tmp/run35443356294-restricted-repair-regression.json\n/tmp/run35444915125-shape-target-regression.json\n/tmp/run35448424940-repair-geometry-regression.json\n'
+    expected['jobs']['final-certification'] = yaml.safe_load(FINAL_CERTIFICATION_JOB_YAML)['final-certification']
     require(len(re.findall(r'(?m)^\s+TASK_ID: [\'"]091[\'"]\s*$', text)) == 1,
             'TASK091_MUST_BE_QUOTED_YAML_STRING')
     normalized_current = normalize(current)
@@ -661,6 +733,14 @@ def main():
         '7e5d1d16a34c5c346d4b0059fa8e5f296354dcf0': {SHIM},
         'b7902bd66d8e8a4b4b64cf1a3a632715be1b7f7d': {TRACE_TEST},
         'a07e3a81378356d20e23697a2e92b393689fe8cc': {MESH_TEST},
+        'db8505e4cdc2feb63a9276b2e847b024cf0edff0': {GLOBAL_GATE},
+        '8fb467bcd9b7074da43617613d86999ac3807e63': {REVIEW_BOARD},
+        'c39864b4d2a70f3eb1ffd74ec1c154c976458e69': {ELITE_BOARD},
+        'e797bcaa68ad4588b2a2aa5df0737315438db340': {FINAL_BOARD},
+        'c803261f5c1e129f1a124489aed5adf44b5038f3': {MESH_TEST},
+        'c0eda440c8dc0ad097e7952b67cb8a13cc76f5ff': {ELITE_TEST},
+        'c467960a6b56c6691ddb641c97ca1850eeb8f756': {WORKFLOW},
+        '3e4516d63648e4781d3e90ce45cb975e6ec23576': {MANIFEST},
     }
     for c_node in post_legacy:
         c_files = set(git('diff-tree', '--no-commit-id', '--name-only', '-r', c_node).splitlines())
@@ -695,7 +775,7 @@ def main():
     changed = set(git('diff', '--name-only', BASE, 'HEAD').splitlines())
     require(changed == set(manifest), 'CHANGED_FILE_ALLOWLIST_MISMATCH')
     require(set(git('diff', '--name-only', CLEAN_BASELINE, 'HEAD').splitlines())
-            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST, SENIOR_BOARD, SENIOR_TEST, GLOBAL_GATE, GLOBAL_TEST, SAFE_HTTP},
+            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST, SENIOR_BOARD, SENIOR_TEST, GLOBAL_GATE, GLOBAL_TEST, FINAL_BOARD, SAFE_HTTP},
             'REPAIR_TOTAL_SCOPE_MISMATCH')
     exists = subprocess.run(['git', 'cat-file', '-e', PATCH_SOURCE], capture_output=True).returncode == 0
     if exists:
@@ -735,7 +815,7 @@ def main():
                       'clean_baseline_sha': CLEAN_BASELINE, 'baseline_commits': 3,
                       'repair_commits': overlay, 'post_legacy_commits': len(post_legacy), 'new_commits': total_commits, 'changed_files': len(changed),
                       'repair_scope': [VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST,
-                                       TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST, SENIOR_BOARD, SENIOR_TEST, GLOBAL_GATE, GLOBAL_TEST], 'official_score_claimed': False}))
+                                       TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST, SENIOR_BOARD, SENIOR_TEST, GLOBAL_GATE, GLOBAL_TEST, FINAL_BOARD], 'official_score_claimed': False}))
 
 
 if __name__ == '__main__':
