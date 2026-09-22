@@ -111,7 +111,7 @@ def master_reviews(senior):
 def evaluate(actual,expected,plan,shape,before_sha,after_sha):
     senior=senior_reviews(actual,expected,plan,shape,before_sha,after_sha)
     master=master_reviews(senior)
-    return {'status':'PASS','senior_pass':sum(r['pass'] for r in senior),
+    return {'status':'PRE_FOCAL_ADVISORY_PASS','release_approval':False,'senior_pass':sum(r['pass'] for r in senior),
             'senior_total':SENIOR_CHECKS,'master_pass':sum(r['pass'] for r in master),
             'master_total':MASTER_CHECKS,'senior':senior,'master':master}
 
