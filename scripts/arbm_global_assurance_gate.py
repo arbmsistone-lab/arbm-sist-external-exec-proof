@@ -89,20 +89,34 @@ def inspect_repo(root="."):
            and "TASK091_TABLE_CELL_CARET_GEOMETRY_UNPROVEN" in shim
            and "TASK091_TABLE_CELL_CARET_NOT_AT_END" in shim
            and "_task091_table_cell_bounded_write_command" in shim)
+    selection_marker="def _task091_table_cell_selection_presses"
     writer_marker="def _task091_table_cell_bounded_write_command"
     rollback_marker="def _task091_table_cell_rollback_command"
+    selection_body=(shim.split(selection_marker,1)[1].split(writer_marker,1)[0]
+                    if selection_marker in shim and writer_marker in shim else "")
     writer_body=(shim.split(writer_marker,1)[1].split(rollback_marker,1)[0]
                  if writer_marker in shim and rollback_marker in shim else "")
     bounded_table_edit=(
-        bool(writer_body)
+        bool(selection_body) and bool(writer_body)
+        and "presses=len(old)+1" in selection_body
+        and "1 <= presses <= 31" in selection_body
+        and "first=min(30,max(0,presses))" in writer_body
+        and "remaining=max(0,presses-first)" in writer_body
         and "pyautogui.keyDown('shift')" in writer_body
-        and "pyautogui.press('left', presses={len(old)}" in writer_body
         and "pyautogui.keyUp('shift')" in writer_body
         and "pyautogui.press('end')" not in writer_body
         and "pyautogui.press('backspace'" not in writer_body
         and "hotkey('ctrl', 'a')" not in writer_body
         and rollback_marker in shim
         and "TASK091_TABLE_CELL_TRANSACTION_ROLLED_BACK" in shim)
+    section_e_containment=(
+        "TASK091_SECTION_E_FORMAT" in shim
+        and "'shape_id': 16" in shim
+        and "'shape_name': 'KpiReadout_Body'" in shim
+        and "TASK091_SECTION_E_CARET_UNPROVEN" in shim
+        and "TASK091_SECTION_E_FONT_DELTA_UNPROVEN" in shim
+        and "TASK091_SECTION_E_POSTSAVE_DRIFT" in shim
+        and "pyautogui.hotkey('ctrl', '[')" in shim)
     specialist_sources=all(x in shim for x in (
         "source='task091-specialist'","source='generic-mesh'",
         "source='061-calibrated'","source='gimp-specialist'"))
@@ -140,8 +154,8 @@ def inspect_repo(root="."):
                ("no_hardcoded_secret_literals","OIDC_secret_transport")),
         result("deterministic_execution",caret and "temperature 0" in workflow,
                ("geometric_caret_proof","official_agent_temperature_zero")),
-        result("bounded_mutation",bounded_table_edit and direct_gui,
-               ("end_caret_bounded_table_cell_writer","rollback_verified","bounded_action_compiler")),
+        result("bounded_mutation",bounded_table_edit and section_e_containment and direct_gui,
+               ("terminal_marker_bounded_table_writer","rollback_verified","section_e_caret_proven_font_delta","bounded_action_compiler")),
         result("specialist_ownership",specialist_sources and "specialist_ownership" in board,
                ("all_specialist_routes_governed","091_generic_bypass_veto")),
         result("observability_auditability",audit_logging and bool(trace),
