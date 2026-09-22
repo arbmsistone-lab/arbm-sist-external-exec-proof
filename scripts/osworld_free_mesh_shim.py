@@ -1182,7 +1182,32 @@ def _task091_verify_pending(observation,pending,window_state):
 def _task091_prepare_atomic_repair(pending, window_state, state):
     current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
     current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
-    corrupt_shape,repair_plan=_task091_corrupt_shape(window_state,pending['slide'],pending['new'])
+    is_table_cell=str(pending.get('shape_kind') or '')=='table-cell'
+    if is_table_cell:
+        # A table-cell repair is bound to the already signed shape id. Do not
+        # rescan the whole slide because repeated KPI values can make a
+        # globally repairable-text search ambiguous even though the exact
+        # persisted target is known.
+        corrupt_shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
+        expected_text=str(pending.get('new') or '')
+        current_text=str(corrupt_shape.get('text') or '') if isinstance(corrupt_shape,dict) else ''
+        sibling_unchanged=(
+            isinstance(corrupt_shape,dict)
+            and _task091_other_shapes_signature(window_state,pending['slide'],pending.get('shape_id'))
+                == str(pending.get('before_sibling_signature') or '')
+        )
+        suffix_duplicate=(
+            bool(expected_text)
+            and current_text==expected_text+expected_text[-1]
+            and sibling_unchanged
+        )
+        repair_plan=(_task091_restricted_repair_plan(current_text,expected_text)
+                     if suffix_duplicate else None)
+        expected_plan=[{'op':'delete','index':len(expected_text),'char':expected_text[-1]}] if expected_text else None
+        if repair_plan != expected_plan:
+            repair_plan=None
+    else:
+        corrupt_shape,repair_plan=_task091_corrupt_shape(window_state,pending['slide'],pending['new'])
     if len(current_sha)!=64 or corrupt_shape is None or not repair_plan:
         return _task091_terminal('TASK091_EDIT_TEXT_MISMATCH_UNPROVEN',state)
     if int(corrupt_shape.get('id') or 0) != int(pending.get('shape_id') or 0):
