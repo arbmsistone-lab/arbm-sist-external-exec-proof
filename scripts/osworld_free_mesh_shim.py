@@ -1092,6 +1092,27 @@ def _task091_delete_repair_command(delete_indices):
         raise ValueError('TASK091_REPAIR_ATOMIC_OPERATION_REQUIRED')
     return _task091_restricted_repair_command([{'op':'delete','index':indices[0]}])
 
+def _task091_table_cell_suffix_duplicate_repair_command(actual, expected, interval=0.03):
+    """Delete exactly one proven duplicated suffix character inside one table cell.
+
+    This is intentionally narrower than the generic textbox repair path. It is
+    admitted only when the persisted table-cell text is exactly expected plus
+    one duplicate of expected[-1]. No Ctrl+A, Shift, Backspace, Undo, or
+    boundary-crossing selection is used.
+    """
+    actual=str(actual or '')
+    expected=str(expected or '')
+    if not expected or actual != expected + expected[-1]:
+        raise ValueError('TASK091_TABLE_CELL_SUFFIX_REPAIR_NOT_PROVEN')
+    index=len(expected)
+    if not 1 <= index <= 30:
+        raise ValueError('TASK091_TABLE_CELL_SUFFIX_REPAIR_INDEX_INVALID')
+    return (
+        "pyautogui.press('home')\n"
+        f"pyautogui.press('right', presses={index}, interval={float(interval):g})\n"
+        "pyautogui.press('delete')"
+    )
+
 def _task091_verify_pending(observation,pending,window_state):
     slide=int(pending.get('slide') or 0)
     before_old=int(pending.get('before_old_count') or 0)
@@ -1712,7 +1733,17 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             if not repair_plan or dict(repair_plan[0]) != operation:
                 return _task091_terminal('TASK091_RESTRICTED_REPAIR_PROOF_DRIFT',state)
             pending['stage']='repair-edit-issued'
-            command=_task091_restricted_repair_command([operation])
+            if str(pending.get('shape_kind') or '')=='table-cell':
+                actual=str(shape.get('text') or '')
+                expected=str(pending.get('new') or '')
+                if actual != expected + (expected[-1:] if expected else ''):
+                    return _task091_terminal('TASK091_TABLE_CELL_SUFFIX_REPAIR_NOT_PROVEN',state)
+                if operation.get('op')!='delete' or int(operation.get('index') or -1)!=len(expected):
+                    return _task091_terminal('TASK091_TABLE_CELL_SUFFIX_REPAIR_PLAN_INVALID',state)
+                command=_task091_table_cell_suffix_duplicate_repair_command(actual,expected)
+                pending['table_cell_suffix_repair']=True
+            else:
+                command=_task091_restricted_repair_command([operation])
             pending['repair_action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
                     'plan':'Apply exactly one freshly proven repair mutation from a deterministic text origin; no second destructive mutation is allowed in this action.',
@@ -1802,9 +1833,27 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 corrupt_shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
                 if len(corrupt_sha)!=64 or not isinstance(corrupt_shape,dict):
                     return _task091_terminal('TASK091_TABLE_CELL_FAILURE_SOURCE_UNPROVEN',state)
+                actual_text=str(corrupt_shape.get('text') or '')
+                expected_text=str(pending.get('new') or '')
+                sibling_unchanged=(
+                    _task091_other_shapes_signature(window_state,pending['slide'],pending.get('shape_id'))
+                    == str(pending.get('before_sibling_signature') or '')
+                )
+                suffix_duplicate=(
+                    status=='disk-text-mismatch'
+                    and bool(expected_text)
+                    and actual_text==expected_text+expected_text[-1]
+                    and sibling_unchanged
+                )
+                if suffix_duplicate and int(pending.get('repair_steps') or pending.get('repair_attempts') or 0)==0:
+                    pending['failure_reason']=status
+                    pending['failure_deck_sha256']=corrupt_sha
+                    pending['failure_text']=actual_text
+                    pending['undo_quarantined']=True
+                    return _task091_prepare_atomic_repair(pending,window_state,state)
                 pending['failure_reason']=status
                 pending['failure_deck_sha256']=corrupt_sha
-                pending['failure_text']=str(corrupt_shape.get('text') or '')
+                pending['failure_text']=actual_text
                 pending['undo_quarantined']=True
                 state['mode']='TARGET_FAIL_CLOSED'
                 return _task091_terminal('TASK091_TABLE_CELL_POSTSAVE_MISMATCH_NO_UNDO',state)
