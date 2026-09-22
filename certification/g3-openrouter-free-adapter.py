@@ -1,6 +1,7 @@
 """FREE-only GUI agent: validate and journal each response before issuing an action."""
 import base64
 import csv
+import copy
 import hashlib
 import io
 import json
@@ -353,6 +354,7 @@ class ArbmG3Agent:
         self._history = deque(maxlen=6)
         self._seen = deque(maxlen=12)
         self._memory = ''
+        self._typing_armed = False
         self._task_terminal = None
         # Provider circuit and monotonically increasing call index span tasks.
 
@@ -413,7 +415,9 @@ class ArbmG3Agent:
                    'recent_actions_issued_verify_effect': list(self._history),
                    'screen_changed': self._context['screen_changed'],
                    'unchanged_steps': self._same_screen_steps,
-                   'screen_pixels': [self._width, self._height]}
+                   'screen_pixels': [self._width, self._height],
+                   'typing_admission': {'enabled': self._typing_armed,
+                       'rule': 'First focus a visible input using click or keyboard navigation. A prior focus-capable action is required, but is not proof of focus: verify the current image before typing.'}}
         summary['visible_text_from_same_screenshot'] = self._ocr
         if self._visual_frame is not None:
             frame = self._visual_frame
@@ -447,6 +451,29 @@ class ArbmG3Agent:
                                                         base64.b64encode(self._model_screenshot).decode('ascii')}})
         return [{'role': 'system', 'content': SYSTEM}, {'role': 'user', 'content': content}]
 
+    def _tools_for_state(self):
+        tools = copy.deepcopy(TOOLS)
+        if not self._typing_armed:
+            actions = tools[0]['function']['parameters']['properties']['action']['enum']
+            actions.remove('type')
+        return tools
+
+    def _update_typing_admission(self, action, params):
+        # This is a necessary transition, not a claim that screenshot focus has
+        # been proven. The model still has to verify a visible focused input.
+        if action in ('click', 'double_click'):
+            self._typing_armed = True
+        elif action == 'press_key' and params['key'] in ('tab', 'f6'):
+            self._typing_armed = True
+        elif action == 'hotkey' and set(params['keys']) in ({'ctrl', 'l'}, {'alt', 'd'}):
+            self._typing_armed = True
+        elif action == 'hotkey' and set(params['keys']) == {'ctrl', 'a'}:
+            pass  # Selecting contents preserves an already established transition.
+        elif action == 'type':
+            self._typing_armed = not params.get('press_enter', False)
+        elif action not in ('move', 'wait', 'take_screenshot'):
+            self._typing_armed = False
+
     def _request(self, messages):
         results = queue.Queue(maxsize=1)
         if self._groq_account is not None:
@@ -466,7 +493,7 @@ class ArbmG3Agent:
         def worker():
             try:
                 kwargs = dict(
-                    model=self.model_id, messages=messages, tools=TOOLS,
+                    model=self.model_id, messages=messages, tools=self._tools_for_state(),
                     tool_choice={'type': 'function', 'function': {'name': 'desktop_action'}},
                     parallel_tool_calls=False, max_tokens=1024)
                 if self.provider_gateway == 'groq':
@@ -560,6 +587,8 @@ class ArbmG3Agent:
                 k: payload[k][:240] for k in ('action', 'target', 'expected_change')
                 if isinstance(payload.get(k), str)}
         name, params = validate_action(payload)
+        if name == 'type' and not self._typing_armed:
+            raise StructuralError('TYPE_REQUIRES_FOCUS_TRANSITION')
         if self._visual_frame is not None:
             self._context['model_action_before_projection'] = payload
             params = project_parameters(params, self._visual_frame, to_original=True)
@@ -632,6 +661,7 @@ class ArbmG3Agent:
             if accepted:
                 payload, signature, pair, command = accepted
                 self._memory = payload['state_summary']
+                self._update_typing_admission(payload['action'], payload['parameters'])
                 self._history.append({'action': payload['action'], 'parameters': payload['parameters'],
                                       'target': payload['target'], 'expected_change': payload['expected_change'],
                                       'signature': signature})

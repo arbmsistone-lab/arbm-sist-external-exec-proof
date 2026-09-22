@@ -282,6 +282,45 @@ class FreeAgentTests(unittest.TestCase):
         action['expected_change'] = 'The text field contains the requested literal words.'
         self.assertEqual(agent_module.validate_action(action)[0], 'type')
 
+    def test_initial_type_requires_focus_transition_without_dispatch(self):
+        action = payload('type', text='Application name', press_enter=True)
+        action['target'] = 'Assumed search box.'
+        action['expected_change'] = 'Text appears in search.'
+        self.responses = [response([action]), response()]
+        _, commands = self.predict()
+        self.assertEqual(commands, ['pyautogui.click(x=960, y=540)'])
+        self.assertEqual(len(self.agent._history), 1)
+        self.assertIn('TYPE_REQUIRES_FOCUS_TRANSITION', self.log.read_text())
+        for request in self.calls:
+            choices = request['tools'][0]['function']['parameters']['properties']['action']['enum']
+            self.assertNotIn('type', choices)
+        self.assertIn('type', agent_module.TOOLS[0]['function']['parameters']['properties']['action']['enum'])
+        self.assertEqual(self.assert_accounted(2)['structural_rejections'], 1)
+
+    def test_focus_transition_allows_typing_and_enter_revokes_admission(self):
+        self.responses = [response(), response([payload('hotkey', keys=['ctrl', 'a'])]),
+                          response([payload('type', text='Ordinary text', press_enter=True)])]
+        self.predict()
+        self.predict()
+        _, commands = self.predict()
+        self.assertIn("pyautogui.write('Ordinary text'", commands[0])
+        choices = self.calls[-1]['tools'][0]['function']['parameters']['properties']['action']['enum']
+        self.assertIn('type', choices)
+        self.assertFalse(self.agent._typing_armed)
+        self.assertNotIn('type', self.agent._tools_for_state()[0]['function']['parameters']['properties']['action']['enum'])
+
+    def test_task_reset_revokes_focus_transition(self):
+        self.responses = [response()]
+        self.predict()
+        self.assertTrue(self.agent._typing_armed)
+        self.agent.reset()
+        self.assertFalse(self.agent._typing_armed)
+
+    def test_select_all_cannot_create_focus_transition_on_its_own(self):
+        self.responses = [response([payload('hotkey', keys=['ctrl', 'a'])])]
+        self.predict()
+        self.assertFalse(self.agent._typing_armed)
+
     def test_quota_metadata_sanitized(self):
         error = RuntimeError('secret must never be logged')
         error.status_code = 429
