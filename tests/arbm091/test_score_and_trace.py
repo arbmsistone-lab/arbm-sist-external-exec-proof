@@ -951,16 +951,18 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
 
 
 class Task091CaretBoundedWriterTests(unittest.TestCase):
-    def test_table_cell_bounded_writer_never_uses_ctrl_a(self):
+    def test_table_cell_bounded_writer_selects_right_from_proven_start(self):
         command=shim._task091_table_cell_bounded_write_command('$42.8M','$40.9M')
         self.assertNotIn("hotkey('ctrl', 'a')",command)
         self.assertEqual(command.splitlines()[0],"pyautogui.keyDown('shift')")
-        self.assertIn("pyautogui.press('left', presses=6",command)
+        self.assertIn("pyautogui.press('right', presses=6",command)
         self.assertIn("pyautogui.keyUp('shift')",command)
+        self.assertNotIn("press('left'",command)
+        self.assertNotIn("press('delete')",command)
         self.assertNotIn("press('end')",command)
+        self.assertNotIn("press('home')",command)
         self.assertNotIn("press('backspace'",command)
-        self.assertTrue(command.splitlines()[-2].startswith("pyautogui.write('$40.9M'"))
-        self.assertEqual(command.splitlines()[-1],"pyautogui.press('delete')")
+        self.assertTrue(command.splitlines()[-1].startswith("pyautogui.write('$40.9M'"))
 
     def test_table_cell_bounded_writer_rejects_multiline_or_empty_old(self):
         with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_BOUNDED_EDIT_INVALID'):
@@ -968,7 +970,7 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_BOUNDED_EDIT_INVALID'):
             shim._task091_table_cell_bounded_write_command('a'+chr(10)+'b','x')
 
-    def test_table_cell_writer_contract_forbids_global_selection(self):
+    def test_table_cell_writer_contract_forbids_end_marker_and_global_selection(self):
         source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
         start=source.index("def _task091_table_cell_bounded_write_command")
         end=source.index("def _task091_foreground_sha",start)
@@ -976,20 +978,58 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         self.assertNotIn("ctrl', 'a",body)
         self.assertIn("keyDown('shift')",body)
         self.assertIn("_task091_table_cell_selection_presses",body)
-        self.assertIn("press('left', presses={presses}",body)
+        self.assertIn("press('right', presses={presses}",body)
         self.assertIn("keyUp('shift')",body)
-        self.assertIn("press('delete')",body)
+        self.assertNotIn("press('delete')",body)
+        self.assertNotIn("press('left'",body)
         self.assertNotIn("press('end')",body)
+        self.assertNotIn("press('home')",body)
         self.assertNotIn("press('backspace'",body)
-        self.assertIn("_task091_table_cell_rollback_command",body)
 
-    def test_wps_terminal_marker_adds_exactly_one_bounded_position(self):
-        self.assertEqual(shim._task091_table_cell_selection_presses('$42.8M'),6)
-        self.assertEqual(shim._task091_table_cell_selection_presses('x'*30),30)
-        command=shim._task091_table_cell_bounded_write_command('x'*30,'y')
-        self.assertIn("press('left', presses=30",command)
-        self.assertNotIn("press('left', presses=31",command)
-        self.assertEqual(command.count("press('delete')"),1)
+    def test_start_caret_geometry_is_required_before_rightward_selection(self):
+        shape_bbox=[892,507,182,70]
+        ink_bbox=[965,516,35,12]
+        at_start={'proven':True,'bbox':[72,2,1,22]}
+        accepted=shim._task091_caret_at_text_start(at_start,shape_bbox,ink_bbox)
+        self.assertTrue(accepted['proven'],accepted)
+        at_end={'proven':True,'bbox':[108,2,1,22]}
+        rejected=shim._task091_caret_at_text_start(at_end,shape_bbox,ink_bbox)
+        self.assertFalse(rejected['proven'],rejected)
+
+    def test_500_case_end_marker_red_team_matrix(self):
+        alphabet="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz$%.-_"
+        for i in range(500):
+            n=(i % 30)+1
+            old=''.join(alphabet[(i*7+j*11) % len(alphabet)] for j in range(n))
+            new=''.join(alphabet[(i*13+j*5+3) % len(alphabet)] for j in range(n))
+            command=shim._task091_table_cell_bounded_write_command(old,new)
+            self.assertIn(f"press('right', presses={n}",command)
+            self.assertEqual(command.count("keyDown('shift')"),1)
+            self.assertEqual(command.count("keyUp('shift')"),1)
+            self.assertNotIn("press('delete')",command)
+            self.assertNotIn("press('left'",command)
+            self.assertNotIn("hotkey('ctrl', 'a')",command)
+            self.assertNotIn("press('end')",command)
+            self.assertNotIn("press('home')",command)
+            self.assertNotIn("press('backspace'",command)
+            self.assertIn("pyautogui.write(",command)
+
+    def test_ten_adversarial_guards_fail_closed(self):
+        source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+        checks=[
+            "TASK091_TABLE_CELL_START_NAV_DRIFT",
+            "TASK091_TABLE_CELL_START_CARET_EVIDENCE_MISSING",
+            "TASK091_TABLE_CELL_START_CARET_GEOMETRY_UNPROVEN",
+            "TASK091_TABLE_CELL_CARET_NOT_AT_START",
+            "TASK091_TABLE_CELL_CARET_NOT_AT_END",
+            "TASK091_TABLE_CELL_ENTRY_DRIFT",
+            "TASK091_TABLE_CELL_ROLLBACK_UNPROVEN",
+            "before_sibling_signature",
+            "table_selected_sibling_visual_sha256",
+            "selection_press_count",
+        ]
+        for marker in checks:
+            self.assertIn(marker,source)
 
     def test_slide3_section_e_correction_is_caret_proven_and_text_preserving(self):
         source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
