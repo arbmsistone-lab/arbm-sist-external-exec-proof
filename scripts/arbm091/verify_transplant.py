@@ -712,6 +712,7 @@ def main():
         "1b01e5bfd47c2e26fb18233df75a7be162bd27ca": {".github/workflows/swemilestone-evaluator-binding-probe.yml"},
         "db5a7aa27f82a0cc579ff292ba61c0e31d43d2ab": {".github/workflows/swemilestone-harness-conformance.yml"},
         "6c2894540544674f6df518f3ac3ef18312404b91": {".github/workflows/swemilestone-promotion-binding-probe.yml"},
+        "2b25abbeb839983e4aa1e1d7c9637fcfc351ac1e": {"scripts/generate_hash_locks_temp.sh"},
         "1dc073ddc5a5468b42028646aa15ed4168405a97": {"Dockerfile"},
         "1d41b0f6db80d4757f9a72af4dcdd3cf38c71f64": {".github/workflows/arbm-lockfile-generator-temp.yml"},
     }
