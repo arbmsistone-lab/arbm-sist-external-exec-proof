@@ -897,7 +897,7 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
              patch.object(shim,'_task091_caret_delta_geometry',
                           return_value={'proven':True,'reason':'caret-geometry',
                                         'count':22,'width':1,'height':22,
-                                        'dominant_column':22,'bbox':[91,3,1,22]}):
+                                        'dominant_column':22,'bbox':[111,3,1,22]}):
             state={'anchored':True,'slide':3,'spatial_index':10}
             deck=self._deck('1')
             first=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(deck))
@@ -908,7 +908,7 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
 
             table_selected=self._deck('2')
             second=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(table_selected))
-            self.assertEqual(second['command'],'pyautogui.click(983, 471)')
+            self.assertEqual(second['command'],'pyautogui.click(1003, 469)')
             self.assertEqual(second['specialist_phase'],'table-cell-text-hit-candidate')
             self.assertEqual(state['pending_edit']['stage'],'table-cell-text-hit-issued')
             self.assertEqual(state['pending_edit']['textmode_baseline_source'],'0064-01-after')
@@ -916,7 +916,7 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
 
             text_hit_observed=self._deck('3')
             third=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(text_hit_observed))
-            self.assertEqual(third['command'],'pyautogui.click(983, 471)')
+            self.assertEqual(third['command'],'pyautogui.click(1003, 469)')
             self.assertEqual(third['specialist_phase'],'enter-table-cell-caret-candidate')
             self.assertEqual(state['pending_edit']['stage'],'table-cell-enter-issued')
             self.assertEqual(state['pending_edit']['textmode_first_hit_source'],'0065-01-after')
@@ -927,13 +927,16 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
 
             cell_entered=self._deck('4')
             fourth=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(cell_entered))
-            self.assertEqual(fourth['specialist_phase'],'edit-geometry-proven-table-cell')
+            self.assertEqual(fourth['specialist_phase'],'edit-end-caret-proven-table-cell')
             self.assertEqual(state['pending_edit']['stage'],'edit-issued')
             self.assertTrue(state['pending_edit']['explicit_text_mode'])
             self.assertEqual(state['pending_edit']['caret_geometry']['width'],1)
             self.assertNotIn("ctrl', 'a",fourth['command'])
-            self.assertTrue(fourth['command'].startswith("pyautogui.press('end')"))
-            self.assertIn("backspace', presses=6",fourth['command'])
+            self.assertTrue(fourth['command'].startswith("pyautogui.keyDown('shift')"))
+            self.assertIn("press('left', presses=6",fourth['command'])
+            self.assertNotIn("press('end')",fourth['command'])
+            self.assertNotIn("press('backspace'",fourth['command'])
+            self.assertTrue(state['pending_edit']['caret_end_geometry']['proven'])
 
     def test_table_cell_sibling_drift_blocks_second_click(self):
         with patch.dict(os.environ,{'TASK_ID':'091'},clear=False):
@@ -951,8 +954,11 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
     def test_table_cell_bounded_writer_never_uses_ctrl_a(self):
         command=shim._task091_table_cell_bounded_write_command('$42.8M','$40.9M')
         self.assertNotIn("hotkey('ctrl', 'a')",command)
-        self.assertEqual(command.splitlines()[0],"pyautogui.press('end')")
-        self.assertIn("pyautogui.press('backspace', presses=6",command)
+        self.assertEqual(command.splitlines()[0],"pyautogui.keyDown('shift')")
+        self.assertIn("pyautogui.press('left', presses=6",command)
+        self.assertIn("pyautogui.keyUp('shift')",command)
+        self.assertNotIn("press('end')",command)
+        self.assertNotIn("press('backspace'",command)
         self.assertTrue(command.splitlines()[-1].startswith("pyautogui.write('$40.9M'"))
 
     def test_table_cell_bounded_writer_rejects_multiline_or_empty_old(self):
@@ -967,8 +973,12 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         end=source.index("def _task091_foreground_sha",start)
         body=source[start:end]
         self.assertNotIn("ctrl', 'a",body)
-        self.assertIn("press('end')",body)
-        self.assertIn("press('backspace'",body)
+        self.assertIn("keyDown('shift')",body)
+        self.assertIn("press('left', presses={len(old)}",body)
+        self.assertIn("keyUp('shift')",body)
+        self.assertNotIn("press('end')",body)
+        self.assertNotIn("press('backspace'",body)
+        self.assertIn("_task091_table_cell_rollback_command",body)
 
 
 if __name__ == '__main__':
