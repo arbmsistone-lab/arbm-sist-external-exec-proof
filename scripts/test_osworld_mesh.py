@@ -665,4 +665,63 @@ class MeshTests(unittest.TestCase):
    shim._task091_write_command('x',ensure_text_mode=True)
 
 
+class Task091TransactionalTableCellTests(unittest.TestCase):
+ def test_table_cell_writer_selects_exact_old_text_without_end_or_backspace(self):
+  command=shim._task091_table_cell_bounded_write_command('$42.8M','$40.9M')
+  self.assertNotIn("press('end')",command)
+  self.assertNotIn("press('home')",command)
+  self.assertNotIn("hotkey('ctrl', 'a')",command)
+  self.assertNotIn("press('backspace'",command)
+  self.assertIn("keyDown('shift')",command)
+  self.assertIn("press('left', presses=6",command)
+  self.assertIn("keyUp('shift')",command)
+  self.assertIn("write('$40.9M'",command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_run35749283855_mid_text_caret_is_rejected_and_end_caret_is_proven(self):
+  shape_bbox=[892,436,182,71]
+  text_ink={'ink_bbox':[956,445,52,15],'proof_sha256':'a'*64}
+  end=shim._task091_table_cell_text_end_point(text_ink,shape_bbox)
+  self.assertIsNotNone(end)
+  self.assertEqual([end['cx'],end['cy']],[1011,452])
+  mid={'proven':True,'bbox':[91,3,1,22]}
+  rejected=shim._task091_caret_at_text_end(mid,shape_bbox,text_ink['ink_bbox'],end['cx'])
+  self.assertFalse(rejected['proven'],rejected)
+  self.assertEqual(rejected['caret_x'],983)
+  at_end={'proven':True,'bbox':[119,3,1,22]}
+  accepted=shim._task091_caret_at_text_end(at_end,shape_bbox,text_ink['ink_bbox'],end['cx'])
+  self.assertTrue(accepted['proven'],accepted)
+  self.assertEqual(accepted['caret_x'],1011)
+
+ def test_table_cell_rollback_requires_original_text_and_unchanged_siblings(self):
+  base={
+   'deck_file':{'sha256':'a'*64},
+   'deck_slide_shapes':{'3':[
+    {'id':-13001003,'name':'Table 12#r1c2','text':'$42.8M','kind':'table-cell','geometry':{}},
+    {'id':-13001004,'name':'Table 12#r1c3','text':'Ahead','kind':'table-cell','geometry':{}},
+   ]}
+  }
+  pending={'slide':3,'shape_id':-13001003,'old':'$42.8M','rollback_corrupt_deck_sha256':'b'*64}
+  pending['before_sibling_signature']=shim._task091_other_shapes_signature(base,3,-13001003)
+  corrupt=copy.deepcopy(base)
+  corrupt['deck_file']['sha256']='b'*64
+  corrupt['deck_slide_shapes']['3'][0]['text']='$40.9MM'
+  self.assertFalse(shim._task091_table_cell_rollback_verified(pending,corrupt))
+  restored=copy.deepcopy(base)
+  restored['deck_file']['sha256']='c'*64
+  self.assertTrue(shim._task091_table_cell_rollback_verified(pending,restored))
+  collateral=copy.deepcopy(restored)
+  collateral['deck_slide_shapes']['3'][1]['text']='Changed'
+  self.assertFalse(shim._task091_table_cell_rollback_verified(pending,collateral))
+
+ def test_table_cell_rollback_command_is_single_undo_persist_transaction(self):
+  command=shim._task091_table_cell_rollback_command()
+  self.assertEqual(command.count("hotkey('ctrl', 'z')"),1)
+  self.assertEqual(command.count("hotkey('ctrl', 's')"),1)
+  self.assertNotIn('pyautogui.write(',command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+
 if __name__=='__main__':unittest.main()
