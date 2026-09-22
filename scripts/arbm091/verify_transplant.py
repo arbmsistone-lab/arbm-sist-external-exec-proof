@@ -649,7 +649,7 @@ def main():
     require(len(post_legacy) >= 186, 'POST_LEGACY_REFINEMENT_COUNT_MISMATCH')
 
     # Validação de Escopo e Proveniência Estrita na Cauda (186)
-    allowed_post_scope = {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST, SENIOR_BOARD, SENIOR_TEST, GLOBAL_GATE, GLOBAL_TEST, ".github/workflows/arbm-world-free-codeql-scorecard.yml", "SECURITY.md", ".github/dependabot.yml", "audit/arbm-world-free-assurance.json", ".github/CODEOWNERS", "scripts/arbm_safe_http.py", "scripts/requirements-osworld.txt", "scripts/osworld_gimp_sample_probe.py", "scripts/arbm091/install_observer.py"}
+    allowed_post_scope = {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST, SENIOR_BOARD, SENIOR_TEST, GLOBAL_GATE, GLOBAL_TEST, ".github/workflows/arbm-world-free-codeql-scorecard.yml", "SECURITY.md", ".github/dependabot.yml", "audit/arbm-world-free-assurance.json", ".github/CODEOWNERS", "scripts/arbm_safe_http.py", "scripts/requirements-osworld.txt", "scripts/osworld_gimp_sample_probe.py", "scripts/arbm091/install_observer.py", "scripts/osworld_groq_free.py"}
     for c_node in post_legacy:
         c_files = set(git('diff-tree', '--no-commit-id', '--name-only', '-r', c_node).splitlines())
         require(c_files.issubset(allowed_post_scope), 'POST_LEGACY_COMMIT_SCOPE_VIOLATION:' + c_node)
