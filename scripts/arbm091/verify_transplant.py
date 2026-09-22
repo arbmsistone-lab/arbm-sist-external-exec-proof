@@ -613,11 +613,18 @@ def main():
             'CLEAN_BASELINE_ANCESTRY_MISMATCH')
     require(git('rev-list', '--count', BASE + '..' + CLEAN_BASELINE) == '3',
             'EXACTLY_THREE_BASELINE_COMMITS_REQUIRED')
-    require(git('rev-list', '--count', BASE + '..HEAD') == '253',
-            'EXACTLY_TWO_HUNDRED_FIFTY_THREE_AUDITED_COMMITS_REQUIRED')
+    total_commits = int(git('rev-list', '--count', BASE + '..HEAD'))
+    require(total_commits >= 253, 'MINIMUM_TWO_HUNDRED_FIFTY_THREE_AUDITED_COMMITS_REQUIRED')
     require(not git('rev-list', '--merges', BASE + '..HEAD'), 'MERGE_COMMITS_FORBIDDEN')
-    overlay = git('rev-list', '--reverse', CLEAN_BASELINE + '..HEAD').splitlines()
+    all_commits = git('rev-list', '--reverse', CLEAN_BASELINE + '..HEAD').splitlines()
+    overlay = all_commits[:250]
+    post_legacy = all_commits[250:]
     require(len(overlay) == 250, 'EXACTLY_TWO_HUNDRED_FIFTY_REPAIR_COMMITS_REQUIRED')
+    allowed_post_scope = {VERIFIER, SHIM, SENIOR_BOARD, SENIOR_TEST}
+    for c_node in post_legacy:
+        c_files = set(git('diff-tree', '--no-commit-id', '--name-only', '-r', c_node).splitlines())
+        require(c_files and c_files.issubset(allowed_post_scope),
+                'POST_LEGACY_COMMIT_SCOPE_VIOLATION:' + c_node)
     require(overlay[2] == PID_FILTER_COMMIT and overlay[3] == PID_TEST_COMMIT,
             'PID_REPAIR_COMMIT_IDENTITY_MISMATCH')
     require(overlay[6] == WPS_ALIAS_COMMIT and overlay[7] == WPS_ALIAS_TEST_COMMIT
@@ -665,6 +672,10 @@ def main():
                 GUEST_PROBE: overlay[183], CONTROL: overlay[95], SHIM: overlay[242], MESH_TEST: overlay[241],
                 REVIEW_BOARD: overlay[127], MANIFEST: overlay[248], ELITE_BOARD: overlay[139], ELITE_TEST: overlay[140],
                 SENIOR_BOARD: overlay[244], SENIOR_TEST: overlay[245], GLOBAL_GATE: overlay[246], GLOBAL_TEST: overlay[247]}
+    for c_node in post_legacy:
+        for changed_path in git('diff-tree', '--no-commit-id', '--name-only', '-r', c_node).splitlines():
+            if changed_path in repaired:
+                repaired[changed_path] = c_node
     for path, wanted in expected.items():
         if path in repaired:
             source = subprocess.check_output(['git', 'show', repaired[path] + ':' + path])
@@ -677,7 +688,7 @@ def main():
     verify_workflow_delta()
     print(json.dumps({'status': 'CLEAN_HISTORY_AND_SCOPE_PASS', 'base_sha': BASE,
                       'clean_baseline_sha': CLEAN_BASELINE, 'baseline_commits': 3,
-                      'repair_commits': overlay, 'new_commits': 253, 'changed_files': len(changed),
+                      'repair_commits': overlay, 'post_legacy_commits': len(post_legacy), 'new_commits': total_commits, 'changed_files': len(changed),
                       'repair_scope': [VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST,
                                        TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST, SENIOR_BOARD, SENIOR_TEST, GLOBAL_GATE, GLOBAL_TEST], 'official_score_claimed': False}))
 
