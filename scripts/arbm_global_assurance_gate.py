@@ -126,6 +126,10 @@ def inspect_repo(root="."):
         and "TASK091_TABLE_CELL_POSTSAVE_MISMATCH_NO_UNDO" in shim
         and "def _task091_table_cell_suffix_duplicate_repair_command" in shim
         and "actual_text==expected_text+expected_text[-1]" in shim
+        and "is_table_cell=str(pending.get('shape_kind') or '')=='table-cell'" in shim
+        and "corrupt_shape=_task091_shape_by_id" in shim
+        and "current_text==expected_text+expected_text[-1]" in shim
+        and "repair_plan != expected_plan" in shim
         and "sibling_unchanged" in shim
         and "TASK091_TABLE_CELL_SUFFIX_REPAIR_NOT_PROVEN" in shim)
     section_e_containment=(
