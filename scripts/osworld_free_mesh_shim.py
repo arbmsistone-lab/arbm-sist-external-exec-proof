@@ -218,6 +218,21 @@ def _task091_table_cell_selection_presses(old):
     return presses
 
 
+def _task091_table_cell_start_navigation_presses(old):
+    """Account for the proven WPS terminal cell marker during non-selecting navigation.
+
+    Focal run 35775754024 proved that len(old) plain Left presses from the
+    geometrically proven end caret landed logically after the first visible
+    glyph, yielding '$40.9M'. One additional plain Left is therefore required
+    before start-caret proof. This helper is never used with Shift.
+    """
+    visible=_task091_table_cell_selection_presses(old)
+    presses=visible+1
+    if not 2 <= presses <= 31:
+        raise ValueError('TASK091_TABLE_CELL_START_NAV_LENGTH_INVALID')
+    return presses
+
+
 def _task091_table_cell_bounded_write_command(old, new, interval=TASK091_TYPE_INTERVAL):
     """Replace one single-line cell from a separately proven start caret.
 
@@ -1558,13 +1573,15 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             pending['selection_ack_foreground_sha256']=current_fg
             pending['explicit_text_mode']=True
             selection_presses=_task091_table_cell_selection_presses(pending['old'])
+            start_nav_presses=_task091_table_cell_start_navigation_presses(pending['old'])
             pending['selection_press_count']=selection_presses
+            pending['start_navigation_press_count']=start_nav_presses
             pending['stage']='table-cell-start-nav-issued'
-            command=(f"pyautogui.press('left', presses={selection_presses}, interval=0.03)\n"
+            command=(f"pyautogui.press('left', presses={start_nav_presses}, interval=0.03)\n"
                      "pyautogui.sleep(0.20)")
             pending['start_nav_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
-                    'plan':f"Move exactly {selection_presses} positions left from the proven end caret without selecting anything. This keeps the WPS end-of-cell marker outside every selection.",
+                    'plan':f"Move exactly {start_nav_presses} positions left without Shift: {selection_presses} visible glyph positions plus the one focal-proven WPS terminal-marker offset. Re-prove the caret before any selection.",
                     'specialist_phase':'move-table-caret-to-proven-start'}
 
         if stage in ('table-cell-start-nav-issued','table-cell-start-caret-probe-issued','table-cell-start-normalize-issued'):
