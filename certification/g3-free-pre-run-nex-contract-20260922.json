@@ -1,0 +1,45 @@
+{
+  "observed_at_utc": "2026-09-22T00:15:37.535084+00:00",
+  "base_sha": "bdf4d8332df457caf327cc58eec86a6f78b95f34",
+  "branch": "g3-free-cert-recovery-20260915",
+  "A": "PASS: 63 tests, compile, lint and diff; Nex transport contract tested and previous OpenRouter/Groq policies preserved; diagnostics expose only fixed allowlisted vocabulary",
+  "B": "PASS: probe/workflow/benchmark pins unchanged; no task-specific code or evaluator information; no secrets/raw provider errors published",
+  "C": "PASS_FOR_ONE_GATED_NEX_CONTRACT_RETEST: current free endpoint prices=0, image/tool contract advertised; max_price=0, fallback disabled; failure never prepares VM and terminal provider errors never retry",
+  "model": "nex-agi/nex-n2.5-mini:free",
+  "provider": "openrouter",
+  "coordinate_grid": true,
+  "square_observation": true,
+  "ZERO_SPEND": true,
+  "HEAVY_LOCAL": 0,
+  "max_new_spend_usd": "0",
+  "max_output_tokens": 1024,
+  "tests_passed": 63,
+  "tests_receipt_sha256": "c6823dc02a22a706d88cecacf576047194343a921e4bb911739843231ea1516f",
+  "files_sha256_lf": {
+    "certification/g3-openrouter-free-adapter.py": "050824bd94b85224fc52682e47a876e0c8070d5827c18e368fd16fb10126434d",
+    "tests/test_g3_free_agent.py": "7f502e7e2e23f57704c8971887cd76f40208a15d54e6a8548594d9232de2edd2",
+    "certification/g3_free_control.py": "fe4a6e24538bf48a08ec77b722052b45b4d224e17c3cbcb968bb1bceb1aa5349",
+    ".github/workflows/osworld-g3-free-smoke-v1.yml": "b92c5b70b82524caafde264d3a34f78565c10633fe6695c92cca3a7dfe1ba450"
+  },
+  "previous_run": 35670774700,
+  "previous_artifact": {
+    "id": 10671230061,
+    "sha256": "c686ee4d6eb766fea7289e5405a7cb0bb50dd0c52522301a917930bee4ffea87"
+  },
+  "previous_outcome": {
+    "http_status": 400,
+    "completed_inferences": 0,
+    "usage": null,
+    "reported_cost_usd": null,
+    "provider_retries": 0,
+    "vm_prepared": false,
+    "official_score": null
+  },
+  "root_cause_status": "HTTP 400 request rejection proven; exact provider validation detail was not retained, so precise cause remains unknown.",
+  "hypothesis": "The Nex native reasoning_effort=none contract may avoid gateway translation ambiguity of generic reasoning.enabled=false. If 400 persists, fixed-vocabulary diagnostics identify parameter categories without retaining raw error content; no VM.",
+  "primary_contract_source": "https://github.com/nex-agi/Nex-N2.5",
+  "endpoint_source": "https://openrouter.ai/api/v1/models/nex-agi/nex-n2.5-mini:free/endpoints",
+  "guardrails": "No changes to probe or score thresholds; no retry sequence or paid route.",
+  "official_score": null,
+  "full_suite_and_stability": "NOT_ADMITTED"
+}

@@ -165,7 +165,7 @@ def classify(error):
 
 
 def provider_error_details(error):
-    """Only public quota metadata; never persist error bodies or authentication headers."""
+    """Allowlisted diagnostics only; never persist error bodies or authentication headers."""
     response = getattr(error, 'response', None)
     headers = getattr(response, 'headers', {}) or {}
     safe = {}
@@ -191,8 +191,20 @@ def provider_error_details(error):
         scope = unit[1].upper() + '_PER_' + unit[2].upper()
     quota_values = {name: int(value) for name, value in
                     re.findall(r'\b(limit|used|requested)\s*[:=]?\s*(\d{1,12})\b', message)}
+    # OpenRouter may nest upstream validation details in metadata.raw. Match
+    # fixed public parameter/category names without retaining that raw payload.
+    metadata = nested.get('metadata')
+    raw = metadata.get('raw', '') if isinstance(metadata, dict) else ''
+    diagnostic = message + ' ' + str(raw)[:20000].lower()
+    vocabulary = ('tool_choice', 'parallel_tool_calls', 'reasoning_effort', 'reasoning',
+                  'max_tokens', 'max_completion_tokens', 'temperature', 'messages',
+                  'image', 'schema', 'grammar', 'unsupported', 'not supported',
+                  'invalid', 'required', 'missing', 'incompatible', 'budget', 'disabled')
+    tags = [word for word in vocabulary if re.search(r'(?<![a-z0-9_])' +
+                                                   re.escape(word) + r'(?![a-z0-9_])', diagnostic)]
     return {'http_status': getattr(error, 'status_code', None), 'quota_headers': safe,
-            'quota_scope': scope, 'quota_values': quota_values, 'provider_retry_attempts': 0}
+            'quota_scope': scope, 'quota_values': quota_values, 'provider_retry_attempts': 0,
+            'provider_error_tags': tags}
 
 
 def screenshot_ocr(screenshot, width, height):
@@ -460,10 +472,15 @@ class ArbmG3Agent:
                 if self.provider_gateway == 'groq':
                     kwargs.update(temperature=0.7, reasoning_effort='none')
                 else:
-                    kwargs.update(temperature=0, extra_body={
-                        'provider': {'allow_fallbacks': False,
-                                     'max_price': {'prompt': 0, 'completion': 0}},
-                        'reasoning': {'enabled': False}})
+                    extra = {'provider': {'allow_fallbacks': False,
+                                          'max_price': {'prompt': 0, 'completion': 0}}}
+                    if self.model_id == 'nex-agi/nex-n2.5-mini:free':
+                        # Nex's published chat contract selects its mode with
+                        # reasoning_effort, not an enable_thinking-style flag.
+                        kwargs['reasoning_effort'] = 'none'
+                    else:
+                        extra['reasoning'] = {'enabled': False}
+                    kwargs.update(temperature=0, extra_body=extra)
                 if self._groq_account is not None:
                     from g3_groq_account import quota_headers
                     raw = self.client.chat.completions.with_raw_response.create(**kwargs)

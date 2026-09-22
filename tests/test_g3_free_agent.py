@@ -340,6 +340,39 @@ class FreeAgentTests(unittest.TestCase):
         rows = [json.loads(line) for line in self.log.read_text().splitlines()]
         self.assertEqual(rows[-1]['provider_gateway'], 'groq')
 
+    def test_nex_native_reasoning_contract_preserves_zero_price_routing(self):
+        model = 'nex-agi/nex-n2.5-mini:free'
+        self.responses = [response(model=model)]
+        with patch.dict(os.environ, {'ARBM_G3_FREE_MODEL': model}):
+            agent = agent_module.ArbmG3Agent(client=self.agent.client)
+            agent.predict('Select the visible button.', self.obs)
+        request = self.calls[-1]
+        self.assertEqual(request['reasoning_effort'], 'none')
+        self.assertNotIn('reasoning', request['extra_body'])
+        self.assertEqual(request['extra_body']['provider']['max_price'], {'prompt': 0, 'completion': 0})
+        self.assertFalse(request['extra_body']['provider']['allow_fallbacks'])
+        self.assertEqual(request['max_tokens'], 1024)
+
+    def test_other_openrouter_models_keep_existing_reasoning_contract(self):
+        for model in (agent_module.MODEL, 'inclusionai/ling-3.0-flash-vl:free'):
+            self.responses = [response(model=model)]
+            with patch.dict(os.environ, {'ARBM_G3_FREE_MODEL': model}):
+                agent = agent_module.ArbmG3Agent(client=self.agent.client)
+                agent.predict('Select the visible button.', self.obs)
+            request = self.calls[-1]
+            self.assertNotIn('reasoning_effort', request)
+            self.assertEqual(request['extra_body']['reasoning'], {'enabled': False})
+
+    def test_nested_provider_error_retains_only_fixed_diagnostic_tags(self):
+        error = RuntimeError('secret-runtime-error')
+        error.status_code = 400
+        error.body = {'error': {'message': 'Provider returned error', 'metadata': {
+            'raw': json.dumps({'message': 'tool_choice unsupported with reasoning_effort; secret-value-123'})}}}
+        details = agent_module.provider_error_details(error)
+        self.assertEqual(details['provider_error_tags'], ['tool_choice', 'reasoning_effort', 'unsupported'])
+        self.assertNotIn('secret', json.dumps(details))
+        self.assertEqual(details['provider_retry_attempts'], 0)
+
     def test_groq_flag_cannot_admit_live_client(self):
         with patch.dict(os.environ, {'ARBM_G3_PROVIDER': 'groq',
                                      'ARBM_G3_FREE_MODEL': 'qwen/qwen3.8-27b',
