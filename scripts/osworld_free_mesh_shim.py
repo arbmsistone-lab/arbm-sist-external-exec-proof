@@ -1,5 +1,5 @@
 """OpenAI-compatible OSWorld bridge. All guest execution stays in official OSWorld."""
-import argparse, json, os, re, time, urllib.request, urllib.error, hashlib, threading
+import argparse, json, os, re, time, hashlib, threading
 from pathlib import Path
 from PIL import Image
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -14,6 +14,7 @@ from osworld_local_vlm import LOCAL_VLM_ROUTE, warm_runtime
 from osworld_recovery import recovery_policy, rejects_visual_navigation_loop, semantic_terminal
 from osworld_elite_controller import EliteController
 from arbm_senior_elite_board import require_unanimous as require_senior_elite
+from arbm_safe_http import SafeHttpError, request_json
 from osworld_gimp_style_transfer import next_recovery_action
 from osworld_061_calibrated_grade import next_calibrated_action, DONE as CAL_DONE
 
@@ -296,6 +297,68 @@ def _task091_caret_delta_geometry(before_source, after_source, bbox):
     return {'proven':proven,'reason':'caret-geometry' if proven else 'delta-not-caret',
             'count':count,'width':dw,'height':dh,'dominant_column':dominant,
             'bbox':[min(xs),min(ys),dw,dh]}
+
+def _task091_table_cell_text_ink_point(window_state, bbox, inset=8, threshold=24):
+    """Derive a click point from observed text ink inside one proven table cell.
+
+    The PPTX geometry proves which cell is targeted; the current screenshot proves
+    where visible glyph ink actually sits inside that cell. Borders are excluded,
+    the dominant interior background is estimated by per-channel median, and only
+    bounded high-contrast ink is admitted.
+    """
+    path=_task091_screenshot_path(window_state)
+    if path is None or not isinstance(bbox,list) or len(bbox)!=4:
+        return None
+    if not all(type(v) is int for v in bbox):
+        return None
+    x,y,w,h=bbox
+    if w <= 2*inset+4 or h <= 2*inset+4:
+        return None
+    try:
+        with Image.open(path) as image:
+            rgb=image.convert('RGB')
+            left=x+inset; top=y+inset; right=x+w-inset; bottom=y+h-inset
+            crop=rgb.crop((left,top,right,bottom))
+            iw,ih=crop.size
+            pixels=list(crop.getdata())
+    except Exception:
+        return None
+    if not pixels:
+        return None
+    channels=[]
+    for channel in range(3):
+        values=sorted(int(px[channel]) for px in pixels)
+        channels.append(values[len(values)//2])
+    background=tuple(channels)
+    xs=[]; ys=[]
+    for py in range(ih):
+        for px in range(iw):
+            value=crop.getpixel((px,py))
+            if max(abs(int(value[i])-background[i]) for i in range(3)) < int(threshold):
+                continue
+            xs.append(px); ys.append(py)
+    count=len(xs)
+    if count < 12 or count > min(2000,max(12,(iw*ih)//2)):
+        return None
+    ink_w=max(xs)-min(xs)+1; ink_h=max(ys)-min(ys)+1
+    if ink_w < 2 or ink_h < 5 or ink_h > min(40,ih) or ink_w > iw-2:
+        return None
+    cx=left+int(round(sum(xs)/count))
+    cy=top+int(round(sum(ys)/count))
+    if not (left <= cx < right and top <= cy < bottom):
+        return None
+    payload={
+        'source':str(window_state.get('source') or ''),
+        'screenshot_sha256':str(window_state.get('screenshot_sha256') or ''),
+        'cell_bbox':[x,y,w,h],
+        'background':list(background),
+        'threshold':int(threshold),
+        'ink_bbox':[left+min(xs),top+min(ys),ink_w,ink_h],
+        'ink_pixels':count,
+        'point':[cx,cy],
+    }
+    proof=hashlib.sha256(json.dumps(payload,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+    return {**payload,'cx':cx,'cy':cy,'proof_sha256':proof}
 
 def _task091_region_sha256(window_state, bbox, inset=6):
     path=_task091_screenshot_path(window_state)
@@ -887,12 +950,17 @@ def next_091_specialist_action(instruction, active_application, observation, sta
     state.setdefault('target_retries',0)
     window_state=window_state if window_state is not None else _task091_window_state()
 
-    # First turn only synchronizes trusted guest window state through the observer.
+    # Synchronize trusted guest window state with a strictly bounded retry budget.
     if window_state is None:
         state['mode']='TRANSIENT_WPS'
+        sync_retries=int(state.get('sync_window_retries') or 0)+1
+        state['sync_window_retries']=sync_retries
+        if sync_retries > 2:
+            return _task091_terminal('TASK091_WINDOW_SYNC_EXHAUSTED',state)
         return {'action':'exec','command':"pyautogui.sleep(0.2)",
                 'plan':'Synchronize trusted guest foreground state before any task action.',
                 'specialist_phase':'sync-window-state'}
+    state.pop('sync_window_retries',None)
 
     try:
         app=classify_wps_window(window_state.get('window',{}))
@@ -991,7 +1059,6 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                        'select-issued':'TARGET_SELECTION_PENDING',
                        'table-select-issued':'TARGET_TABLE_SELECTED_PENDING',
                        'table-cell-enter-issued':'TARGET_CELL_TEXTMODE_PENDING',
-                       'table-caret-blink-wait':'TARGET_CARET_PROOF_PENDING',
                        'edit-issued':'TARGET_EDITING',
                        'commit-issued':'TARGET_COMMITTED','save-issued':'TARGET_VERIFYING',
                        'repair-reselect-required':'TARGET_RESELECT_REQUIRED',
@@ -1076,35 +1143,41 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             pending['table_frame_id']=frame_id
             pending['table_selected_target_visual_sha256']=target_visual
             pending['table_selected_sibling_visual_sha256']=sibling_visual
-            pending['stage']='table-cell-enter-issued'
-            cx=int(pending.get('text_hit_x') or 0); cy=int(pending.get('text_hit_y') or 0)
+            text_ink=_task091_table_cell_text_ink_point(
+                window_state,list(pending.get('shape_bbox') or []))
+            if text_ink is None:
+                return _task091_terminal('TASK091_TABLE_TEXT_INK_UNPROVEN',state)
+            pending['table_text_hit_x']=int(text_ink['cx'])
+            pending['table_text_hit_y']=int(text_ink['cy'])
+            pending['table_text_ink_bbox']=list(text_ink['ink_bbox'])
+            pending['table_text_ink_pixels']=int(text_ink['ink_pixels'])
+            pending['table_text_ink_proof_sha256']=str(text_ink['proof_sha256'])
+            pending['table_text_ink_source']=str(text_ink['source'])
+            pending['stage']='table-cell-text-hit-issued'
+            pending['textmode_baseline_source']=str(window_state.get('source') or '')
+            cx=int(text_ink['cx']); cy=int(text_ink['cy'])
             command=f"pyautogui.click({cx}, {cy})"
-            pending['cell_enter_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+            pending['cell_text_hit_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             stored=pending.get('target') if isinstance(pending.get('target'),dict) else {}
-            bbox=stored.get('bbox') if isinstance(stored.get('bbox'),list) else []
-            if len(bbox)!=4:
-                return _task091_terminal('TASK091_TABLE_CANONICAL_PROOF_MISSING',state)
             action_target={'source':'task091-pptx-canonical','label':stored.get('label'),
                            'role':stored.get('role'),'slide':stored.get('slide'),
-                           'x':int(bbox[0]),'y':int(bbox[1]),'w':int(bbox[2]),'h':int(bbox[3]),
-                           'cx':int(stored.get('cx') or 0),'cy':int(stored.get('cy') or 0),
+                           'x':cx-1,'y':cy-1,'w':2,'h':2,'cx':cx,'cy':cy,
                            'foreground_sha256':stored.get('foreground_sha256'),
-                           'deck_sha256':stored.get('deck_sha256'),
-                           'proof_sha256':stored.get('proof_sha256')}
+                           'deck_sha256':stored.get('deck_sha256')}
+            action_target['proof_sha256']=task091_spatial_target_proof(action_target)
+            pending['table_text_action_proof_sha256']=action_target['proof_sha256']
             return {'action':'exec','command':command,
                     'target':action_target,
-                    'plan':'The exact table container is selected; click the target cell once more, then prove a blinking caret before any text mutation.',
-                    'specialist_phase':'enter-table-cell-caret-candidate'}
-        if stage == 'table-cell-enter-issued':
+                    'plan':'The exact table container is selected; click the raster-proven text ink point once, re-observe all invariants, then issue one separately audited text-mode click. No text mutation is allowed yet.',
+                    'specialist_phase':'table-cell-text-hit-candidate'}
+        if stage == 'table-cell-text-hit-issued':
             current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
             current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
+            current_fg=_task091_foreground_sha(window_state)
             shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
             siblings=_task091_other_shapes_signature(window_state,pending['slide'],pending.get('shape_id'))
             sibling_visual=_task091_table_visual_signature(
                 window_state,pending['slide'],pending.get('table_frame_id'),pending.get('shape_id'))
-            bbox=list(pending.get('shape_bbox') or [])
-            caret=_task091_caret_delta_geometry(
-                pending.get('table_selected_source'),window_state.get('source'),bbox)
             safe=(current_sha == str(pending.get('before_deck_sha256') or '')
                   and int(window_state.get('active_slide') or 0) == int(pending.get('slide') or 0)
                   and shape is not None
@@ -1112,17 +1185,84 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                   and str(shape.get('text') or '') == str(pending.get('old') or '')
                   and siblings == str(pending.get('before_sibling_signature') or '')
                   and siblings == str(pending.get('table_selected_sibling_signature') or '')
+                  and len(current_fg)==64
+                  and current_fg == str(pending.get('selection_foreground_sha256') or '')
                   and len(sibling_visual)==64
-                  and sibling_visual == str(pending.get('table_selected_sibling_visual_sha256') or ''))
+                  and sibling_visual == str(pending.get('table_selected_sibling_visual_sha256') or '')
+                  and len(str(pending.get('table_text_ink_proof_sha256') or ''))==64
+                  and len(str(pending.get('cell_text_hit_command_hash') or ''))==64)
+            if not safe:
+                return _task091_terminal('TASK091_TABLE_TEXT_HIT_DRIFT',state)
+            source=str(window_state.get('source') or '')
+            baseline=str(pending.get('textmode_baseline_source') or '')
+            if (not re.fullmatch(r'\d{4}-\d{2}-(?:before|after)',source)
+                    or not re.fullmatch(r'\d{4}-\d{2}-(?:before|after)',baseline)):
+                return _task091_terminal('TASK091_TABLE_TEXTMODE_EVIDENCE_MISSING',state)
+            cx=int(pending.get('table_text_hit_x') or 0); cy=int(pending.get('table_text_hit_y') or 0)
+            if cx<=0 or cy<=0:
+                return _task091_terminal('TASK091_TABLE_TEXT_HIT_GEOMETRY_UNPROVEN',state)
+            pending['stage']='table-cell-enter-issued'
+            pending['textmode_first_hit_source']=source
+            command=f"pyautogui.click({cx}, {cy})"
+            pending['cell_enter_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+            stored=pending.get('target') if isinstance(pending.get('target'),dict) else {}
+            action_target={'source':'task091-pptx-canonical','label':stored.get('label'),
+                           'role':stored.get('role'),'slide':stored.get('slide'),
+                           'x':cx-1,'y':cy-1,'w':2,'h':2,'cx':cx,'cy':cy,
+                           'foreground_sha256':stored.get('foreground_sha256'),
+                           'deck_sha256':stored.get('deck_sha256')}
+            action_target['proof_sha256']=task091_spatial_target_proof(action_target)
+            return {'action':'exec','command':command,'target':action_target,
+                    'plan':'The first raster-proven text hit preserved every deck/table invariant. Issue exactly one separately observed second click at the same signed ink point, then prove text mode against the immutable pre-hit baseline.',
+                    'specialist_phase':'enter-table-cell-caret-candidate'}
+        if stage in ('table-cell-enter-issued','table-cell-caret-probe-issued'):
+            current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
+            current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
+            current_fg=_task091_foreground_sha(window_state)
+            shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
+            siblings=_task091_other_shapes_signature(window_state,pending['slide'],pending.get('shape_id'))
+            sibling_visual=_task091_table_visual_signature(
+                window_state,pending['slide'],pending.get('table_frame_id'),pending.get('shape_id'))
+            bbox=list(pending.get('shape_bbox') or [])
+            baseline=str(pending.get('textmode_baseline_source') or '')
+            caret=_task091_caret_delta_geometry(baseline,window_state.get('source'),bbox)
+            safe=(current_sha == str(pending.get('before_deck_sha256') or '')
+                  and int(window_state.get('active_slide') or 0) == int(pending.get('slide') or 0)
+                  and shape is not None
+                  and str(shape.get('kind') or '') == 'table-cell'
+                  and str(shape.get('text') or '') == str(pending.get('old') or '')
+                  and siblings == str(pending.get('before_sibling_signature') or '')
+                  and siblings == str(pending.get('table_selected_sibling_signature') or '')
+                  and len(current_fg)==64
+                  and current_fg == str(pending.get('selection_foreground_sha256') or '')
+                  and len(sibling_visual)==64
+                  and sibling_visual == str(pending.get('table_selected_sibling_visual_sha256') or '')
+                  and len(str(pending.get('table_text_ink_proof_sha256') or ''))==64
+                  and len(str(pending.get('cell_enter_command_hash') or ''))==64
+                  and re.fullmatch(r'\d{4}-\d{2}-(?:before|after)',baseline) is not None)
             if not safe:
                 return _task091_terminal('TASK091_TABLE_CELL_ENTRY_DRIFT',state)
-            if caret.get('proven') is not True:
-                pending['caret_geometry']=caret
-                return _task091_terminal('TASK091_TABLE_CELL_CARET_GEOMETRY_UNPROVEN',state)
-            pending['selected_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
-            pending['selection_ack_foreground_sha256']=_task091_foreground_sha(window_state)
-            pending['explicit_text_mode']=True
             pending['caret_geometry']=caret
+            pending['caret_baseline_source']=baseline
+            pending['caret_observed_source']=str(window_state.get('source') or '')
+            if caret.get('proven') is not True:
+                attempts=int(pending.get('caret_probe_attempts') or 0)
+                source=str(window_state.get('source') or '')
+                if not re.fullmatch(r'\d{4}-\d{2}-(?:before|after)',source):
+                    return _task091_terminal('TASK091_TABLE_CELL_CARET_EVIDENCE_MISSING',state)
+                if attempts >= 4:
+                    return _task091_terminal('TASK091_TABLE_CELL_CARET_GEOMETRY_UNPROVEN',state)
+                pending['caret_probe_attempts']=attempts+1
+                pending['stage']='table-cell-caret-probe-issued'
+                delay=(0.30,0.55,0.80,1.05)[attempts]
+                command=f"pyautogui.sleep({delay:.2f})"
+                pending['caret_probe_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+                return {'action':'exec','command':command,
+                        'plan':'Sample the unchanged signed cell against the immutable pre-text-mode baseline. Mutation remains forbidden until narrow caret geometry is positively proven.',
+                        'specialist_phase':f'table-cell-caret-baseline-probe-{attempts+1}'}
+            pending['selected_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
+            pending['selection_ack_foreground_sha256']=current_fg
+            pending['explicit_text_mode']=True
             pending['stage']='edit-issued'
             command=_task091_table_cell_bounded_write_command(pending['old'],pending['new'])
             pending['action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
@@ -1402,7 +1542,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 'target':action_target,
                 'plan':(f'Select the exact table containing {old!r}; text entry requires a second separately observed cell click.'
                         if is_table_cell else
-                        f'Select the signed Task 091 point derived from the unique target-PPTX shape geometry for {old!r} on slide {slide}.'),
+                        f'Activate the signed Task 091 point using unique target-PPTX shape geometry for {old!r} on slide {slide}.'),
                 'specialist_phase':('select-table-container' if is_table_cell else 'select-pending-target')}
 
     if state.get('pending_edit'):
@@ -1583,11 +1723,17 @@ def content_parts(content):
 
 def oidc_token():
     url=os.environ['ACTIONS_ID_TOKEN_REQUEST_URL'];token=os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']
-    req=urllib.request.Request(url+('&' if '?' in url else '?')+'audience=arbm-sist-benchmark',headers={'Authorization':'Bearer '+token})
-    with urllib.request.urlopen(req,timeout=20) as res:return json.loads(res.read())['value']
+    target=url+('&' if '?' in url else '?')+'audience=arbm-sist-benchmark'
+    try:
+        status,data,_=request_json(
+            target,headers={'Authorization':'Bearer '+token},timeout=20)
+    except (SafeHttpError,OSError,TimeoutError,ValueError) as exc:
+        raise RuntimeError('OIDC_TRANSPORT_FAILED:'+type(exc).__name__) from exc
+    if status != 200 or not isinstance(data,dict) or not str(data.get('value') or ''):
+        raise RuntimeError('OIDC_TOKEN_UNAVAILABLE:'+str(status))
+    return data['value']
 
 def task_from(messages):
-    import re
     system='\n'.join(content_parts(m.get('content'))[0] for m in messages if m.get('role')=='system')
     match=re.search(r'You are asked to complete the following task:\s*(.*)$',system,re.S)
     return match.group(1).strip() if match else system[-7000:]
@@ -1638,14 +1784,13 @@ def track_attempts(data):
 
 def request_gateway(body, timeout=75):
     raw=json.dumps(body,ensure_ascii=False).encode()
-    req=urllib.request.Request(UPSTREAM,data=raw,method='POST',headers={'Authorization':'Bearer '+oidc_token(),'Content-Type':'application/json'})
+    headers={'Authorization':'Bearer '+oidc_token(),'Content-Type':'application/json'}
     try:
-        with urllib.request.urlopen(req,timeout=max(2,min(float(timeout),75))) as res:return res.status,json.loads(res.read())
-    except urllib.error.HTTPError as err:
-        try:data=json.loads(err.read())
-        except (json.JSONDecodeError, UnicodeDecodeError):data={'status':'INVALID_UPSTREAM_RESPONSE'}
-        return err.code,data
-    except (urllib.error.URLError,TimeoutError,json.JSONDecodeError) as exc:
+        status,data,_=request_json(
+            UPSTREAM,method='POST',headers=headers,data=raw,
+            timeout=max(2,min(float(timeout),75)))
+        return status,data if isinstance(data,dict) else {'status':'INVALID_UPSTREAM_RESPONSE'}
+    except (SafeHttpError,OSError,TimeoutError,ValueError,json.JSONDecodeError) as exc:
         return 503,{'status':'TRANSPORT_ERROR','error_type':type(exc).__name__}
 
 
@@ -1669,6 +1814,7 @@ def request_mesh(body):
                 'agent_build':EXPECTED_BUILD,**result,'provider_attempts':router_attempts,
                 'mandatory_cost_usd':0,'paid_fallback_used':False,'scoreable':False,
                 'github_sha':os.environ.get('GITHUB_SHA'),'github_run_id':os.environ.get('GITHUB_RUN_ID')}
+        return None
     def router():
         result, attempts=FREE_ROUTE.call(body,budget=mesh_external_budget(started,55))
         router_attempts.extend(attempts)
@@ -1677,6 +1823,7 @@ def request_mesh(body):
                 'agent_build':EXPECTED_BUILD,**result,'provider_attempts':router_attempts,
                 'mandatory_cost_usd':0,'paid_fallback_used':False,'scoreable':False,
                 'github_sha':os.environ.get('GITHUB_SHA'),'github_run_id':os.environ.get('GITHUB_RUN_ID')}
+        return None
     def local_router():
         result, attempts=LOCAL_VLM_ROUTE.call(body,budget=mesh_local_budget(started,80))
         router_attempts.extend(attempts)
@@ -1685,6 +1832,7 @@ def request_mesh(body):
                 'agent_build':EXPECTED_BUILD,**result,'provider_attempts':router_attempts,
                 'mandatory_cost_usd':0,'paid_fallback_used':False,'scoreable':False,
                 'github_sha':os.environ.get('GITHUB_SHA'),'github_run_id':os.environ.get('GITHUB_RUN_ID')}
+        return None
     if os.environ.get('ARBM_VALIDATION_SPEND_MODE','zero') != 'zero':
         return 503,{'status':'NON_ZERO_SPEND_MODE_FORBIDDEN','provider_attempts':router_attempts,
                     'mandatory_cost_usd':0,'paid_fallback_used':False}
@@ -2106,7 +2254,7 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError,TimeoutError) as exc: content=terminal('INPUT_REJECTED:'+str(exc)[:120])
             except Exception as exc:
                 log_event({'status':'SHIM_ERROR','error_type':type(exc).__name__,'reason':str(exc)[:200]}); content=terminal('SHIM_INTERNAL_ERROR:'+type(exc).__name__)
-        self.send_json(200,{'id':'arbm-osworld-v32-isolated','object':'chat.completion','created':int(time.time()),'model':'gpt-arbm-osworld-v32-isolated','choices':[{'index':0,'message':{'role':'assistant','content':content},'finish_reason':'stop'}],'usage':{'prompt_tokens':0,'completion_tokens':0,'total_tokens':0}})
+        return self.send_json(200,{'id':'arbm-osworld-v32-isolated','object':'chat.completion','created':int(time.time()),'model':'gpt-arbm-osworld-v32-isolated','choices':[{'index':0,'message':{'role':'assistant','content':content},'finish_reason':'stop'}],'usage':{'prompt_tokens':0,'completion_tokens':0,'total_tokens':0}})
 
 def isolated_self_test(run_id,task,verify_budget=False,enforce_session_isolation=False):
     result={'status':'PASS','run_id':str(run_id),'task':str(task),'zero_spend':os.environ.get('ZERO_SPEND_MODE')=='HARD'}
