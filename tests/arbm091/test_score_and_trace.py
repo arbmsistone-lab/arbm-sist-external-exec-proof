@@ -959,7 +959,8 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         self.assertIn("pyautogui.keyUp('shift')",command)
         self.assertNotIn("press('end')",command)
         self.assertNotIn("press('backspace'",command)
-        self.assertTrue(command.splitlines()[-1].startswith("pyautogui.write('$40.9M'"))
+        self.assertTrue(command.splitlines()[-2].startswith("pyautogui.write('$40.9M'"))
+        self.assertEqual(command.splitlines()[-1],"pyautogui.press('delete')")
 
     def test_table_cell_bounded_writer_rejects_multiline_or_empty_old(self):
         with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_BOUNDED_EDIT_INVALID'):
@@ -975,9 +976,9 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         self.assertNotIn("ctrl', 'a",body)
         self.assertIn("keyDown('shift')",body)
         self.assertIn("_task091_table_cell_selection_presses",body)
-        self.assertIn("first=min(30,max(0,presses))",body)
-        self.assertIn("remaining=max(0,presses-first)",body)
+        self.assertIn("press('left', presses={presses}",body)
         self.assertIn("keyUp('shift')",body)
+        self.assertIn("press('delete')",body)
         self.assertNotIn("press('end')",body)
         self.assertNotIn("press('backspace'",body)
         self.assertIn("_task091_table_cell_rollback_command",body)
