@@ -727,6 +727,16 @@ class Task091TransactionalTableCellTests(unittest.TestCase):
   from osworld_control import canonical_action
   self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
 
+ def test_table_cell_start_navigation_consumes_terminal_marker_without_selection(self):
+  self.assertEqual(shim._task091_table_cell_start_navigation_presses('$42.8M'),7)
+  self.assertEqual(shim._task091_table_cell_start_navigation_presses('112%'),5)
+  self.assertEqual(shim._task091_table_cell_start_navigation_presses('2'),2)
+  self.assertEqual(shim._task091_table_cell_start_navigation_presses('x'*30),31)
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("start_navigation_press_count",source)
+  self.assertIn("presses={start_nav_presses}",source)
+  self.assertIn("without Shift",source)
+
  def test_table_cell_terminal_marker_is_excluded_by_rightward_selection(self):
   self.assertEqual(shim._task091_table_cell_selection_presses('$42.8M'),6)
   self.assertEqual(shim._task091_table_cell_selection_presses('x'*30),30)
