@@ -38,6 +38,8 @@ def base_contract():
 class EliteBoard100Tests(unittest.TestCase):
     def test_all_100_lanes_and_10_councils_pass(self):
         result=evaluate(base_contract())
+        self.assertEqual(result['status'],'PRE_FOCAL_ADVISORY_PASS')
+        self.assertFalse(result['release_approval'])
         self.assertEqual(result['elite_pass'],100)
         self.assertEqual(result['councils_pass'],10)
 
