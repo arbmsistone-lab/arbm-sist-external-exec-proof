@@ -75,7 +75,7 @@ class SeniorEliteBoardTests(unittest.TestCase):
                 'target':{'source':'task091-pptx-canonical','slide':3}}
         with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','GITHUB_SHA':'f'*40},clear=False):
             result=review_action(action,task_id='091',source='task091-specialist',state=state,
-                                 verifier={'progress':False,'no_progress':2},recent_commands=[command])
+                                 verifier={'progress':False,'no_progress':9},recent_commands=[command])
         self.assertTrue(result['allow'],result)
         self.assertEqual(result['pass'],10)
 
@@ -93,7 +93,7 @@ class SeniorEliteBoardTests(unittest.TestCase):
                 'target':{'source':'task091-pptx-canonical','slide':3}}
         with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','GITHUB_SHA':'f'*40},clear=False):
             result=review_action(action,task_id='091',source='task091-specialist',state=state,
-                                 verifier={'progress':False,'no_progress':3},recent_commands=[command])
+                                 verifier={'progress':False,'no_progress':10},recent_commands=[command,command])
         self.assertFalse(result['allow'])
         self.assertIn('anti_repetition',result['failed'])
 
