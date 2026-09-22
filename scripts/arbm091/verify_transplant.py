@@ -705,6 +705,13 @@ def main():
         "bcbc062c66f8188e25bda3462c78f867c88d5931": {".github/workflows/top3-security-load-failure.yml"},
         "9c01c94379326d03513873f8ab3b440712e875bd": {".github/workflows/p9-dubbo-m0031-cloud-plan.yml"},
         "cf859a0e352f81a744e0194dd93fc07e1f54fe6b": {".github/workflows/p9-dubbo-m0031-solve.yml"},
+        "e44e33df3b18677883eedd66c66bb6aeeedc03a0": {".github/workflows/osworld-g3-model-probe.yml"},
+        "e9e1bdcffde084b81511b7091f0241c5b1f31324": {".github/workflows/p9-dubbo-m0031-evaluate.yml"},
+        "ba0f434c8bd0a488155133be9bd4358c30040699": {".github/workflows/p9-dubbo-m0031-promote.yml"},
+        "3efef455e5c174d0e652f1a5f195048c8893649e": {".github/workflows/swemilestone-element-quarantine.yml"},
+        "1b01e5bfd47c2e26fb18233df75a7be162bd27ca": {".github/workflows/swemilestone-evaluator-binding-probe.yml"},
+        "db5a7aa27f82a0cc579ff292ba61c0e31d43d2ab": {".github/workflows/swemilestone-harness-conformance.yml"},
+        "6c2894540544674f6df518f3ac3ef18312404b91": {".github/workflows/swemilestone-promotion-binding-probe.yml"},
         "1dc073ddc5a5468b42028646aa15ed4168405a97": {"Dockerfile"},
         "1d41b0f6db80d4757f9a72af4dcdd3cf38c71f64": {".github/workflows/arbm-lockfile-generator-temp.yml"},
     }
