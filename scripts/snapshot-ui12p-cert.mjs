@@ -84,7 +84,8 @@ export async function runSnapshotUi12pCert(){
     "tests/ci-quorum-deadlock-v1.test.mjs",
   ],root,env);
   run("npm",["run","lint"],root,env);
-  run("npm",["run","check:cloudflare"],root,env);
+  run("npm",["run","build"],root,{...env,ARBM_DEPLOY_TARGET:"cloudflare"});
+  run("node",["scripts/check-cloudflare-bundle.mjs"],root,env);
   run("npx",["playwright","install","chromium"],root,env,600000);
 
   const candidates=fs.readdirSync(path.join(root,"cf-release-bundle")).filter((name)=>name.endsWith(".js"));
