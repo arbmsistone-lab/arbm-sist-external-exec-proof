@@ -551,7 +551,8 @@ class MeshTests(unittest.TestCase):
   self.assertEqual(compiled['command'],command)
   shape={'id':6,'name':'CoverTitle','text':actual}
   verdict=evaluate(actual,expected,plan,shape,'a'*64,'b'*64)
-  self.assertEqual(verdict['status'],'PASS')
+  self.assertEqual(verdict['status'],'PRE_FOCAL_ADVISORY_PASS')
+  self.assertFalse(verdict['release_approval'])
   self.assertEqual(verdict['senior_pass'],50)
   self.assertEqual(verdict['master_pass'],10)
   unsafe=[{'op':'insert','index':27,'char':'S'}]
