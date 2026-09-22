@@ -30,13 +30,12 @@ async function fetchSnapshot(){
   const response=await fetch(base,{
     headers:{
       apikey:apiKey,
-      authorization:`Bearer ${apiKey}`,
       "x-arbm-proof-token":proofToken,
       accept:"application/json",
     },
     signal:AbortSignal.timeout(30000),
   });
-  if(!response.ok) throw new Error(`snapshot_http_${response.status}`);
+  if(!response.ok){const body=(await response.text()).slice(0,500);throw new Error(`snapshot_http_${response.status}:${body}`);}
   const rows=await response.json();
   if(!Array.isArray(rows)||!rows.length) throw new Error("snapshot_empty");
   return rows;
