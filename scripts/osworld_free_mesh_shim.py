@@ -208,16 +208,29 @@ def _task091_write_command(value, interval=TASK091_TYPE_INTERVAL, ensure_text_mo
     return '\n'.join(commands)
 
 def _task091_table_cell_bounded_write_command(old, new, interval=TASK091_TYPE_INTERVAL):
-    """Replace one single-line cell value without any global selection command."""
+    """Replace exactly one single-line cell after an independently proven end caret.
+
+    The caller must prove that the caret is already at the visual end of the
+    target cell. Selection is bounded to exactly len(old) characters; End,
+    Home, Ctrl+A, and Backspace sweeps are forbidden.
+    """
     old=str(old or '')
     new=str(new or '')
-    if not old or '\n' in old or '\n' in new or len(old) > 64 or len(new) > 128:
+    if not old or '\n' in old or '\n' in new or len(old) > 30 or len(new) > 128:
         raise ValueError('TASK091_TABLE_CELL_BOUNDED_EDIT_INVALID')
-    commands=["pyautogui.press('end')",
-              f"pyautogui.press('backspace', presses={len(old)}, interval=0.03)"]
+    commands=[
+        "pyautogui.keyDown('shift')",
+        f"pyautogui.press('left', presses={len(old)}, interval=0.03)",
+        "pyautogui.keyUp('shift')",
+    ]
     if new:
         commands.append(f"pyautogui.write({new!r}, interval={float(interval):g})")
     return '\n'.join(commands)
+
+
+def _task091_table_cell_rollback_command():
+    """Undo one failed table-cell transaction and persist the restored deck."""
+    return "pyautogui.hotkey('ctrl', 'z')\npyautogui.hotkey('ctrl', 's')\npyautogui.sleep(0.25)"
 
 def _task091_foreground_sha(window_state):
     window=window_state.get('window',{}) if isinstance(window_state,dict) else {}
@@ -359,6 +372,83 @@ def _task091_table_cell_text_ink_point(window_state, bbox, inset=8, threshold=24
     }
     proof=hashlib.sha256(json.dumps(payload,sort_keys=True,separators=(',',':')).encode()).hexdigest()
     return {**payload,'cx':cx,'cy':cy,'proof_sha256':proof}
+
+
+def _task091_table_cell_text_end_point(text_ink, bbox, gap=3):
+    """Derive a signed click point immediately after the observed final glyph."""
+    if not isinstance(text_ink,dict) or not isinstance(bbox,list) or len(bbox)!=4:
+        return None
+    ink_bbox=text_ink.get('ink_bbox')
+    if not isinstance(ink_bbox,list) or len(ink_bbox)!=4:
+        return None
+    if not all(type(v) is int for v in bbox+ink_bbox):
+        return None
+    x,y,w,h=bbox; ix,iy,iw,ih=ink_bbox
+    if w<=20 or h<=20 or iw<=0 or ih<=0:
+        return None
+    cell_right=x+w
+    ink_right=ix+iw
+    cx=min(cell_right-9,ink_right+int(gap))
+    cy=iy+ih//2
+    if not (ink_right < cx < cell_right-8 and y+8 <= cy < y+h-8):
+        return None
+    payload={
+        'cell_bbox':[x,y,w,h],
+        'ink_bbox':[ix,iy,iw,ih],
+        'ink_proof_sha256':str(text_ink.get('proof_sha256') or ''),
+        'point':[cx,cy],
+        'gap':int(gap),
+    }
+    proof=hashlib.sha256(json.dumps(payload,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+    return {**payload,'cx':cx,'cy':cy,'proof_sha256':proof}
+
+
+def _task091_caret_at_text_end(caret, shape_bbox, ink_bbox, expected_x, tolerance=8):
+    """Require the proven caret to sit at the signed visual end of cell text."""
+    if not isinstance(caret,dict) or caret.get('proven') is not True:
+        return {'proven':False,'reason':'caret-unproven'}
+    if not isinstance(shape_bbox,list) or len(shape_bbox)!=4 or not isinstance(ink_bbox,list) or len(ink_bbox)!=4:
+        return {'proven':False,'reason':'geometry-missing'}
+    cb=caret.get('bbox')
+    if not isinstance(cb,list) or len(cb)!=4:
+        return {'proven':False,'reason':'caret-bbox-missing'}
+    if not all(type(v) is int for v in shape_bbox+ink_bbox+cb):
+        return {'proven':False,'reason':'geometry-invalid'}
+    caret_x=int(shape_bbox[0])+int(cb[0])
+    ink_right=int(ink_bbox[0])+int(ink_bbox[2])
+    expected_x=int(expected_x or 0)
+    tolerance=int(tolerance)
+    proven=(expected_x>0
+            and caret_x >= ink_right-2
+            and caret_x <= ink_right+tolerance+4
+            and abs(caret_x-expected_x) <= tolerance)
+    return {
+        'proven':proven,
+        'reason':'caret-at-text-end' if proven else 'caret-not-at-text-end',
+        'caret_x':caret_x,
+        'ink_right':ink_right,
+        'expected_x':expected_x,
+        'tolerance':tolerance,
+    }
+
+
+def _task091_table_cell_rollback_verified(pending, window_state):
+    if not isinstance(pending,dict) or not isinstance(window_state,dict):
+        return False
+    slide=int(pending.get('slide') or 0)
+    shape=_task091_shape_by_id(window_state,slide,pending.get('shape_id'))
+    current_file=window_state.get('deck_file',{})
+    current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
+    corrupt_sha=str(pending.get('rollback_corrupt_deck_sha256') or '')
+    siblings=_task091_other_shapes_signature(window_state,slide,pending.get('shape_id'))
+    return (len(current_sha)==64
+            and len(corrupt_sha)==64
+            and current_sha != corrupt_sha
+            and isinstance(shape,dict)
+            and str(shape.get('kind') or '')=='table-cell'
+            and str(shape.get('text') or '')==str(pending.get('old') or '')
+            and siblings==str(pending.get('before_sibling_signature') or ''))
+
 
 def _task091_region_sha256(window_state, bbox, inset=6):
     path=_task091_screenshot_path(window_state)
@@ -989,7 +1079,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 if interrupts > 3:
                     return _task091_terminal('TASK091_REPAIR_SELECTION_TRANSIENT_LOOP',state)
                 pending['stage']='repair-reselect-required'
-            elif stage in ('edit-issued','commit-issued','save-issued',
+            elif stage in ('edit-issued','commit-issued','save-issued','table-cell-rollback-issued',
                            'repair-edit-issued','repair-commit-issued','repair-save-issued'):
                 return _task091_terminal('TASK091_EDIT_INTERRUPTED_BY_TRANSIENT',state)
         current=state.get('transient_title')
@@ -1059,6 +1149,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                        'select-issued':'TARGET_SELECTION_PENDING',
                        'table-select-issued':'TARGET_TABLE_SELECTED_PENDING',
                        'table-cell-enter-issued':'TARGET_CELL_TEXTMODE_PENDING',
+                       'table-cell-rollback-issued':'TARGET_ROLLBACK_VERIFYING',
                        'edit-issued':'TARGET_EDITING',
                        'commit-issued':'TARGET_COMMITTED','save-issued':'TARGET_VERIFYING',
                        'repair-reselect-required':'TARGET_RESELECT_REQUIRED',
@@ -1147,15 +1238,22 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 window_state,list(pending.get('shape_bbox') or []))
             if text_ink is None:
                 return _task091_terminal('TASK091_TABLE_TEXT_INK_UNPROVEN',state)
-            pending['table_text_hit_x']=int(text_ink['cx'])
-            pending['table_text_hit_y']=int(text_ink['cy'])
+            end_point=_task091_table_cell_text_end_point(
+                text_ink,list(pending.get('shape_bbox') or []))
+            if end_point is None:
+                return _task091_terminal('TASK091_TABLE_TEXT_END_GEOMETRY_UNPROVEN',state)
+            pending['table_text_hit_x']=int(end_point['cx'])
+            pending['table_text_hit_y']=int(end_point['cy'])
             pending['table_text_ink_bbox']=list(text_ink['ink_bbox'])
             pending['table_text_ink_pixels']=int(text_ink['ink_pixels'])
             pending['table_text_ink_proof_sha256']=str(text_ink['proof_sha256'])
             pending['table_text_ink_source']=str(text_ink['source'])
+            pending['table_text_end_x']=int(end_point['cx'])
+            pending['table_text_end_y']=int(end_point['cy'])
+            pending['table_text_end_proof_sha256']=str(end_point['proof_sha256'])
             pending['stage']='table-cell-text-hit-issued'
             pending['textmode_baseline_source']=str(window_state.get('source') or '')
-            cx=int(text_ink['cx']); cy=int(text_ink['cy'])
+            cx=int(end_point['cx']); cy=int(end_point['cy'])
             command=f"pyautogui.click({cx}, {cy})"
             pending['cell_text_hit_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             stored=pending.get('target') if isinstance(pending.get('target'),dict) else {}
@@ -1190,6 +1288,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                   and len(sibling_visual)==64
                   and sibling_visual == str(pending.get('table_selected_sibling_visual_sha256') or '')
                   and len(str(pending.get('table_text_ink_proof_sha256') or ''))==64
+                  and len(str(pending.get('table_text_end_proof_sha256') or ''))==64
                   and len(str(pending.get('cell_text_hit_command_hash') or ''))==64)
             if not safe:
                 return _task091_terminal('TASK091_TABLE_TEXT_HIT_DRIFT',state)
@@ -1238,6 +1337,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                   and len(sibling_visual)==64
                   and sibling_visual == str(pending.get('table_selected_sibling_visual_sha256') or '')
                   and len(str(pending.get('table_text_ink_proof_sha256') or ''))==64
+                  and len(str(pending.get('table_text_end_proof_sha256') or ''))==64
                   and len(str(pending.get('cell_enter_command_hash') or ''))==64
                   and re.fullmatch(r'\d{4}-\d{2}-(?:before|after)',baseline) is not None)
             if not safe:
@@ -1260,6 +1360,12 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 return {'action':'exec','command':command,
                         'plan':'Sample the unchanged signed cell against the immutable pre-text-mode baseline. Mutation remains forbidden until narrow caret geometry is positively proven.',
                         'specialist_phase':f'table-cell-caret-baseline-probe-{attempts+1}'}
+            caret_end=_task091_caret_at_text_end(
+                caret,bbox,list(pending.get('table_text_ink_bbox') or []),
+                pending.get('table_text_end_x'))
+            pending['caret_end_geometry']=caret_end
+            if caret_end.get('proven') is not True:
+                return _task091_terminal('TASK091_TABLE_CELL_CARET_NOT_AT_END',state)
             pending['selected_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
             pending['selection_ack_foreground_sha256']=current_fg
             pending['explicit_text_mode']=True
@@ -1267,8 +1373,8 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             command=_task091_table_cell_bounded_write_command(pending['old'],pending['new'])
             pending['action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
-                    'plan':f"Replace only the geometrically proven table-cell caret target {pending['old']!r} using End + bounded Backspace + write; Ctrl+A is forbidden.",
-                    'specialist_phase':'edit-geometry-proven-table-cell','expected_change':pending['new']}
+                    'plan':f"Replace exactly the {len(str(pending['old']))} characters immediately left of the independently proven end caret for {pending['old']!r}; End, Home, Ctrl+A and Backspace sweeps are forbidden.",
+                    'specialist_phase':'edit-end-caret-proven-table-cell','expected_change':pending['new']}
         if stage == 'select-issued':
             current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
             current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
@@ -1404,6 +1510,11 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             return {'action':'exec','command':command,
                     'plan':'Persist the pending GUI edit before verifying the target PPTX on disk.',
                     'specialist_phase':'save-pending-target','expected_change':pending['new']}
+        if stage == 'table-cell-rollback-issued':
+            if not _task091_table_cell_rollback_verified(pending,window_state):
+                return _task091_terminal('TASK091_TABLE_CELL_ROLLBACK_UNPROVEN',state)
+            pending['rollback_verified']=True
+            return _task091_terminal('TASK091_TABLE_CELL_TRANSACTION_ROLLED_BACK',state)
         if stage == 'save-issued':
             verified,status,new_hit=_task091_verify_pending(observation,pending,window_state)
             if verified:
@@ -1417,6 +1528,22 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 return {'action':'checkpoint','checkpoint':checkpoint,
                         'slide':pending['slide'],'old':pending['old'],'new':pending['new'],
                         'target':new_hit,'specialist_phase':'verify-pending-target'}
+            if status in ('collateral-mutation','disk-text-mismatch') and str(pending.get('shape_kind') or '')=='table-cell':
+                current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
+                corrupt_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
+                corrupt_shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
+                if len(corrupt_sha)!=64 or not isinstance(corrupt_shape,dict):
+                    return _task091_terminal('TASK091_TABLE_CELL_ROLLBACK_SOURCE_UNPROVEN',state)
+                pending['rollback_reason']=status
+                pending['rollback_corrupt_deck_sha256']=corrupt_sha
+                pending['rollback_corrupt_text']=str(corrupt_shape.get('text') or '')
+                pending['stage']='table-cell-rollback-issued'
+                command=_task091_table_cell_rollback_command()
+                pending['rollback_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+                return {'action':'exec','command':command,
+                        'plan':'A table-cell transaction violated its exact delta contract. Undo exactly that transaction, persist the restored deck, and fail closed unless the original cell plus sibling signature are proven restored.',
+                        'specialist_phase':'rollback-invalid-table-cell-transaction',
+                        'expected_change':pending['old']}
             if status=='collateral-mutation':
                 return _task091_terminal('TASK091_COLLATERAL_EDIT_DETECTED',state)
             if status=='disk-text-mismatch' and int(pending.get('repair_steps') or pending.get('repair_attempts') or 0)==0:
