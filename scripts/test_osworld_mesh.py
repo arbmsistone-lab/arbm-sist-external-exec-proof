@@ -575,6 +575,18 @@ class MeshTests(unittest.TestCase):
    shim._task091_apply_repair_operation('104%%',{'op':'delete','index':4,'char':'%'}),
    '104%')
 
+  cmd_currency=shim._task091_table_cell_suffix_duplicate_repair_command('$2.8MM','$2.8M')
+  self.assertEqual(cmd_currency.splitlines()[0],"pyautogui.press('home')")
+  self.assertIn("press('right', presses=5",cmd_currency)
+  self.assertEqual(cmd_currency.count("press('delete')"),1)
+  self.assertNotIn("ctrl', 'a",cmd_currency)
+  self.assertEqual(
+   shim._task091_apply_repair_operation('$2.8MM',{'op':'delete','index':5,'char':'M'}),
+   '$2.8M')
+  for actual in ('$2.8M','$2.8MMM','M$2.8M','$2.8MX'):
+   with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_SUFFIX_REPAIR_NOT_PROVEN'):
+    shim._task091_table_cell_suffix_duplicate_repair_command(actual,'$2.8M')
+
  def test_task091_atomic_repair_chunks_long_caret_navigation(self):
   for index in (43,51):
    command=shim._task091_restricted_repair_command([{'op':'delete','index':index,'char':'R'}])
