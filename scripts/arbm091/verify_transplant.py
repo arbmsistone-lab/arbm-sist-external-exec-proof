@@ -694,13 +694,29 @@ def main():
         "1dc073ddc5a5468b42028646aa15ed4168405a97": {"Dockerfile"},
         "1d41b0f6db80d4757f9a72af4dcdd3cf38c71f64": {".github/workflows/arbm-lockfile-generator-temp.yml"},
     }
+    post_scope_violations = []
     for c_node in post_legacy:
         c_files = set(git('diff-tree', '--no-commit-id', '--name-only', '-r', c_node).splitlines())
         exact_scope = approved_post_commit_scopes.get(c_node)
         if exact_scope is not None:
-            require(c_files == exact_scope, 'POST_LEGACY_COMMIT_SCOPE_DRIFT:' + c_node)
-        else:
-            require(c_files.issubset(allowed_post_scope), 'POST_LEGACY_COMMIT_SCOPE_VIOLATION:' + c_node)
+            if c_files != exact_scope:
+                post_scope_violations.append({
+                    'sha': c_node,
+                    'kind': 'DRIFT',
+                    'actual': sorted(c_files),
+                    'expected': sorted(exact_scope),
+                })
+        elif not c_files.issubset(allowed_post_scope):
+            post_scope_violations.append({
+                'sha': c_node,
+                'kind': 'VIOLATION',
+                'actual': sorted(c_files),
+                'unexpected': sorted(c_files - allowed_post_scope),
+            })
+    require(
+        not post_scope_violations,
+        'POST_LEGACY_SCOPE_VIOLATIONS:' + json.dumps(post_scope_violations, sort_keys=True, separators=(',', ':')),
+    )
     require(overlay[2] == PID_FILTER_COMMIT and overlay[3] == PID_TEST_COMMIT,
             'PID_REPAIR_COMMIT_IDENTITY_MISMATCH')
     require(overlay[6] == WPS_ALIAS_COMMIT and overlay[7] == WPS_ALIAS_TEST_COMMIT
