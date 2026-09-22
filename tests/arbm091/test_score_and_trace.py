@@ -937,7 +937,8 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
             self.assertTrue(state['pending_edit']['explicit_text_mode'])
             self.assertEqual(state['pending_edit']['caret_geometry']['width'],1)
             self.assertNotIn("ctrl', 'a",fourth['command'])
-            self.assertIn("press('left', presses=6",fourth['command'])
+            self.assertIn("press('left', presses=7",fourth['command'])
+            self.assertEqual(state['pending_edit']['start_navigation_press_count'],7)
             self.assertNotIn("keyDown('shift')",fourth['command'])
             self.assertNotIn("press('end')",fourth['command'])
             self.assertNotIn("press('backspace'",fourth['command'])
@@ -1036,6 +1037,17 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         self.assertIn("normalize-wps-terminal-marker-offset",source)
         self.assertIn("table-cell-start-normalize-issued",source)
 
+    def test_nonselecting_start_navigation_consumes_one_terminal_marker(self):
+        self.assertEqual(shim._task091_table_cell_start_navigation_presses('$42.8M'),7)
+        self.assertEqual(shim._task091_table_cell_start_navigation_presses('112%'),5)
+        self.assertEqual(shim._task091_table_cell_start_navigation_presses('2'),2)
+        self.assertEqual(shim._task091_table_cell_start_navigation_presses('x'*30),31)
+        source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+        self.assertIn("visible=_task091_table_cell_selection_presses(old)",source)
+        self.assertIn("presses=visible+1",source)
+        self.assertIn("start_navigation_press_count",source)
+        self.assertIn("without Shift",source)
+
     def test_500_case_end_marker_red_team_matrix(self):
         alphabet="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz$%.-_"
         for i in range(500):
@@ -1121,7 +1133,7 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
             ('35_visual_sibling_signature',"table_selected_sibling_visual_sha256" in source),
             ('36_press_count_recorded',"selection_press_count" in source),
             ('37_explicit_text_mode',"explicit_text_mode" in source),
-            ('38_start_nav_without_shift',"Move exactly {selection_presses} positions left" in source),
+            ('38_start_nav_without_shift',"Move exactly {start_nav_presses} positions left without Shift" in source),
             ('39_edit_from_proven_start',"edit-start-caret-proven-table-cell" in source),
             ('40_mismatch_no_undo_fatal',"TASK091_TABLE_CELL_POSTSAVE_MISMATCH_NO_UNDO" in mismatch),
             ('41_mismatch_quarantines_undo',"undo_quarantined" in mismatch),
