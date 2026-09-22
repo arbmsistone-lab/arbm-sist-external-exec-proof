@@ -30,6 +30,7 @@ SENIOR_BOARD = 'scripts/arbm_senior_elite_board.py'
 SENIOR_TEST = 'tests/arbm091/test_senior_elite_agent.py'
 GLOBAL_GATE = 'scripts/arbm_global_assurance_gate.py'
 GLOBAL_TEST = 'tests/arbm091/test_global_assurance_gate.py'
+SAFE_HTTP = 'scripts/arbm_safe_http.py'
 WPS_ALIAS_COMMIT = 'f0a49b84c95808b501cd91aed14bd702e8230a9c'
 WPS_ALIAS_TEST_COMMIT = '51f63478520b3e8fa89152460dc12dd7da446945'
 WPS_SWITCH_COMMIT = '379a7c64fad1b2776a93f578de8d2ca766473e18'
@@ -621,10 +622,17 @@ def main():
     post_legacy = all_commits[250:]
     require(len(overlay) == 250, 'EXACTLY_TWO_HUNDRED_FIFTY_REPAIR_COMMITS_REQUIRED')
     allowed_post_scope = {VERIFIER, SHIM, SENIOR_BOARD, SENIOR_TEST}
+    approved_post_commit_scopes = {
+        'fdd1c8ef17c7f52352b60c1afd7bffca958182a1': {SAFE_HTTP},
+    }
     for c_node in post_legacy:
         c_files = set(git('diff-tree', '--no-commit-id', '--name-only', '-r', c_node).splitlines())
-        require(c_files and c_files.issubset(allowed_post_scope),
-                'POST_LEGACY_COMMIT_SCOPE_VIOLATION:' + c_node)
+        exact_scope = approved_post_commit_scopes.get(c_node)
+        if exact_scope is not None:
+            require(c_files == exact_scope, 'POST_LEGACY_COMMIT_SCOPE_DRIFT:' + c_node)
+        else:
+            require(c_files and c_files.issubset(allowed_post_scope),
+                    'POST_LEGACY_COMMIT_SCOPE_VIOLATION:' + c_node)
     require(overlay[2] == PID_FILTER_COMMIT and overlay[3] == PID_TEST_COMMIT,
             'PID_REPAIR_COMMIT_IDENTITY_MISMATCH')
     require(overlay[6] == WPS_ALIAS_COMMIT and overlay[7] == WPS_ALIAS_TEST_COMMIT
