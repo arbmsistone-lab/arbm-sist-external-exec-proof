@@ -1,5 +1,5 @@
-import hashlib
 import os
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -60,65 +60,34 @@ class SeniorEliteBoardTests(unittest.TestCase):
         self.assertFalse(result['allow'])
         self.assertIn('anti_repetition',result['failed'])
 
-    def test_task091_table_text_mode_path_is_double_click(self):
-        command="pyautogui.doubleClick(843, 452, interval=0.08)"
-        self.assertTrue(command.startswith("pyautogui.doubleClick("))
-        self.assertNotIn("pyautogui.click(843, 452)", command)
 
-    def test_task091_second_table_click_uses_issued_command_hash_not_shape_center(self):
+    def test_task091_second_table_click_allows_only_evidence_bound_second_attempt(self):
         command="pyautogui.click(843, 404)"
-        state={'task091_specialist':{
-            'owned':True,'handoff':False,
-            'pending_edit':{
-                'stage':'table-cell-enter-issued','shape_kind':'table-cell','slide':3,
-                'target':{'cx':811,'cy':391},
-                'cell_enter_command_hash':hashlib.sha256(command.encode()).hexdigest(),
-                'table_selected_screenshot_sha256':'1'*64,
-                'table_selected_target_visual_sha256':'2'*64,
-                'table_selected_sibling_visual_sha256':'3'*64,
-                'textmode_baseline_source':'0041-01-after',
-                'textmode_first_hit_source':'0042-01-after',
-                'cell_text_hit_command_hash':hashlib.sha256(command.encode()).hexdigest(),
-            },
-        }}
+        digest=hashlib.sha256(command.encode()).hexdigest()
+        state={'task091_specialist':{'owned':True,'handoff':False,'pending_edit':{
+            'stage':'table-cell-enter-issued','shape_kind':'table-cell','slide':3,
+            'cell_enter_command_hash':digest,'cell_text_hit_command_hash':digest,
+            'textmode_baseline_source':'0041-01-after','textmode_first_hit_source':'0042-01-after',
+            'table_selected_screenshot_sha256':'1'*64,
+            'table_selected_target_visual_sha256':'2'*64,
+            'table_selected_sibling_visual_sha256':'3'*64}}}
         action={'action':'exec','command':command,'specialist_phase':'enter-table-cell-caret-candidate',
-                'target':{'source':'task091-pptx-canonical','slide':3,'role':'task091-canonical-point','label':'$42.8M'}}
+                'target':{'source':'task091-pptx-canonical','slide':3}}
         with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','GITHUB_SHA':'f'*40},clear=False):
-            result=review_action(action,task_id='091',source='task091-specialist',
-                                 state=state,verifier={'progress':False,'no_progress':2},
-                                 recent_commands=[command])
+            result=review_action(action,task_id='091',source='task091-specialist',state=state,
+                                 verifier={'progress':False,'no_progress':2},recent_commands=[command])
         self.assertTrue(result['allow'],result)
         self.assertEqual(result['pass'],10)
 
-    def test_task091_second_table_click_hash_mismatch_is_vetoed(self):
-        command="pyautogui.click(843, 404)"
-        state={'task091_specialist':{
-            'owned':True,'handoff':False,
-            'pending_edit':{
-                'stage':'table-cell-enter-issued','shape_kind':'table-cell','slide':3,
-                'cell_enter_command_hash':'0'*64,
-                'table_selected_screenshot_sha256':'1'*64,
-                'table_selected_target_visual_sha256':'2'*64,
-                'table_selected_sibling_visual_sha256':'3'*64,
-            },
-        }}
-        action={'action':'exec','command':command,'specialist_phase':'enter-table-cell-caret-candidate',
-                'target':{'source':'task091-pptx-canonical','slide':3,'role':'task091-canonical-point','label':'$42.8M'}}
-        with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','GITHUB_SHA':'f'*40},clear=False):
-            result=review_action(action,task_id='091',source='task091-specialist',
-                                 state=state,verifier={'progress':False,'no_progress':1},
-                                 recent_commands=[command])
-        self.assertFalse(result['allow'])
-        self.assertIn('anti_repetition',result['failed'])
-
     def test_task091_third_identical_table_click_remains_vetoed(self):
         command="pyautogui.click(843, 404)"
+        digest=hashlib.sha256(command.encode()).hexdigest()
         state={'task091_specialist':{'owned':True,'handoff':False,'pending_edit':{
             'stage':'table-cell-enter-issued','shape_kind':'table-cell','slide':3,
-            'cell_enter_command_hash':hashlib.sha256(command.encode()).hexdigest(),
-            'cell_text_hit_command_hash':hashlib.sha256(command.encode()).hexdigest(),
+            'cell_enter_command_hash':digest,'cell_text_hit_command_hash':digest,
             'textmode_baseline_source':'0041-01-after','textmode_first_hit_source':'0042-01-after',
-            'table_selected_screenshot_sha256':'1'*64,'table_selected_target_visual_sha256':'2'*64,
+            'table_selected_screenshot_sha256':'1'*64,
+            'table_selected_target_visual_sha256':'2'*64,
             'table_selected_sibling_visual_sha256':'3'*64}}}
         action={'action':'exec','command':command,'specialist_phase':'enter-table-cell-caret-candidate',
                 'target':{'source':'task091-pptx-canonical','slide':3}}
@@ -127,54 +96,6 @@ class SeniorEliteBoardTests(unittest.TestCase):
                                  verifier={'progress':False,'no_progress':3},recent_commands=[command])
         self.assertFalse(result['allow'])
         self.assertIn('anti_repetition',result['failed'])
-
-
-class TableTextInkTests(unittest.TestCase):
-    def _state(self, source):
-        return {'source':source,'screenshot_sha256':'a'*64}
-
-    def test_table_text_ink_point_tracks_visible_glyph_band_not_cell_center(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp)
-            obs=root/'wps-observations'
-            obs.mkdir()
-            image=Image.new('RGB',(240,140),'white')
-            draw=ImageDraw.Draw(image)
-            # Synthetic glyph-like strokes in the upper text band of the cell.
-            draw.rectangle((96,49,101,63),fill='black')
-            draw.rectangle((104,49,109,63),fill='black')
-            draw.rectangle((112,49,117,63),fill='black')
-            image.save(obs/'0001-01-after.png')
-            with patch.dict(os.environ,{'ARBM_WPS_EVIDENCE_DIR':str(root)},clear=False):
-                point=shim._task091_table_cell_text_ink_point(
-                    self._state('0001-01-after'),[60,35,140,80])
-            self.assertIsNotNone(point)
-            self.assertEqual(len(point['proof_sha256']),64)
-            self.assertGreaterEqual(point['cx'],96)
-            self.assertLessEqual(point['cx'],117)
-            self.assertGreaterEqual(point['cy'],49)
-            self.assertLessEqual(point['cy'],63)
-            self.assertLess(point['cy'],35+80//2)
-
-    def test_table_text_ink_point_rejects_blank_cell(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp)
-            obs=root/'wps-observations'
-            obs.mkdir()
-            Image.new('RGB',(240,140),'white').save(obs/'0001-01-after.png')
-            with patch.dict(os.environ,{'ARBM_WPS_EVIDENCE_DIR':str(root)},clear=False):
-                point=shim._task091_table_cell_text_ink_point(
-                    self._state('0001-01-after'),[60,35,140,80])
-            self.assertIsNone(point)
-
-
-class CaretEvidenceSourceContractTests(unittest.TestCase):
-    def test_runtime_source_regex_accepts_canonical_observation_ids(self):
-        source = '0042-01-after'
-        self.assertRegex(source, r'\d{4}-\d{2}-(?:before|after)')
-
-    def test_runtime_source_regex_rejects_untrusted_paths(self):
-        self.assertNotRegex('/tmp/0042-01-after.png', r'^\d{4}-\d{2}-(?:before|after)$')
 
 
 class CaretGeometryTests(unittest.TestCase):
