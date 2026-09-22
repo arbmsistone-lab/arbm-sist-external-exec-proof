@@ -85,12 +85,13 @@ def inspect_repo(root="."):
     zero_spend=("ZERO_SPEND_MODE: HARD" in workflow
                 and "NON_ZERO_SPEND_MODE_FORBIDDEN" in shim)
     caret=("def _task091_caret_delta_geometry" in shim
-           and "def _task091_caret_at_text_end" in shim
+           and "def _task091_caret_at_text_start" in shim
            and "TASK091_TABLE_CELL_CARET_GEOMETRY_UNPROVEN" in shim
-           and "TASK091_TABLE_CELL_CARET_NOT_AT_END" in shim
+           and "TASK091_TABLE_CELL_START_CARET_GEOMETRY_UNPROVEN" in shim
+           and "caret_entry_end_diagnostic" in shim
            and "_task091_table_cell_bounded_write_command" in shim)
     selection_marker="def _task091_table_cell_selection_presses"
-    start_nav_marker="def _task091_table_cell_start_navigation_presses"
+    start_nav_marker="def _task091_table_cell_start_navigation_command"
     writer_marker="def _task091_table_cell_bounded_write_command"
     rollback_marker="def _task091_table_cell_rollback_command"
     selection_body=(shim.split(selection_marker,1)[1].split(start_nav_marker,1)[0]
@@ -103,10 +104,14 @@ def inspect_repo(root="."):
         bool(selection_body) and bool(start_nav_body) and bool(writer_body)
         and "presses=len(old)" in selection_body
         and "1 <= presses <= 30" in selection_body
-        and "visible=_task091_table_cell_selection_presses(old)" in start_nav_body
-        and "presses=visible+1" in start_nav_body
-        and "2 <= presses <= 31" in start_nav_body
+        and "pyautogui.press('home')" in start_nav_body
         and "pyautogui.keyDown('shift')" not in start_nav_body
+        and "pyautogui.press('left'" not in start_nav_body
+        and "pyautogui.press('right'" not in start_nav_body
+        and "pyautogui.write(" not in start_nav_body
+        and "start_navigation_method']='home'" in shim
+        and "TASK091_TABLE_CELL_START_CARET_GEOMETRY_UNPROVEN" in shim
+        and "TASK091_TABLE_CELL_CARET_NOT_AT_START" in shim
         and "pyautogui.press('right', presses={presses}" in writer_body
         and "pyautogui.press('delete')" not in writer_body
         and "pyautogui.press('left'" not in writer_body
