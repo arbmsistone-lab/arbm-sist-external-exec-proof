@@ -1012,6 +1012,30 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         rejected=shim._task091_caret_at_text_start(at_end,shape_bbox,ink_bbox)
         self.assertFalse(rejected['proven'],rejected)
 
+    def test_start_caret_terminal_marker_offset_allows_only_one_proven_normalization(self):
+        shape_bbox=[892,507,182,70]
+        ink_bbox=[965,516,35,12]
+        at_start=shim._task091_caret_at_text_start(
+            {'proven':True,'bbox':[72,2,1,22]},shape_bbox,ink_bbox)
+        self.assertTrue(at_start['proven'],at_start)
+        self.assertEqual(at_start['relation'],'at-start')
+        one_char_right=shim._task091_caret_at_text_start(
+            {'proven':True,'bbox':[80,2,1,22]},shape_bbox,ink_bbox)
+        self.assertFalse(one_char_right['proven'],one_char_right)
+        self.assertEqual(one_char_right['relation'],'right-of-start')
+        far_right=shim._task091_caret_at_text_start(
+            {'proven':True,'bbox':[110,2,1,22]},shape_bbox,ink_bbox)
+        self.assertFalse(far_right['proven'],far_right)
+        self.assertEqual(far_right['relation'],'far-right')
+        left_of_start=shim._task091_caret_at_text_start(
+            {'proven':True,'bbox':[50,2,1,22]},shape_bbox,ink_bbox)
+        self.assertFalse(left_of_start['proven'],left_of_start)
+        self.assertEqual(left_of_start['relation'],'left-of-start')
+        source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+        self.assertIn("normalize_attempts < 1",source)
+        self.assertIn("normalize-wps-terminal-marker-offset",source)
+        self.assertIn("table-cell-start-normalize-issued",source)
+
     def test_500_case_end_marker_red_team_matrix(self):
         alphabet="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz$%.-_"
         for i in range(500):
