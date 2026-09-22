@@ -90,16 +90,23 @@ def inspect_repo(root="."):
            and "TASK091_TABLE_CELL_CARET_NOT_AT_END" in shim
            and "_task091_table_cell_bounded_write_command" in shim)
     selection_marker="def _task091_table_cell_selection_presses"
+    start_nav_marker="def _task091_table_cell_start_navigation_presses"
     writer_marker="def _task091_table_cell_bounded_write_command"
     rollback_marker="def _task091_table_cell_rollback_command"
-    selection_body=(shim.split(selection_marker,1)[1].split(writer_marker,1)[0]
-                    if selection_marker in shim and writer_marker in shim else "")
+    selection_body=(shim.split(selection_marker,1)[1].split(start_nav_marker,1)[0]
+                    if selection_marker in shim and start_nav_marker in shim else "")
+    start_nav_body=(shim.split(start_nav_marker,1)[1].split(writer_marker,1)[0]
+                    if start_nav_marker in shim and writer_marker in shim else "")
     writer_body=(shim.split(writer_marker,1)[1].split(rollback_marker,1)[0]
                  if writer_marker in shim and rollback_marker in shim else "")
     bounded_table_edit=(
-        bool(selection_body) and bool(writer_body)
+        bool(selection_body) and bool(start_nav_body) and bool(writer_body)
         and "presses=len(old)" in selection_body
         and "1 <= presses <= 30" in selection_body
+        and "visible=_task091_table_cell_selection_presses(old)" in start_nav_body
+        and "presses=visible+1" in start_nav_body
+        and "2 <= presses <= 31" in start_nav_body
+        and "pyautogui.keyDown('shift')" not in start_nav_body
         and "pyautogui.press('right', presses={presses}" in writer_body
         and "pyautogui.press('delete')" not in writer_body
         and "pyautogui.press('left'" not in writer_body
