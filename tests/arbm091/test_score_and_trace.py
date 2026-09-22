@@ -933,7 +933,7 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
             self.assertEqual(state['pending_edit']['caret_geometry']['width'],1)
             self.assertNotIn("ctrl', 'a",fourth['command'])
             self.assertTrue(fourth['command'].startswith("pyautogui.keyDown('shift')"))
-            self.assertIn("press('left', presses=6",fourth['command'])
+            self.assertIn("press('left', presses=7",fourth['command'])
             self.assertNotIn("press('end')",fourth['command'])
             self.assertNotIn("press('backspace'",fourth['command'])
             self.assertTrue(state['pending_edit']['caret_end_geometry']['proven'])
@@ -955,7 +955,7 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         command=shim._task091_table_cell_bounded_write_command('$42.8M','$40.9M')
         self.assertNotIn("hotkey('ctrl', 'a')",command)
         self.assertEqual(command.splitlines()[0],"pyautogui.keyDown('shift')")
-        self.assertIn("pyautogui.press('left', presses=6",command)
+        self.assertIn("pyautogui.press('left', presses=7",command)
         self.assertIn("pyautogui.keyUp('shift')",command)
         self.assertNotIn("press('end')",command)
         self.assertNotIn("press('backspace'",command)
@@ -974,11 +974,31 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         body=source[start:end]
         self.assertNotIn("ctrl', 'a",body)
         self.assertIn("keyDown('shift')",body)
-        self.assertIn("press('left', presses={len(old)}",body)
+        self.assertIn("_task091_table_cell_selection_presses",body)
+        self.assertIn("first=min(30,max(0,presses))",body)
+        self.assertIn("remaining=max(0,presses-first)",body)
         self.assertIn("keyUp('shift')",body)
         self.assertNotIn("press('end')",body)
         self.assertNotIn("press('backspace'",body)
         self.assertIn("_task091_table_cell_rollback_command",body)
+
+    def test_wps_terminal_marker_adds_exactly_one_bounded_position(self):
+        self.assertEqual(shim._task091_table_cell_selection_presses('$42.8M'),7)
+        self.assertEqual(shim._task091_table_cell_selection_presses('x'*30),31)
+        command=shim._task091_table_cell_bounded_write_command('x'*30,'y')
+        self.assertIn("press('left', presses=30",command)
+        self.assertIn("press('left', presses=1",command)
+        self.assertNotIn("press('left', presses=31",command)
+
+    def test_slide3_section_e_correction_is_caret_proven_and_text_preserving(self):
+        source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+        self.assertIn("TASK091_SECTION_E_FORMAT",source)
+        self.assertIn("'shape_id': 16",source)
+        self.assertIn("'shape_name': 'KpiReadout_Body'",source)
+        self.assertIn("_task091_caret_delta_geometry",source)
+        self.assertIn("pyautogui.hotkey('ctrl', '[')",source)
+        self.assertIn("TASK091_SECTION_E_FONT_DELTA_UNPROVEN",source)
+        self.assertIn("TASK091_SECTION_E_POSTSAVE_DRIFT",source)
 
 
 if __name__ == '__main__':
