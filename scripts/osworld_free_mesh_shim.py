@@ -772,7 +772,7 @@ TASK091_SECTION_E_FORMAT = {
     'shape_id': 16,
     'shape_name': 'KpiReadout_Body',
     'text_fingerprint': '• Burn improvement relies on expansion payback from Q4.',
-    'font_decrements': 1,
+    'font_decrements': 2,
 }
 
 
@@ -872,7 +872,7 @@ def _task091_section_e_format_step(state, window_state):
             commands.append("pyautogui.hotkey('ctrl', '[')")
         command='\n'.join(commands)
         return {'action':'exec','command':command,
-                'plan':'A caret is proven inside only KpiReadout_Body. Select that shape text and reduce font by exactly 1 pt to create rounded-container clearance.',
+                'plan':f"A caret is proven inside only KpiReadout_Body. Select that shape text and reduce font by exactly {int(tx.get('font_decrements') or 1)} pt to create rounded-container clearance.",
                 'specialist_phase':'section-e-reduce-font'}
     if stage == 'font-issued':
         tx['stage']='commit-issued'
