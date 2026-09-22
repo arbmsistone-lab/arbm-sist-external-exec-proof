@@ -500,7 +500,8 @@ class MeshTests(unittest.TestCase):
    no_op_index=next(i for i,row in enumerate(shim.TASK091_SPATIAL_TEXT_EDITS)
                     if shim._task091_norm(row[3]) == shim._task091_norm(row[4]))
    no_op_row=shim.TASK091_SPATIAL_TEXT_EDITS[no_op_index]
-   no_op_state={'owned':True,'anchored':True,'slide':no_op_row[0],'spatial_index':no_op_index}
+   no_op_state={'owned':True,'anchored':True,'slide':no_op_row[0],'spatial_index':no_op_index,
+                'section_e_format_done':True}
    no_op=shim.next_091_specialist_action(task,'WPS Presentation','',no_op_state,deck)
    self.assertEqual(no_op['action'],'checkpoint')
    self.assertEqual(no_op['checkpoint'],'TASK091_TARGET_ALREADY_FINAL')
@@ -513,7 +514,8 @@ class MeshTests(unittest.TestCase):
    self.assertNotIn("alt', 'f4",normal_action['command'])
 
    # Handoff is explicit, only after no pending edit and verified text pass saved.
-   done={'owned':True,'anchored':True,'slide':13,'spatial_index':len(shim.TASK091_SPATIAL_TEXT_EDITS)}
+   done={'owned':True,'anchored':True,'slide':13,'spatial_index':len(shim.TASK091_SPATIAL_TEXT_EDITS),
+         'section_e_format_done':True}
    save=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,done,deck)
    self.assertIn("hotkey('ctrl', 's')",save['command'])
    self.assertIsNone(shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,done,deck))
