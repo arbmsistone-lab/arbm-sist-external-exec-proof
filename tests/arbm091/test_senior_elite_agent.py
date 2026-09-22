@@ -61,6 +61,18 @@ class SeniorEliteBoardTests(unittest.TestCase):
         self.assertIn('anti_repetition',result['failed'])
 
 
+    def test_task091_end_caret_bounded_replace_passes_all_ten_lanes(self):
+        command=shim._task091_table_cell_bounded_write_command('$42.8M','$40.9M')
+        action={'action':'exec','command':command,'specialist_phase':'edit-end-caret-proven-table-cell'}
+        state={'task091_specialist':{'owned':True,'handoff':False}}
+        with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','GITHUB_SHA':'1'*40},clear=False):
+            result=review_action(action,task_id='091',source='task091-specialist',
+                                 state=state,verifier={'progress':True,'no_progress':0},
+                                 recent_commands=[])
+        self.assertTrue(result['allow'],result)
+        self.assertEqual(result['pass'],10)
+
+
     def test_task091_second_table_click_allows_only_evidence_bound_second_attempt(self):
         command="pyautogui.click(843, 404)"
         digest=hashlib.sha256(command.encode()).hexdigest()
