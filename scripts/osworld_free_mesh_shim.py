@@ -219,13 +219,13 @@ def _task091_table_cell_selection_presses(old):
 
 
 def _task091_table_cell_bounded_write_command(old, new, interval=TASK091_TYPE_INTERVAL):
-    """Replace one single-line cell without ever selecting across a cell boundary.
+    """Replace one single-line cell from a separately proven start caret.
 
-    Focal evidence proved len(old)+1 crosses into the previous WPS table cell.
-    Exactly len(old) Shift+Left positions remain inside the target but leave one
-    proven trailing glyph. After writing the replacement, one bounded Delete
-    removes only that residual glyph. End, Home, Ctrl+A, and Backspace sweeps
-    remain forbidden; post-save target and sibling verification stays mandatory.
+    The end-of-cell marker is never selected: the state machine first proves the
+    caret at the visual end, moves exactly len(old) positions left without Shift,
+    proves the caret at the visual start, then this command selects exactly the
+    visible text to the right and overwrites it. No residual Delete, End, Home,
+    Ctrl+A, or Backspace sweep is allowed.
     """
     old=str(old or '')
     new=str(new or '')
@@ -234,12 +234,11 @@ def _task091_table_cell_bounded_write_command(old, new, interval=TASK091_TYPE_IN
     presses=_task091_table_cell_selection_presses(old)
     commands=[
         "pyautogui.keyDown('shift')",
-        f"pyautogui.press('left', presses={presses}, interval=0.03)",
+        f"pyautogui.press('right', presses={presses}, interval=0.03)",
         "pyautogui.keyUp('shift')",
     ]
     if new:
         commands.append(f"pyautogui.write({new!r}, interval={float(interval):g})")
-    commands.append("pyautogui.press('delete')")
     return '\n'.join(commands)
 
 
@@ -443,6 +442,30 @@ def _task091_caret_at_text_end(caret, shape_bbox, ink_bbox, expected_x, toleranc
         'caret_x':caret_x,
         'ink_right':ink_right,
         'expected_x':expected_x,
+        'tolerance':tolerance,
+    }
+
+
+def _task091_caret_at_text_start(caret, shape_bbox, ink_bbox, tolerance=8):
+    """Require the proven caret to sit immediately before the first visible cell glyph."""
+    if not isinstance(caret,dict) or caret.get('proven') is not True:
+        return {'proven':False,'reason':'caret-unproven'}
+    if not isinstance(shape_bbox,list) or len(shape_bbox)!=4 or not isinstance(ink_bbox,list) or len(ink_bbox)!=4:
+        return {'proven':False,'reason':'geometry-missing'}
+    cb=caret.get('bbox')
+    if not isinstance(cb,list) or len(cb)!=4:
+        return {'proven':False,'reason':'caret-bbox-missing'}
+    if not all(type(v) is int for v in shape_bbox+ink_bbox+cb):
+        return {'proven':False,'reason':'geometry-invalid'}
+    caret_x=int(shape_bbox[0])+int(cb[0])
+    ink_left=int(ink_bbox[0])
+    tolerance=int(tolerance)
+    proven=(caret_x >= ink_left-tolerance-4 and caret_x <= ink_left+2)
+    return {
+        'proven':proven,
+        'reason':'caret-at-text-start' if proven else 'caret-not-at-text-start',
+        'caret_x':caret_x,
+        'ink_left':ink_left,
         'tolerance':tolerance,
     }
 
@@ -1527,14 +1550,68 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             pending['selected_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
             pending['selection_ack_foreground_sha256']=current_fg
             pending['explicit_text_mode']=True
-            pending['stage']='edit-issued'
             selection_presses=_task091_table_cell_selection_presses(pending['old'])
             pending['selection_press_count']=selection_presses
+            pending['stage']='table-cell-start-nav-issued'
+            command=(f"pyautogui.press('left', presses={selection_presses}, interval=0.03)\n"
+                     "pyautogui.sleep(0.20)")
+            pending['start_nav_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+            return {'action':'exec','command':command,
+                    'plan':f"Move exactly {selection_presses} positions left from the proven end caret without selecting anything. This keeps the WPS end-of-cell marker outside every selection.",
+                    'specialist_phase':'move-table-caret-to-proven-start'}
+
+        if stage in ('table-cell-start-nav-issued','table-cell-start-caret-probe-issued'):
+            current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
+            current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
+            current_fg=_task091_foreground_sha(window_state)
+            shape=_task091_shape_by_id(window_state,pending['slide'],pending.get('shape_id'))
+            siblings=_task091_other_shapes_signature(window_state,pending['slide'],pending.get('shape_id'))
+            sibling_visual=_task091_table_visual_signature(
+                window_state,pending['slide'],pending.get('table_frame_id'),pending.get('shape_id'))
+            bbox=list(pending.get('shape_bbox') or [])
+            baseline=str(pending.get('textmode_baseline_source') or '')
+            caret=_task091_caret_delta_geometry(baseline,window_state.get('source'),bbox)
+            safe=(current_sha == str(pending.get('before_deck_sha256') or '')
+                  and int(window_state.get('active_slide') or 0) == int(pending.get('slide') or 0)
+                  and shape is not None
+                  and str(shape.get('kind') or '') == 'table-cell'
+                  and str(shape.get('text') or '') == str(pending.get('old') or '')
+                  and siblings == str(pending.get('before_sibling_signature') or '')
+                  and siblings == str(pending.get('table_selected_sibling_signature') or '')
+                  and len(current_fg)==64
+                  and current_fg == str(pending.get('selection_foreground_sha256') or '')
+                  and len(sibling_visual)==64
+                  and sibling_visual == str(pending.get('table_selected_sibling_visual_sha256') or '')
+                  and re.fullmatch(r'\d{4}-\d{2}-(?:before|after)',baseline) is not None)
+            if not safe:
+                return _task091_terminal('TASK091_TABLE_CELL_START_NAV_DRIFT',state)
+            pending['caret_start_geometry']=caret
+            if caret.get('proven') is not True:
+                attempts=int(pending.get('start_caret_probe_attempts') or 0)
+                source=str(window_state.get('source') or '')
+                if not re.fullmatch(r'\d{4}-\d{2}-(?:before|after)',source):
+                    return _task091_terminal('TASK091_TABLE_CELL_START_CARET_EVIDENCE_MISSING',state)
+                if attempts >= 4:
+                    return _task091_terminal('TASK091_TABLE_CELL_START_CARET_GEOMETRY_UNPROVEN',state)
+                pending['start_caret_probe_attempts']=attempts+1
+                pending['stage']='table-cell-start-caret-probe-issued'
+                delay=(0.30,0.55,0.80,1.05)[attempts]
+                command=f"pyautogui.sleep({delay:.2f})"
+                pending['start_caret_probe_command_hash']=hashlib.sha256(command.encode()).hexdigest()
+                return {'action':'exec','command':command,
+                        'plan':'Re-sample the unchanged cell until the relocated start caret is geometrically visible. No mutation is allowed during this proof.',
+                        'specialist_phase':f'table-cell-start-caret-probe-{attempts+1}'}
+            caret_start=_task091_caret_at_text_start(
+                caret,bbox,list(pending.get('table_text_ink_bbox') or []))
+            pending['caret_start_boundary']=caret_start
+            if caret_start.get('proven') is not True:
+                return _task091_terminal('TASK091_TABLE_CELL_CARET_NOT_AT_START',state)
+            pending['stage']='edit-issued'
             command=_task091_table_cell_bounded_write_command(pending['old'],pending['new'])
             pending['action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
-                    'plan':f"Replace {pending['old']!r} using exactly {selection_presses} in-cell Shift+Left positions, then one bounded Delete for the focal-proven trailing glyph; crossing into a sibling cell is forbidden.",
-                    'specialist_phase':'edit-end-caret-proven-table-cell','expected_change':pending['new']}
+                    'plan':f"From the independently proven start caret, select exactly {pending['selection_press_count']} visible characters to the right and overwrite them. The end-of-cell marker remains outside the selection.",
+                    'specialist_phase':'edit-start-caret-proven-table-cell','expected_change':pending['new']}
         if stage == 'select-issued':
             current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
             current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
