@@ -208,40 +208,38 @@ def _task091_write_command(value, interval=TASK091_TYPE_INTERVAL, ensure_text_mo
     return '\n'.join(commands)
 
 def _task091_table_cell_selection_presses(old):
-    """Bound selection to the cell text plus WPS's single terminal marker."""
+    """Stay strictly inside one table cell; never cross its left boundary."""
     old=str(old or '')
     if not old or '\n' in old or len(old) > 30:
         raise ValueError('TASK091_TABLE_CELL_BOUNDED_EDIT_INVALID')
-    presses=len(old)+1
-    if not 1 <= presses <= 31:
+    presses=len(old)
+    if not 1 <= presses <= 30:
         raise ValueError('TASK091_TABLE_CELL_SELECTION_LENGTH_INVALID')
     return presses
 
 
 def _task091_table_cell_bounded_write_command(old, new, interval=TASK091_TYPE_INTERVAL):
-    """Replace one single-line cell after an independently proven end caret.
+    """Replace one single-line cell without ever selecting across a cell boundary.
 
-    WPS exposes one non-text terminal cell marker after the final glyph. The
-    first Shift+Left is consumed by that marker, so selection is bounded to
-    len(old)+1 positions. Each press call remains <=30 and the total is <=31.
-    End, Home, Ctrl+A, and Backspace sweeps remain forbidden.
+    Focal evidence proved len(old)+1 crosses into the previous WPS table cell.
+    Exactly len(old) Shift+Left positions remain inside the target but leave one
+    proven trailing glyph. After writing the replacement, one bounded Delete
+    removes only that residual glyph. End, Home, Ctrl+A, and Backspace sweeps
+    remain forbidden; post-save target and sibling verification stays mandatory.
     """
     old=str(old or '')
     new=str(new or '')
     if '\n' in new or len(new) > 128:
         raise ValueError('TASK091_TABLE_CELL_BOUNDED_EDIT_INVALID')
     presses=_task091_table_cell_selection_presses(old)
-    first=min(30,max(0,presses))
-    remaining=max(0,presses-first)
     commands=[
         "pyautogui.keyDown('shift')",
-        f"pyautogui.press('left', presses={first}, interval=0.03)",
+        f"pyautogui.press('left', presses={presses}, interval=0.03)",
+        "pyautogui.keyUp('shift')",
     ]
-    if remaining:
-        commands.append(f"pyautogui.press('left', presses={remaining}, interval=0.03)")
-    commands.append("pyautogui.keyUp('shift')")
     if new:
         commands.append(f"pyautogui.write({new!r}, interval={float(interval):g})")
+    commands.append("pyautogui.press('delete')")
     return '\n'.join(commands)
 
 
@@ -1535,7 +1533,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             command=_task091_table_cell_bounded_write_command(pending['old'],pending['new'])
             pending['action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
-                    'plan':f"Replace exactly {pending['old']!r} using {selection_presses} bounded Shift+Left positions: {len(str(pending['old']))} text characters plus the single WPS terminal-cell marker; End, Home, Ctrl+A and Backspace sweeps are forbidden.",
+                    'plan':f"Replace {pending['old']!r} using exactly {selection_presses} in-cell Shift+Left positions, then one bounded Delete for the focal-proven trailing glyph; crossing into a sibling cell is forbidden.",
                     'specialist_phase':'edit-end-caret-proven-table-cell','expected_change':pending['new']}
         if stage == 'select-issued':
             current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
