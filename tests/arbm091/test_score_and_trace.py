@@ -895,9 +895,14 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
                                         'cx':983,'cy':471,
                                         'proof_sha256':'d'*64}), \
              patch.object(shim,'_task091_caret_delta_geometry',
-                          return_value={'proven':True,'reason':'caret-geometry',
-                                        'count':22,'width':1,'height':22,
-                                        'dominant_column':22,'bbox':[111,3,1,22]}):
+                          side_effect=[
+                              {'proven':True,'reason':'caret-geometry',
+                               'count':22,'width':1,'height':22,
+                               'dominant_column':22,'bbox':[111,3,1,22]},
+                              {'proven':True,'reason':'caret-geometry',
+                               'count':22,'width':1,'height':22,
+                               'dominant_column':22,'bbox':[78,3,1,22]},
+                          ]):
             state={'anchored':True,'slide':3,'spatial_index':10}
             deck=self._deck('1')
             first=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(deck))
@@ -927,16 +932,27 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
 
             cell_entered=self._deck('4')
             fourth=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(cell_entered))
-            self.assertEqual(fourth['specialist_phase'],'edit-end-caret-proven-table-cell')
-            self.assertEqual(state['pending_edit']['stage'],'edit-issued')
+            self.assertEqual(fourth['specialist_phase'],'move-table-caret-to-proven-start')
+            self.assertEqual(state['pending_edit']['stage'],'table-cell-start-nav-issued')
             self.assertTrue(state['pending_edit']['explicit_text_mode'])
             self.assertEqual(state['pending_edit']['caret_geometry']['width'],1)
             self.assertNotIn("ctrl', 'a",fourth['command'])
-            self.assertTrue(fourth['command'].startswith("pyautogui.keyDown('shift')"))
             self.assertIn("press('left', presses=6",fourth['command'])
+            self.assertNotIn("keyDown('shift')",fourth['command'])
             self.assertNotIn("press('end')",fourth['command'])
             self.assertNotIn("press('backspace'",fourth['command'])
             self.assertTrue(state['pending_edit']['caret_end_geometry']['proven'])
+
+            caret_at_start=self._deck('5')
+            fifth=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(caret_at_start))
+            self.assertEqual(fifth['specialist_phase'],'edit-start-caret-proven-table-cell')
+            self.assertEqual(state['pending_edit']['stage'],'edit-issued')
+            self.assertTrue(state['pending_edit']['caret_start_boundary']['proven'])
+            self.assertTrue(fifth['command'].startswith("pyautogui.keyDown('shift')"))
+            self.assertIn("press('right', presses=6",fifth['command'])
+            self.assertNotIn("press('left'",fifth['command'])
+            self.assertNotIn("press('delete')",fifth['command'])
+            self.assertNotIn("ctrl', 'a",fifth['command'])
 
     def test_table_cell_sibling_drift_blocks_second_click(self):
         with patch.dict(os.environ,{'TASK_ID':'091'},clear=False):
@@ -1030,6 +1046,74 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         ]
         for marker in checks:
             self.assertIn(marker,source)
+
+    def test_fifty_adversarial_table_transaction_audits(self):
+        source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+        writer_start=source.index("def _task091_table_cell_bounded_write_command")
+        writer_end=source.index("def _task091_table_cell_rollback_command",writer_start)
+        writer=source[writer_start:writer_end]
+        mismatch_start=source.index("if status in ('collateral-mutation','disk-text-mismatch')")
+        mismatch_end=source.index("if status=='collateral-mutation':",mismatch_start)
+        mismatch=source[mismatch_start:mismatch_end]
+        cmd6=shim._task091_table_cell_bounded_write_command('$42.8M','$40.9M')
+        cmd4=shim._task091_table_cell_bounded_write_command('112%','104%')
+        cmd1=shim._task091_table_cell_bounded_write_command('A','B')
+        cmd30=shim._task091_table_cell_bounded_write_command('x'*30,'y'*30)
+        audits=[
+            ('01_no_ctrl_a_writer',"hotkey('ctrl', 'a')" not in writer),
+            ('02_no_delete_writer',"press('delete')" not in writer),
+            ('03_no_backspace_writer',"press('backspace'" not in writer),
+            ('04_no_end_writer',"press('end')" not in writer),
+            ('05_no_home_writer',"press('home')" not in writer),
+            ('06_no_left_selection_writer',"press('left'" not in writer),
+            ('07_right_selection_present',"press('right', presses={presses}" in writer),
+            ('08_shift_down_present',"keyDown('shift')" in writer),
+            ('09_shift_up_present',"keyUp('shift')" in writer),
+            ('10_exact_len_helper',shim._task091_table_cell_selection_presses('$42.8M')==6),
+            ('11_percent_len_helper',shim._task091_table_cell_selection_presses('112%')==4),
+            ('12_single_char_len_helper',shim._task091_table_cell_selection_presses('A')==1),
+            ('13_max_len_helper',shim._task091_table_cell_selection_presses('x'*30)==30),
+            ('14_currency_right6',"press('right', presses=6" in cmd6),
+            ('15_percent_right4',"press('right', presses=4" in cmd4),
+            ('16_single_right1',"press('right', presses=1" in cmd1),
+            ('17_max_right30',"press('right', presses=30" in cmd30),
+            ('18_currency_no_delete',"press('delete')" not in cmd6),
+            ('19_percent_no_delete',"press('delete')" not in cmd4),
+            ('20_currency_no_left',"press('left'" not in cmd6),
+            ('21_percent_no_left',"press('left'" not in cmd4),
+            ('22_currency_exact_new',"write('$40.9M'" in cmd6),
+            ('23_percent_exact_new',"write('104%'" in cmd4),
+            ('24_start_helper_defined',"def _task091_caret_at_text_start" in source),
+            ('25_end_helper_defined',"def _task091_caret_at_text_end" in source),
+            ('26_start_nav_stage',"table-cell-start-nav-issued" in source),
+            ('27_start_probe_stage',"table-cell-start-caret-probe-issued" in source),
+            ('28_start_nav_drift_gate',"TASK091_TABLE_CELL_START_NAV_DRIFT" in source),
+            ('29_start_evidence_gate',"TASK091_TABLE_CELL_START_CARET_EVIDENCE_MISSING" in source),
+            ('30_start_geometry_gate',"TASK091_TABLE_CELL_START_CARET_GEOMETRY_UNPROVEN" in source),
+            ('31_start_boundary_gate',"TASK091_TABLE_CELL_CARET_NOT_AT_START" in source),
+            ('32_end_boundary_gate',"TASK091_TABLE_CELL_CARET_NOT_AT_END" in source),
+            ('33_entry_drift_gate',"TASK091_TABLE_CELL_ENTRY_DRIFT" in source),
+            ('34_sibling_signature',"before_sibling_signature" in source),
+            ('35_visual_sibling_signature',"table_selected_sibling_visual_sha256" in source),
+            ('36_press_count_recorded',"selection_press_count" in source),
+            ('37_explicit_text_mode',"explicit_text_mode" in source),
+            ('38_start_nav_without_shift',"Move exactly {selection_presses} positions left" in source),
+            ('39_edit_from_proven_start',"edit-start-caret-proven-table-cell" in source),
+            ('40_mismatch_no_undo_fatal',"TASK091_TABLE_CELL_POSTSAVE_MISMATCH_NO_UNDO" in mismatch),
+            ('41_mismatch_quarantines_undo',"undo_quarantined" in mismatch),
+            ('42_mismatch_no_ctrl_z',"ctrl', 'z" not in mismatch),
+            ('43_mismatch_no_rollback_call',"_task091_table_cell_rollback_command()" not in mismatch),
+            ('44_mismatch_preserves_failure_sha',"failure_deck_sha256" in mismatch),
+            ('45_mismatch_preserves_failure_text',"failure_text" in mismatch),
+            ('46_mismatch_records_reason',"failure_reason" in mismatch),
+            ('47_mismatch_fail_closed_mode',"TARGET_FAIL_CLOSED" in mismatch),
+            ('48_section_e_two_point',"'font_decrements': 2" in source),
+            ('49_zero_spend_contract',"NON_ZERO_SPEND_MODE_FORBIDDEN" in source),
+            ('50_no_generic_evaluator_change',"official evaluator" not in writer.casefold()),
+        ]
+        self.assertEqual(len(audits),50)
+        failed=[name for name,ok in audits if not ok]
+        self.assertEqual(failed,[],failed)
 
     def test_slide3_section_e_correction_is_caret_proven_and_text_preserving(self):
         source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
