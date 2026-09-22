@@ -94,7 +94,7 @@ export async function runSnapshotUi12pCert(){
   if(!candidates.length) throw new Error("cloudflare_entry_missing");
   const entry=path.join(root,"cf-release-bundle",candidates[0]);
   const wrangler=spawn("npx",["wrangler","dev",entry,"--local","--local-protocol","https","--port","3000","--config","wrangler.jsonc"],{
-    cwd:root,env,stdio:["ignore","pipe","pipe"],shell:false,
+    cwd:root,env,stdio:["ignore","pipe","pipe"],shell:false,detached:true,
   });
   let runtimeLog="";
   wrangler.stdout.on("data",(d)=>{runtimeLog+=d.toString();});
@@ -109,7 +109,16 @@ export async function runSnapshotUi12pCert(){
     if(!ready) throw new Error("candidate_startup_failed:"+runtimeLog.slice(-4000));
     run("node",["scripts/audit-pr-public-visual.mjs"],root,{...env,ARBM_PR_BASE_URL:"https://127.0.0.1:3000"},600000);
   } finally {
-    wrangler.kill("SIGTERM");
+    if(wrangler.pid){
+      try{ process.kill(-wrangler.pid,"SIGTERM"); }catch{}
+      await Promise.race([
+        new Promise((resolve)=>wrangler.once("close",resolve)),
+        new Promise((resolve)=>setTimeout(resolve,3000)),
+      ]);
+      if(wrangler.exitCode===null){
+        try{ process.kill(-wrangler.pid,"SIGKILL"); }catch{}
+      }
+    }
   }
   console.log(JSON.stringify({marker:"ARBM_UI12P_REMOTE_CERTIFICATION",state:"PASS",sha:expectedSha,digest}));
 }
