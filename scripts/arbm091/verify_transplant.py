@@ -688,6 +688,7 @@ def main():
         "f163a5391916d628221a15166ba4f099479f5e89": {".github/workflows/osworld-v32-policy-gate.yml"},
         "5051e87b707dd6e66b66e634c4de4e74856eb6df": {".github/workflows/osworld-v32-cloud-matrix.yml"},
         "33374ab7eb3854c441925c0d3bc7a421f7725f9e": {".github/workflows/osworld-gimp-sample-probe.yml"},
+        "195e1c72836f3f5327ea7933930bf931b16d4f44": {".github/workflows/osworld-g3-smoke-v2.yml"},
         "1dc073ddc5a5468b42028646aa15ed4168405a97": {"Dockerfile"},
         "1d41b0f6db80d4757f9a72af4dcdd3cf38c71f64": {".github/workflows/arbm-lockfile-generator-temp.yml"},
     }
