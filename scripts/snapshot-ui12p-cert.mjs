@@ -71,7 +71,7 @@ export async function runSnapshotUi12pCert(){
 
   console.log(JSON.stringify({marker:"ARBM_UI12P_SNAPSHOT_PROVENANCE",sha:expectedSha,digest,fileCount:normalized.length}));
 
-  const env={...process.env,ARBM_EXPECTED_SHA:expectedSha,NODE_OPTIONS:"--max-old-space-size=2048"};
+  const env={...process.env,ARBM_EXPECTED_SHA:expectedSha,GITHUB_SHA:expectedSha,NODE_OPTIONS:"--max-old-space-size=2048"};
   run("npm",["ci","--ignore-scripts","--no-audit","--no-fund"],root,env);
   run("npm",["run","typecheck"],root,env);
   run("node",["--test",
