@@ -173,7 +173,7 @@ def evaluate(contract):
                          'members':[row['name'] for row in members]})
     _require(not failed,'ELITE_BOARD_BLOCKED:'+','.join(failed))
     _require(all(c['pass'] for c in councils),'ELITE_COUNCIL_BLOCKED')
-    return {'status':'PASS','elite_pass':ELITE_TOTAL,'elite_total':ELITE_TOTAL,
+    return {'status':'PRE_FOCAL_ADVISORY_PASS','release_approval':False,'elite_pass':ELITE_TOTAL,'elite_total':ELITE_TOTAL,
             'councils_pass':COUNCIL_TOTAL,'councils_total':COUNCIL_TOTAL,
             'rows':rows,'councils':councils}
 
