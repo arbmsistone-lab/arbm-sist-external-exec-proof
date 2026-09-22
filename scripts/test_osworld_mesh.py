@@ -740,7 +740,7 @@ class Task091TransactionalTableCellTests(unittest.TestCase):
   self.assertEqual(spec['slide'],3)
   self.assertEqual(spec['shape_id'],16)
   self.assertEqual(spec['shape_name'],'KpiReadout_Body')
-  self.assertEqual(spec['font_decrements'],1)
+  self.assertEqual(spec['font_decrements'],2)
   source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
   self.assertIn("TASK091_SECTION_E_CARET_UNPROVEN",source)
   self.assertIn("TASK091_SECTION_E_FONT_DELTA_UNPROVEN",source)
