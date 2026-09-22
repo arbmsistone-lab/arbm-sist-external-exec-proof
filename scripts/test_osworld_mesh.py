@@ -559,6 +559,22 @@ class MeshTests(unittest.TestCase):
   with self.assertRaises(RuntimeError):
    evaluate(actual,expected,unsafe,shape,'a'*64,'b'*64)
 
+ def test_task091_table_cell_suffix_duplicate_repair_is_single_char_fail_closed(self):
+  cmd=shim._task091_table_cell_suffix_duplicate_repair_command('104%%','104%')
+  self.assertEqual(cmd.splitlines()[0],"pyautogui.press('home')")
+  self.assertIn("press('right', presses=4",cmd)
+  self.assertEqual(cmd.count("press('delete')"),1)
+  self.assertNotIn("ctrl', 'a",cmd)
+  self.assertNotIn("keyDown('shift')",cmd)
+  self.assertNotIn("backspace",cmd)
+  self.assertNotIn("ctrl', 'z",cmd)
+  for actual in ('%104%','104%%%','104%X','104'):
+   with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_SUFFIX_REPAIR_NOT_PROVEN'):
+    shim._task091_table_cell_suffix_duplicate_repair_command(actual,'104%')
+  self.assertEqual(
+   shim._task091_apply_repair_operation('104%%',{'op':'delete','index':4,'char':'%'}),
+   '104%')
+
  def test_task091_atomic_repair_chunks_long_caret_navigation(self):
   for index in (43,51):
    command=shim._task091_restricted_repair_command([{'op':'delete','index':index,'char':'R'}])
