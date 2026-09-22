@@ -668,14 +668,16 @@ class MeshTests(unittest.TestCase):
 
 
 class Task091TransactionalTableCellTests(unittest.TestCase):
- def test_table_cell_writer_selects_exact_old_text_without_end_or_backspace(self):
+ def test_table_cell_writer_selects_right_from_proven_start(self):
   command=shim._task091_table_cell_bounded_write_command('$42.8M','$40.9M')
   self.assertNotIn("press('end')",command)
   self.assertNotIn("press('home')",command)
   self.assertNotIn("hotkey('ctrl', 'a')",command)
   self.assertNotIn("press('backspace'",command)
+  self.assertNotIn("press('delete')",command)
+  self.assertNotIn("press('left'",command)
   self.assertIn("keyDown('shift')",command)
-  self.assertIn("press('left', presses=6",command)
+  self.assertIn("press('right', presses=6",command)
   self.assertIn("keyUp('shift')",command)
   self.assertIn("write('$40.9M'",command)
   from osworld_control import canonical_action
@@ -725,15 +727,22 @@ class Task091TransactionalTableCellTests(unittest.TestCase):
   from osworld_control import canonical_action
   self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
 
- def test_table_cell_terminal_marker_selection_is_bounded_and_compilable(self):
+ def test_table_cell_terminal_marker_is_excluded_by_rightward_selection(self):
   self.assertEqual(shim._task091_table_cell_selection_presses('$42.8M'),6)
   self.assertEqual(shim._task091_table_cell_selection_presses('x'*30),30)
   command=shim._task091_table_cell_bounded_write_command('x'*30,'y')
-  self.assertIn("press('left', presses=30",command)
-  self.assertNotIn("press('left', presses=31",command)
-  self.assertEqual(command.count("press('delete')"),1)
+  self.assertIn("press('right', presses=30",command)
+  self.assertNotIn("press('right', presses=31",command)
+  self.assertNotIn("press('delete')",command)
+  self.assertNotIn("press('left'",command)
   from osworld_control import canonical_action
   self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_table_cell_start_caret_guard_rejects_end_position(self):
+  shape_bbox=[892,507,182,70]
+  ink_bbox=[965,516,35,12]
+  self.assertTrue(shim._task091_caret_at_text_start({'proven':True,'bbox':[72,2,1,22]},shape_bbox,ink_bbox)['proven'])
+  self.assertFalse(shim._task091_caret_at_text_start({'proven':True,'bbox':[108,2,1,22]},shape_bbox,ink_bbox)['proven'])
 
  def test_section_e_font_correction_uses_proven_caret_and_one_point_decrement(self):
   spec=shim.TASK091_SECTION_E_FORMAT
