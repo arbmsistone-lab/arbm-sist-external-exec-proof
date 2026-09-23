@@ -91,11 +91,14 @@ def inspect_repo(root="."):
            and "caret_entry_end_diagnostic" in shim
            and "_task091_table_cell_bounded_write_command" in shim)
     selection_marker="def _task091_table_cell_selection_presses"
+    start_anchor_marker="def _task091_table_cell_start_anchor"
     start_nav_marker="def _task091_table_cell_start_navigation_command"
     writer_marker="def _task091_table_cell_bounded_write_command"
     rollback_marker="def _task091_table_cell_rollback_command"
-    selection_body=(shim.split(selection_marker,1)[1].split(start_nav_marker,1)[0]
-                    if selection_marker in shim and start_nav_marker in shim else "")
+    selection_body=(shim.split(selection_marker,1)[1].split(start_anchor_marker,1)[0]
+                    if selection_marker in shim and start_anchor_marker in shim else "")
+    start_anchor_body=(shim.split(start_anchor_marker,1)[1].split(start_nav_marker,1)[0]
+                       if start_anchor_marker in shim and start_nav_marker in shim else "")
     start_nav_body=(shim.split(start_nav_marker,1)[1].split(writer_marker,1)[0]
                     if start_nav_marker in shim and writer_marker in shim else "")
     writer_body=(shim.split(writer_marker,1)[1].split(rollback_marker,1)[0]
@@ -105,9 +108,11 @@ def inspect_repo(root="."):
         and "presses=len(old)" in selection_body
         and "1 <= presses <= 30" in selection_body
         and "pyautogui.click(" in start_nav_body
-        and "TASK091_TABLE_CELL_START_NAV_POINT_OUTSIDE_CELL" in start_nav_body
-        and "max(sx+4,min(ix-3,sx+sw-4))" in start_nav_body
-        and "max(sy+4,min(iy+ih//2,sy+sh-4))" in start_nav_body
+        and bool(start_anchor_body)
+        and "TASK091_TABLE_CELL_START_NAV_POINT_OUTSIDE_CELL" in start_anchor_body
+        and "max(sx+4,min(ix-3,sx+sw-4))" in start_anchor_body
+        and "max(sy+4,min(iy+ih//2,sy+sh-4))" in start_anchor_body
+        and "_task091_table_cell_start_anchor(shape_bbox,ink_bbox)" in start_nav_body
         and "pyautogui.keyDown('shift')" not in start_nav_body
         and "pyautogui.press('left'" not in start_nav_body
         and "pyautogui.press('right'" not in start_nav_body
