@@ -1,5 +1,5 @@
 """OpenAI-compatible OSWorld bridge. All guest execution stays in official OSWorld."""
-import argparse, json, os, re, time, hashlib, threading
+import argparse, json, os, re, time, hashlib, threading, traceback
 from pathlib import Path
 from PIL import Image
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -2765,14 +2765,32 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path!='/v1/chat/completions':return self.send_json(404,{'error':{'code':'not_found','message':'Not found'}})
         self.close_connection=True; self.connection.settimeout(60)
-        session_raw=self.headers.get('X-ARBM-Session-ID') or (os.environ.get('GITHUB_RUN_ID','local')+':'+os.environ.get('TASK_ID','unknown'))
         with LOCK:
-            activate_session(session_raw)
             try:
-                messages,ingress=project_messages(self.rfile,int(self.headers.get('Content-Length','0'))); log_event({'status':'INGRESS_PROJECTED','ingress':ingress}); content=call_mesh(messages)
-            except (ValueError,TimeoutError) as exc: content=terminal('INPUT_REJECTED:'+str(exc)[:120])
+                messages,ingress=project_messages(self.rfile,int(self.headers.get('Content-Length','0')))
+                root_instruction=task_from(messages)
+                task_env=str(os.environ.get('TASK_ID') or '').strip()
+                session_raw=self.headers.get('X-ARBM-Session-ID')
+                if not session_raw:
+                    if task_env:
+                        session_raw=os.environ.get('GITHUB_RUN_ID','local')+':'+task_env
+                    else:
+                        session_raw=(os.environ.get('GITHUB_RUN_ID','local')+':instruction:'+
+                                     hashlib.sha256(root_instruction.encode()).hexdigest()[:24])
+                activate_session(session_raw)
+                log_event({'status':'INGRESS_PROJECTED','ingress':ingress,
+                           'derived_task_sha256':hashlib.sha256(root_instruction.encode()).hexdigest(),
+                           'session_source':'header' if self.headers.get('X-ARBM-Session-ID') else ('task-env' if task_env else 'instruction-hash')})
+                content=call_mesh(messages)
+            except (ValueError,TimeoutError) as exc:
+                content=terminal('INPUT_REJECTED:'+str(exc)[:120])
             except Exception as exc:
-                log_event({'status':'SHIM_ERROR','error_type':type(exc).__name__,'reason':str(exc)[:200]}); content=terminal('SHIM_INTERNAL_ERROR:'+type(exc).__name__)
+                tb=traceback.format_exc(limit=12)
+                log_event({'status':'SHIM_ERROR','error_type':type(exc).__name__,
+                           'reason':str(exc)[:200],'traceback':tb[-4000:]})
+                print(json.dumps({'status':'SHIM_ERROR','error_type':type(exc).__name__,
+                                  'reason':str(exc)[:200],'traceback':tb[-4000:]},ensure_ascii=False),flush=True)
+                content=terminal('SHIM_INTERNAL_ERROR:'+type(exc).__name__)
         return self.send_json(200,{'id':'arbm-osworld-v32-isolated','object':'chat.completion','created':int(time.time()),'model':'gpt-arbm-osworld-v32-isolated','choices':[{'index':0,'message':{'role':'assistant','content':content},'finish_reason':'stop'}],'usage':{'prompt_tokens':0,'completion_tokens':0,'total_tokens':0}})
 
 def isolated_self_test(run_id,task,verify_budget=False,enforce_session_isolation=False):
