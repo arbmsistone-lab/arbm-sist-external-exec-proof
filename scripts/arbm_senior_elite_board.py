@@ -139,10 +139,33 @@ def review_action(action, *, task_id="", source="generic", state=None,
         and bool(str(pending091.get("table_selected_target_visual_sha256") or ""))
         and bool(str(pending091.get("table_selected_sibling_visual_sha256") or ""))
     )
-    bounded_semantic_retry=bounded_observation_retry or bounded_table_cell_entry
+    section_e=task091_state.get("section_e_format") if isinstance(task091_state.get("section_e_format"),dict) else {}
+    bounded_section_e_text_entry=(
+        str(task_id)=="091"
+        and source=="task091-specialist"
+        and phase=="section-e-enter-text"
+        and str(section_e.get("stage") or "")=="text-enter-issued"
+        and int(section_e.get("slide") or 0)==3
+        and int(section_e.get("shape_id") or 0)==16
+        and str(section_e.get("shape_name") or "")=="KpiReadout_Body"
+        and str(target.get("source") or "")=="task091-pptx-canonical"
+        and int(target.get("slide") or 0)==3
+        and str(target.get("label") or "")=="KpiReadout_Body"
+        and repeated
+        and no_progress>0
+        and recent.count(command)==1
+        and bool(re.fullmatch(r"[0-9a-f]{64}",str(section_e.get("before_deck_sha256") or ""),re.I))
+        and bool(re.fullmatch(r"[0-9a-f]{64}",str(section_e.get("before_sibling_signature") or ""),re.I))
+        and bool(re.fullmatch(r"[0-9a-f]{64}",str(section_e.get("before_target_visual_sha256") or ""),re.I))
+        and bool(re.fullmatch(r"[0-9a-f]{64}",str(section_e.get("foreground_sha256") or ""),re.I))
+        and bool(re.fullmatch(r"[0-9a-f]{64}",str(target.get("proof_sha256") or ""),re.I))
+        and int(target.get("cx") or 0)==int(section_e.get("cx") or -1)
+        and int(target.get("cy") or 0)==int(section_e.get("cy") or -1)
+    )
+    bounded_semantic_retry=bounded_observation_retry or bounded_table_cell_entry or bounded_section_e_text_entry
     anti_repeat=not (repeated and no_progress>0 and not bounded_semantic_retry)
     rows.append(_lane("anti_repetition",anti_repeat,
-        "no-progress repetition is forbidden except state-bound Task 091 observation resync or the single evidence-proven table-cell text-entry click"))
+        "no-progress repetition is forbidden except evidence-bound Task 091 resync, the single table-cell entry click, or the single shape-to-text-mode transition click"))
 
     progress_ok=not (
         kind=="finish"
