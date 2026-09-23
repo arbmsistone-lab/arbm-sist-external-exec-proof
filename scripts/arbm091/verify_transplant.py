@@ -32,6 +32,11 @@ GLOBAL_GATE = 'scripts/arbm_global_assurance_gate.py'
 GLOBAL_TEST = 'tests/arbm091/test_global_assurance_gate.py'
 FINAL_BOARD = 'scripts/arbm091/final_certification_board.py'
 SAFE_HTTP = 'scripts/arbm_safe_http.py'
+SEMANTIC_ORACLE = 'scripts/arbm091/semantic_transaction.py'
+SEMANTIC_RUNTIME = 'scripts/arbm091/semantic_runtime.py'
+SEMANTIC_TEST = 'tests/arbm091/test_semantic_transaction.py'
+SEMANTIC_RUNTIME_TEST = 'tests/arbm091/test_semantic_runtime.py'
+CONTRACT_WORKFLOW = '.github/workflows/arbm-091-contract-read.yml'
 WPS_ALIAS_COMMIT = 'f0a49b84c95808b501cd91aed14bd702e8230a9c'
 WPS_ALIAS_TEST_COMMIT = '51f63478520b3e8fa89152460dc12dd7da446945'
 WPS_SWITCH_COMMIT = '379a7c64fad1b2776a93f578de8d2ca766473e18'
@@ -693,7 +698,9 @@ def main():
     overlay = all_commits[:250]
     post_legacy = all_commits[250:]
     require(len(overlay) == 250, 'EXACTLY_TWO_HUNDRED_FIFTY_REPAIR_COMMITS_REQUIRED')
-    allowed_post_scope = {VERIFIER, SHIM, SENIOR_BOARD, SENIOR_TEST}
+    allowed_post_scope = {VERIFIER, SHIM, SENIOR_BOARD, SENIOR_TEST, GLOBAL_GATE, GUEST_PROBE,
+                          SEMANTIC_ORACLE, SEMANTIC_RUNTIME, SEMANTIC_TEST, SEMANTIC_RUNTIME_TEST,
+                          CONTRACT_WORKFLOW}
     approved_post_commit_scopes = {
         'fdd1c8ef17c7f52352b60c1afd7bffca958182a1': {SAFE_HTTP},
         'f60da82e96d92b0de454d9564d860cba56fad563': {SAFE_HTTP},
@@ -785,6 +792,21 @@ def main():
         '705f36f5b634aebc170a5fdc4d024a6278e1a383': {TRACE_TEST},
         'e0ad8015de39863c514740eae2c0d6b6cdfa3a50': {MESH_TEST},
         '8f53195e3e208e3847978187b4140eb34ed90c7f': {GLOBAL_GATE},
+        '89417d8bd238bca25dba3d3ff20195b54bd008c8': {SEMANTIC_ORACLE},
+        'a33f17542edd61b41c2a6fc1b8cff4ebc403888a': {SEMANTIC_TEST},
+        '1d31e45f633a36a8d63fcbef706948eaebcdd120': {GUEST_PROBE},
+        'fbad4e22936493acdd11e0f1d30701af395278da': {SEMANTIC_ORACLE},
+        'a341f900c0b160fd1b300640219e5c9655b657d4': {GUEST_PROBE},
+        '32ce7eb7d8d75b1ca67bda335a2ad08b784d2c1f': {SEMANTIC_RUNTIME},
+        '61f8d27617f855999f406da31401aaeae9393b1d': {SEMANTIC_RUNTIME_TEST},
+        'f28c675902b406bee902282fa69603731a18a49d': {SEMANTIC_RUNTIME},
+        '70133ded721e465f0115d2e772a7b90b22f17c02': {SHIM},
+        '480d60d682ebbbf7bf9a0077993a8781321776dd': {SEMANTIC_ORACLE},
+        'e53b0533d5c176156d9246b294057cc82fcaea4d': {SHIM},
+        'b7e165f273fa8cffe553d6ebce2e1ae728534e8d': {SHIM},
+        '72348b16cbb797ec915fa9cf49fd0f153cb33133': {CONTRACT_WORKFLOW},
+        '9645746940a5671ec410824aa12758c9c2977757': {GLOBAL_GATE},
+        '999c777d2555b2ff224a9775d8798f7066a7cebb': {CONTRACT_WORKFLOW},
     }
     for c_node in post_legacy:
         c_files = set(git('diff-tree', '--no-commit-id', '--name-only', '-r', c_node).splitlines())
@@ -819,7 +841,7 @@ def main():
     changed = set(git('diff', '--name-only', BASE, 'HEAD').splitlines())
     require(changed == set(manifest), 'CHANGED_FILE_ALLOWLIST_MISMATCH')
     require(set(git('diff', '--name-only', CLEAN_BASELINE, 'HEAD').splitlines())
-            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST, SENIOR_BOARD, SENIOR_TEST, GLOBAL_GATE, GLOBAL_TEST, FINAL_BOARD, SAFE_HTTP},
+            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST, SENIOR_BOARD, SENIOR_TEST, GLOBAL_GATE, GLOBAL_TEST, FINAL_BOARD, SAFE_HTTP, SEMANTIC_ORACLE, SEMANTIC_RUNTIME, SEMANTIC_TEST, SEMANTIC_RUNTIME_TEST},
             'REPAIR_TOTAL_SCOPE_MISMATCH')
     exists = subprocess.run(['git', 'cat-file', '-e', PATCH_SOURCE], capture_output=True).returncode == 0
     if exists:
