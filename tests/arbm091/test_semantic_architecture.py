@@ -10,6 +10,7 @@ from arbm091.semantic_transaction import (
     SemanticTransactionError,
     assert_roundtrip,
     normalize_deck,
+    model_sha256,
     resolve_target,
     semantic_diff,
     verify_exact_text_transaction,
@@ -111,10 +112,7 @@ class SemanticArchitectureTests(unittest.TestCase):
                 "old":"$42.8M","new":"$40.9M",
                 "target_key":list(self.key),
                 "before_state":copy.deepcopy(self.before),
-                "before_model_sha256":next(
-                    __import__("arbm091.semantic_transaction",fromlist=["model_sha256"]).model_sha256(
-                        normalize_deck(self.before)
-                    ) for _ in [0]),
+                "before_model_sha256":model_sha256(normalize_deck(self.before)),
                 "before_deck_sha256":self.before["deck_file"]["sha256"],
                 "contract":{
                     "status":"PASS","target_resolved":True,"target_unique":True,
