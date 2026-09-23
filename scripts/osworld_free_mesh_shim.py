@@ -1402,7 +1402,13 @@ def next_091_specialist_action(instruction, active_application, observation, sta
 
     if app == 'wps-transient':
         state['mode']='TRANSIENT_WPS'
+        semantic_tx=state.get('semantic_tx')
+        if isinstance(semantic_tx,dict) and str(semantic_tx.get('stage') or ''):
+            return _task091_terminal('TASK091_SEMANTIC_TRANSACTION_INTERRUPTED_BY_TRANSIENT',state)
         section_fmt=state.get('section_e_format')
+        if isinstance(section_fmt,dict) and str(section_fmt.get('stage') or '') in (
+                'select-issued','font-issued','commit-issued','save-issued','roundtrip-issued'):
+            return _task091_terminal('TASK091_SECTION_E_SEMANTIC_INTERRUPTED_BY_TRANSIENT',state)
         if isinstance(section_fmt,dict):
             fmt_stage=str(section_fmt.get('stage') or '')
             if fmt_stage in ('shape-select-issued','text-enter-issued','caret-probe-issued'):
