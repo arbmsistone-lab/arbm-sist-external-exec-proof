@@ -810,16 +810,20 @@ class Task091TransactionalTableCellTests(unittest.TestCase):
   self.assertIn("normalize_attempts < 1",source)
   self.assertIn("normalize-wps-terminal-marker-offset",source)
 
- def test_section_e_font_correction_uses_proven_caret_and_two_one_point_decrements(self):
+ def test_section_e_font_correction_is_semantic_and_caret_free(self):
   spec=shim.TASK091_SECTION_E_FORMAT
   self.assertEqual(spec['slide'],3)
   self.assertEqual(spec['shape_id'],16)
   self.assertEqual(spec['shape_name'],'KpiReadout_Body')
   self.assertEqual(spec['font_decrements'],2)
   source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
-  self.assertIn("TASK091_SECTION_E_CARET_UNPROVEN",source)
-  self.assertIn("TASK091_SECTION_E_FONT_DELTA_UNPROVEN",source)
-  self.assertIn("pyautogui.hotkey('ctrl', '[')",source)
+  body=source.split("def _task091_section_e_format_step",1)[1].split(
+      "def _task091_system_check_close",1)[0]
+  self.assertIn("task091_verify_font_transaction",body)
+  self.assertIn("section-e-semantic-roundtrip",body)
+  self.assertIn("pyautogui.hotkey('ctrl', '[')",body)
+  self.assertNotIn("_task091_caret",body)
+  self.assertNotIn("CARET_UNPROVEN",body)
 
  def test_section_e_postsave_accepts_only_bounded_target_autofit_shrink(self):
   before={'x':9034272,'y':1883664,'w':2148840,'h':1353312}
