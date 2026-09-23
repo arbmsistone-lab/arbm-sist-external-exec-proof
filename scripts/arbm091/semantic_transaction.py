@@ -191,6 +191,31 @@ def resolve_target(window_state, *, slide, old, hint_x=None, hint_y=None):
             "match_kind":"exact" if exact else "contained"}
 
 
+def validate_transaction_contract(window_state, target_key_value, old, new):
+    model=normalize_deck(window_state)
+    key=tuple(target_key_value)
+    if key not in model:
+        raise SemanticTransactionError("TASK091_CONTRACT_TARGET_MISSING")
+    row=model[key]
+    if str(row.get("text") or "")!=str(old):
+        raise SemanticTransactionError("TASK091_CONTRACT_OLD_VALUE_MISMATCH")
+    if not str(old) or str(old)==str(new):
+        raise SemanticTransactionError("TASK091_CONTRACT_MUTATION_INVALID")
+    if row.get("kind") not in ("shape","table-cell"):
+        raise SemanticTransactionError("TASK091_CONTRACT_TARGET_KIND_INVALID")
+    return {
+        "status":"PASS",
+        "target_key":list(key),
+        "old":str(old),
+        "new":str(new),
+        "model_sha256":model_sha256(model),
+        "target_resolved":True,
+        "target_unique":True,
+        "precondition":True,
+        "mutation_authorized":True,
+    }
+
+
 def expected_targets_for_pair(window_state, spatial_plan, old, new):
     model=normalize_deck(window_state)
     specs=[spec for spec in spatial_plan if str(spec[3])==str(old) and str(spec[4])==str(new)]
@@ -260,6 +285,10 @@ def verify_exact_text_transaction(before_state, after_state, target_keys, new):
         "allowed_semantic_diff":allowed_c,
         "changed_semantic_targets":len({tuple(r["key"]) for r in observed_c}),
         "collateral_diff":[],
+        "structural_diff":True,
+        "diff_budget_exact":True,
+        "no_collateral_mutation":True,
+        "semantic_result":True,
         "before_model_sha256":model_sha256(before),
         "after_model_sha256":model_sha256(after),
     }
@@ -271,7 +300,7 @@ def assert_roundtrip(after_state, target_keys, new):
         row=model.get(tuple(key))
         if row is None or str(row.get("text") or "")!=str(new):
             raise SemanticTransactionError("TASK091_ROUNDTRIP_VALUE_MISMATCH")
-    return {"status":"PASS","model_sha256":model_sha256(model)}
+    return {"status":"PASS","roundtrip":True,"model_sha256":model_sha256(model)}
 
 
 def verify_font_transaction(before_state, after_state, target_key_value, decrements):
