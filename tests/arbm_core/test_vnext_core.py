@@ -43,6 +43,18 @@ class PlannerTests(unittest.TestCase):
         self.assertNotIn("y",a.payload)
         self.assertTrue(a.postconditions)
 
+    def test_planner_binds_explicit_retry_budget(self):
+        p=HierarchicalPlanner().plan(
+            Mission("m2","retry safe update","doc.slide3.kpi.arr",{"value":"$40.9M"},retry_budget=2),world()
+        )
+        self.assertEqual(p.actions[0].max_attempts,2)
+
+    def test_planner_rejects_unbounded_retry_budget(self):
+        with self.assertRaises(ValueError):
+            HierarchicalPlanner().plan(
+                Mission("m3","bad retry","doc.slide3.kpi.arr",{"value":"x"},retry_budget=4),world()
+            )
+
 class TransactionTests(unittest.TestCase):
     def test_commit_after_independent_postcondition(self):
         before=world()
@@ -101,6 +113,23 @@ class RecoveryTests(unittest.TestCase):
         d2=RootCauseClassifier().classify("SENIOR_ELITE_VETO:anti_repetition")
         self.assertEqual(d2.root_cause,RootCause.POLICY_REJECTED)
         self.assertFalse(d2.retryable)
+
+    def test_executor_rejection_is_typed_and_retryable(self):
+        before=world()
+        current={"world":before,"n":0}
+        action=HierarchicalPlanner().plan(
+            Mission("m4","retry","doc.slide3.kpi.arr",{"value":"$40.9M"},retry_budget=2),before
+        ).actions[0]
+        def executor(a):
+            current["n"]+=1
+            if current["n"]==1:
+                return {"accepted":False,"kind":"execution"}
+            current["world"]=world("$40.9M","v2")
+            return {"accepted":True}
+        tx=TransactionCoordinator().execute(action,before,executor,lambda:current["world"])
+        self.assertTrue(tx.committed,tx)
+        self.assertEqual(tx.attempts,2)
+        self.assertTrue(tx.recovered)
 
 class RuntimeTests(unittest.TestCase):
     def test_runtime_commits_semantic_transaction(self):
