@@ -68,6 +68,8 @@ def normalize_deck(window_state):
                 "col":int(row.get("col") if row.get("col") is not None else -1),
                 "text":str(row.get("text") or ""),
                 "geometry":_geometry(row),
+                "font_sizes":tuple(int(v) for v in (row.get("font_sizes") or []) if isinstance(v,int)),
+                "fill_rgb":str(row.get("fill_rgb") or "").upper(),
             }
     if not result:
         raise SemanticTransactionError("TASK091_OOXML_STATE_EMPTY")
@@ -82,9 +84,19 @@ def model_sha256(model):
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def _center(row):
+def _screen_center(window_state,row):
     x,y,w,h=row["geometry"]
-    return x+w//2,y+h//2
+    deck_file=window_state.get("deck_file",{}) if isinstance(window_state,dict) else {}
+    slide_size=deck_file.get("slide_size",{}) if isinstance(deck_file,dict) else {}
+    sw=int(slide_size.get("w") or 0); sh=int(slide_size.get("h") or 0)
+    if sw<=0 or sh<=0:
+        raise SemanticTransactionError("TASK091_SLIDE_SIZE_MISSING")
+    # Canonical viewport is a UI-context mapping only. It never represents
+    # character/caret position and never participates in semantic PASS/FAIL.
+    vx,vy,vw,vh=(443,194,1413,795)
+    cx=round(vx+((x+w/2)/sw)*vw)
+    cy=round(vy+((y+h/2)/sh)*vh)
+    return int(cx),int(cy)
 
 
 def resolve_target(window_state, *, slide, old, hint_x=None, hint_y=None):
@@ -101,7 +113,7 @@ def resolve_target(window_state, *, slide, old, hint_x=None, hint_y=None):
         raise SemanticTransactionError("TASK091_TARGET_AMBIGUOUS")
     scored=[]
     for key,row in candidates:
-        cx,cy=_center(row)
+        cx,cy=_screen_center(window_state,row)
         scored.append(((cx-int(hint_x))**2+(cy-int(hint_y))**2,repr(key),key,row))
     scored.sort()
     if len(scored)>1 and scored[0][0]==scored[1][0]:
@@ -133,7 +145,7 @@ def expected_targets_for_pair(window_state, spatial_plan, old, new):
 def semantic_diff(before, after):
     rows=[]
     all_keys=sorted(set(before)|set(after),key=repr)
-    structural_fields=("slide","kind","id","name","frame_id","row","col","geometry")
+    structural_fields=("slide","kind","id","name","frame_id","row","col","geometry","font_sizes","fill_rgb")
     for key in all_keys:
         if key not in before:
             rows.append({"key":key,"field":"target","before":None,"after":after[key]})
