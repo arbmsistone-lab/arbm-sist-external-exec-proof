@@ -18,6 +18,60 @@ def read_text(root: Path, name: str) -> str:
     return path.read_text(encoding='utf-8').strip()
 
 
+SEMANTIC_REQUIRED_STATUSES = (
+    'TASK091_CONTRACT_VALIDATED=PASS',
+    'TASK091_TARGET_RESOLVED=PASS',
+    'TASK091_TARGET_UNIQUE=PASS',
+    'TASK091_PRECONDITION=PASS',
+    'TASK091_MUTATION_AUTHORIZED=PASS',
+    'TASK091_MUTATION=PASS',
+    'TASK091_SAVE=PASS',
+    'TASK091_ROUNDTRIP=PASS',
+    'TASK091_STRUCTURAL_DIFF=PASS',
+    'TASK091_DIFF_BUDGET_EXACT=PASS',
+    'TASK091_NO_COLLATERAL_MUTATION=PASS',
+    'TASK091_SEMANTIC_RESULT=PASS',
+)
+
+LEGACY_091_PHASE_FRAGMENTS = (
+    'table-cell-caret', 'move-table-caret', 'normalize-wps-terminal-marker',
+    'select-table-container', 'table-reselect-container',
+    'table-cell-text-hit', 'enter-table-cell-caret',
+    'repair-atomic-pending-target', 'recover-nonpersisted-text-selection',
+)
+
+
+def verify_semantic_architecture(root: Path) -> dict:
+    path=root/'shim.jsonl'
+    require(path.is_file() and not path.is_symlink(), 'SEMANTIC_SHIM_LOG_MISSING')
+    events=[json.loads(line) for line in path.read_text(encoding='utf-8').splitlines() if line.strip()]
+    statuses={str(event.get('status') or '') for event in events}
+    missing=[value for value in SEMANTIC_REQUIRED_STATUSES if value not in statuses]
+    require(not missing, 'TASK091_SEMANTIC_EVIDENCE_MISSING:'+','.join(missing))
+    require('TASK091_SEMANTIC_TEXT_TRANSACTIONS_COMPLETE' in statuses,
+            'TASK091_SEMANTIC_TEXT_COMPLETION_MISSING')
+    require('TASK091_SECTION_E_FORMAT_VERIFIED' in statuses,
+            'TASK091_SECTION_E_SEMANTIC_COMPLETION_MISSING')
+    for event in events:
+        reason=str(event.get('reason') or '')
+        phase=str(event.get('phase') or '')
+        require('CARET_' not in reason and 'CARET_NOT' not in reason,
+                'TASK091_CARET_DECISION_REAPPEARED:'+reason[:120])
+        require(not any(fragment in phase for fragment in LEGACY_091_PHASE_FRAGMENTS),
+                'TASK091_LEGACY_PHASE_EXECUTED:'+phase)
+        if event.get('status')=='TASK091_SPECIALIST_ACTION_ISSUED':
+            require(event.get('pending_edit') in (None,{}),
+                    'TASK091_LEGACY_PENDING_EDIT_EXECUTED')
+    return {
+        'status':'TASK091_SEMANTIC_ARCHITECTURE_PASS',
+        'required_statuses':list(SEMANTIC_REQUIRED_STATUSES),
+        'semantic_completion':True,
+        'section_e_semantic_completion':True,
+        'legacy_phase_count':0,
+        'caret_decision_count':0,
+    }
+
+
 def scan_fatal(root: Path, final: bool = False) -> None:
     path = root / 'shim.jsonl'
     if path.exists():
@@ -69,6 +123,7 @@ def certify(root: Path, sha: str, run_id: str, run_attempt: str) -> dict:
     audited = gate.audit_task(root, '091', sha)
     require(audited.get('pass') is True and audited.get('score') == 1.0, 'EXISTING_V32_GATE_FAILED')
     trace = verify_trace(root, sha, run_id, run_attempt)
+    semantic = verify_semantic_architecture(root)
     # Independent action issued -> actually executed binding.
     events = [json.loads(line) for line in read_text(root, 'shim.jsonl').splitlines()]
     issued = {event['step']: event.get('command') for event in events
@@ -81,8 +136,10 @@ def certify(root: Path, sha: str, run_id: str, run_attempt: str) -> dict:
         canon = canonical_action({'action': 'exec', 'command': source})['command']
         require(canon == row.get('source_command'), 'ISSUED_EXECUTED_COMMAND_MISMATCH')
         require(row['command'] in canon.splitlines(), 'EXECUTED_ATOM_NOT_ISSUED')
-    return {'status': 'FOCAL_091_SCORE_ONE_AND_WPS_TRACE_PASS', 'candidate_sha': sha,
-            'run_id': run_id, 'run_attempt': run_attempt, 'official': audited, 'wps': trace}
+    print('TASK091_EVALUATOR=PASS', file=sys.stderr, flush=True)
+    return {'status': 'FOCAL_091_SCORE_ONE_WPS_TRACE_AND_SEMANTIC_PASS', 'candidate_sha': sha,
+            'run_id': run_id, 'run_attempt': run_attempt, 'official': audited,
+            'wps': trace, 'semantic': semantic}
 
 
 def main() -> int:
