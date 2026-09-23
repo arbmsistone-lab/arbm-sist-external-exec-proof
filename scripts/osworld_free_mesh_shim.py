@@ -839,6 +839,27 @@ TASK091_SECTION_E_FORMAT = {
 }
 
 
+def _task091_section_e_geometry_persisted(before, after):
+    """Accept only the local WPS autofit shrink caused by the proven font edit.
+
+    The target must keep its exact x/y position and width. Height may remain
+    unchanged or shrink, but never grow and never collapse below 60% of the
+    proven baseline. Any other geometry mutation remains fail-closed.
+    """
+    if not isinstance(before, dict) or not isinstance(after, dict):
+        return False
+    try:
+        bx,by,bw,bh=(int(before[k]) for k in ('x','y','w','h'))
+        ax,ay,aw,ah=(int(after[k]) for k in ('x','y','w','h'))
+    except (KeyError,TypeError,ValueError):
+        return False
+    if min(bw,bh,aw,ah) <= 0:
+        return False
+    if (ax,ay,aw)!=(bx,by,bw):
+        return False
+    return int(bh*0.60) <= ah <= bh
+
+
 def _task091_section_e_format_step(state, window_state):
     """Reduce only Slide 3 Section E body text after proving text-mode caret."""
     spec=TASK091_SECTION_E_FORMAT
@@ -893,12 +914,14 @@ def _task091_section_e_format_step(state, window_state):
     shape=_task091_shape_by_id(window_state,slide,tx.get('shape_id'))
     current_sha=str((window_state.get('deck_file',{}) or {}).get('sha256') or '')
     siblings=_task091_other_shapes_signature(window_state,slide,tx.get('shape_id'))
-    stable=(int(window_state.get('active_slide') or 0)==slide
+    identity_stable=(int(window_state.get('active_slide') or 0)==slide
             and isinstance(shape,dict)
             and str(shape.get('name') or '')==str(tx.get('shape_name') or '')
             and str(shape.get('text') or '')==str(tx.get('text') or '')
-            and dict(shape.get('geometry') or {})==dict(tx.get('shape_geometry') or {})
             and siblings==str(tx.get('before_sibling_signature') or ''))
+    geometry_same=(isinstance(shape,dict)
+            and dict(shape.get('geometry') or {})==dict(tx.get('shape_geometry') or {}))
+    stable=identity_stable and geometry_same
     if stage in ('shape-select-issued','text-enter-issued','caret-probe-issued'):
         if not stable or current_sha != str(tx.get('before_deck_sha256') or ''):
             return _task091_terminal('TASK091_SECTION_E_SELECTION_DRIFT',state)
@@ -953,7 +976,11 @@ def _task091_section_e_format_step(state, window_state):
                 'plan':'Persist the isolated Section E font reduction after a target-local visual delta is proven.',
                 'specialist_phase':'section-e-save-font'}
     if stage == 'save-issued':
-        if not stable:
+        persisted_geometry=(isinstance(shape,dict)
+            and _task091_section_e_geometry_persisted(
+                dict(tx.get('shape_geometry') or {}),
+                dict(shape.get('geometry') or {})))
+        if not identity_stable or not persisted_geometry:
             return _task091_terminal('TASK091_SECTION_E_POSTSAVE_DRIFT',state)
         if len(current_sha)!=64 or current_sha==str(tx.get('before_deck_sha256') or ''):
             return _task091_terminal('TASK091_SECTION_E_FONT_NOT_PERSISTED',state)
