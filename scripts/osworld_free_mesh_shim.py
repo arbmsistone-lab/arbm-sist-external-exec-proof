@@ -1134,6 +1134,24 @@ def _task091_table_cell_suffix_duplicate_repair_command(actual, expected, interv
         "pyautogui.press('delete')"
     )
 
+def _task091_table_cell_atomic_delete_repair_command(actual, operation, interval=0.03):
+    """Delete exactly one proven character at an exact index in one table cell."""
+    actual=str(actual or '')
+    operation=dict(operation or {})
+    if operation.get('op')!='delete':
+        raise ValueError('TASK091_TABLE_CELL_ATOMIC_REPAIR_NOT_DELETE')
+    index=int(operation.get('index') if operation.get('index') is not None else -1)
+    if not 0 <= index < len(actual) or len(actual)>32:
+        raise ValueError('TASK091_TABLE_CELL_ATOMIC_REPAIR_INDEX_INVALID')
+    expected_char=operation.get('char')
+    if expected_char is not None and str(expected_char)!=actual[index]:
+        raise ValueError('TASK091_TABLE_CELL_ATOMIC_REPAIR_CHAR_MISMATCH')
+    commands=["pyautogui.press('home')"]
+    if index:
+        commands.append(f"pyautogui.press('right', presses={index}, interval={float(interval):g})")
+    commands.append("pyautogui.press('delete')")
+    return '\n'.join(commands)
+
 def _task091_verify_pending(observation,pending,window_state):
     slide=int(pending.get('slide') or 0)
     before_old=int(pending.get('before_old_count') or 0)
@@ -1217,15 +1235,13 @@ def _task091_prepare_atomic_repair(pending, window_state, state):
             and _task091_other_shapes_signature(window_state,pending['slide'],pending.get('shape_id'))
                 == str(pending.get('before_sibling_signature') or '')
         )
-        suffix_duplicate=(
-            bool(expected_text)
-            and current_text==expected_text+expected_text[-1]
-            and sibling_unchanged
-        )
         repair_plan=(_task091_restricted_repair_plan(current_text,expected_text)
-                     if suffix_duplicate else None)
-        expected_plan=[{'op':'delete','index':len(expected_text),'char':expected_text[-1]}] if expected_text else None
-        if repair_plan != expected_plan:
+                     if sibling_unchanged else None)
+        # Table-cell contingency accepts only a bounded delete-only correction
+        # on the exact signed shape. At most two extra glyphs may be removed,
+        # one operation per persisted transaction.
+        if (not repair_plan or len(repair_plan)>2
+                or any(row.get('op')!='delete' for row in repair_plan)):
             repair_plan=None
     else:
         corrupt_shape,repair_plan=_task091_corrupt_shape(window_state,pending['slide'],pending['new'])
@@ -1782,12 +1798,11 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             if str(pending.get('shape_kind') or '')=='table-cell':
                 actual=str(shape.get('text') or '')
                 expected=str(pending.get('new') or '')
-                if actual != expected + (expected[-1:] if expected else ''):
-                    return _task091_terminal('TASK091_TABLE_CELL_SUFFIX_REPAIR_NOT_PROVEN',state)
-                if operation.get('op')!='delete' or int(operation.get('index') or -1)!=len(expected):
-                    return _task091_terminal('TASK091_TABLE_CELL_SUFFIX_REPAIR_PLAN_INVALID',state)
-                command=_task091_table_cell_suffix_duplicate_repair_command(actual,expected)
-                pending['table_cell_suffix_repair']=True
+                if operation.get('op')!='delete':
+                    return _task091_terminal('TASK091_TABLE_CELL_ATOMIC_REPAIR_PLAN_INVALID',state)
+                command=_task091_table_cell_atomic_delete_repair_command(actual,operation)
+                pending['table_cell_atomic_repair']=True
+                pending['table_cell_repair_target']=expected
             else:
                 command=_task091_restricted_repair_command([operation])
             pending['repair_action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
