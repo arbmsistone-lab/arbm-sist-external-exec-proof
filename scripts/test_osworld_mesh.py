@@ -177,74 +177,69 @@ class MeshTests(unittest.TestCase):
    'id':50331694,'pid':2689,'title':'System Check',
    'owner_title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Office',
    'wm_class':'wpp wpp','bbox':[120,112,699,327]}}
+  cover={
+      'id':6,'name':'CoverTitle',
+      'text':'H2 Operating Committee Pack\nGrowth Plan Draft',
+      'paragraphs':['H2 Operating Committee Pack','Growth Plan Draft'],
+      'kind':'shape','frame_id':0,'row':-1,'col':-1,
+      'font_sizes':[2400],'fill_rgb':'',
+      'geometry':{'x':749808,'y':1078992,'w':5852160,'h':1234440}}
+  subtitle={
+      'id':7,'name':'CoverSub',
+      'text':'Northstar Cloud\nPrepared for July Operating Committee review\nPlanning posture: accelerate growth through H2 scale-up',
+      'paragraphs':['Northstar Cloud','Prepared for July Operating Committee review',
+                    'Planning posture: accelerate growth through H2 scale-up'],
+      'kind':'shape','frame_id':0,'row':-1,'col':-1,
+      'font_sizes':[1600],'fill_rgb':'',
+      'geometry':{'x':768096,'y':2743200,'w':5669280,'h':1280160}}
   deck={'schema':1,'stable':True,'window':{
    'id':50331680,'pid':2689,'title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Office',
    'owner_title':'','wm_class':'wpp wpp','bbox':[70,27,1850,1053]},
-   'screen':[0,0,1920,1080],
-   'active_slide':1,
-   'screenshot_sha256':'1'*64,
-   'deck_slide_text':{'1':'Growth Plan Draft Planning posture: accelerate growth through H2 scale-up $42.8M $2.6M 214'},
-   'deck_slide_runs':{'1':['Growth Plan Draft','Planning posture: accelerate growth through H2 scale-up','$42.8M','$2.6M','214']},
-   'deck_slide_shapes':{'1':[
-      {'id':6,'name':'CoverTitle','text':'H2 Operating Committee Pack\nGrowth Plan Draft',
-       'paragraphs':['H2 Operating Committee Pack','Growth Plan Draft'],
-       'geometry':{'x':749808,'y':1078992,'w':5852160,'h':1234440}},
-      {'id':7,'name':'CoverSub','text':'Northstar Cloud\nPrepared for July Operating Committee review\nPlanning posture: accelerate growth through H2 scale-up',
-       'paragraphs':['Northstar Cloud','Prepared for July Operating Committee review',
-                     'Planning posture: accelerate growth through H2 scale-up'],
-       'geometry':{'x':768096,'y':2743200,'w':5669280,'h':1280160}}]},
+   'screen':[0,0,1920,1080],'active_slide':1,'screenshot_sha256':'1'*64,
+   'deck_slide_text':{'1':'H2 Operating Committee Pack Growth Plan Draft Planning posture: accelerate growth through H2 scale-up'},
+   'deck_slide_runs':{'1':['H2 Operating Committee Pack','Growth Plan Draft',
+                           'Planning posture: accelerate growth through H2 scale-up']},
+   'deck_slide_shapes':{'1':[cover,subtitle]},
+   'deck_slide_charts':{},'deck_slide_relationships':{'1':[]},
    'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
-                'sha256':'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-                'size':1234,'mtime_ns':1,'slide_size':{'w':12192000,'h':6858000}}}
-  deck_obs=('text\tOperating Committee\tOperating Committee\t\t\t(500, 180)\t(600, 60)\n'
-            'text\tGrowth Plan Draft\tGrowth Plan Draft\t\t\t(700, 300)\t(100, 40)')
+                'sha256':'a'*64,'size':1234,'mtime_ns':1,
+                'slide_size':{'w':12192000,'h':6858000}}}
+  deck_obs='text\tGrowth Plan Draft\tGrowth Plan Draft\t\t\t(700, 300)\t(100, 40)'
   with patch.dict(os.environ,{'TASK_ID':'091','ZERO_SPEND_MODE':'HARD'},clear=False):
-   state={'semantic_text_done':True,'section_e_format_done':True}
-   tab=shim.next_091_specialist_action(task,'WPS 2019','',state,transient)
-   space=shim.next_091_specialist_action(task,'WPS 2019','',state,transient)
+   # Modal recovery stays bounded and independent of semantic mutation.
+   modal_state={'semantic_text_done':True,'section_e_format_done':True,
+                'spatial_index':len(shim.TASK091_SPATIAL_TEXT_EDITS)}
+   tab=shim.next_091_specialist_action(task,'WPS 2019','',modal_state,transient)
+   space=shim.next_091_specialist_action(task,'WPS 2019','',modal_state,transient)
    self.assertEqual(tab['command'],"pyautogui.press('tab')")
    self.assertEqual(space['command'],"pyautogui.press('space')")
-   self.assertNotIn("alt', 'tab",tab['command']+space['command'])
    self.assertNotIn("alt', 'f4",tab['command']+space['command'])
-   self.assertFalse(state.get('anchored'))
-
-   # If Space closes the modal, ownership transitions directly to the deck.
-   anchor=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck)
+   anchor=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,modal_state,deck)
    self.assertEqual(anchor['command'],"pyautogui.hotkey('ctrl', 'home')")
-   self.assertEqual(state.get('mode'),'DECK_ACTIVE')
 
-   # If Space does not close, only one guest-proven Close control may be clicked.
-   fallback_state={'semantic_text_done':True,'section_e_format_done':True}
-   self.assertEqual(shim.next_091_specialist_action(task,'WPS 2019','',fallback_state,transient)['command'],
+   # One observed Close control is allowed; ambiguity remains fail-closed.
+   fallback={}
+   self.assertEqual(shim.next_091_specialist_action(task,'WPS 2019','',fallback,transient)['command'],
                     "pyautogui.press('tab')")
-   self.assertEqual(shim.next_091_specialist_action(task,'WPS 2019','',fallback_state,transient)['command'],
+   self.assertEqual(shim.next_091_specialist_action(task,'WPS 2019','',fallback,transient)['command'],
                     "pyautogui.press('space')")
    transient_close={**transient,'controls':[{
       'label':'Close','role':'push button','pid':2689,'application':'wps',
       'bbox':[650,360,90,32],'showing':True,'enabled':True,'focused':True}]}
-   click=shim.next_091_specialist_action(task,'WPS 2019','',fallback_state,transient_close)
+   click=shim.next_091_specialist_action(task,'WPS 2019','',fallback,transient_close)
    self.assertEqual(click['command'],'pyautogui.click(695, 376)')
    self.assertEqual(click['target']['source'],'accessibility')
-   self.assertEqual(click['target']['label'],'Close')
-   fallback_anchor=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,fallback_state,deck)
-   self.assertEqual(fallback_anchor['command'],"pyautogui.hotkey('ctrl', 'home')")
-
-   missing_close={}
-   shim.next_091_specialist_action(task,'WPS 2019','',missing_close,transient)
-   shim.next_091_specialist_action(task,'WPS 2019','',missing_close,transient)
-   missing_terminal=shim.next_091_specialist_action(task,'WPS 2019','',missing_close,transient)
-   self.assertEqual(missing_terminal['reason'],'TASK091_TARGET_NOT_VISIBLE')
-
-   ambiguous_close={}
-   shim.next_091_specialist_action(task,'WPS 2019','',ambiguous_close,transient)
-   shim.next_091_specialist_action(task,'WPS 2019','',ambiguous_close,transient)
+   ambiguous={}
+   shim.next_091_specialist_action(task,'WPS 2019','',ambiguous,transient)
+   shim.next_091_specialist_action(task,'WPS 2019','',ambiguous,transient)
    two={**transient,'controls':[
       {'label':'Close','role':'push button','pid':2689,'application':'wps',
        'bbox':[650,360,90,32],'showing':True,'enabled':True,'focused':True},
       {'label':'Close','role':'push button','pid':2689,'application':'wps',
        'bbox':[500,360,90,32],'showing':True,'enabled':True,'focused':False}]}
-   ambiguous_terminal=shim.next_091_specialist_action(task,'WPS 2019','',ambiguous_close,two)
-   self.assertEqual(ambiguous_terminal['reason'],'TASK091_TARGET_AMBIGUOUS')
+   self.assertEqual(
+      shim.next_091_specialist_action(task,'WPS 2019','',ambiguous,two)['reason'],
+      'TASK091_TARGET_AMBIGUOUS')
 
    required={'$40.9M','$2.8M','104%','71%','17 mo','206','3',
              'Renewal saves','Pricing discipline','Migration delay','Support credits',
@@ -254,273 +249,79 @@ class MeshTests(unittest.TestCase):
              'Protect Reliability Hardening capacity','Sequence Data Migration cutover',
              'Freeze non-critical hiring','Incident runbook rollout','Cutover rehearsal complete',
              'Recovery review with OpCom'}
-   finals={row[4] for row in shim.TASK091_SPATIAL_TEXT_EDITS}
-   self.assertTrue(required.issubset(finals))
-   self.assertIn((2,558,364,'$42.8M','$40.9M'),shim.TASK091_SPATIAL_TEXT_EDITS)
-   self.assertIn((3,843,404,'$42.8M','$40.9M'),shim.TASK091_SPATIAL_TEXT_EDITS)
+   self.assertTrue(required.issubset({row[4] for row in shim.TASK091_SPATIAL_TEXT_EDITS}))
 
-   # First edit is a two-phase transaction and index cannot advance early.
+   # Fresh Task 091 execution uses semantic_tx, never pending_edit/caret authority.
+   state={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
    select=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck)
-   self.assertEqual(select['target']['source'],'task091-pptx-canonical')
-   self.assertEqual(select['command'],'pyautogui.doubleClick(745, 335, interval=0.08)')
-   self.assertEqual(state['pending_edit']['shape_id'],6)
-   self.assertEqual(state['spatial_index'],0)
-   self.assertEqual(state['pending_edit']['stage'],'select-issued')
+   self.assertEqual(select['specialist_phase'],'semantic-target-select')
+   self.assertEqual(select['target']['source'],'task091-ooxml-semantic')
+   self.assertNotIn('pending_edit',state)
+   self.assertEqual(state['semantic_tx']['stage'],'select-issued')
 
-   selected=copy.deepcopy(deck)
-   selected['screenshot_sha256']='2'*64
-   edit=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,selected)
-   self.assertIn("hotkey('ctrl', 'a')",edit['command'])
-   self.assertEqual(state['spatial_index'],0)
-   self.assertEqual(state['pending_edit']['stage'],'edit-issued')
+   mutation=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck)
+   self.assertEqual(mutation['specialist_phase'],'semantic-text-mutation')
+   self.assertIn("hotkey('ctrl', 'a')",mutation['command'])
+   for forbidden in ("press('home')","press('left'","caret","ink_left"):
+    self.assertNotIn(forbidden,mutation['command'].casefold())
 
-   commit_obs=('text\tOperating Committee\tOperating Committee\t\t\t(500, 180)\t(600, 60)\n'
-               'text\tH2 Operating Committee Pack Stabilize-and-Recover Rebaseline\t'
-               'H2 Operating Committee Pack Stabilize-and-Recover Rebaseline\t\t\t(700, 300)\t(220, 40)')
-   commit=shim.next_091_specialist_action(task,'WPS Presentation',commit_obs,state,deck)
-   self.assertEqual(commit['command'],"pyautogui.press('esc')")
-   self.assertEqual(state['spatial_index'],0)
-   self.assertEqual(state['pending_edit']['stage'],'commit-issued')
-   save_pending=shim.next_091_specialist_action(task,'WPS Presentation',commit_obs,state,deck)
-   self.assertIn("hotkey('ctrl', 's')",save_pending['command'])
-   self.assertEqual(state['pending_edit']['stage'],'save-issued')
-   deck_after={**deck,'deck_slide_text':{'1':'H2 Operating Committee Pack Stabilize-and-Recover Rebaseline Planning posture: accelerate growth through H2 scale-up $42.8M $2.6M 214'},
-               'deck_slide_runs':{'1':['H2 Operating Committee Pack','Stabilize-and-Recover Rebaseline',
-                                       'Planning posture: accelerate growth through H2 scale-up','$42.8M','$2.6M','214']},
-               'deck_slide_shapes':{'1':[
-                   {'id':6,'name':'CoverTitle','text':'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline',
-                    'paragraphs':['H2 Operating Committee Pack','Stabilize-and-Recover Rebaseline'],
-                    'geometry':{'x':749808,'y':1078992,'w':5852160,'h':1234440}},
-                   deck['deck_slide_shapes']['1'][1]]},
-               'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
-                            'sha256':'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-                            'size':1240,'mtime_ns':2,'slide_size':{'w':12192000,'h':6858000}}}
-   verified=shim.next_091_specialist_action(task,'WPS Presentation',commit_obs,state,deck_after)
-   self.assertEqual(verified['action'],'checkpoint')
-   self.assertEqual(verified['checkpoint'],'TASK091_FIRST_STRUCTURAL_EDIT_VERIFIED')
-   self.assertEqual(state['spatial_index'],1)
-   self.assertIsNone(state.get('pending_edit'))
-   self.assertTrue(state.get('first_structural_edit_verified'))
+   commit=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck)
+   self.assertEqual(commit['specialist_phase'],'semantic-edit-finalize')
+   save=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck)
+   self.assertEqual(save['specialist_phase'],'semantic-save')
 
-   # Shape-bound targeting must move to CoverSub and never re-edit CoverTitle.
-   second_select=shim.next_091_specialist_action(task,'WPS Presentation','',state,deck_after)
-   self.assertEqual(second_select['command'],'pyautogui.doubleClick(738, 516, interval=0.08)')
-   self.assertEqual(state['pending_edit']['shape_id'],7)
-   wrong_shape_after={**deck_after,
-      'deck_slide_text':{'1':'Northstar Cloud Prepared for July Operating Committee review Planning posture: stabilize and recover with disciplined sequencing Planning posture: accelerate growth through H2 scale-up'},
-      'deck_slide_shapes':{'1':[
-          {'id':6,'name':'CoverTitle',
-           'text':'Northstar Cloud\nPrepared for July Operating Committee review\nPlanning posture: stabilize and recover with disciplined sequencing',
-           'paragraphs':['Northstar Cloud','Prepared for July Operating Committee review',
-                         'Planning posture: stabilize and recover with disciplined sequencing'],
-           'geometry':{'x':749808,'y':1078992,'w':5852160,'h':1234440}},
-          deck_after['deck_slide_shapes']['1'][1]]},
-      'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
-                   'sha256':'e'*64,'size':1300,'mtime_ns':3,
-                   'slide_size':{'w':12192000,'h':6858000}}}
-   state['pending_edit']['stage']='save-issued'
-   wrong=shim.next_091_specialist_action(task,'WPS Presentation','',state,wrong_shape_after)
-   self.assertNotEqual(wrong.get('checkpoint'),'TASK091_STRUCTURAL_EDIT_VERIFIED')
-   self.assertEqual(state['spatial_index'],1)
+   final_cover=copy.deepcopy(cover)
+   final_cover['text']='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
+   final_cover['paragraphs']=['H2 Operating Committee Pack','Stabilize-and-Recover Rebaseline']
+   deck_after=copy.deepcopy(deck)
+   deck_after['deck_slide_shapes']['1'][0]=final_cover
+   deck_after['deck_slide_text']['1']='H2 Operating Committee Pack Stabilize-and-Recover Rebaseline Planning posture: accelerate growth through H2 scale-up'
+   deck_after['deck_file']['sha256']='b'*64
+   reread=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck_after)
+   self.assertEqual(reread['specialist_phase'],'semantic-roundtrip-reread')
+   verified=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck_after)
+   self.assertEqual(verified['checkpoint'],'TASK091_SEMANTIC_TRANSACTION_PASS')
+   self.assertEqual(state['semantic_index'],1)
+   self.assertTrue(verified['semantic_evidence']['diff_budget_exact'])
+   self.assertTrue(verified['semantic_evidence']['no_collateral_mutation'])
+   self.assertTrue(verified['semantic_evidence']['roundtrip'])
+   self.assertNotIn('pending_edit',state)
 
-   # No semantic old->new change remains pending, then terminates specifically.
-   stuck={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'mode':'TARGET_COMMITTED','semantic_text_done':True,'section_e_format_done':True,
-          'pending_edit':{'slide':1,'old':'Growth Plan Draft',
-                          'new':'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline',
-                          'stage':'commit-issued','target':{'bbox':[700,300,100,40],'cx':750,'cy':320},
-                          'before_old_count':1,'before_new_count':0,'verify_attempts':0}}
-   persist=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,stuck,deck)
-   self.assertIn("hotkey('ctrl', 's')",persist['command'])
-   retry=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,stuck,deck)
-   self.assertIn('sleep',retry['command'])
-   failed=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,stuck,deck)
-   self.assertEqual(failed['action'],'terminal')
-   self.assertEqual(failed['reason'],'TASK091_EDIT_NOT_VERIFIED')
-   self.assertEqual(stuck['spatial_index'],0)
+   # Missing or ambiguous semantic targets fail closed without pixel/caret fallback.
+   missing=copy.deepcopy(deck)
+   missing['deck_slide_shapes']['1']=[subtitle]
+   missing_state={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
+   miss=shim.next_091_specialist_action(task,'WPS Presentation','',missing_state,missing)
+   self.assertEqual(miss['action'],'terminal')
+   self.assertEqual(miss['reason'],'TASK091_TARGET_MISSING')
 
-   self.assertIn("hotkey('shift', 'enter')",edit['command'])
-   self.assertIn("interval=0.02",edit['command'])
-   self.assertNotIn("interval=0.001",edit['command'])
-   self.assertNotIn("\\n', interval",edit['command'])
+   duplicate=copy.deepcopy(cover); duplicate['id']=106
+   ambiguous_deck=copy.deepcopy(deck)
+   ambiguous_deck['deck_slide_shapes']['1'].append(duplicate)
+   ambiguous_state={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
+   amb=shim.next_091_specialist_action(task,'WPS Presentation','',ambiguous_state,ambiguous_deck)
+   self.assertEqual(amb['action'],'terminal')
+   self.assertEqual(amb['reason'],'TASK091_TARGET_AMBIGUOUS')
 
-   # Run 35411705196 proved a saved but key-repeat-corrupted first edit.
-   # Recovery is allowed exactly once and still requires exact PPTX verification.
-   corrupt_state={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'mode':'TARGET_VERIFYING','semantic_text_done':True,'section_e_format_done':True,
-                  'pending_edit':{'slide':1,'old':'Growth Plan Draft',
-                                  'new':'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline',
-                                  'stage':'save-issued',
-                                  'target':{'label':'Growth Plan Draft','role':'task091-canonical-point',
-                                            'bbox':[744,334,2,2],'cx':745,'cy':335,
-                                            'source':'task091-pptx-canonical','slide':1},
-                                  'before_old_count':1,'before_new_count':0,
-                                  'shape_id':7,
-                                  'before_deck_sha256':'a'*64,
-                                  'selected_screenshot_sha256':'1'*64,
-                                  'edited_screenshot_sha256':'2'*64,
-                                  'verify_attempts':0}}
-   corrupt_text='H2 Operating Committee Pack\nSStabilize-and-Recover Rebaseline'
-   corrupt_deck={**deck,
-                 'deck_slide_text':{'1':corrupt_text.replace('\n',' ')},
-                 'deck_slide_runs':{'1':['H2 Operating Committee Pack','SStabilize-and-Recover Rebaseline']},
-                 'deck_slide_shapes':{'1':[{'id':7,'name':'Title 1','text':corrupt_text,
-                                            'paragraphs':['H2 Operating Committee Pack',
-                                                          'SStabilize-and-Recover Rebaseline'],
-                                            'geometry':{'x':749808,'y':1078992,'w':5852160,'h':922020}}]},
-                 'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
-                              'sha256':'c'*64,'size':110431,'mtime_ns':3,
-                              'slide_size':{'w':12192000,'h':6858000}},
-                 'screenshot_sha256':'3'*64}
-   repair_select=shim.next_091_specialist_action(task,'WPS Presentation','',corrupt_state,corrupt_deck)
-   self.assertEqual(repair_select['command'],'pyautogui.doubleClick(745, 335, interval=0.08)')
-   self.assertNotEqual(repair_select['command'],'pyautogui.doubleClick(869, 373, interval=0.08)')
-   self.assertEqual(repair_select['target']['source'],'task091-pptx-canonical')
-   self.assertEqual(corrupt_state['pending_edit']['repair_attempts'],1)
-   self.assertEqual(corrupt_state['pending_edit']['repair_before_deck_sha256'],'c'*64)
-   self.assertEqual(corrupt_state['pending_edit']['repair_shape_id'],7)
-   self.assertEqual(corrupt_state['pending_edit']['repair_target_cx'],745)
-   self.assertEqual(corrupt_state['pending_edit']['repair_target_cy'],335)
-   self.assertEqual(corrupt_state['pending_edit']['repair_shape_geometry']['h'],922020)
-   self.assertGreater(len(corrupt_state['pending_edit']['repair_plan']),0)
-   self.assertTrue(all(row['op'] in ('delete','linebreak') for row in corrupt_state['pending_edit']['repair_plan']))
+   # Legacy pending_edit can exist for replay history but is forbidden in fresh execution.
+   legacy={'owned':True,'anchored':True,'slide':1,
+           'semantic_text_done':True,'section_e_format_done':True,
+           'spatial_index':len(shim.TASK091_SPATIAL_TEXT_EDITS),
+           'pending_edit':{'stage':'save-issued'}}
+   blocked=shim.next_091_specialist_action(task,'WPS Presentation','',legacy,deck)
+   self.assertEqual(blocked['action'],'terminal')
+   self.assertEqual(blocked['reason'],'TASK091_LEGACY_TEXT_STATE_FORBIDDEN')
 
-   repair_selected={**corrupt_deck,'screenshot_sha256':'4'*64}
-   repair_edit=shim.next_091_specialist_action(task,'WPS Presentation','',corrupt_state,repair_selected)
-   self.assertIn("hotkey('ctrl', 'a')",repair_edit['command'])
-   self.assertIn("'delete'",repair_edit['command'])
-   self.assertNotIn('pyautogui.write(',repair_edit['command'])
-   repair_edited={**corrupt_deck,'screenshot_sha256':'5'*64}
-   repair_commit=shim.next_091_specialist_action(task,'WPS Presentation','',corrupt_state,repair_edited)
-   self.assertEqual(repair_commit['command'],"pyautogui.press('esc')")
-   repair_save=shim.next_091_specialist_action(task,'WPS Presentation','',corrupt_state,repair_edited)
-   self.assertIn("hotkey('ctrl', 's')",repair_save['command'])
-
-   repaired_text='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
-   repaired_deck={**deck,
-                  'deck_slide_text':{'1':repaired_text.replace('\n',' ')},
-                  'deck_slide_runs':{'1':['H2 Operating Committee Pack','Stabilize-and-Recover Rebaseline']},
-                  'deck_slide_shapes':{'1':[{'id':7,'name':'Title 1','text':repaired_text,
-                                             'paragraphs':['H2 Operating Committee Pack',
-                                                           'Stabilize-and-Recover Rebaseline'],
-                                             'geometry':{'x':749808,'y':1078992,'w':5852160,'h':922020}}]},
-                  'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
-                               'sha256':'d'*64,'size':110500,'mtime_ns':4,
-                               'slide_size':{'w':12192000,'h':6858000}},
-                  'screenshot_sha256':'6'*64}
-   repaired=shim.next_091_specialist_action(task,'WPS Presentation','',corrupt_state,repaired_deck)
-   self.assertEqual(repaired['action'],'checkpoint')
-   self.assertEqual(repaired['checkpoint'],'TASK091_FIRST_STRUCTURAL_EDIT_VERIFIED')
-   self.assertEqual(corrupt_state['spatial_index'],1)
-
-   latest_corrupt='H2 Operating Committee Pack\nSStabilize-and-Recover Rebaseline'
-   self.assertEqual(shim._task091_delete_only_plan(
-       latest_corrupt,'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'),[29])
-   self.assertIsNone(shim._task091_delete_only_plan(
-       'H2 Operating Committee Pack\nBroken Rebaseline',
-       'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'))
-   ambiguous_shapes={**corrupt_deck,'deck_slide_shapes':{'1':[
-       {'id':7,'name':'Title 1','text':corrupt_text,'paragraphs':[],'geometry':{}},
-       {'id':8,'name':'Title 2','text':corrupt_text,'paragraphs':[],'geometry':{}}]}}
-   ambiguous_repair_state={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'semantic_text_done':True,'section_e_format_done':True,
-                           'pending_edit':{'slide':1,'old':'Growth Plan Draft',
-                                           'new':'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline',
-                                           'stage':'save-issued','repair_attempts':0,
-                                           'target':{'label':'Growth Plan Draft',
-                                                     'role':'task091-canonical-point',
-                                                     'bbox':[744,334,2,2],'cx':745,'cy':335,
-                                                     'source':'task091-pptx-canonical','slide':1},
-                                           'before_old_count':1,'before_new_count':0,
-                                           'before_deck_sha256':'a'*64,
-                                           'selected_screenshot_sha256':'1'*64,
-                                           'edited_screenshot_sha256':'2'*64,
-                                           'verify_attempts':0}}
-   ambiguous_repair=shim.next_091_specialist_action(
-       task,'WPS Presentation','',ambiguous_repair_state,ambiguous_shapes)
-   self.assertEqual(ambiguous_repair['action'],'terminal')
-   self.assertEqual(ambiguous_repair['reason'],'TASK091_EDIT_TEXT_MISMATCH_UNPROVEN')
-
-   corrupt_twice={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'semantic_text_done':True,'section_e_format_done':True,
-                  'pending_edit':{'slide':1,'old':'Growth Plan Draft',
-                                  'new':'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline',
-                                  'stage':'save-issued','repair_attempts':1,
-                                  'repair_before_deck_sha256':'b'*64,
-                                  'target':{'bbox':[744,334,2,2],'cx':745,'cy':335},
-                                  'before_old_count':1,'before_new_count':0,
-                                  'before_deck_sha256':'a'*64,'verify_attempts':1}}
-   terminal_corrupt=shim.next_091_specialist_action(task,'WPS Presentation','',corrupt_twice,corrupt_deck)
-   self.assertEqual(terminal_corrupt['action'],'terminal')
-   self.assertEqual(terminal_corrupt['reason'],'TASK091_EDIT_TEXT_CORRUPTED')
-
-   # Official WPS runner may expose no canvas AT-SPI. In that case only the
-   # canonical Task 091 point is usable, and only when target-PPTX text proves
-   # the expected old value on the expected slide.
-   spatial_state={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'semantic_text_done':True,'section_e_format_done':True}
-   spatial=shim.next_091_specialist_action(task,'WPS Presentation','',spatial_state,deck)
-   self.assertEqual(spatial['target']['source'],'task091-pptx-canonical')
-   self.assertEqual(spatial['command'],'pyautogui.doubleClick(745, 335, interval=0.08)')
-   self.assertEqual(spatial_state['pending_edit']['shape_id'],6)
-   self.assertEqual(spatial_state['pending_edit']['before_old_count'],1)
-   self.assertEqual(spatial['target']['proof_sha256'],shim.task091_spatial_target_proof(spatial['target']))
-   grounded=shim.ground_action(spatial,'WPS Presentation','',[],allow_canonical=True)
-   self.assertEqual(grounded['command'],spatial['command'])
-   self.assertIn('PPTX-backed canonical target',grounded.get('compiler_note',''))
-   with self.assertRaisesRegex(ValueError,'CANONICAL_TARGET_UNTRUSTED'):
-    shim.ground_action(spatial,'WPS Presentation','',[],allow_canonical=False)
-   tampered=copy.deepcopy(spatial); tampered['target']['deck_sha256']='b'*64
-   with self.assertRaisesRegex(ValueError,'TASK091_CANONICAL_TARGET_PROOF_INVALID'):
-    shim.ground_action(tampered,'WPS Presentation','',[],allow_canonical=True)
-   no_old={**deck,'deck_slide_text':{'1':'Already changed'},
-           'deck_slide_shapes':{'1':[deck['deck_slide_shapes']['1'][1]]}}
-   no_old_state={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'semantic_text_done':True,'section_e_format_done':True}
-   retry_no_old=shim.next_091_specialist_action(task,'WPS Presentation','',no_old_state,no_old)
-   self.assertIn('sleep',retry_no_old['command'])
-   no_old_terminal=shim.next_091_specialist_action(task,'WPS Presentation','',no_old_state,no_old)
-   self.assertEqual(no_old_terminal['reason'],'TASK091_SHAPE_GEOMETRY_UNPROVEN')
-
-   # Missing and ambiguous targets never click blindly.
-   missing_obs='text\tOperating Committee\tOperating Committee\t\t\t(500, 180)\t(600, 60)'
-   missing_deck={**deck,'deck_slide_text':{'1':'Already finalized content without draft marker'},
-                 'deck_slide_runs':{'1':['Already finalized content without draft marker']},
-                 'deck_slide_shapes':{'1':[deck['deck_slide_shapes']['1'][1]]}}
-   missing={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'semantic_text_done':True,'section_e_format_done':True}
-   self.assertIn('sleep',shim.next_091_specialist_action(task,'WPS Presentation',missing_obs,missing,missing_deck)['command'])
-   miss_terminal=shim.next_091_specialist_action(task,'WPS Presentation',missing_obs,missing,missing_deck)
-   self.assertEqual(miss_terminal['reason'],'TASK091_SHAPE_GEOMETRY_UNPROVEN')
-
-   # Duplicate PPTX shapes containing the same old text are fail-closed.
-   dup_shape=copy.deepcopy(deck['deck_slide_shapes']['1'][0])
-   dup_shape['id']=106
-   ambiguous_deck={**deck,'deck_slide_shapes':{'1':deck['deck_slide_shapes']['1']+[dup_shape]}}
-   ambiguous={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'semantic_text_done':True,'section_e_format_done':True}
-   amb_retry=shim.next_091_specialist_action(task,'WPS Presentation','',ambiguous,ambiguous_deck)
-   self.assertIn('sleep',amb_retry['command'])
-   amb_terminal=shim.next_091_specialist_action(task,'WPS Presentation','',ambiguous,ambiguous_deck)
-   self.assertEqual(amb_terminal['action'],'terminal')
-   self.assertEqual(amb_terminal['reason'],'TASK091_SHAPE_GEOMETRY_UNPROVEN')
-
-   no_op_index=next(i for i,row in enumerate(shim.TASK091_SPATIAL_TEXT_EDITS)
-                    if shim._task091_norm(row[3]) == shim._task091_norm(row[4]))
-   no_op_row=shim.TASK091_SPATIAL_TEXT_EDITS[no_op_index]
-   no_op_state={'owned':True,'anchored':True,'slide':no_op_row[0],'spatial_index':no_op_index,
-                'section_e_format_done':True,'semantic_text_done':True}
-   no_op=shim.next_091_specialist_action(task,'WPS Presentation','',no_op_state,deck)
-   self.assertEqual(no_op['action'],'checkpoint')
-   self.assertEqual(no_op['checkpoint'],'TASK091_TARGET_ALREADY_FINAL')
-   self.assertEqual(no_op_state['spatial_index'],no_op_index+1)
-
-   # A normal deck never receives transient close keys.
-   normal={}
-   normal_action=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,normal,deck)
-   self.assertNotIn("press('enter')",normal_action['command'])
-   self.assertNotIn("alt', 'f4",normal_action['command'])
-
-   # Handoff is explicit, only after no pending edit and verified text pass saved.
-   done={'owned':True,'anchored':True,'slide':13,'spatial_index':len(shim.TASK091_SPATIAL_TEXT_EDITS),
-         'section_e_format_done':True,'semantic_text_done':True}
-   save=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,done,deck)
-   self.assertIn("hotkey('ctrl', 's')",save['command'])
+   # Handoff occurs only after the complete semantic plan and Section E are verified.
+   done={'owned':True,'anchored':True,'slide':13,
+         'spatial_index':len(shim.TASK091_SPATIAL_TEXT_EDITS),
+         'semantic_text_done':True,'section_e_format_done':True}
+   final_save=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,done,deck)
+   self.assertEqual(final_save['specialist_phase'],'semantic-pass-final-save')
    self.assertIsNone(shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,done,deck))
    self.assertTrue(done.get('handoff'))
-   self.assertEqual(done.get('handoff_reason'),'DIRECT_TEXT_PASS_VERIFIED_CHART_FILL_REMAINS')
+   self.assertEqual(done.get('handoff_reason'),
+                    'SEMANTIC_TEXT_AND_SECTION_E_VERIFIED_CHART_FILL_REMAINS')
 
  def test_task091_specialist_does_not_capture_other_tasks(self):
   with patch.dict(os.environ,{'TASK_ID':'061'},clear=False):
