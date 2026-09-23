@@ -162,10 +162,27 @@ def review_action(action, *, task_id="", source="generic", state=None,
         and int(target.get("cx") or 0)==int(section_e.get("cx") or -1)
         and int(target.get("cy") or 0)==int(section_e.get("cy") or -1)
     )
-    bounded_semantic_retry=bounded_observation_retry or bounded_table_cell_entry or bounded_section_e_text_entry
+    bounded_nonpersisted_selection_observation=(
+        str(task_id)=="091"
+        and source=="task091-specialist"
+        and command=="pyautogui.sleep(0.2)"
+        and phase=="recover-nonpersisted-text-selection"
+        and str(pending091.get("stage") or "")=="reselect-required"
+        and str(pending091.get("shape_kind") or "")=="shape"
+        and int(pending091.get("selection_recovery_attempts") or 0)==1
+        and bool(re.fullmatch(r"[0-9a-f]{64}",str(pending091.get("commit_command_hash") or ""),re.I))
+        and bool(re.fullmatch(r"[0-9a-f]{64}",str(pending091.get("save_command_hash") or ""),re.I))
+        and bool(re.fullmatch(r"[0-9a-f]{64}",str(pending091.get("before_deck_sha256") or ""),re.I))
+        and repeated
+        and no_progress>0
+        and recent.count(command)==1
+    )
+    bounded_semantic_retry=(bounded_observation_retry or bounded_table_cell_entry
+                            or bounded_section_e_text_entry
+                            or bounded_nonpersisted_selection_observation)
     anti_repeat=not (repeated and no_progress>0 and not bounded_semantic_retry)
     rows.append(_lane("anti_repetition",anti_repeat,
-        "no-progress repetition is forbidden except evidence-bound Task 091 resync, the single table-cell entry click, or the single shape-to-text-mode transition click"))
+        "no-progress repetition is forbidden except evidence-bound Task 091 resync, a single proven text-entry transition, or one bounded observation after a non-persisted shape edit"))
 
     progress_ok=not (
         kind=="finish"
