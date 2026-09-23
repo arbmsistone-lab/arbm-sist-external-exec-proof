@@ -230,27 +230,48 @@ def _task091_table_cell_start_navigation_command():
     return "pyautogui.press('home')\npyautogui.sleep(0.20)"
 
 
-def _task091_table_cell_bounded_write_command(old, new, interval=TASK091_TYPE_INTERVAL):
-    """Replace one single-line cell from a separately proven start caret.
+def _task091_table_cell_delta_plan(old, new):
+    """Return at most two same-length character substitutions for a KPI cell.
 
-    The end-of-cell marker is never selected: the state machine independently
-    anchors and proves the caret at the visual start before this writer runs.
-    This command then selects exactly the visible text to the right and
-    overwrites it. No residual Delete, End, Home, Ctrl+A, Backspace, or leftward
-    sweep is allowed inside the mutation command.
+    Slide 3 KPI values are fixed-width. Replacing the whole cell is unsafe in
+    WPS because the logical table-cell boundaries can preserve the first/last
+    visible glyph even when caret geometry looks correct. The safe contract is
+    therefore to preserve every already-correct character and mutate only the
+    differing indices.
     """
     old=str(old or '')
     new=str(new or '')
-    if '\n' in new or len(new) > 128:
-        raise ValueError('TASK091_TABLE_CELL_BOUNDED_EDIT_INVALID')
-    presses=_task091_table_cell_selection_presses(old)
-    commands=[
-        "pyautogui.keyDown('shift')",
-        f"pyautogui.press('right', presses={presses}, interval=0.03)",
-        "pyautogui.keyUp('shift')",
-    ]
-    if new:
-        commands.append(f"pyautogui.write({new!r}, interval={float(interval):g})")
+    if (not old or not new or '\n' in old or '\n' in new
+            or len(old)!=len(new) or len(old)>30):
+        raise ValueError('TASK091_TABLE_CELL_DELTA_PLAN_INVALID')
+    plan=[{'index':i,'old':a,'new':b} for i,(a,b) in enumerate(zip(old,new)) if a!=b]
+    if not plan or len(plan)>2:
+        raise ValueError('TASK091_TABLE_CELL_DELTA_PLAN_UNBOUNDED')
+    return plan
+
+
+def _task091_table_cell_bounded_write_command(old, new, interval=TASK091_TYPE_INTERVAL):
+    """Apply only the proven differing characters from a proven start caret.
+
+    No whole-cell selection is used. Each substitution is Delete + one-char
+    Write at an exact index while preserving the fixed cell length. This keeps
+    currency/percent/unit boundary glyphs outside the mutation surface.
+    """
+    plan=_task091_table_cell_delta_plan(old,new)
+    commands=[]
+    cursor=0
+    for row in plan:
+        index=int(row['index'])
+        move=index-cursor
+        if move < 0:
+            raise ValueError('TASK091_TABLE_CELL_DELTA_CURSOR_REGRESSION')
+        if move:
+            commands.append(f"pyautogui.press('right', presses={move}, interval=0.03)")
+        commands.append("pyautogui.press('delete')")
+        commands.append(f"pyautogui.write({str(row['new'])!r}, interval={float(interval):g})")
+        cursor=index+1
+    if len(commands)>6:
+        raise ValueError('TASK091_TABLE_CELL_DELTA_ACTION_COUNT_UNBOUNDED')
     return '\n'.join(commands)
 
 
@@ -1687,7 +1708,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             command=_task091_table_cell_bounded_write_command(pending['old'],pending['new'])
             pending['action_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
-                    'plan':f"From the independently proven start caret, select exactly {pending['selection_press_count']} visible characters to the right and overwrite them. The end-of-cell marker remains outside the selection.",
+                    'plan':f"From the independently proven start caret, mutate only the differing character indices for {pending['old']!r} -> {pending['new']!r}; fixed prefix/suffix glyphs remain untouched.",
                     'specialist_phase':'edit-start-caret-proven-table-cell','expected_change':pending['new']}
         if stage == 'select-issued':
             current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
