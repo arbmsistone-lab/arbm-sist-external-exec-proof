@@ -13,6 +13,27 @@ HOOK = '''
 if os.environ.get("ARBM_WPS_OBSERVER") == "1":
     from arbm091.wps_observer import install as _arbm091_install_observer
     _arbm091_install_observer(DesktopEnv)
+
+    # ARBM_091_KEY_AUTOREPEAT_GUARD_V1
+    # Agents synthesize discrete key press/release pairs. X11 auto-repeat can
+    # duplicate a character if the guest stalls between those two events.
+    _arbm091_original_start_emulator = DesktopEnv._start_emulator
+
+    def _arbm091_start_emulator_no_repeat(self, *args, **kwargs):
+        result = _arbm091_original_start_emulator(self, *args, **kwargs)
+        if str(getattr(self, "os_type", "")).lower() in {"ubuntu", "linux"}:
+            try:
+                self.controller.execute_python_command(
+                    "import subprocess; subprocess.run(['bash','-lc',"
+                    "'xset r off 2>/dev/null || true; "
+                    "gsettings set org.gnome.desktop.peripherals.keyboard repeat false "
+                    "2>/dev/null || true'], timeout=20)"
+                )
+            except Exception:
+                pass
+        return result
+
+    DesktopEnv._start_emulator = _arbm091_start_emulator_no_repeat
 '''
 
 
