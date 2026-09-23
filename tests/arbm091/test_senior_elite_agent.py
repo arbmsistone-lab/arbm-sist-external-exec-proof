@@ -191,6 +191,26 @@ class CaretGeometryTests(unittest.TestCase):
             self.assertLessEqual(result['width'],4)
             self.assertGreaterEqual(result['height'],8)
 
+    def test_caret_probe_uses_paired_before_when_after_hits_blink_off_phase(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            obs=root/'wps-observations'
+            obs.mkdir()
+            base=Image.new('RGB',(220,120),'white')
+            visible=base.copy()
+            draw=ImageDraw.Draw(visible)
+            draw.line((111,43,111,63),fill='black',width=1)
+            base.save(obs/'0137-01-after.png')
+            visible.save(obs/'0139-01-before.png')
+            base.save(obs/'0139-01-after.png')
+            with patch.dict(os.environ,{'ARBM_WPS_EVIDENCE_DIR':str(root)},clear=False):
+                result=shim._task091_caret_delta_geometry(
+                    '0137-01-after','0139-01-after',[20,20,180,80])
+            self.assertTrue(result['proven'],result)
+            self.assertEqual(result.get('observed_source'),'0139-01-before')
+            self.assertEqual(result.get('width'),1)
+            self.assertEqual(result.get('height'),21)
+
     def test_broad_rectangle_is_not_caret(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp)
