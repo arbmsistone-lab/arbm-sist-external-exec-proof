@@ -98,7 +98,7 @@ def capture(point):
         title_value = str(window.get('title', ''))
         path = '/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx'
         if 'Operating_Committee_Rebaseline_Draft.pptx' not in title_value or not os.path.isfile(path):
-            return {}, {}, {}, {}, {}, {}, {}
+            return {}, {}, {}, {}, {}, {}
         text_result = {}
         run_result = {}
         shape_result = {}
@@ -360,7 +360,7 @@ def capture(point):
                     relationship_result[key] = rel_rows
                     text_result[key] = _semantic_slide_text(shapes)
         except Exception:
-            return {}, {}, {}, {}, {}
+            return {}, {}, {}, {}, {}, {}
         return text_result, run_result, shape_result, chart_result, relationship_result, metadata
 
     before = window_info()
