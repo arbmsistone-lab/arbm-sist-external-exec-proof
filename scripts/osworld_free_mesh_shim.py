@@ -2166,7 +2166,31 @@ def try_091_specialist(body, obs, focused_obs):
             log_event({'status':candidate.get('checkpoint'),'slide':candidate.get('slide'),
                        'old':candidate.get('old'),'new':candidate.get('new'),
                        'target':candidate.get('target'),'mode':state.get('mode'),
-                       'spatial_index':state.get('spatial_index')})
+                       'spatial_index':state.get('spatial_index'),
+                       'semantic_evidence':candidate.get('semantic_evidence')})
+            evidence=candidate.get('semantic_evidence')
+            if candidate.get('checkpoint')=='TASK091_SEMANTIC_TRANSACTION_PASS':
+                required=(
+                    ('contract_validated','TASK091_CONTRACT_VALIDATED=PASS'),
+                    ('target_resolved','TASK091_TARGET_RESOLVED=PASS'),
+                    ('target_unique','TASK091_TARGET_UNIQUE=PASS'),
+                    ('precondition','TASK091_PRECONDITION=PASS'),
+                    ('mutation_authorized','TASK091_MUTATION_AUTHORIZED=PASS'),
+                    ('mutation','TASK091_MUTATION=PASS'),
+                    ('save','TASK091_SAVE=PASS'),
+                    ('roundtrip','TASK091_ROUNDTRIP=PASS'),
+                    ('structural_diff','TASK091_STRUCTURAL_DIFF=PASS'),
+                    ('diff_budget_exact','TASK091_DIFF_BUDGET_EXACT=PASS'),
+                    ('no_collateral_mutation','TASK091_NO_COLLATERAL_MUTATION=PASS'),
+                    ('semantic_result','TASK091_SEMANTIC_RESULT=PASS'),
+                )
+                if not isinstance(evidence,dict) or not all(evidence.get(key) is True for key,_ in required):
+                    return terminal('TASK091_SEMANTIC_EVIDENCE_INCOMPLETE')
+                for key,status in required:
+                    log_event({'status':status,'proof':key,
+                               'target_key':evidence.get('target_key'),
+                               'before_model_sha256':evidence.get('before_model_sha256'),
+                               'after_model_sha256':evidence.get('after_model_sha256')})
             continue
         break
     if not candidate:
