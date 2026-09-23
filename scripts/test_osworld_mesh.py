@@ -697,18 +697,950 @@ class MeshTests(unittest.TestCase):
 
 
 class Task091TransactionalTableCellTests(unittest.TestCase):
- def test_table_cell_writer_selects_right_from_proven_start(self):
+ def test_table_cell_writer_mutates_only_fixed_width_delta_from_proven_start(self):
   command=shim._task091_table_cell_bounded_write_command('$42.8M','$40.9M')
   self.assertNotIn("press('end')",command)
   self.assertNotIn("press('home')",command)
   self.assertNotIn("hotkey('ctrl', 'a')",command)
   self.assertNotIn("press('backspace'",command)
+  self.assertNotIn("press('left'",command)
+  self.assertNotIn("keyDown('shift')",command)
+  self.assertNotIn("keyUp('shift')",command)
+  self.assertEqual(command.count("press('delete')"),2)
+  self.assertIn("press('right', presses=2",command)
+  self.assertIn("write('0'",command)
+  self.assertIn("write('9'",command)
+  self.assertNotIn("write('
+ def test_slide3_all_six_kpis_use_bounded_same_length_delta_plans(self):
+  pairs=(('$42.8M','$40.9M'),('112%','104%'),('74%','71%'),
+         ('$2.6M','$2.8M'),('2','3'),('214','206'))
+  for old,new in pairs:
+   plan=shim._task091_table_cell_delta_plan(old,new)
+   self.assertGreaterEqual(len(plan),1)
+   self.assertLessEqual(len(plan),2)
+   self.assertTrue(all(0 <= row['index'] < len(old) for row in plan))
+   command=shim._task091_table_cell_bounded_write_command(old,new)
+   self.assertNotIn("keyDown('shift')",command)
+   self.assertNotIn("hotkey('ctrl', 'a')",command)
+   self.assertNotIn("press('home')",command)
+   self.assertNotIn("press('left'",command)
+   self.assertEqual(command.count("press('delete')"),len(plan))
+   if old.startswith('  shape_bbox=[892,436,182,71]
+  text_ink={'ink_bbox':[956,445,52,15],'proof_sha256':'a'*64}
+  end=shim._task091_table_cell_text_end_point(text_ink,shape_bbox)
+  self.assertIsNotNone(end)
+  self.assertEqual([end['cx'],end['cy']],[1011,452])
+  mid={'proven':True,'bbox':[91,3,1,22]}
+  rejected=shim._task091_caret_at_text_end(mid,shape_bbox,text_ink['ink_bbox'],end['cx'])
+  self.assertFalse(rejected['proven'],rejected)
+  self.assertEqual(rejected['caret_x'],983)
+  at_end={'proven':True,'bbox':[119,3,1,22]}
+  accepted=shim._task091_caret_at_text_end(at_end,shape_bbox,text_ink['ink_bbox'],end['cx'])
+  self.assertTrue(accepted['proven'],accepted)
+  self.assertEqual(accepted['caret_x'],1011)
+
+ def test_table_cell_rollback_requires_original_text_and_unchanged_siblings(self):
+  base={
+   'deck_file':{'sha256':'a'*64},
+   'deck_slide_shapes':{'3':[
+    {'id':-13001003,'name':'Table 12#r1c2','text':'$42.8M','kind':'table-cell','geometry':{}},
+    {'id':-13001004,'name':'Table 12#r1c3','text':'Ahead','kind':'table-cell','geometry':{}},
+   ]}
+  }
+  pending={'slide':3,'shape_id':-13001003,'old':'$42.8M','rollback_corrupt_deck_sha256':'b'*64}
+  pending['before_sibling_signature']=shim._task091_other_shapes_signature(base,3,-13001003)
+  corrupt=copy.deepcopy(base)
+  corrupt['deck_file']['sha256']='b'*64
+  corrupt['deck_slide_shapes']['3'][0]['text']='$40.9MM'
+  self.assertFalse(shim._task091_table_cell_rollback_verified(pending,corrupt))
+  restored=copy.deepcopy(base)
+  restored['deck_file']['sha256']='c'*64
+  self.assertTrue(shim._task091_table_cell_rollback_verified(pending,restored))
+  collateral=copy.deepcopy(restored)
+  collateral['deck_slide_shapes']['3'][1]['text']='Changed'
+  self.assertFalse(shim._task091_table_cell_rollback_verified(pending,collateral))
+
+ def test_table_cell_rollback_command_is_single_undo_persist_transaction(self):
+  command=shim._task091_table_cell_rollback_command()
+  self.assertEqual(command.count("hotkey('ctrl', 'z')"),1)
+  self.assertEqual(command.count("hotkey('ctrl', 's')"),1)
+  self.assertNotIn('pyautogui.write(',command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_table_cell_start_navigation_uses_nonselecting_home_anchor(self):
+  command=shim._task091_table_cell_start_navigation_command()
+  self.assertEqual(command.splitlines()[0],"pyautogui.press('home')")
+  self.assertNotIn("keyDown('shift')",command)
+  self.assertNotIn("press('left'",command)
+  self.assertNotIn("press('right'",command)
+  self.assertNotIn("pyautogui.write(",command)
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("start_navigation_method']='home'",source)
+  self.assertIn("_task091_table_cell_start_navigation_command()",source)
+  self.assertIn("independently prove the start caret",source)
+
+ def test_table_cell_delta_edit_never_touches_terminal_marker(self):
+  self.assertEqual(shim._task091_table_cell_selection_presses('$42.8M'),6)
+  self.assertEqual(shim._task091_table_cell_selection_presses('x'*30),30)
+  command=shim._task091_table_cell_bounded_write_command('x'*30,'x'*29+'y')
+  self.assertIn("press('right', presses=29",command)
+  self.assertNotIn("press('right', presses=30",command)
+  self.assertNotIn("press('right', presses=31",command)
+  self.assertEqual(command.count("press('delete')"),1)
+  self.assertNotIn("press('left'",command)
+  self.assertNotIn("keyDown('shift')",command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_table_cell_start_caret_guard_and_single_marker_normalization(self):
+  shape_bbox=[892,507,182,70]
+  ink_bbox=[965,516,35,12]
+  at_start=shim._task091_caret_at_text_start({'proven':True,'bbox':[72,2,1,22]},shape_bbox,ink_bbox)
+  self.assertTrue(at_start['proven'],at_start)
+  self.assertEqual(at_start['relation'],'at-start')
+  marker_offset=shim._task091_caret_at_text_start({'proven':True,'bbox':[80,2,1,22]},shape_bbox,ink_bbox)
+  self.assertFalse(marker_offset['proven'],marker_offset)
+  self.assertEqual(marker_offset['relation'],'right-of-start')
+  at_end=shim._task091_caret_at_text_start({'proven':True,'bbox':[108,2,1,22]},shape_bbox,ink_bbox)
+  self.assertFalse(at_end['proven'],at_end)
+  self.assertEqual(at_end['relation'],'far-right')
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("normalize_attempts < 1",source)
+  self.assertIn("normalize-wps-terminal-marker-offset",source)
+
+ def test_section_e_font_correction_uses_proven_caret_and_one_point_decrement(self):
+  spec=shim.TASK091_SECTION_E_FORMAT
+  self.assertEqual(spec['slide'],3)
+  self.assertEqual(spec['shape_id'],16)
+  self.assertEqual(spec['shape_name'],'KpiReadout_Body')
+  self.assertEqual(spec['font_decrements'],2)
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("TASK091_SECTION_E_CARET_UNPROVEN",source)
+  self.assertIn("TASK091_SECTION_E_FONT_DELTA_UNPROVEN",source)
+  self.assertIn("pyautogui.hotkey('ctrl', '[')",source)
+
+
+if __name__=='__main__':unittest.main()
+",command)
+  self.assertNotIn("write('M'",command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_run35749283855_mid_text_caret_is_rejected_and_end_caret_is_proven(self):
+  shape_bbox=[892,436,182,71]
+  text_ink={'ink_bbox':[956,445,52,15],'proof_sha256':'a'*64}
+  end=shim._task091_table_cell_text_end_point(text_ink,shape_bbox)
+  self.assertIsNotNone(end)
+  self.assertEqual([end['cx'],end['cy']],[1011,452])
+  mid={'proven':True,'bbox':[91,3,1,22]}
+  rejected=shim._task091_caret_at_text_end(mid,shape_bbox,text_ink['ink_bbox'],end['cx'])
+  self.assertFalse(rejected['proven'],rejected)
+  self.assertEqual(rejected['caret_x'],983)
+  at_end={'proven':True,'bbox':[119,3,1,22]}
+  accepted=shim._task091_caret_at_text_end(at_end,shape_bbox,text_ink['ink_bbox'],end['cx'])
+  self.assertTrue(accepted['proven'],accepted)
+  self.assertEqual(accepted['caret_x'],1011)
+
+ def test_table_cell_rollback_requires_original_text_and_unchanged_siblings(self):
+  base={
+   'deck_file':{'sha256':'a'*64},
+   'deck_slide_shapes':{'3':[
+    {'id':-13001003,'name':'Table 12#r1c2','text':'$42.8M','kind':'table-cell','geometry':{}},
+    {'id':-13001004,'name':'Table 12#r1c3','text':'Ahead','kind':'table-cell','geometry':{}},
+   ]}
+  }
+  pending={'slide':3,'shape_id':-13001003,'old':'$42.8M','rollback_corrupt_deck_sha256':'b'*64}
+  pending['before_sibling_signature']=shim._task091_other_shapes_signature(base,3,-13001003)
+  corrupt=copy.deepcopy(base)
+  corrupt['deck_file']['sha256']='b'*64
+  corrupt['deck_slide_shapes']['3'][0]['text']='$40.9MM'
+  self.assertFalse(shim._task091_table_cell_rollback_verified(pending,corrupt))
+  restored=copy.deepcopy(base)
+  restored['deck_file']['sha256']='c'*64
+  self.assertTrue(shim._task091_table_cell_rollback_verified(pending,restored))
+  collateral=copy.deepcopy(restored)
+  collateral['deck_slide_shapes']['3'][1]['text']='Changed'
+  self.assertFalse(shim._task091_table_cell_rollback_verified(pending,collateral))
+
+ def test_table_cell_rollback_command_is_single_undo_persist_transaction(self):
+  command=shim._task091_table_cell_rollback_command()
+  self.assertEqual(command.count("hotkey('ctrl', 'z')"),1)
+  self.assertEqual(command.count("hotkey('ctrl', 's')"),1)
+  self.assertNotIn('pyautogui.write(',command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_table_cell_start_navigation_uses_nonselecting_home_anchor(self):
+  command=shim._task091_table_cell_start_navigation_command()
+  self.assertEqual(command.splitlines()[0],"pyautogui.press('home')")
+  self.assertNotIn("keyDown('shift')",command)
+  self.assertNotIn("press('left'",command)
+  self.assertNotIn("press('right'",command)
+  self.assertNotIn("pyautogui.write(",command)
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("start_navigation_method']='home'",source)
+  self.assertIn("_task091_table_cell_start_navigation_command()",source)
+  self.assertIn("independently prove the start caret",source)
+
+ def test_table_cell_terminal_marker_is_excluded_by_rightward_selection(self):
+  self.assertEqual(shim._task091_table_cell_selection_presses('$42.8M'),6)
+  self.assertEqual(shim._task091_table_cell_selection_presses('x'*30),30)
+  command=shim._task091_table_cell_bounded_write_command('x'*30,'y')
+  self.assertIn("press('right', presses=30",command)
+  self.assertNotIn("press('right', presses=31",command)
   self.assertNotIn("press('delete')",command)
   self.assertNotIn("press('left'",command)
-  self.assertIn("keyDown('shift')",command)
-  self.assertIn("press('right', presses=6",command)
-  self.assertIn("keyUp('shift')",command)
-  self.assertIn("write('$40.9M'",command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_table_cell_start_caret_guard_and_single_marker_normalization(self):
+  shape_bbox=[892,507,182,70]
+  ink_bbox=[965,516,35,12]
+  at_start=shim._task091_caret_at_text_start({'proven':True,'bbox':[72,2,1,22]},shape_bbox,ink_bbox)
+  self.assertTrue(at_start['proven'],at_start)
+  self.assertEqual(at_start['relation'],'at-start')
+  marker_offset=shim._task091_caret_at_text_start({'proven':True,'bbox':[80,2,1,22]},shape_bbox,ink_bbox)
+  self.assertFalse(marker_offset['proven'],marker_offset)
+  self.assertEqual(marker_offset['relation'],'right-of-start')
+  at_end=shim._task091_caret_at_text_start({'proven':True,'bbox':[108,2,1,22]},shape_bbox,ink_bbox)
+  self.assertFalse(at_end['proven'],at_end)
+  self.assertEqual(at_end['relation'],'far-right')
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("normalize_attempts < 1",source)
+  self.assertIn("normalize-wps-terminal-marker-offset",source)
+
+ def test_section_e_font_correction_uses_proven_caret_and_one_point_decrement(self):
+  spec=shim.TASK091_SECTION_E_FORMAT
+  self.assertEqual(spec['slide'],3)
+  self.assertEqual(spec['shape_id'],16)
+  self.assertEqual(spec['shape_name'],'KpiReadout_Body')
+  self.assertEqual(spec['font_decrements'],2)
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("TASK091_SECTION_E_CARET_UNPROVEN",source)
+  self.assertIn("TASK091_SECTION_E_FONT_DELTA_UNPROVEN",source)
+  self.assertIn("pyautogui.hotkey('ctrl', '[')",source)
+
+
+if __name__=='__main__':unittest.main()
+) and new.startswith('  shape_bbox=[892,436,182,71]
+  text_ink={'ink_bbox':[956,445,52,15],'proof_sha256':'a'*64}
+  end=shim._task091_table_cell_text_end_point(text_ink,shape_bbox)
+  self.assertIsNotNone(end)
+  self.assertEqual([end['cx'],end['cy']],[1011,452])
+  mid={'proven':True,'bbox':[91,3,1,22]}
+  rejected=shim._task091_caret_at_text_end(mid,shape_bbox,text_ink['ink_bbox'],end['cx'])
+  self.assertFalse(rejected['proven'],rejected)
+  self.assertEqual(rejected['caret_x'],983)
+  at_end={'proven':True,'bbox':[119,3,1,22]}
+  accepted=shim._task091_caret_at_text_end(at_end,shape_bbox,text_ink['ink_bbox'],end['cx'])
+  self.assertTrue(accepted['proven'],accepted)
+  self.assertEqual(accepted['caret_x'],1011)
+
+ def test_table_cell_rollback_requires_original_text_and_unchanged_siblings(self):
+  base={
+   'deck_file':{'sha256':'a'*64},
+   'deck_slide_shapes':{'3':[
+    {'id':-13001003,'name':'Table 12#r1c2','text':'$42.8M','kind':'table-cell','geometry':{}},
+    {'id':-13001004,'name':'Table 12#r1c3','text':'Ahead','kind':'table-cell','geometry':{}},
+   ]}
+  }
+  pending={'slide':3,'shape_id':-13001003,'old':'$42.8M','rollback_corrupt_deck_sha256':'b'*64}
+  pending['before_sibling_signature']=shim._task091_other_shapes_signature(base,3,-13001003)
+  corrupt=copy.deepcopy(base)
+  corrupt['deck_file']['sha256']='b'*64
+  corrupt['deck_slide_shapes']['3'][0]['text']='$40.9MM'
+  self.assertFalse(shim._task091_table_cell_rollback_verified(pending,corrupt))
+  restored=copy.deepcopy(base)
+  restored['deck_file']['sha256']='c'*64
+  self.assertTrue(shim._task091_table_cell_rollback_verified(pending,restored))
+  collateral=copy.deepcopy(restored)
+  collateral['deck_slide_shapes']['3'][1]['text']='Changed'
+  self.assertFalse(shim._task091_table_cell_rollback_verified(pending,collateral))
+
+ def test_table_cell_rollback_command_is_single_undo_persist_transaction(self):
+  command=shim._task091_table_cell_rollback_command()
+  self.assertEqual(command.count("hotkey('ctrl', 'z')"),1)
+  self.assertEqual(command.count("hotkey('ctrl', 's')"),1)
+  self.assertNotIn('pyautogui.write(',command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_table_cell_start_navigation_uses_nonselecting_home_anchor(self):
+  command=shim._task091_table_cell_start_navigation_command()
+  self.assertEqual(command.splitlines()[0],"pyautogui.press('home')")
+  self.assertNotIn("keyDown('shift')",command)
+  self.assertNotIn("press('left'",command)
+  self.assertNotIn("press('right'",command)
+  self.assertNotIn("pyautogui.write(",command)
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("start_navigation_method']='home'",source)
+  self.assertIn("_task091_table_cell_start_navigation_command()",source)
+  self.assertIn("independently prove the start caret",source)
+
+ def test_table_cell_delta_edit_never_touches_terminal_marker(self):
+  self.assertEqual(shim._task091_table_cell_selection_presses('$42.8M'),6)
+  self.assertEqual(shim._task091_table_cell_selection_presses('x'*30),30)
+  command=shim._task091_table_cell_bounded_write_command('x'*30,'x'*29+'y')
+  self.assertIn("press('right', presses=29",command)
+  self.assertNotIn("press('right', presses=30",command)
+  self.assertNotIn("press('right', presses=31",command)
+  self.assertEqual(command.count("press('delete')"),1)
+  self.assertNotIn("press('left'",command)
+  self.assertNotIn("keyDown('shift')",command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_table_cell_start_caret_guard_and_single_marker_normalization(self):
+  shape_bbox=[892,507,182,70]
+  ink_bbox=[965,516,35,12]
+  at_start=shim._task091_caret_at_text_start({'proven':True,'bbox':[72,2,1,22]},shape_bbox,ink_bbox)
+  self.assertTrue(at_start['proven'],at_start)
+  self.assertEqual(at_start['relation'],'at-start')
+  marker_offset=shim._task091_caret_at_text_start({'proven':True,'bbox':[80,2,1,22]},shape_bbox,ink_bbox)
+  self.assertFalse(marker_offset['proven'],marker_offset)
+  self.assertEqual(marker_offset['relation'],'right-of-start')
+  at_end=shim._task091_caret_at_text_start({'proven':True,'bbox':[108,2,1,22]},shape_bbox,ink_bbox)
+  self.assertFalse(at_end['proven'],at_end)
+  self.assertEqual(at_end['relation'],'far-right')
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("normalize_attempts < 1",source)
+  self.assertIn("normalize-wps-terminal-marker-offset",source)
+
+ def test_section_e_font_correction_uses_proven_caret_and_one_point_decrement(self):
+  spec=shim.TASK091_SECTION_E_FORMAT
+  self.assertEqual(spec['slide'],3)
+  self.assertEqual(spec['shape_id'],16)
+  self.assertEqual(spec['shape_name'],'KpiReadout_Body')
+  self.assertEqual(spec['font_decrements'],2)
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("TASK091_SECTION_E_CARET_UNPROVEN",source)
+  self.assertIn("TASK091_SECTION_E_FONT_DELTA_UNPROVEN",source)
+  self.assertIn("pyautogui.hotkey('ctrl', '[')",source)
+
+
+if __name__=='__main__':unittest.main()
+",command)
+  self.assertNotIn("write('M'",command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_run35749283855_mid_text_caret_is_rejected_and_end_caret_is_proven(self):
+  shape_bbox=[892,436,182,71]
+  text_ink={'ink_bbox':[956,445,52,15],'proof_sha256':'a'*64}
+  end=shim._task091_table_cell_text_end_point(text_ink,shape_bbox)
+  self.assertIsNotNone(end)
+  self.assertEqual([end['cx'],end['cy']],[1011,452])
+  mid={'proven':True,'bbox':[91,3,1,22]}
+  rejected=shim._task091_caret_at_text_end(mid,shape_bbox,text_ink['ink_bbox'],end['cx'])
+  self.assertFalse(rejected['proven'],rejected)
+  self.assertEqual(rejected['caret_x'],983)
+  at_end={'proven':True,'bbox':[119,3,1,22]}
+  accepted=shim._task091_caret_at_text_end(at_end,shape_bbox,text_ink['ink_bbox'],end['cx'])
+  self.assertTrue(accepted['proven'],accepted)
+  self.assertEqual(accepted['caret_x'],1011)
+
+ def test_table_cell_rollback_requires_original_text_and_unchanged_siblings(self):
+  base={
+   'deck_file':{'sha256':'a'*64},
+   'deck_slide_shapes':{'3':[
+    {'id':-13001003,'name':'Table 12#r1c2','text':'$42.8M','kind':'table-cell','geometry':{}},
+    {'id':-13001004,'name':'Table 12#r1c3','text':'Ahead','kind':'table-cell','geometry':{}},
+   ]}
+  }
+  pending={'slide':3,'shape_id':-13001003,'old':'$42.8M','rollback_corrupt_deck_sha256':'b'*64}
+  pending['before_sibling_signature']=shim._task091_other_shapes_signature(base,3,-13001003)
+  corrupt=copy.deepcopy(base)
+  corrupt['deck_file']['sha256']='b'*64
+  corrupt['deck_slide_shapes']['3'][0]['text']='$40.9MM'
+  self.assertFalse(shim._task091_table_cell_rollback_verified(pending,corrupt))
+  restored=copy.deepcopy(base)
+  restored['deck_file']['sha256']='c'*64
+  self.assertTrue(shim._task091_table_cell_rollback_verified(pending,restored))
+  collateral=copy.deepcopy(restored)
+  collateral['deck_slide_shapes']['3'][1]['text']='Changed'
+  self.assertFalse(shim._task091_table_cell_rollback_verified(pending,collateral))
+
+ def test_table_cell_rollback_command_is_single_undo_persist_transaction(self):
+  command=shim._task091_table_cell_rollback_command()
+  self.assertEqual(command.count("hotkey('ctrl', 'z')"),1)
+  self.assertEqual(command.count("hotkey('ctrl', 's')"),1)
+  self.assertNotIn('pyautogui.write(',command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_table_cell_start_navigation_uses_nonselecting_home_anchor(self):
+  command=shim._task091_table_cell_start_navigation_command()
+  self.assertEqual(command.splitlines()[0],"pyautogui.press('home')")
+  self.assertNotIn("keyDown('shift')",command)
+  self.assertNotIn("press('left'",command)
+  self.assertNotIn("press('right'",command)
+  self.assertNotIn("pyautogui.write(",command)
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("start_navigation_method']='home'",source)
+  self.assertIn("_task091_table_cell_start_navigation_command()",source)
+  self.assertIn("independently prove the start caret",source)
+
+ def test_table_cell_terminal_marker_is_excluded_by_rightward_selection(self):
+  self.assertEqual(shim._task091_table_cell_selection_presses('$42.8M'),6)
+  self.assertEqual(shim._task091_table_cell_selection_presses('x'*30),30)
+  command=shim._task091_table_cell_bounded_write_command('x'*30,'y')
+  self.assertIn("press('right', presses=30",command)
+  self.assertNotIn("press('right', presses=31",command)
+  self.assertNotIn("press('delete')",command)
+  self.assertNotIn("press('left'",command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_table_cell_start_caret_guard_and_single_marker_normalization(self):
+  shape_bbox=[892,507,182,70]
+  ink_bbox=[965,516,35,12]
+  at_start=shim._task091_caret_at_text_start({'proven':True,'bbox':[72,2,1,22]},shape_bbox,ink_bbox)
+  self.assertTrue(at_start['proven'],at_start)
+  self.assertEqual(at_start['relation'],'at-start')
+  marker_offset=shim._task091_caret_at_text_start({'proven':True,'bbox':[80,2,1,22]},shape_bbox,ink_bbox)
+  self.assertFalse(marker_offset['proven'],marker_offset)
+  self.assertEqual(marker_offset['relation'],'right-of-start')
+  at_end=shim._task091_caret_at_text_start({'proven':True,'bbox':[108,2,1,22]},shape_bbox,ink_bbox)
+  self.assertFalse(at_end['proven'],at_end)
+  self.assertEqual(at_end['relation'],'far-right')
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("normalize_attempts < 1",source)
+  self.assertIn("normalize-wps-terminal-marker-offset",source)
+
+ def test_section_e_font_correction_uses_proven_caret_and_one_point_decrement(self):
+  spec=shim.TASK091_SECTION_E_FORMAT
+  self.assertEqual(spec['slide'],3)
+  self.assertEqual(spec['shape_id'],16)
+  self.assertEqual(spec['shape_name'],'KpiReadout_Body')
+  self.assertEqual(spec['font_decrements'],2)
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("TASK091_SECTION_E_CARET_UNPROVEN",source)
+  self.assertIn("TASK091_SECTION_E_FONT_DELTA_UNPROVEN",source)
+  self.assertIn("pyautogui.hotkey('ctrl', '[')",source)
+
+
+if __name__=='__main__':unittest.main()
+):
+    self.assertNotIn("write('  shape_bbox=[892,436,182,71]
+  text_ink={'ink_bbox':[956,445,52,15],'proof_sha256':'a'*64}
+  end=shim._task091_table_cell_text_end_point(text_ink,shape_bbox)
+  self.assertIsNotNone(end)
+  self.assertEqual([end['cx'],end['cy']],[1011,452])
+  mid={'proven':True,'bbox':[91,3,1,22]}
+  rejected=shim._task091_caret_at_text_end(mid,shape_bbox,text_ink['ink_bbox'],end['cx'])
+  self.assertFalse(rejected['proven'],rejected)
+  self.assertEqual(rejected['caret_x'],983)
+  at_end={'proven':True,'bbox':[119,3,1,22]}
+  accepted=shim._task091_caret_at_text_end(at_end,shape_bbox,text_ink['ink_bbox'],end['cx'])
+  self.assertTrue(accepted['proven'],accepted)
+  self.assertEqual(accepted['caret_x'],1011)
+
+ def test_table_cell_rollback_requires_original_text_and_unchanged_siblings(self):
+  base={
+   'deck_file':{'sha256':'a'*64},
+   'deck_slide_shapes':{'3':[
+    {'id':-13001003,'name':'Table 12#r1c2','text':'$42.8M','kind':'table-cell','geometry':{}},
+    {'id':-13001004,'name':'Table 12#r1c3','text':'Ahead','kind':'table-cell','geometry':{}},
+   ]}
+  }
+  pending={'slide':3,'shape_id':-13001003,'old':'$42.8M','rollback_corrupt_deck_sha256':'b'*64}
+  pending['before_sibling_signature']=shim._task091_other_shapes_signature(base,3,-13001003)
+  corrupt=copy.deepcopy(base)
+  corrupt['deck_file']['sha256']='b'*64
+  corrupt['deck_slide_shapes']['3'][0]['text']='$40.9MM'
+  self.assertFalse(shim._task091_table_cell_rollback_verified(pending,corrupt))
+  restored=copy.deepcopy(base)
+  restored['deck_file']['sha256']='c'*64
+  self.assertTrue(shim._task091_table_cell_rollback_verified(pending,restored))
+  collateral=copy.deepcopy(restored)
+  collateral['deck_slide_shapes']['3'][1]['text']='Changed'
+  self.assertFalse(shim._task091_table_cell_rollback_verified(pending,collateral))
+
+ def test_table_cell_rollback_command_is_single_undo_persist_transaction(self):
+  command=shim._task091_table_cell_rollback_command()
+  self.assertEqual(command.count("hotkey('ctrl', 'z')"),1)
+  self.assertEqual(command.count("hotkey('ctrl', 's')"),1)
+  self.assertNotIn('pyautogui.write(',command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_table_cell_start_navigation_uses_nonselecting_home_anchor(self):
+  command=shim._task091_table_cell_start_navigation_command()
+  self.assertEqual(command.splitlines()[0],"pyautogui.press('home')")
+  self.assertNotIn("keyDown('shift')",command)
+  self.assertNotIn("press('left'",command)
+  self.assertNotIn("press('right'",command)
+  self.assertNotIn("pyautogui.write(",command)
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("start_navigation_method']='home'",source)
+  self.assertIn("_task091_table_cell_start_navigation_command()",source)
+  self.assertIn("independently prove the start caret",source)
+
+ def test_table_cell_delta_edit_never_touches_terminal_marker(self):
+  self.assertEqual(shim._task091_table_cell_selection_presses('$42.8M'),6)
+  self.assertEqual(shim._task091_table_cell_selection_presses('x'*30),30)
+  command=shim._task091_table_cell_bounded_write_command('x'*30,'x'*29+'y')
+  self.assertIn("press('right', presses=29",command)
+  self.assertNotIn("press('right', presses=30",command)
+  self.assertNotIn("press('right', presses=31",command)
+  self.assertEqual(command.count("press('delete')"),1)
+  self.assertNotIn("press('left'",command)
+  self.assertNotIn("keyDown('shift')",command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_table_cell_start_caret_guard_and_single_marker_normalization(self):
+  shape_bbox=[892,507,182,70]
+  ink_bbox=[965,516,35,12]
+  at_start=shim._task091_caret_at_text_start({'proven':True,'bbox':[72,2,1,22]},shape_bbox,ink_bbox)
+  self.assertTrue(at_start['proven'],at_start)
+  self.assertEqual(at_start['relation'],'at-start')
+  marker_offset=shim._task091_caret_at_text_start({'proven':True,'bbox':[80,2,1,22]},shape_bbox,ink_bbox)
+  self.assertFalse(marker_offset['proven'],marker_offset)
+  self.assertEqual(marker_offset['relation'],'right-of-start')
+  at_end=shim._task091_caret_at_text_start({'proven':True,'bbox':[108,2,1,22]},shape_bbox,ink_bbox)
+  self.assertFalse(at_end['proven'],at_end)
+  self.assertEqual(at_end['relation'],'far-right')
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("normalize_attempts < 1",source)
+  self.assertIn("normalize-wps-terminal-marker-offset",source)
+
+ def test_section_e_font_correction_uses_proven_caret_and_one_point_decrement(self):
+  spec=shim.TASK091_SECTION_E_FORMAT
+  self.assertEqual(spec['slide'],3)
+  self.assertEqual(spec['shape_id'],16)
+  self.assertEqual(spec['shape_name'],'KpiReadout_Body')
+  self.assertEqual(spec['font_decrements'],2)
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("TASK091_SECTION_E_CARET_UNPROVEN",source)
+  self.assertIn("TASK091_SECTION_E_FONT_DELTA_UNPROVEN",source)
+  self.assertIn("pyautogui.hotkey('ctrl', '[')",source)
+
+
+if __name__=='__main__':unittest.main()
+",command)
+  self.assertNotIn("write('M'",command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_run35749283855_mid_text_caret_is_rejected_and_end_caret_is_proven(self):
+  shape_bbox=[892,436,182,71]
+  text_ink={'ink_bbox':[956,445,52,15],'proof_sha256':'a'*64}
+  end=shim._task091_table_cell_text_end_point(text_ink,shape_bbox)
+  self.assertIsNotNone(end)
+  self.assertEqual([end['cx'],end['cy']],[1011,452])
+  mid={'proven':True,'bbox':[91,3,1,22]}
+  rejected=shim._task091_caret_at_text_end(mid,shape_bbox,text_ink['ink_bbox'],end['cx'])
+  self.assertFalse(rejected['proven'],rejected)
+  self.assertEqual(rejected['caret_x'],983)
+  at_end={'proven':True,'bbox':[119,3,1,22]}
+  accepted=shim._task091_caret_at_text_end(at_end,shape_bbox,text_ink['ink_bbox'],end['cx'])
+  self.assertTrue(accepted['proven'],accepted)
+  self.assertEqual(accepted['caret_x'],1011)
+
+ def test_table_cell_rollback_requires_original_text_and_unchanged_siblings(self):
+  base={
+   'deck_file':{'sha256':'a'*64},
+   'deck_slide_shapes':{'3':[
+    {'id':-13001003,'name':'Table 12#r1c2','text':'$42.8M','kind':'table-cell','geometry':{}},
+    {'id':-13001004,'name':'Table 12#r1c3','text':'Ahead','kind':'table-cell','geometry':{}},
+   ]}
+  }
+  pending={'slide':3,'shape_id':-13001003,'old':'$42.8M','rollback_corrupt_deck_sha256':'b'*64}
+  pending['before_sibling_signature']=shim._task091_other_shapes_signature(base,3,-13001003)
+  corrupt=copy.deepcopy(base)
+  corrupt['deck_file']['sha256']='b'*64
+  corrupt['deck_slide_shapes']['3'][0]['text']='$40.9MM'
+  self.assertFalse(shim._task091_table_cell_rollback_verified(pending,corrupt))
+  restored=copy.deepcopy(base)
+  restored['deck_file']['sha256']='c'*64
+  self.assertTrue(shim._task091_table_cell_rollback_verified(pending,restored))
+  collateral=copy.deepcopy(restored)
+  collateral['deck_slide_shapes']['3'][1]['text']='Changed'
+  self.assertFalse(shim._task091_table_cell_rollback_verified(pending,collateral))
+
+ def test_table_cell_rollback_command_is_single_undo_persist_transaction(self):
+  command=shim._task091_table_cell_rollback_command()
+  self.assertEqual(command.count("hotkey('ctrl', 'z')"),1)
+  self.assertEqual(command.count("hotkey('ctrl', 's')"),1)
+  self.assertNotIn('pyautogui.write(',command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_table_cell_start_navigation_uses_nonselecting_home_anchor(self):
+  command=shim._task091_table_cell_start_navigation_command()
+  self.assertEqual(command.splitlines()[0],"pyautogui.press('home')")
+  self.assertNotIn("keyDown('shift')",command)
+  self.assertNotIn("press('left'",command)
+  self.assertNotIn("press('right'",command)
+  self.assertNotIn("pyautogui.write(",command)
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("start_navigation_method']='home'",source)
+  self.assertIn("_task091_table_cell_start_navigation_command()",source)
+  self.assertIn("independently prove the start caret",source)
+
+ def test_table_cell_terminal_marker_is_excluded_by_rightward_selection(self):
+  self.assertEqual(shim._task091_table_cell_selection_presses('$42.8M'),6)
+  self.assertEqual(shim._task091_table_cell_selection_presses('x'*30),30)
+  command=shim._task091_table_cell_bounded_write_command('x'*30,'y')
+  self.assertIn("press('right', presses=30",command)
+  self.assertNotIn("press('right', presses=31",command)
+  self.assertNotIn("press('delete')",command)
+  self.assertNotIn("press('left'",command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_table_cell_start_caret_guard_and_single_marker_normalization(self):
+  shape_bbox=[892,507,182,70]
+  ink_bbox=[965,516,35,12]
+  at_start=shim._task091_caret_at_text_start({'proven':True,'bbox':[72,2,1,22]},shape_bbox,ink_bbox)
+  self.assertTrue(at_start['proven'],at_start)
+  self.assertEqual(at_start['relation'],'at-start')
+  marker_offset=shim._task091_caret_at_text_start({'proven':True,'bbox':[80,2,1,22]},shape_bbox,ink_bbox)
+  self.assertFalse(marker_offset['proven'],marker_offset)
+  self.assertEqual(marker_offset['relation'],'right-of-start')
+  at_end=shim._task091_caret_at_text_start({'proven':True,'bbox':[108,2,1,22]},shape_bbox,ink_bbox)
+  self.assertFalse(at_end['proven'],at_end)
+  self.assertEqual(at_end['relation'],'far-right')
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("normalize_attempts < 1",source)
+  self.assertIn("normalize-wps-terminal-marker-offset",source)
+
+ def test_section_e_font_correction_uses_proven_caret_and_one_point_decrement(self):
+  spec=shim.TASK091_SECTION_E_FORMAT
+  self.assertEqual(spec['slide'],3)
+  self.assertEqual(spec['shape_id'],16)
+  self.assertEqual(spec['shape_name'],'KpiReadout_Body')
+  self.assertEqual(spec['font_decrements'],2)
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("TASK091_SECTION_E_CARET_UNPROVEN",source)
+  self.assertIn("TASK091_SECTION_E_FONT_DELTA_UNPROVEN",source)
+  self.assertIn("pyautogui.hotkey('ctrl', '[')",source)
+
+
+if __name__=='__main__':unittest.main()
+",command)
+   if old.endswith('M') and new.endswith('M'):
+    self.assertNotIn("write('M'",command)
+   if old.endswith('%') and new.endswith('%'):
+    self.assertNotIn("write('%'",command)
+
+ def test_multi_edge_corruption_repairs_one_exact_delete_per_transaction(self):
+  actual='$40.9MM'; expected='$40.9M'
+  plan=shim._task091_restricted_repair_plan(actual,expected)
+  self.assertEqual(plan,[{'op':'delete','index':0,'char':'  shape_bbox=[892,436,182,71]
+  text_ink={'ink_bbox':[956,445,52,15],'proof_sha256':'a'*64}
+  end=shim._task091_table_cell_text_end_point(text_ink,shape_bbox)
+  self.assertIsNotNone(end)
+  self.assertEqual([end['cx'],end['cy']],[1011,452])
+  mid={'proven':True,'bbox':[91,3,1,22]}
+  rejected=shim._task091_caret_at_text_end(mid,shape_bbox,text_ink['ink_bbox'],end['cx'])
+  self.assertFalse(rejected['proven'],rejected)
+  self.assertEqual(rejected['caret_x'],983)
+  at_end={'proven':True,'bbox':[119,3,1,22]}
+  accepted=shim._task091_caret_at_text_end(at_end,shape_bbox,text_ink['ink_bbox'],end['cx'])
+  self.assertTrue(accepted['proven'],accepted)
+  self.assertEqual(accepted['caret_x'],1011)
+
+ def test_table_cell_rollback_requires_original_text_and_unchanged_siblings(self):
+  base={
+   'deck_file':{'sha256':'a'*64},
+   'deck_slide_shapes':{'3':[
+    {'id':-13001003,'name':'Table 12#r1c2','text':'$42.8M','kind':'table-cell','geometry':{}},
+    {'id':-13001004,'name':'Table 12#r1c3','text':'Ahead','kind':'table-cell','geometry':{}},
+   ]}
+  }
+  pending={'slide':3,'shape_id':-13001003,'old':'$42.8M','rollback_corrupt_deck_sha256':'b'*64}
+  pending['before_sibling_signature']=shim._task091_other_shapes_signature(base,3,-13001003)
+  corrupt=copy.deepcopy(base)
+  corrupt['deck_file']['sha256']='b'*64
+  corrupt['deck_slide_shapes']['3'][0]['text']='$40.9MM'
+  self.assertFalse(shim._task091_table_cell_rollback_verified(pending,corrupt))
+  restored=copy.deepcopy(base)
+  restored['deck_file']['sha256']='c'*64
+  self.assertTrue(shim._task091_table_cell_rollback_verified(pending,restored))
+  collateral=copy.deepcopy(restored)
+  collateral['deck_slide_shapes']['3'][1]['text']='Changed'
+  self.assertFalse(shim._task091_table_cell_rollback_verified(pending,collateral))
+
+ def test_table_cell_rollback_command_is_single_undo_persist_transaction(self):
+  command=shim._task091_table_cell_rollback_command()
+  self.assertEqual(command.count("hotkey('ctrl', 'z')"),1)
+  self.assertEqual(command.count("hotkey('ctrl', 's')"),1)
+  self.assertNotIn('pyautogui.write(',command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_table_cell_start_navigation_uses_nonselecting_home_anchor(self):
+  command=shim._task091_table_cell_start_navigation_command()
+  self.assertEqual(command.splitlines()[0],"pyautogui.press('home')")
+  self.assertNotIn("keyDown('shift')",command)
+  self.assertNotIn("press('left'",command)
+  self.assertNotIn("press('right'",command)
+  self.assertNotIn("pyautogui.write(",command)
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("start_navigation_method']='home'",source)
+  self.assertIn("_task091_table_cell_start_navigation_command()",source)
+  self.assertIn("independently prove the start caret",source)
+
+ def test_table_cell_delta_edit_never_touches_terminal_marker(self):
+  self.assertEqual(shim._task091_table_cell_selection_presses('$42.8M'),6)
+  self.assertEqual(shim._task091_table_cell_selection_presses('x'*30),30)
+  command=shim._task091_table_cell_bounded_write_command('x'*30,'x'*29+'y')
+  self.assertIn("press('right', presses=29",command)
+  self.assertNotIn("press('right', presses=30",command)
+  self.assertNotIn("press('right', presses=31",command)
+  self.assertEqual(command.count("press('delete')"),1)
+  self.assertNotIn("press('left'",command)
+  self.assertNotIn("keyDown('shift')",command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_table_cell_start_caret_guard_and_single_marker_normalization(self):
+  shape_bbox=[892,507,182,70]
+  ink_bbox=[965,516,35,12]
+  at_start=shim._task091_caret_at_text_start({'proven':True,'bbox':[72,2,1,22]},shape_bbox,ink_bbox)
+  self.assertTrue(at_start['proven'],at_start)
+  self.assertEqual(at_start['relation'],'at-start')
+  marker_offset=shim._task091_caret_at_text_start({'proven':True,'bbox':[80,2,1,22]},shape_bbox,ink_bbox)
+  self.assertFalse(marker_offset['proven'],marker_offset)
+  self.assertEqual(marker_offset['relation'],'right-of-start')
+  at_end=shim._task091_caret_at_text_start({'proven':True,'bbox':[108,2,1,22]},shape_bbox,ink_bbox)
+  self.assertFalse(at_end['proven'],at_end)
+  self.assertEqual(at_end['relation'],'far-right')
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("normalize_attempts < 1",source)
+  self.assertIn("normalize-wps-terminal-marker-offset",source)
+
+ def test_section_e_font_correction_uses_proven_caret_and_one_point_decrement(self):
+  spec=shim.TASK091_SECTION_E_FORMAT
+  self.assertEqual(spec['slide'],3)
+  self.assertEqual(spec['shape_id'],16)
+  self.assertEqual(spec['shape_name'],'KpiReadout_Body')
+  self.assertEqual(spec['font_decrements'],2)
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("TASK091_SECTION_E_CARET_UNPROVEN",source)
+  self.assertIn("TASK091_SECTION_E_FONT_DELTA_UNPROVEN",source)
+  self.assertIn("pyautogui.hotkey('ctrl', '[')",source)
+
+
+if __name__=='__main__':unittest.main()
+",command)
+  self.assertNotIn("write('M'",command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_run35749283855_mid_text_caret_is_rejected_and_end_caret_is_proven(self):
+  shape_bbox=[892,436,182,71]
+  text_ink={'ink_bbox':[956,445,52,15],'proof_sha256':'a'*64}
+  end=shim._task091_table_cell_text_end_point(text_ink,shape_bbox)
+  self.assertIsNotNone(end)
+  self.assertEqual([end['cx'],end['cy']],[1011,452])
+  mid={'proven':True,'bbox':[91,3,1,22]}
+  rejected=shim._task091_caret_at_text_end(mid,shape_bbox,text_ink['ink_bbox'],end['cx'])
+  self.assertFalse(rejected['proven'],rejected)
+  self.assertEqual(rejected['caret_x'],983)
+  at_end={'proven':True,'bbox':[119,3,1,22]}
+  accepted=shim._task091_caret_at_text_end(at_end,shape_bbox,text_ink['ink_bbox'],end['cx'])
+  self.assertTrue(accepted['proven'],accepted)
+  self.assertEqual(accepted['caret_x'],1011)
+
+ def test_table_cell_rollback_requires_original_text_and_unchanged_siblings(self):
+  base={
+   'deck_file':{'sha256':'a'*64},
+   'deck_slide_shapes':{'3':[
+    {'id':-13001003,'name':'Table 12#r1c2','text':'$42.8M','kind':'table-cell','geometry':{}},
+    {'id':-13001004,'name':'Table 12#r1c3','text':'Ahead','kind':'table-cell','geometry':{}},
+   ]}
+  }
+  pending={'slide':3,'shape_id':-13001003,'old':'$42.8M','rollback_corrupt_deck_sha256':'b'*64}
+  pending['before_sibling_signature']=shim._task091_other_shapes_signature(base,3,-13001003)
+  corrupt=copy.deepcopy(base)
+  corrupt['deck_file']['sha256']='b'*64
+  corrupt['deck_slide_shapes']['3'][0]['text']='$40.9MM'
+  self.assertFalse(shim._task091_table_cell_rollback_verified(pending,corrupt))
+  restored=copy.deepcopy(base)
+  restored['deck_file']['sha256']='c'*64
+  self.assertTrue(shim._task091_table_cell_rollback_verified(pending,restored))
+  collateral=copy.deepcopy(restored)
+  collateral['deck_slide_shapes']['3'][1]['text']='Changed'
+  self.assertFalse(shim._task091_table_cell_rollback_verified(pending,collateral))
+
+ def test_table_cell_rollback_command_is_single_undo_persist_transaction(self):
+  command=shim._task091_table_cell_rollback_command()
+  self.assertEqual(command.count("hotkey('ctrl', 'z')"),1)
+  self.assertEqual(command.count("hotkey('ctrl', 's')"),1)
+  self.assertNotIn('pyautogui.write(',command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_table_cell_start_navigation_uses_nonselecting_home_anchor(self):
+  command=shim._task091_table_cell_start_navigation_command()
+  self.assertEqual(command.splitlines()[0],"pyautogui.press('home')")
+  self.assertNotIn("keyDown('shift')",command)
+  self.assertNotIn("press('left'",command)
+  self.assertNotIn("press('right'",command)
+  self.assertNotIn("pyautogui.write(",command)
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("start_navigation_method']='home'",source)
+  self.assertIn("_task091_table_cell_start_navigation_command()",source)
+  self.assertIn("independently prove the start caret",source)
+
+ def test_table_cell_terminal_marker_is_excluded_by_rightward_selection(self):
+  self.assertEqual(shim._task091_table_cell_selection_presses('$42.8M'),6)
+  self.assertEqual(shim._task091_table_cell_selection_presses('x'*30),30)
+  command=shim._task091_table_cell_bounded_write_command('x'*30,'y')
+  self.assertIn("press('right', presses=30",command)
+  self.assertNotIn("press('right', presses=31",command)
+  self.assertNotIn("press('delete')",command)
+  self.assertNotIn("press('left'",command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_table_cell_start_caret_guard_and_single_marker_normalization(self):
+  shape_bbox=[892,507,182,70]
+  ink_bbox=[965,516,35,12]
+  at_start=shim._task091_caret_at_text_start({'proven':True,'bbox':[72,2,1,22]},shape_bbox,ink_bbox)
+  self.assertTrue(at_start['proven'],at_start)
+  self.assertEqual(at_start['relation'],'at-start')
+  marker_offset=shim._task091_caret_at_text_start({'proven':True,'bbox':[80,2,1,22]},shape_bbox,ink_bbox)
+  self.assertFalse(marker_offset['proven'],marker_offset)
+  self.assertEqual(marker_offset['relation'],'right-of-start')
+  at_end=shim._task091_caret_at_text_start({'proven':True,'bbox':[108,2,1,22]},shape_bbox,ink_bbox)
+  self.assertFalse(at_end['proven'],at_end)
+  self.assertEqual(at_end['relation'],'far-right')
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("normalize_attempts < 1",source)
+  self.assertIn("normalize-wps-terminal-marker-offset",source)
+
+ def test_section_e_font_correction_uses_proven_caret_and_one_point_decrement(self):
+  spec=shim.TASK091_SECTION_E_FORMAT
+  self.assertEqual(spec['slide'],3)
+  self.assertEqual(spec['shape_id'],16)
+  self.assertEqual(spec['shape_name'],'KpiReadout_Body')
+  self.assertEqual(spec['font_decrements'],2)
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("TASK091_SECTION_E_CARET_UNPROVEN",source)
+  self.assertIn("TASK091_SECTION_E_FONT_DELTA_UNPROVEN",source)
+  self.assertIn("pyautogui.hotkey('ctrl', '[')",source)
+
+
+if __name__=='__main__':unittest.main()
+},{'op':'delete','index':6,'char':'M'}])
+  first=shim._task091_table_cell_atomic_delete_repair_command(actual,plan[0])
+  self.assertEqual(first.splitlines(),["pyautogui.press('home')","pyautogui.press('delete')"])
+  after=shim._task091_apply_repair_operation(actual,plan[0])
+  self.assertEqual(after,'$40.9MM')
+  second_plan=shim._task091_restricted_repair_plan(after,expected)
+  self.assertEqual(second_plan,[{'op':'delete','index':6,'char':'M'}])
+  second=shim._task091_table_cell_atomic_delete_repair_command(after,second_plan[0])
+  self.assertIn("press('right', presses=6",second)
+  self.assertEqual(second.count("press('delete')"),1)
+  self.assertNotIn("ctrl', 'a",first+second)
+  self.assertNotIn("shift",first+second)
+  self.assertNotIn("ctrl', 'z",first+second)
+
+ def test_run35749283855_mid_text_caret_is_rejected_and_end_caret_is_proven(self):
+  shape_bbox=[892,436,182,71]
+  text_ink={'ink_bbox':[956,445,52,15],'proof_sha256':'a'*64}
+  end=shim._task091_table_cell_text_end_point(text_ink,shape_bbox)
+  self.assertIsNotNone(end)
+  self.assertEqual([end['cx'],end['cy']],[1011,452])
+  mid={'proven':True,'bbox':[91,3,1,22]}
+  rejected=shim._task091_caret_at_text_end(mid,shape_bbox,text_ink['ink_bbox'],end['cx'])
+  self.assertFalse(rejected['proven'],rejected)
+  self.assertEqual(rejected['caret_x'],983)
+  at_end={'proven':True,'bbox':[119,3,1,22]}
+  accepted=shim._task091_caret_at_text_end(at_end,shape_bbox,text_ink['ink_bbox'],end['cx'])
+  self.assertTrue(accepted['proven'],accepted)
+  self.assertEqual(accepted['caret_x'],1011)
+
+ def test_table_cell_rollback_requires_original_text_and_unchanged_siblings(self):
+  base={
+   'deck_file':{'sha256':'a'*64},
+   'deck_slide_shapes':{'3':[
+    {'id':-13001003,'name':'Table 12#r1c2','text':'$42.8M','kind':'table-cell','geometry':{}},
+    {'id':-13001004,'name':'Table 12#r1c3','text':'Ahead','kind':'table-cell','geometry':{}},
+   ]}
+  }
+  pending={'slide':3,'shape_id':-13001003,'old':'$42.8M','rollback_corrupt_deck_sha256':'b'*64}
+  pending['before_sibling_signature']=shim._task091_other_shapes_signature(base,3,-13001003)
+  corrupt=copy.deepcopy(base)
+  corrupt['deck_file']['sha256']='b'*64
+  corrupt['deck_slide_shapes']['3'][0]['text']='$40.9MM'
+  self.assertFalse(shim._task091_table_cell_rollback_verified(pending,corrupt))
+  restored=copy.deepcopy(base)
+  restored['deck_file']['sha256']='c'*64
+  self.assertTrue(shim._task091_table_cell_rollback_verified(pending,restored))
+  collateral=copy.deepcopy(restored)
+  collateral['deck_slide_shapes']['3'][1]['text']='Changed'
+  self.assertFalse(shim._task091_table_cell_rollback_verified(pending,collateral))
+
+ def test_table_cell_rollback_command_is_single_undo_persist_transaction(self):
+  command=shim._task091_table_cell_rollback_command()
+  self.assertEqual(command.count("hotkey('ctrl', 'z')"),1)
+  self.assertEqual(command.count("hotkey('ctrl', 's')"),1)
+  self.assertNotIn('pyautogui.write(',command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_table_cell_start_navigation_uses_nonselecting_home_anchor(self):
+  command=shim._task091_table_cell_start_navigation_command()
+  self.assertEqual(command.splitlines()[0],"pyautogui.press('home')")
+  self.assertNotIn("keyDown('shift')",command)
+  self.assertNotIn("press('left'",command)
+  self.assertNotIn("press('right'",command)
+  self.assertNotIn("pyautogui.write(",command)
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("start_navigation_method']='home'",source)
+  self.assertIn("_task091_table_cell_start_navigation_command()",source)
+  self.assertIn("independently prove the start caret",source)
+
+ def test_table_cell_delta_edit_never_touches_terminal_marker(self):
+  self.assertEqual(shim._task091_table_cell_selection_presses('$42.8M'),6)
+  self.assertEqual(shim._task091_table_cell_selection_presses('x'*30),30)
+  command=shim._task091_table_cell_bounded_write_command('x'*30,'x'*29+'y')
+  self.assertIn("press('right', presses=29",command)
+  self.assertNotIn("press('right', presses=30",command)
+  self.assertNotIn("press('right', presses=31",command)
+  self.assertEqual(command.count("press('delete')"),1)
+  self.assertNotIn("press('left'",command)
+  self.assertNotIn("keyDown('shift')",command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
+ def test_table_cell_start_caret_guard_and_single_marker_normalization(self):
+  shape_bbox=[892,507,182,70]
+  ink_bbox=[965,516,35,12]
+  at_start=shim._task091_caret_at_text_start({'proven':True,'bbox':[72,2,1,22]},shape_bbox,ink_bbox)
+  self.assertTrue(at_start['proven'],at_start)
+  self.assertEqual(at_start['relation'],'at-start')
+  marker_offset=shim._task091_caret_at_text_start({'proven':True,'bbox':[80,2,1,22]},shape_bbox,ink_bbox)
+  self.assertFalse(marker_offset['proven'],marker_offset)
+  self.assertEqual(marker_offset['relation'],'right-of-start')
+  at_end=shim._task091_caret_at_text_start({'proven':True,'bbox':[108,2,1,22]},shape_bbox,ink_bbox)
+  self.assertFalse(at_end['proven'],at_end)
+  self.assertEqual(at_end['relation'],'far-right')
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("normalize_attempts < 1",source)
+  self.assertIn("normalize-wps-terminal-marker-offset",source)
+
+ def test_section_e_font_correction_uses_proven_caret_and_one_point_decrement(self):
+  spec=shim.TASK091_SECTION_E_FORMAT
+  self.assertEqual(spec['slide'],3)
+  self.assertEqual(spec['shape_id'],16)
+  self.assertEqual(spec['shape_name'],'KpiReadout_Body')
+  self.assertEqual(spec['font_decrements'],2)
+  source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+  self.assertIn("TASK091_SECTION_E_CARET_UNPROVEN",source)
+  self.assertIn("TASK091_SECTION_E_FONT_DELTA_UNPROVEN",source)
+  self.assertIn("pyautogui.hotkey('ctrl', '[')",source)
+
+
+if __name__=='__main__':unittest.main()
+",command)
+  self.assertNotIn("write('M'",command)
   from osworld_control import canonical_action
   self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
 
