@@ -767,39 +767,27 @@ class Task091TransactionalTableCellTests(unittest.TestCase):
   from osworld_control import canonical_action
   self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
 
- def test_table_cell_start_navigation_uses_exact_single_source_pre_glyph_anchor(self):
-  shape_bbox=[892,436,182,71]; ink_bbox=[956,444,52,17]
-  anchor=shim._task091_table_cell_start_anchor(shape_bbox,ink_bbox)
-  self.assertEqual(anchor,{'cx':953,'cy':452})
-  command=shim._task091_table_cell_start_navigation_command(shape_bbox,ink_bbox)
-  self.assertEqual(command,"pyautogui.click(953, 452)")
-  self.assertEqual(command.count("pyautogui.click("),1)
-  self.assertNotIn("sleep(",command)
+ def test_table_cell_start_navigation_moves_left_by_exact_text_length(self):
+  command=shim._task091_table_cell_start_navigation_command('$42.8M')
+  self.assertEqual(command,"pyautogui.press('left', presses=6, interval=0.03)")
+  self.assertEqual(command.count("press('left'"),1)
+  self.assertNotIn("click(",command)
   self.assertNotIn("press('home')",command)
   self.assertNotIn("keyDown('shift')",command)
-  self.assertNotIn("press('left'",command)
   self.assertNotIn("press('right'",command)
   self.assertNotIn("pyautogui.write(",command)
+  with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_START_NAV_TEXT_INVALID'):
+   shim._task091_table_cell_start_navigation_command('')
+  with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_START_NAV_TEXT_INVALID'):
+   shim._task091_table_cell_start_navigation_command('x'*31)
 
- def test_table_cell_start_anchor_full_action_compiles_with_exact_signed_target(self):
-  shape_bbox=[892,436,182,71]; ink_bbox=[956,444,52,17]
-  anchor=shim._task091_table_cell_start_anchor(shape_bbox,ink_bbox)
-  command=shim._task091_table_cell_start_navigation_command(shape_bbox,ink_bbox)
-  target={
-   'source':'task091-pptx-canonical','label':'214','role':'task091-canonical-point',
-   'slide':3,'x':anchor['cx']-1,'y':anchor['cy']-1,'w':2,'h':2,
-   'cx':anchor['cx'],'cy':anchor['cy'],
-   'foreground_sha256':'a'*64,'deck_sha256':'b'*64,
-  }
-  target['proof_sha256']=shim.task091_spatial_target_proof(target)
-  action={'action':'exec','command':command,'target':target,
-          'plan':'Use exact signed pre-glyph anchor.'}
+ def test_table_cell_start_navigation_action_is_nonpointer_and_compiles_exactly(self):
+  command=shim._task091_table_cell_start_navigation_command('214')
+  action={'action':'exec','command':command,
+          'plan':'From proven end, move left by exact text length.'}
   compiled=ground_action(action,'WPS Presentation','',allow_canonical=True)
-  self.assertEqual(compiled['command'],"pyautogui.click(953, 452)")
-  self.assertEqual(compiled['target']['cx'],953)
-  self.assertEqual(compiled['target']['cy'],452)
-  self.assertEqual(compiled['target']['proof_sha256'],target['proof_sha256'])
-  self.assertIn('Trusted Task 091 PPTX-backed canonical target',compiled.get('compiler_note',''))
+  self.assertEqual(compiled['command'],"pyautogui.press('left', presses=3, interval=0.03)")
+  self.assertNotIn('target',compiled)
 
  def test_table_cell_delta_edit_never_touches_terminal_marker(self):
   self.assertEqual(shim._task091_table_cell_selection_presses('$42.8M'),6)
