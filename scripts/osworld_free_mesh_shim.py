@@ -218,16 +218,27 @@ def _task091_table_cell_selection_presses(old):
     return presses
 
 
-def _task091_table_cell_start_navigation_command():
-    """Anchor the caret at the start of the current single-line WPS table cell.
+def _task091_table_cell_start_navigation_command(shape_bbox, ink_bbox):
+    """Place the caret at the observed visual start of one proven table cell.
 
-    Focal runs proved that deriving the logical start from an assumed end caret
-    is brittle because WPS exposes an invisible terminal cell marker and may
-    place the caret differently after a raster click. Home is issued only after
-    text-mode caret geometry is independently proven, never with Shift, and no
-    mutation follows until start-caret geometry is separately proven.
+    WPS may ignore Home inside a table cell even while text mode is active.
+    Use only the already-proven cell and raster text geometry: click a bounded
+    point immediately before the first visible glyph, then require a separate
+    caret-geometry proof before any mutation.
     """
-    return "pyautogui.press('home')\npyautogui.sleep(0.20)"
+    if (not isinstance(shape_bbox,list) or len(shape_bbox)!=4
+            or not isinstance(ink_bbox,list) or len(ink_bbox)!=4
+            or not all(type(v) is int for v in shape_bbox+ink_bbox)):
+        raise ValueError('TASK091_TABLE_CELL_START_NAV_GEOMETRY_INVALID')
+    sx,sy,sw,sh=shape_bbox
+    ix,iy,iw,ih=ink_bbox
+    if sw<=0 or sh<=0 or iw<=0 or ih<=0:
+        raise ValueError('TASK091_TABLE_CELL_START_NAV_GEOMETRY_EMPTY')
+    cx=max(sx+4,min(ix-3,sx+sw-4))
+    cy=max(sy+4,min(iy+ih//2,sy+sh-4))
+    if not (sx < cx < sx+sw and sy < cy < sy+sh):
+        raise ValueError('TASK091_TABLE_CELL_START_NAV_POINT_OUTSIDE_CELL')
+    return f"pyautogui.click({cx}, {cy})\npyautogui.sleep(0.20)"
 
 
 def _task091_table_cell_delta_plan(old, new):
@@ -1723,9 +1734,11 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             pending['explicit_text_mode']=True
             selection_presses=_task091_table_cell_selection_presses(pending['old'])
             pending['selection_press_count']=selection_presses
-            pending['start_navigation_method']='home'
+            pending['start_navigation_method']='raster-pre-glyph-click'
             pending['stage']='table-cell-start-nav-issued'
-            command=_task091_table_cell_start_navigation_command()
+            command=_task091_table_cell_start_navigation_command(
+                list(pending.get('shape_bbox') or []),
+                list(pending.get('table_text_ink_bbox') or []))
             pending['start_nav_command_hash']=hashlib.sha256(command.encode()).hexdigest()
             return {'action':'exec','command':command,
                     'plan':'Text mode is positively proven. Anchor this single-line table cell with Home without Shift, then independently prove the start caret before selecting any text.',
