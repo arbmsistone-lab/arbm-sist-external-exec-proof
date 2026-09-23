@@ -199,7 +199,7 @@ class MeshTests(unittest.TestCase):
   deck_obs=('text\tOperating Committee\tOperating Committee\t\t\t(500, 180)\t(600, 60)\n'
             'text\tGrowth Plan Draft\tGrowth Plan Draft\t\t\t(700, 300)\t(100, 40)')
   with patch.dict(os.environ,{'TASK_ID':'091','ZERO_SPEND_MODE':'HARD'},clear=False):
-   state={}
+   state={'semantic_text_done':True,'section_e_format_done':True}
    tab=shim.next_091_specialist_action(task,'WPS 2019','',state,transient)
    space=shim.next_091_specialist_action(task,'WPS 2019','',state,transient)
    self.assertEqual(tab['command'],"pyautogui.press('tab')")
@@ -214,7 +214,7 @@ class MeshTests(unittest.TestCase):
    self.assertEqual(state.get('mode'),'DECK_ACTIVE')
 
    # If Space does not close, only one guest-proven Close control may be clicked.
-   fallback_state={}
+   fallback_state={'semantic_text_done':True,'section_e_format_done':True}
    self.assertEqual(shim.next_091_specialist_action(task,'WPS 2019','',fallback_state,transient)['command'],
                     "pyautogui.press('tab')")
    self.assertEqual(shim.next_091_specialist_action(task,'WPS 2019','',fallback_state,transient)['command'],
@@ -324,7 +324,7 @@ class MeshTests(unittest.TestCase):
    self.assertEqual(state['spatial_index'],1)
 
    # No semantic old->new change remains pending, then terminates specifically.
-   stuck={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'mode':'TARGET_COMMITTED',
+   stuck={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'mode':'TARGET_COMMITTED','semantic_text_done':True,'section_e_format_done':True,
           'pending_edit':{'slide':1,'old':'Growth Plan Draft',
                           'new':'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline',
                           'stage':'commit-issued','target':{'bbox':[700,300,100,40],'cx':750,'cy':320},
@@ -345,7 +345,7 @@ class MeshTests(unittest.TestCase):
 
    # Run 35411705196 proved a saved but key-repeat-corrupted first edit.
    # Recovery is allowed exactly once and still requires exact PPTX verification.
-   corrupt_state={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'mode':'TARGET_VERIFYING',
+   corrupt_state={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'mode':'TARGET_VERIFYING','semantic_text_done':True,'section_e_format_done':True,
                   'pending_edit':{'slide':1,'old':'Growth Plan Draft',
                                   'new':'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline',
                                   'stage':'save-issued',
@@ -420,7 +420,7 @@ class MeshTests(unittest.TestCase):
    ambiguous_shapes={**corrupt_deck,'deck_slide_shapes':{'1':[
        {'id':7,'name':'Title 1','text':corrupt_text,'paragraphs':[],'geometry':{}},
        {'id':8,'name':'Title 2','text':corrupt_text,'paragraphs':[],'geometry':{}}]}}
-   ambiguous_repair_state={'owned':True,'anchored':True,'slide':1,'spatial_index':0,
+   ambiguous_repair_state={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'semantic_text_done':True,'section_e_format_done':True,
                            'pending_edit':{'slide':1,'old':'Growth Plan Draft',
                                            'new':'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline',
                                            'stage':'save-issued','repair_attempts':0,
@@ -438,7 +438,7 @@ class MeshTests(unittest.TestCase):
    self.assertEqual(ambiguous_repair['action'],'terminal')
    self.assertEqual(ambiguous_repair['reason'],'TASK091_EDIT_TEXT_MISMATCH_UNPROVEN')
 
-   corrupt_twice={'owned':True,'anchored':True,'slide':1,'spatial_index':0,
+   corrupt_twice={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'semantic_text_done':True,'section_e_format_done':True,
                   'pending_edit':{'slide':1,'old':'Growth Plan Draft',
                                   'new':'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline',
                                   'stage':'save-issued','repair_attempts':1,
@@ -453,7 +453,7 @@ class MeshTests(unittest.TestCase):
    # Official WPS runner may expose no canvas AT-SPI. In that case only the
    # canonical Task 091 point is usable, and only when target-PPTX text proves
    # the expected old value on the expected slide.
-   spatial_state={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
+   spatial_state={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'semantic_text_done':True,'section_e_format_done':True}
    spatial=shim.next_091_specialist_action(task,'WPS Presentation','',spatial_state,deck)
    self.assertEqual(spatial['target']['source'],'task091-pptx-canonical')
    self.assertEqual(spatial['command'],'pyautogui.doubleClick(745, 335, interval=0.08)')
@@ -470,7 +470,7 @@ class MeshTests(unittest.TestCase):
     shim.ground_action(tampered,'WPS Presentation','',[],allow_canonical=True)
    no_old={**deck,'deck_slide_text':{'1':'Already changed'},
            'deck_slide_shapes':{'1':[deck['deck_slide_shapes']['1'][1]]}}
-   no_old_state={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
+   no_old_state={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'semantic_text_done':True,'section_e_format_done':True}
    retry_no_old=shim.next_091_specialist_action(task,'WPS Presentation','',no_old_state,no_old)
    self.assertIn('sleep',retry_no_old['command'])
    no_old_terminal=shim.next_091_specialist_action(task,'WPS Presentation','',no_old_state,no_old)
@@ -481,7 +481,7 @@ class MeshTests(unittest.TestCase):
    missing_deck={**deck,'deck_slide_text':{'1':'Already finalized content without draft marker'},
                  'deck_slide_runs':{'1':['Already finalized content without draft marker']},
                  'deck_slide_shapes':{'1':[deck['deck_slide_shapes']['1'][1]]}}
-   missing={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
+   missing={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'semantic_text_done':True,'section_e_format_done':True}
    self.assertIn('sleep',shim.next_091_specialist_action(task,'WPS Presentation',missing_obs,missing,missing_deck)['command'])
    miss_terminal=shim.next_091_specialist_action(task,'WPS Presentation',missing_obs,missing,missing_deck)
    self.assertEqual(miss_terminal['reason'],'TASK091_SHAPE_GEOMETRY_UNPROVEN')
@@ -490,7 +490,7 @@ class MeshTests(unittest.TestCase):
    dup_shape=copy.deepcopy(deck['deck_slide_shapes']['1'][0])
    dup_shape['id']=106
    ambiguous_deck={**deck,'deck_slide_shapes':{'1':deck['deck_slide_shapes']['1']+[dup_shape]}}
-   ambiguous={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
+   ambiguous={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'semantic_text_done':True,'section_e_format_done':True}
    amb_retry=shim.next_091_specialist_action(task,'WPS Presentation','',ambiguous,ambiguous_deck)
    self.assertIn('sleep',amb_retry['command'])
    amb_terminal=shim.next_091_specialist_action(task,'WPS Presentation','',ambiguous,ambiguous_deck)
@@ -501,7 +501,7 @@ class MeshTests(unittest.TestCase):
                     if shim._task091_norm(row[3]) == shim._task091_norm(row[4]))
    no_op_row=shim.TASK091_SPATIAL_TEXT_EDITS[no_op_index]
    no_op_state={'owned':True,'anchored':True,'slide':no_op_row[0],'spatial_index':no_op_index,
-                'section_e_format_done':True}
+                'section_e_format_done':True,'semantic_text_done':True}
    no_op=shim.next_091_specialist_action(task,'WPS Presentation','',no_op_state,deck)
    self.assertEqual(no_op['action'],'checkpoint')
    self.assertEqual(no_op['checkpoint'],'TASK091_TARGET_ALREADY_FINAL')
@@ -515,7 +515,7 @@ class MeshTests(unittest.TestCase):
 
    # Handoff is explicit, only after no pending edit and verified text pass saved.
    done={'owned':True,'anchored':True,'slide':13,'spatial_index':len(shim.TASK091_SPATIAL_TEXT_EDITS),
-         'section_e_format_done':True}
+         'section_e_format_done':True,'semantic_text_done':True}
    save=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,done,deck)
    self.assertIn("hotkey('ctrl', 's')",save['command'])
    self.assertIsNone(shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,done,deck))
