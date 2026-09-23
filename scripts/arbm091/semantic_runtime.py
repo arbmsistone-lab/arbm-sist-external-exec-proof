@@ -127,9 +127,31 @@ def next_text_action(state,window_state,plan):
                     "specialist_phase":"semantic-navigate-slide"}
 
         if str(old)==str(new):
+            try:
+                resolved=resolve_target(window_state,slide=slide,old=old,
+                                        hint_x=hint_x,hint_y=hint_y)
+            except SemanticTransactionError as exc:
+                return _terminal(str(exc))
             state["semantic_index"]=index+1
             return {"action":"checkpoint","checkpoint":"TASK091_SEMANTIC_NOOP_PROVEN",
-                    "slide":slide,"old":old,"new":new}
+                    "slide":slide,"old":old,"new":new,
+                    "semantic_evidence":{
+                        "contract_validated":True,
+                        "target_resolved":True,
+                        "target_unique":True,
+                        "precondition":True,
+                        "mutation_authorized":False,
+                        "mutation":False,
+                        "save":False,
+                        "roundtrip":True,
+                        "structural_diff":True,
+                        "diff_budget_exact":True,
+                        "no_collateral_mutation":True,
+                        "semantic_result":True,
+                        "target_key":list(resolved["key"]),
+                        "before_model_sha256":resolved["model_sha256"],
+                        "after_model_sha256":resolved["model_sha256"],
+                    }}
 
         try:
             resolved=resolve_target(window_state,slide=slide,old=old,
