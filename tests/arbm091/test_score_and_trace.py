@@ -935,8 +935,8 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
             self.assertTrue(state['pending_edit']['explicit_text_mode'])
             self.assertEqual(state['pending_edit']['caret_geometry']['width'],1)
             self.assertNotIn("ctrl', 'a",fourth['command'])
-            self.assertEqual(fourth['command'].splitlines()[0],"pyautogui.press('home')")
-            self.assertEqual(state['pending_edit']['start_navigation_method'],'home')
+            self.assertTrue(fourth['command'].splitlines()[0].startswith("pyautogui.click("),fourth)
+            self.assertEqual(state['pending_edit']['start_navigation_method'],'raster-pre-glyph-click')
             self.assertNotIn("keyDown('shift')",fourth['command'])
             self.assertNotIn("press('left'",fourth['command'])
             self.assertNotIn("press('right'",fourth['command'])
@@ -1099,9 +1099,11 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         self.assertIn("normalize_attempts < 1",source)
         self.assertIn("normalize-wps-terminal-marker-offset",source)
 
-    def test_nonselecting_start_navigation_uses_home_after_positive_text_mode_proof(self):
-        command=shim._task091_table_cell_start_navigation_command()
-        self.assertEqual(command.splitlines()[0],"pyautogui.press('home')")
+    def test_nonselecting_start_navigation_uses_proven_pre_glyph_geometry(self):
+        shape_bbox=[892,436,182,71]
+        ink_bbox=[970,444,52,17]
+        command=shim._task091_table_cell_start_navigation_command(shape_bbox,ink_bbox)
+        self.assertEqual(command.splitlines()[0],"pyautogui.click(967, 452)")
         self.assertNotIn("keyDown('shift')",command)
         self.assertNotIn("press('left'",command)
         self.assertNotIn("press('right'",command)
@@ -1200,7 +1202,8 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
             ('35_visual_sibling_signature',"table_selected_sibling_visual_sha256" in source),
             ('36_press_count_recorded',"selection_press_count" in source),
             ('37_explicit_text_mode',"explicit_text_mode" in source),
-            ('38_start_nav_home_without_shift',"start_navigation_method']='home'" in source),
+            ('38_start_nav_pre_glyph_bounded',"start_navigation_method']='raster-pre-glyph-click'" in source
+             and "TASK091_TABLE_CELL_START_NAV_POINT_OUTSIDE_CELL" in source),
             ('39_edit_from_proven_start',"edit-start-caret-proven-table-cell" in source),
             ('40_exact_cell_atomic_recovery',"def _task091_table_cell_atomic_delete_repair_command" in source),
             ('41_mismatch_quarantines_undo',"undo_quarantined" in mismatch),
