@@ -45,6 +45,30 @@ class SemanticRuntimeTests(unittest.TestCase):
         for token in forbidden:
             self.assertNotIn(token,mutation["command"])
 
+    def test_contained_target_precondition_uses_resolved_shape_baseline(self):
+        ws=base_state()
+        ws["active_slide"]=1
+        ws["deck_slide_shapes"]={"1":[{
+            "id":6,"name":"CoverTitle",
+            "text":"H2 Operating Committee Pack\nGrowth Plan Draft",
+            "kind":"shape","frame_id":0,"row":-1,"col":-1,
+            "geometry":{"x":749808,"y":1078992,"w":5852160,"h":1234440},
+            "font_sizes":[2400],"fill_rgb":"",
+        }]}
+        ws["deck_slide_relationships"]={"1":[]}
+        state={"slide":1}
+        plan=((1,745,335,"Growth Plan Draft",
+               "H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline"),)
+        select=next_text_action(state,ws,plan)
+        self.assertEqual(select["specialist_phase"],"semantic-target-select")
+        self.assertEqual(
+            state["semantic_tx"]["before_target_text"],
+            "H2 Operating Committee Pack\nGrowth Plan Draft",
+        )
+        mutation=next_text_action(state,ws,plan)
+        self.assertEqual(mutation["specialist_phase"],"semantic-text-mutation")
+        self.assertNotEqual(mutation.get("action"),"terminal")
+
     def test_exact_persisted_diff_advances_only_after_roundtrip(self):
         ws=base_state()
         state={"slide":3}
