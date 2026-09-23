@@ -94,11 +94,12 @@ class SemanticRuntimeTests(unittest.TestCase):
         shim=Path("scripts/osworld_free_mesh_shim.py").read_text(encoding="utf-8")
         runtime=Path("scripts/arbm091/semantic_runtime.py").read_text(encoding="utf-8")
         specialist=shim.split("def next_091_specialist_action",1)[1]
+        deck_active=specialist.split("state['mode']='DECK_ACTIVE'",1)[1]
         gate="if not state.get('semantic_text_done')"
         legacy="pending=state.get('pending_edit')"
-        self.assertIn(gate,specialist)
-        self.assertIn(legacy,specialist)
-        self.assertLess(specialist.index(gate),specialist.index(legacy))
+        self.assertIn(gate,deck_active)
+        self.assertIn(legacy,deck_active)
+        self.assertLess(deck_active.index(gate),deck_active.index(legacy))
         self.assertIn('state["spatial_index"]=len(plan)',runtime)
         for forbidden in (
             "_task091_caret","CARET_NOT_AT_START","CARET_GEOMETRY_UNPROVEN",
@@ -115,6 +116,15 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertIn("section-e-semantic-roundtrip",body)
         self.assertNotIn("_task091_caret",body)
         self.assertNotIn("CARET_UNPROVEN",body)
+
+    def test_transient_during_semantic_transaction_is_fail_closed(self):
+        from pathlib import Path
+        shim=Path("scripts/osworld_free_mesh_shim.py").read_text(encoding="utf-8")
+        specialist=shim.split("def next_091_specialist_action",1)[1]
+        transient=specialist.split("if app == 'wps-transient':",1)[1].split(
+            "if app != 'wps-presentation':",1)[0]
+        self.assertIn("TASK091_SEMANTIC_TRANSACTION_INTERRUPTED_BY_TRANSIENT",transient)
+        self.assertIn("TASK091_SECTION_E_SEMANTIC_INTERRUPTED_BY_TRANSIENT",transient)
 
 
 if __name__=="__main__":
