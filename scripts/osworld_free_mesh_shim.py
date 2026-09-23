@@ -218,28 +218,21 @@ def _task091_table_cell_selection_presses(old):
     return presses
 
 
-def _task091_table_cell_start_anchor(shape_bbox, ink_bbox):
-    """Return the exact signed pre-glyph anchor for one proven table cell."""
-    if (not isinstance(shape_bbox,list) or len(shape_bbox)!=4
-            or not isinstance(ink_bbox,list) or len(ink_bbox)!=4
-            or not all(type(v) is int for v in shape_bbox+ink_bbox)):
-        raise ValueError('TASK091_TABLE_CELL_START_NAV_GEOMETRY_INVALID')
-    sx,sy,sw,sh=shape_bbox
-    ix,iy,iw,ih=ink_bbox
-    if sw<=0 or sh<=0 or iw<=0 or ih<=0:
-        raise ValueError('TASK091_TABLE_CELL_START_NAV_GEOMETRY_EMPTY')
-    cx=max(sx+4,min(ix-3,sx+sw-4))
-    cy=max(sy+4,min(iy+ih//2,sy+sh-4))
-    if not (sx < cx < sx+sw and sy < cy < sy+sh):
-        raise ValueError('TASK091_TABLE_CELL_START_NAV_POINT_OUTSIDE_CELL')
-    return {'cx':cx,'cy':cy}
+def _task091_table_cell_start_navigation_command(old, interval=0.03):
+    """Move from a positively proven logical text end to the exact text start.
 
-
-def _task091_table_cell_start_navigation_command(shape_bbox, ink_bbox):
-    """Emit exactly one atomic pointer event at the signed pre-glyph anchor."""
-    anchor=_task091_table_cell_start_anchor(shape_bbox,ink_bbox)
-    return f"pyautogui.click({int(anchor['cx'])}, {int(anchor['cy'])})"
-
+    The command is admitted only by the caller after caret-at-text-end geometry
+    has been positively proven. For a fixed-width cell, moving left exactly
+    len(old) characters reaches the pre-first-character position without
+    relying on WPS Home semantics or raster hit-testing.
+    """
+    old=str(old or '')
+    if not old or '\n' in old or len(old)>30:
+        raise ValueError('TASK091_TABLE_CELL_START_NAV_TEXT_INVALID')
+    presses=len(old)
+    if not 1 <= presses <= 30:
+        raise ValueError('TASK091_TABLE_CELL_START_NAV_COUNT_INVALID')
+    return f"pyautogui.press('left', presses={presses}, interval={float(interval):g})"
 
 def _task091_table_cell_delta_plan(old, new):
     """Return at most two same-length character substitutions for a KPI cell.
@@ -1729,32 +1722,19 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             pending['caret_entry_end_diagnostic']=_task091_caret_at_text_end(
                 caret,bbox,list(pending.get('table_text_ink_bbox') or []),
                 pending.get('table_text_end_x'))
+            if pending['caret_entry_end_diagnostic'].get('proven') is not True:
+                return _task091_terminal('TASK091_TABLE_CELL_END_CARET_UNPROVEN',state)
             pending['selected_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
             pending['selection_ack_foreground_sha256']=current_fg
             pending['explicit_text_mode']=True
             selection_presses=_task091_table_cell_selection_presses(pending['old'])
             pending['selection_press_count']=selection_presses
-            pending['start_navigation_method']='raster-pre-glyph-click'
+            pending['start_navigation_method']='proven-end-left-by-text-length'
             pending['stage']='table-cell-start-nav-issued'
-            ink_bbox=list(pending.get('table_text_ink_bbox') or [])
-            anchor=_task091_table_cell_start_anchor(bbox,ink_bbox)
-            anchor_cx=int(anchor['cx']); anchor_cy=int(anchor['cy'])
-            command=_task091_table_cell_start_navigation_command(bbox,ink_bbox)
-            start_target={
-                'source':'task091-pptx-canonical',
-                'label':str(pending.get('old') or ''),
-                'role':'task091-canonical-point',
-                'slide':int(pending.get('slide') or 0),
-                'x':anchor_cx-1,'y':anchor_cy-1,'w':2,'h':2,
-                'cx':anchor_cx,'cy':anchor_cy,
-                'foreground_sha256':current_fg,
-                'deck_sha256':current_sha,
-            }
-            start_target['proof_sha256']=task091_spatial_target_proof(start_target)
-            pending['start_navigation_target']=dict(start_target)
+            command=_task091_table_cell_start_navigation_command(pending['old'])
             pending['start_nav_command_hash']=hashlib.sha256(command.encode()).hexdigest()
-            return {'action':'exec','command':command,'target':start_target,
-                    'plan':'Text mode is positively proven. Click the signed pre-glyph point inside this exact table cell, then independently prove the start caret before any mutation.',
+            return {'action':'exec','command':command,
+                    'plan':'Caret geometry proves the logical end of this exact cell. Move left by exactly the fixed text length, then independently prove the start caret before any mutation.',
                     'specialist_phase':'move-table-caret-to-proven-start'}
 
         if stage in ('table-cell-start-nav-issued','table-cell-start-caret-probe-issued','table-cell-start-normalize-issued'):
