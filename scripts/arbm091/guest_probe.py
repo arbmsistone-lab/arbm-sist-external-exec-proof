@@ -174,9 +174,28 @@ def capture(point):
                                 'w': int(ext.attrib.get('cx', '0')),
                                 'h': int(ext.attrib.get('cy', '0')),
                             }
+                        font_sizes=[]
+                        for node in shape.iter():
+                            if node.tag.endswith('}rPr') or node.tag.endswith('}defRPr') or node.tag.endswith('}endParaRPr'):
+                                raw_size=node.attrib.get('sz')
+                                if raw_size is not None:
+                                    try:
+                                        font_sizes.append(int(raw_size))
+                                    except ValueError:
+                                        pass
+                        fill_rgb=''
+                        if sp_pr is not None:
+                            solid_fill=next((node for node in sp_pr.iter()
+                                             if node.tag.endswith('}solidFill')),None)
+                            if solid_fill is not None:
+                                rgb=next((node for node in solid_fill.iter()
+                                          if node.tag.endswith('}srgbClr')),None)
+                                if rgb is not None:
+                                    fill_rgb=str(rgb.attrib.get('val','')).upper()
                         shapes.append({'id': shape_id, 'name': shape_name,
                                        'text': shape_text, 'paragraphs': paragraphs,
-                                       'geometry': geometry, 'kind':'shape'})
+                                       'geometry': geometry, 'kind':'shape',
+                                       'font_sizes':font_sizes,'fill_rgb':fill_rgb})
                     for frame in root_xml.iter():
                         if not frame.tag.endswith('}graphicFrame'):
                             continue
@@ -226,6 +245,23 @@ def capture(point):
                                         chunks.append('\n')
                                 text=''.join(chunks)
                                 if text and not h_merge and not v_merge and cw>0 and ch>0:
+                                    font_sizes=[]
+                                    for node in cell.iter():
+                                        if node.tag.endswith('}rPr') or node.tag.endswith('}defRPr') or node.tag.endswith('}endParaRPr'):
+                                            raw_size=node.attrib.get('sz')
+                                            if raw_size is not None:
+                                                try:
+                                                    font_sizes.append(int(raw_size))
+                                                except ValueError:
+                                                    pass
+                                    fill_rgb=''
+                                    solid_fill=next((node for node in cell.iter()
+                                                     if node.tag.endswith('}solidFill')),None)
+                                    if solid_fill is not None:
+                                        rgb=next((node for node in solid_fill.iter()
+                                                  if node.tag.endswith('}srgbClr')),None)
+                                        if rgb is not None:
+                                            fill_rgb=str(rgb.attrib.get('val','')).upper()
                                     shapes.append({
                                         'id': -(frame_id*1000000 + r_index*1000 + grid_index + 1),
                                         'name': f'{frame_name}#r{r_index}c{grid_index}',
@@ -233,7 +269,8 @@ def capture(point):
                                         'geometry': {'x':x_cursor,'y':y_cursor,'w':cw,'h':ch},
                                         'kind':'table-cell','frame_id':frame_id,
                                         'row':r_index,'col':grid_index,
-                                        'grid_span':grid_span,'row_span':row_span})
+                                        'grid_span':grid_span,'row_span':row_span,
+                                        'font_sizes':font_sizes,'fill_rgb':fill_rgb})
                                 x_cursor += cw
                                 grid_index += grid_span
                             y_cursor += rh
