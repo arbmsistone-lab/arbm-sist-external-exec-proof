@@ -1,7 +1,11 @@
 import copy
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from arbm091.semantic_runtime import next_text_action
+from arbm091.score_tracker import SEMANTIC_REQUIRED_STATUSES, verify_semantic_architecture
 
 
 def base_state():
@@ -90,22 +94,52 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertEqual(result["action"],"terminal")
 
     def test_migration_route_precedes_and_seals_legacy_caret_path(self):
-        from pathlib import Path
         shim=Path("scripts/osworld_free_mesh_shim.py").read_text(encoding="utf-8")
         runtime=Path("scripts/arbm091/semantic_runtime.py").read_text(encoding="utf-8")
         specialist=shim.split("def next_091_specialist_action",1)[1]
         deck_active=specialist.split("state['mode']='DECK_ACTIVE'",1)[1]
         gate="if not state.get('semantic_text_done')"
-        legacy="pending=state.get('pending_edit')"
+        boundary="# New Task 091 architecture boundary."
+        legacy="# Historical replay compatibility only."
         self.assertIn(gate,deck_active)
+        self.assertIn(boundary,deck_active)
         self.assertIn(legacy,deck_active)
-        self.assertLess(deck_active.index(gate),deck_active.index(legacy))
+        self.assertLess(deck_active.index(gate),deck_active.index(boundary))
+        self.assertLess(deck_active.index(boundary),deck_active.index(legacy))
+        sealed=deck_active[deck_active.index(boundary):deck_active.index(legacy)]
+        self.assertIn("TASK091_LEGACY_TEXT_STATE_FORBIDDEN",sealed)
+        self.assertIn("TASK091_SEMANTIC_PLAN_INCOMPLETE",sealed)
+        self.assertIn("return None",sealed)
         self.assertIn('state["spatial_index"]=len(plan)',runtime)
         for forbidden in (
             "_task091_caret","CARET_NOT_AT_START","CARET_GEOMETRY_UNPROVEN",
             "ink_left","caret_x","press('home')","press('left'",
         ):
             self.assertNotIn(forbidden,runtime)
+
+    def test_semantic_certifier_rejects_any_legacy_phase(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            events=[{"status":value} for value in SEMANTIC_REQUIRED_STATUSES]
+            events.extend([
+                {"status":"TASK091_SEMANTIC_TEXT_TRANSACTIONS_COMPLETE"},
+                {"status":"TASK091_SECTION_E_FORMAT_VERIFIED"},
+                {"status":"TASK091_SPECIALIST_ACTION_ISSUED",
+                 "phase":"semantic-save","pending_edit":None},
+            ])
+            (root/"shim.jsonl").write_text(
+                "".join(json.dumps(row)+"\n" for row in events),encoding="utf-8")
+            self.assertEqual(
+                verify_semantic_architecture(root)["status"],
+                "TASK091_SEMANTIC_ARCHITECTURE_PASS")
+            events.append({
+                "status":"TASK091_SPECIALIST_ACTION_ISSUED",
+                "phase":"move-table-caret-to-proven-start","pending_edit":None,
+            })
+            (root/"shim.jsonl").write_text(
+                "".join(json.dumps(row)+"\n" for row in events),encoding="utf-8")
+            with self.assertRaisesRegex(ValueError,"TASK091_LEGACY_PHASE_EXECUTED"):
+                verify_semantic_architecture(root)
 
     def test_section_e_decision_path_has_no_caret_dependency(self):
         from pathlib import Path
