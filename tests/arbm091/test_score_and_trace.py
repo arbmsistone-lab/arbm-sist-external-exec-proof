@@ -935,10 +935,10 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
             self.assertTrue(state['pending_edit']['explicit_text_mode'])
             self.assertEqual(state['pending_edit']['caret_geometry']['width'],1)
             self.assertNotIn("ctrl', 'a",fourth['command'])
-            self.assertTrue(fourth['command'].splitlines()[0].startswith("pyautogui.click("),fourth)
-            self.assertEqual(state['pending_edit']['start_navigation_method'],'raster-pre-glyph-click')
+            self.assertEqual(fourth['command'],"pyautogui.press('left', presses=6, interval=0.03)")
+            self.assertEqual(state['pending_edit']['start_navigation_method'],'proven-end-left-by-text-length')
+            self.assertTrue(state['pending_edit']['caret_entry_end_diagnostic']['proven'])
             self.assertNotIn("keyDown('shift')",fourth['command'])
-            self.assertNotIn("press('left'",fourth['command'])
             self.assertNotIn("press('right'",fourth['command'])
             self.assertNotIn("press('backspace'",fourth['command'])
             self.assertIn('caret_entry_end_diagnostic',state['pending_edit'])
@@ -1099,15 +1099,14 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         self.assertIn("normalize_attempts < 1",source)
         self.assertIn("normalize-wps-terminal-marker-offset",source)
 
-    def test_nonselecting_start_navigation_uses_proven_pre_glyph_geometry(self):
-        shape_bbox=[892,436,182,71]
-        ink_bbox=[970,444,52,17]
-        command=shim._task091_table_cell_start_navigation_command(shape_bbox,ink_bbox)
-        self.assertEqual(command.splitlines()[0],"pyautogui.click(967, 452)")
+    def test_start_navigation_moves_left_exactly_by_proven_text_length(self):
+        command=shim._task091_table_cell_start_navigation_command('$42.8M')
+        self.assertEqual(command,"pyautogui.press('left', presses=6, interval=0.03)")
         self.assertNotIn("keyDown('shift')",command)
-        self.assertNotIn("press('left'",command)
         self.assertNotIn("press('right'",command)
         self.assertNotIn("pyautogui.write(",command)
+        with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_START_NAV_TEXT_INVALID'):
+            shim._task091_table_cell_start_navigation_command('')
 
     def test_500_case_two_delta_red_team_matrix(self):
         alphabet="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz$%.-_"
@@ -1196,14 +1195,15 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
             ('29_start_evidence_gate',"TASK091_TABLE_CELL_START_CARET_EVIDENCE_MISSING" in source),
             ('30_start_geometry_gate',"TASK091_TABLE_CELL_START_CARET_GEOMETRY_UNPROVEN" in source),
             ('31_start_boundary_gate',"TASK091_TABLE_CELL_CARET_NOT_AT_START" in source),
-            ('32_entry_end_is_diagnostic_only',"caret_entry_end_diagnostic" in source),
+            ('32_entry_end_is_required',"TASK091_TABLE_CELL_END_CARET_UNPROVEN" in source
+             and "caret_entry_end_diagnostic" in source),
             ('33_entry_drift_gate',"TASK091_TABLE_CELL_ENTRY_DRIFT" in source),
             ('34_sibling_signature',"before_sibling_signature" in source),
             ('35_visual_sibling_signature',"table_selected_sibling_visual_sha256" in source),
             ('36_press_count_recorded',"selection_press_count" in source),
             ('37_explicit_text_mode',"explicit_text_mode" in source),
-            ('38_start_nav_pre_glyph_bounded',"start_navigation_method']='raster-pre-glyph-click'" in source
-             and "TASK091_TABLE_CELL_START_NAV_POINT_OUTSIDE_CELL" in source),
+            ('38_start_nav_exact_len',"start_navigation_method']='proven-end-left-by-text-length'" in source
+             and "_task091_table_cell_start_navigation_command(pending['old'])" in source),
             ('39_edit_from_proven_start',"edit-start-caret-proven-table-cell" in source),
             ('40_exact_cell_atomic_recovery',"def _task091_table_cell_atomic_delete_repair_command" in source),
             ('41_mismatch_quarantines_undo',"undo_quarantined" in mismatch),
