@@ -72,7 +72,38 @@ def normalize_deck(window_state):
                 "fill_rgb":str(row.get("fill_rgb") or "").upper(),
                 "categories":(),
                 "series":(),
+                "relationships":(),
             }
+    relationships=window_state.get("deck_slide_relationships",{}) if isinstance(window_state,dict) else {}
+    if isinstance(relationships,dict):
+        for slide_s,rows in relationships.items():
+            try:
+                slide=int(slide_s)
+            except Exception as exc:
+                raise SemanticTransactionError("TASK091_RELATIONSHIP_SLIDE_KEY_INVALID") from exc
+            if not isinstance(rows,list):
+                raise SemanticTransactionError("TASK091_SLIDE_RELATIONSHIPS_INVALID")
+            normalized=[]
+            for row in rows:
+                if not isinstance(row,dict):
+                    continue
+                normalized.append((
+                    str(row.get("type") or ""),
+                    str(row.get("target_mode") or ""),
+                    str(row.get("target") or ""),
+                ))
+            rel_row={
+                "slide":slide,"kind":"relationships","id":-slide,
+                "name":f"slide-{slide}-relationships","frame_id":0,"row":-1,"col":-1,
+                "text":"","geometry":(),"font_sizes":(),"fill_rgb":"",
+                "categories":(),"series":(),
+                "relationships":tuple(sorted(normalized)),
+            }
+            key=(slide,"relationships",f"slide-{slide}")
+            if key in result:
+                raise SemanticTransactionError("TASK091_STRUCTURAL_IDENTITY_DUPLICATE")
+            result[key]=rel_row
+
     charts=window_state.get("deck_slide_charts",{}) if isinstance(window_state,dict) else {}
     if isinstance(charts,dict):
         for slide_s,rows in charts.items():
@@ -99,6 +130,7 @@ def normalize_deck(window_state):
                     "text":"","geometry":(),"font_sizes":(),"fill_rgb":"",
                     "categories":tuple(str(v) for v in (row.get("categories") or [])),
                     "series":tuple(normalized_series),
+                    "relationships":(),
                 }
                 key=target_key(slide,chart_row)
                 if key in result:
@@ -182,7 +214,7 @@ def expected_targets_for_pair(window_state, spatial_plan, old, new):
 def semantic_diff(before, after):
     rows=[]
     all_keys=sorted(set(before)|set(after),key=repr)
-    structural_fields=("slide","kind","id","name","frame_id","row","col","geometry","font_sizes","fill_rgb","categories","series")
+    structural_fields=("slide","kind","id","name","frame_id","row","col","geometry","font_sizes","fill_rgb","categories","series","relationships")
     for key in all_keys:
         if key not in before:
             rows.append({"key":key,"field":"target","before":None,"after":after[key]})
