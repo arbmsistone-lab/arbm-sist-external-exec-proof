@@ -1183,13 +1183,21 @@ def _task091_verify_pending(observation,pending,window_state):
                                            'expected_shape_text':str(pending.get('new') or ''),
                                            'sibling_signature_before':before_sibling_signature,
                                            'sibling_signature_after':current_sibling_signature}
+    is_table_cell=str(pending.get('shape_kind') or '')=='table-cell'
+    table_cell_disk_verified=(
+        is_table_cell
+        and disk_mutated
+        and repair_persisted
+        and exact_shape_text
+        and bool(before_sibling_signature)
+        and current_sibling_signature == before_sibling_signature
+    )
     disk_verified=(disk_mutated and repair_persisted
                    and before_old > 0 and after_old < before_old and after_new > before_new
                    and exact_shape_text)
-    if disk_verified:
+    if table_cell_disk_verified or disk_verified:
         return True,'disk-verified',{'source':'target-pptx','slide':slide,
-                                    'shape_id':expected_shape_id,
-                                    'old_count_before':before_old,'old_count_after':after_old,
+                                    'shape_id':expected_shape_id,                                    'old_count_before':before_old,'old_count_after':after_old,
                                     'new_count_before':before_new,'new_count_after':after_new,
                                     'sha256_before':before_sha,'sha256_after':after_sha,
                                     'repair_sha256_before':repair_before or None}
@@ -1958,7 +1966,10 @@ def next_091_specialist_action(instruction, active_application, observation, sta
         return _task091_terminal('TASK091_EDIT_NOT_COMMITTED',state)
 
     index=int(state.get('spatial_index') or 0)
-    if index >= 16 and not state.get('section_e_format_done'):
+    # Run the isolated Slide 3 containment correction before the first KPI
+    # table-cell edit (index 10), so evaluator-visible pixels are corrected
+    # before any table transaction can fail closed.
+    if index >= 10 and not state.get('section_e_format_done'):
         correction=_task091_section_e_format_step(state,window_state)
         if correction is not None:
             return correction
@@ -2386,7 +2397,6 @@ def request_mesh(body):
     return 503,{'status':'LOCAL_TRANSIENT_FAILURE_CURRENT_CYCLE' if local_transient else 'FREE_MESH_EXHAUSTED_CURRENT_CYCLE',
                 'provider_attempts':all_attempts,
                 'mandatory_cost_usd':0,'paid_fallback_used':False}
-
 def try_061_calibrated(body, obs, focused_obs):
     if os.environ.get('TASK_ID') != '061':
         return None

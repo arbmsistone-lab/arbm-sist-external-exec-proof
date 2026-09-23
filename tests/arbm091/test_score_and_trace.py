@@ -897,13 +897,12 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
              patch.object(shim,'_task091_caret_delta_geometry',
                           side_effect=[
                               {'proven':True,'reason':'caret-geometry',
-                               'count':22,'width':1,'height':22,
-                               'dominant_column':22,'bbox':[111,3,1,22]},
+                               'count':22,'width':1,'height':22,                               'dominant_column':22,'bbox':[111,3,1,22]},
                               {'proven':True,'reason':'caret-geometry',
                                'count':22,'width':1,'height':22,
                                'dominant_column':22,'bbox':[78,3,1,22]},
                           ]):
-            state={'anchored':True,'slide':3,'spatial_index':10}
+            state={'anchored':True,'slide':3,'spatial_index':10,'section_e_format_done':True}
             deck=self._deck('1')
             first=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(deck))
             self.assertEqual(first['command'],'pyautogui.click(983, 471)')
@@ -958,7 +957,7 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
 
     def test_table_cell_sibling_drift_blocks_second_click(self):
         with patch.dict(os.environ,{'TASK_ID':'091'},clear=False):
-            state={'anchored':True,'slide':3,'spatial_index':10}
+            state={'anchored':True,'slide':3,'spatial_index':10,'section_e_format_done':True}
             deck=self._deck('1')
             shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(deck))
             drift=self._deck('2')
@@ -966,6 +965,46 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
             result=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,drift)
             self.assertEqual(result['action'],'terminal')
             self.assertEqual(result['reason'],'TASK091_TABLE_SELECTION_NOT_ACKNOWLEDGED')
+
+
+    def test_run35850450098_table_cell_exact_shape_beats_stale_global_count(self):
+        pending={
+            'slide':3,'old':'$42.8M','new':'$40.9M',
+            'shape_id':-13001003,'shape_kind':'table-cell',
+            'before_old_count':2,'before_new_count':0,
+            'before_deck_sha256':'a'*64,
+        }
+        window_state={
+            'deck_file':{'sha256':'b'*64},
+            'deck_slide_text':{'3':'$42.8M $42.8M'},
+            'deck_slide_shapes':{'3':[
+                {'id':-13001003,'kind':'table-cell','name':'Table 12#r1c2',
+                 'text':'$40.9M','geometry':{'x':1,'y':1,'w':10,'h':10}},
+                {'id':-13001004,'kind':'table-cell','name':'Table 12#r1c3',
+                 'text':'Ahead','geometry':{'x':20,'y':1,'w':10,'h':10}},
+            ]},
+        }
+        pending['before_sibling_signature']=shim._task091_other_shapes_signature(
+            window_state,3,-13001003)
+        verified,status,detail=shim._task091_verify_pending('',pending,window_state)
+        self.assertTrue(verified,detail)
+        self.assertEqual(status,'disk-verified')
+
+        collateral=copy.deepcopy(window_state)
+        collateral['deck_slide_shapes']['3'][1]['text']='Changed'
+        verified2,status2,_=shim._task091_verify_pending('',pending,collateral)
+        self.assertFalse(verified2)
+        self.assertNotEqual(status2,'disk-verified')
+
+    def test_section_e_runs_before_first_slide3_kpi_table_edit(self):
+        with patch.dict(os.environ,{'TASK_ID':'091'},clear=False),              patch.object(shim,'_task091_region_sha256',return_value='a'*64):
+            state={'anchored':True,'slide':3,'spatial_index':10}
+            result=shim.next_091_specialist_action(
+                self._task(),'WPS Presentation','',state,self._deck('1'))
+            self.assertEqual(result['specialist_phase'],'section-e-select-shape')
+            self.assertEqual(state['section_e_format']['shape_id'],16)
+            self.assertNotIn('pending_edit',state)
+
 
 
 class Task091CaretBoundedWriterTests(unittest.TestCase):
