@@ -444,7 +444,7 @@ class ForegroundTests(unittest.TestCase):
         task_id_patch=patch.dict(os.environ,{'TASK_ID':'091'},clear=False)
         task_id_patch.start()
         self.addCleanup(task_id_patch.stop)
-        state={'anchored':True,'slide':1}
+        state={'anchored':True,'slide':1,'semantic_text_done':True,'section_e_format_done':True}
         first=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,copy.deepcopy(deck))
         self.assertIn('doubleClick',first['command'])
         pending=state['pending_edit']
@@ -495,7 +495,7 @@ class ForegroundTests(unittest.TestCase):
                          shim._task091_foreground_sha(ack))
 
         # T09: slide drift during reselect fails closed.
-        drift_state={'anchored':True,'slide':1}
+        drift_state={'anchored':True,'slide':1,'semantic_text_done':True,'section_e_format_done':True}
         shim.next_091_specialist_action(task,'WPS Presentation',obs,drift_state,copy.deepcopy(deck))
         shim.next_091_specialist_action(task,'WPS 2019','',drift_state,copy.deepcopy(transient))
         drift=copy.deepcopy(deck); drift['active_slide']=2
@@ -595,7 +595,7 @@ class ForegroundTests(unittest.TestCase):
         task_id_patch=patch.dict(os.environ,{'TASK_ID':'091'},clear=False)
         task_id_patch.start()
         self.addCleanup(task_id_patch.stop)
-        state={'anchored':True,'slide':1,'spatial_index':2}
+        state={'anchored':True,'slide':1,'spatial_index':2,'semantic_text_done':True,'section_e_format_done':True}
 
         first=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,copy.deepcopy(deck))
         self.assertIn('doubleClick',first['command'])
@@ -866,7 +866,8 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
                'geometry':{'x':3877056,'y':2088750,'w':1563624,'h':607422}},
               {'id':16,'kind':'shape','name':'KpiReadout_Body',
                'text':'• ARR and NRR are both positioned as ahead of plan in the current draft.\\n• Headcount plan still assumes 5 Growth Ops hires land in H2.\\n• Burn improvement relies on expansion payback from Q4.',
-               'geometry':{'x':9034272,'y':1883664,'w':2148840,'h':1353312}},
+               'geometry':{'x':9034272,'y':1883664,'w':2148840,'h':1353312},
+               'font_sizes':[1600],'fill_rgb':''},
           ]},
           'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
                        'sha256':'a'*64,'size':113361,'mtime_ns':1,
@@ -901,7 +902,7 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
                                'count':22,'width':1,'height':22,
                                'dominant_column':22,'bbox':[78,3,1,22]},
                           ]):
-            state={'anchored':True,'slide':3,'spatial_index':10,'section_e_format_done':True}
+            state={'anchored':True,'slide':3,'spatial_index':10,'section_e_format_done':True,'semantic_text_done':True}
             deck=self._deck('1')
             first=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(deck))
             self.assertEqual(first['command'],'pyautogui.click(983, 471)')
@@ -956,7 +957,7 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
 
     def test_table_cell_sibling_drift_blocks_second_click(self):
         with patch.dict(os.environ,{'TASK_ID':'091'},clear=False):
-            state={'anchored':True,'slide':3,'spatial_index':10,'section_e_format_done':True}
+            state={'anchored':True,'slide':3,'spatial_index':10,'section_e_format_done':True,'semantic_text_done':True}
             deck=self._deck('1')
             shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(deck))
             drift=self._deck('2')
@@ -997,10 +998,10 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
 
     def test_section_e_runs_before_first_slide3_kpi_table_edit(self):
         with patch.dict(os.environ,{'TASK_ID':'091'},clear=False),              patch.object(shim,'_task091_region_sha256',return_value='a'*64):
-            state={'anchored':True,'slide':3,'spatial_index':10}
+            state={'anchored':True,'slide':3,'spatial_index':len(shim.TASK091_SPATIAL_TEXT_EDITS),'semantic_text_done':True}
             result=shim.next_091_specialist_action(
                 self._task(),'WPS Presentation','',state,self._deck('1'))
-            self.assertEqual(result['specialist_phase'],'section-e-select-shape')
+            self.assertEqual(result['specialist_phase'],'section-e-semantic-select')
             self.assertEqual(state['section_e_format']['shape_id'],16)
             self.assertNotIn('pending_edit',state)
 
