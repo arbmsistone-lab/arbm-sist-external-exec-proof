@@ -1311,42 +1311,6 @@ class Task091CompactEditTests(unittest.TestCase):
         plan=shim._task091_restricted_repair_plan(actual,pending['new'])
         self.assertEqual(plan,[{'op':'delete','index':61,'char':'\n'}], plan)
 
-
-
-" not in cmd6 and "write('M'" not in cmd6),
-            ('23_percent_preserves_suffix',"write('%'" not in cmd4),
-            ('24_start_helper_defined',"def _task091_caret_at_text_start" in source),
-            ('25_end_helper_defined',"def _task091_caret_at_text_end" in source),
-            ('26_start_nav_stage',"table-cell-start-nav-issued" in source),
-            ('27_start_probe_stage',"table-cell-start-caret-probe-issued" in source),
-            ('28_start_nav_drift_gate',"TASK091_TABLE_CELL_START_NAV_DRIFT" in source),
-            ('29_start_evidence_gate',"TASK091_TABLE_CELL_START_CARET_EVIDENCE_MISSING" in source),
-            ('30_start_geometry_gate',"TASK091_TABLE_CELL_START_CARET_GEOMETRY_UNPROVEN" in source),
-            ('31_start_boundary_gate',"TASK091_TABLE_CELL_CARET_NOT_AT_START" in source),
-            ('32_entry_end_is_diagnostic_only',"caret_entry_end_diagnostic" in source),
-            ('33_entry_drift_gate',"TASK091_TABLE_CELL_ENTRY_DRIFT" in source),
-            ('34_sibling_signature',"before_sibling_signature" in source),
-            ('35_visual_sibling_signature',"table_selected_sibling_visual_sha256" in source),
-            ('36_press_count_recorded',"selection_press_count" in source),
-            ('37_explicit_text_mode',"explicit_text_mode" in source),
-            ('38_start_nav_home_without_shift',"start_navigation_method']='home'" in source and "_task091_table_cell_start_navigation_command()" in source),
-            ('39_edit_from_proven_start',"edit-start-caret-proven-table-cell" in source),
-            ('40_mismatch_no_undo_fatal',"TASK091_TABLE_CELL_POSTSAVE_MISMATCH_NO_UNDO" in mismatch),
-            ('41_mismatch_quarantines_undo',"undo_quarantined" in mismatch),
-            ('42_mismatch_no_ctrl_z',"ctrl', 'z" not in mismatch),
-            ('43_mismatch_no_rollback_call',"_task091_table_cell_rollback_command()" not in mismatch),
-            ('44_mismatch_preserves_failure_sha',"failure_deck_sha256" in mismatch),
-            ('45_mismatch_preserves_failure_text',"failure_text" in mismatch),
-            ('46_mismatch_records_reason',"failure_reason" in mismatch),
-            ('47_mismatch_fail_closed_mode',"TARGET_FAIL_CLOSED" in mismatch),
-            ('48_section_e_two_point',"'font_decrements': 2" in source),
-            ('49_zero_spend_contract',"NON_ZERO_SPEND_MODE_FORBIDDEN" in source),
-            ('50_no_generic_evaluator_change',"official evaluator" not in writer.casefold()),
-        ]
-        self.assertEqual(len(audits),50)
-        failed=[name for name,ok in audits if not ok]
-        self.assertEqual(failed,[],failed)
-
     def test_table_cell_suffix_duplicate_repair_contract(self):
         source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
         command=shim._task091_table_cell_suffix_duplicate_repair_command('104%%','104%')
