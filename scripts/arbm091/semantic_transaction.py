@@ -102,13 +102,16 @@ def _screen_center(window_state,row):
 def resolve_target(window_state, *, slide, old, hint_x=None, hint_y=None):
     model=normalize_deck(window_state)
     wanted=_norm(old)
-    candidates=[(key,row) for key,row in model.items()
-                if row["slide"]==int(slide) and _norm(row["text"])==wanted]
+    same_slide=[(key,row) for key,row in model.items() if row["slide"]==int(slide)]
+    exact=[(key,row) for key,row in same_slide if _norm(row["text"])==wanted]
+    candidates=exact or [(key,row) for key,row in same_slide
+                         if wanted and wanted in _norm(row["text"])]
     if not candidates:
         raise SemanticTransactionError("TASK091_TARGET_MISSING")
     if len(candidates)==1:
         key,row=candidates[0]
-        return {"key":key,"row":row,"model_sha256":model_sha256(model)}
+        return {"key":key,"row":row,"model_sha256":model_sha256(model),
+                "match_kind":"exact" if exact else "contained"}
     if hint_x is None or hint_y is None:
         raise SemanticTransactionError("TASK091_TARGET_AMBIGUOUS")
     scored=[]
@@ -119,7 +122,8 @@ def resolve_target(window_state, *, slide, old, hint_x=None, hint_y=None):
     if len(scored)>1 and scored[0][0]==scored[1][0]:
         raise SemanticTransactionError("TASK091_TARGET_AMBIGUOUS")
     _,_,key,row=scored[0]
-    return {"key":key,"row":row,"model_sha256":model_sha256(model)}
+    return {"key":key,"row":row,"model_sha256":model_sha256(model),
+            "match_kind":"exact" if exact else "contained"}
 
 
 def expected_targets_for_pair(window_state, spatial_plan, old, new):
