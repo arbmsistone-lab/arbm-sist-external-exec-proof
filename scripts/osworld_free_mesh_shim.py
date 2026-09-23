@@ -1736,12 +1736,27 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             pending['selection_press_count']=selection_presses
             pending['start_navigation_method']='raster-pre-glyph-click'
             pending['stage']='table-cell-start-nav-issued'
-            command=_task091_table_cell_start_navigation_command(
-                list(pending.get('shape_bbox') or []),
-                list(pending.get('table_text_ink_bbox') or []))
+            ink_bbox=list(pending.get('table_text_ink_bbox') or [])
+            command=_task091_table_cell_start_navigation_command(bbox,ink_bbox)
+            sx,sy,sw,sh=bbox
+            ix,iy,iw,ih=ink_bbox
+            anchor_cx=max(sx+4,min(ix-3,sx+sw-4))
+            anchor_cy=max(sy+4,min(iy+ih//2,sy+sh-4))
+            start_target={
+                'source':'task091-pptx-canonical',
+                'label':str(pending.get('old') or ''),
+                'role':'task091-canonical-point',
+                'slide':int(pending.get('slide') or 0),
+                'x':anchor_cx-1,'y':anchor_cy-1,'w':2,'h':2,
+                'cx':anchor_cx,'cy':anchor_cy,
+                'foreground_sha256':current_fg,
+                'deck_sha256':current_sha,
+            }
+            start_target['proof_sha256']=task091_spatial_target_proof(start_target)
+            pending['start_navigation_target']=dict(start_target)
             pending['start_nav_command_hash']=hashlib.sha256(command.encode()).hexdigest()
-            return {'action':'exec','command':command,
-                    'plan':'Text mode is positively proven. Anchor this single-line table cell with Home without Shift, then independently prove the start caret before selecting any text.',
+            return {'action':'exec','command':command,'target':start_target,
+                    'plan':'Text mode is positively proven. Click the signed pre-glyph point inside this exact table cell, then independently prove the start caret before any mutation.',
                     'specialist_phase':'move-table-caret-to-proven-start'}
 
         if stage in ('table-cell-start-nav-issued','table-cell-start-caret-probe-issued','table-cell-start-normalize-issued'):
