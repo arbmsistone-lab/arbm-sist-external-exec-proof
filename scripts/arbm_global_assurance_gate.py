@@ -59,7 +59,8 @@ def inspect_repo(root="."):
     score_tests=_read(root,"tests/arbm091/test_score_and_trace.py")
     semantic_oracle=_read(root,"scripts/arbm091/semantic_transaction.py")
     semantic_runtime=_read(root,"scripts/arbm091/semantic_runtime.py")
-    semantic_tests=_read(root,"tests/arbm091/test_semantic_architecture.py")
+    semantic_tests=_read(root,"tests/arbm091/test_semantic_transaction.py")
+    semantic_runtime_tests=_read(root,"tests/arbm091/test_semantic_runtime.py")
     senior_tests=_read(root,"tests/arbm091/test_senior_elite_agent.py")
     req=_read(root,"scripts/requirements-osworld.txt")
     manifest=_read(root,"audit/arbm091-final-files.json")
@@ -125,21 +126,17 @@ def inspect_repo(root="."):
                  shim.index("def _task091_system_check_close")]
     )
     semantic_fail_closed=(
-        "test_A_caret_geometry_has_zero_decision_power" in semantic_tests
-        and "test_B_zoom_does_not_change_semantic_verdict" in semantic_tests
-        and "test_C_font_hinting_and_antialiasing_metadata_are_irrelevant" in semantic_tests
-        and "test_D_ink_left_is_irrelevant" in semantic_tests
-        and "test_E_ambiguous_semantic_target_aborts" in semantic_tests
-        and "test_F_sibling_collateral_mutation_fails_closed" in semantic_tests
-        and "test_G_save_without_persisted_state_is_not_semantically_complete" in semantic_tests
-        and "test_H_exact_single_change_passes" in semantic_tests
-        and "test_I_missing_target_fails" in semantic_tests
-        and "test_J_target_ambiguity_with_equal_structural_distance_fails" in semantic_tests
-        and "test_K_official_evaluator_rejection_remains_fatal" in semantic_tests
-        and "test_L_unexpected_relationship_change_fails" in semantic_tests
-        and "test_M_roundtrip_divergence_fails" in semantic_tests
-        and "test_adversarial_corruption_rejected_then_clean_transaction_passes" in semantic_tests
-        and "test_certifier_rejects_legacy_caret_decision_path" in semantic_tests
+        "test_caret_zoom_and_raster_fields_have_zero_decision_power" in semantic_tests
+        and "test_font_hinting_antialiasing_and_ink_left_are_not_semantic_inputs" in semantic_tests
+        and "test_ambiguous_target_without_structural_hint_fails_closed" in semantic_tests
+        and "test_duplicate_old_text_outside_authorized_set_blocks_global_replace" in semantic_tests
+        and "test_sibling_collateral_change_fails" in semantic_tests
+        and "test_unexpected_slide_relationship_change_fails_closed" in semantic_tests
+        and "test_save_without_persistence_fails_roundtrip" in semantic_tests
+        and "test_adversarial_collateral_rejected_then_clean_passes" in semantic_tests
+        and "test_unpersisted_save_is_terminal" in semantic_runtime_tests
+        and "test_migration_route_precedes_and_seals_legacy_caret_path" in semantic_runtime_tests
+        and "test_semantic_certifier_rejects_any_legacy_phase" in semantic_runtime_tests
     )
     section_e_containment=(
         "TASK091_SECTION_E_FORMAT" in shim
