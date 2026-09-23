@@ -138,11 +138,11 @@ class SeniorEliteBoardTests(unittest.TestCase):
         self.assertTrue(result['allow'],result)
         self.assertEqual(result['pass'],10)
 
-    def test_task091_nonpersisted_shape_recovery_second_identical_observation_is_vetoed(self):
+    def test_task091_nonpersisted_shape_recovery_second_bounded_observation_is_allowed(self):
         command="pyautogui.sleep(0.2)"
         state={'task091_specialist':{'owned':True,'handoff':False,'pending_edit':{
             'stage':'reselect-required','shape_kind':'shape','slide':4,
-            'selection_recovery_attempts':1,'commit_command_hash':'1'*64,
+            'selection_recovery_attempts':2,'commit_command_hash':'1'*64,
             'save_command_hash':'2'*64,'before_deck_sha256':'3'*64}}}
         action={'action':'exec','command':command,
                 'specialist_phase':'recover-nonpersisted-text-selection'}
@@ -150,6 +150,21 @@ class SeniorEliteBoardTests(unittest.TestCase):
             result=review_action(action,task_id='091',source='task091-specialist',state=state,
                                  verifier={'progress':False,'no_progress':5},
                                  recent_commands=[command,command])
+        self.assertTrue(result['allow'],result)
+        self.assertEqual(result['pass'],10)
+
+    def test_task091_nonpersisted_shape_recovery_third_attempt_is_vetoed(self):
+        command="pyautogui.sleep(0.2)"
+        state={'task091_specialist':{'owned':True,'handoff':False,'pending_edit':{
+            'stage':'reselect-required','shape_kind':'shape','slide':4,
+            'selection_recovery_attempts':3,'commit_command_hash':'1'*64,
+            'save_command_hash':'2'*64,'before_deck_sha256':'3'*64}}}
+        action={'action':'exec','command':command,
+                'specialist_phase':'recover-nonpersisted-text-selection'}
+        with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','GITHUB_SHA':'f'*40},clear=False):
+            result=review_action(action,task_id='091',source='task091-specialist',state=state,
+                                 verifier={'progress':False,'no_progress':6},
+                                 recent_commands=[command,command,command])
         self.assertFalse(result['allow'])
         self.assertIn('anti_repetition',result['failed'])
 
