@@ -4,7 +4,7 @@ from unittest.mock import patch
 sys.path.insert(0,str(pathlib.Path(__file__).parent))
 import osworld_free_mesh_shim as shim
 REAL_REQUEST_MESH=shim.request_mesh
-from osworld_control import Verifier
+from osworld_control import Verifier, ground_action
 
 class MeshTests(unittest.TestCase):
  def setUp(self):
@@ -780,6 +780,26 @@ class Task091TransactionalTableCellTests(unittest.TestCase):
   self.assertNotIn("press('left'",command)
   self.assertNotIn("press('right'",command)
   self.assertNotIn("pyautogui.write(",command)
+
+ def test_table_cell_start_anchor_full_action_compiles_with_exact_signed_target(self):
+  shape_bbox=[892,436,182,71]; ink_bbox=[956,444,52,17]
+  anchor=shim._task091_table_cell_start_anchor(shape_bbox,ink_bbox)
+  command=shim._task091_table_cell_start_navigation_command(shape_bbox,ink_bbox)
+  target={
+   'source':'task091-pptx-canonical','label':'214','role':'task091-canonical-point',
+   'slide':3,'x':anchor['cx']-1,'y':anchor['cy']-1,'w':2,'h':2,
+   'cx':anchor['cx'],'cy':anchor['cy'],
+   'foreground_sha256':'a'*64,'deck_sha256':'b'*64,
+  }
+  target['proof_sha256']=shim.task091_spatial_target_proof(target)
+  action={'action':'exec','command':command,'target':target,
+          'plan':'Use exact signed pre-glyph anchor.'}
+  compiled=ground_action(action,'WPS Presentation','',allow_canonical=True)
+  self.assertEqual(compiled['command'],"pyautogui.click(953, 452)")
+  self.assertEqual(compiled['target']['cx'],953)
+  self.assertEqual(compiled['target']['cy'],452)
+  self.assertEqual(compiled['target']['proof_sha256'],target['proof_sha256'])
+  self.assertIn('Trusted Task 091 PPTX-backed canonical target',compiled.get('compiler_note',''))
 
  def test_table_cell_delta_edit_never_touches_terminal_marker(self):
   self.assertEqual(shim._task091_table_cell_selection_presses('$42.8M'),6)
