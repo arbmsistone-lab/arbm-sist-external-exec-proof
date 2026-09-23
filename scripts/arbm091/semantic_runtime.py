@@ -33,6 +33,7 @@ def _foreground_sha(window_state):
 def _snapshot(window_state):
     return {
         "deck_slide_shapes":copy.deepcopy(window_state.get("deck_slide_shapes",{})),
+        "deck_slide_charts":copy.deepcopy(window_state.get("deck_slide_charts",{})),
         "deck_file":copy.deepcopy(window_state.get("deck_file",{})),
     }
 
