@@ -70,7 +70,40 @@ def normalize_deck(window_state):
                 "geometry":_geometry(row),
                 "font_sizes":tuple(int(v) for v in (row.get("font_sizes") or []) if isinstance(v,int)),
                 "fill_rgb":str(row.get("fill_rgb") or "").upper(),
+                "categories":(),
+                "series":(),
             }
+    charts=window_state.get("deck_slide_charts",{}) if isinstance(window_state,dict) else {}
+    if isinstance(charts,dict):
+        for slide_s,rows in charts.items():
+            try:
+                slide=int(slide_s)
+            except Exception as exc:
+                raise SemanticTransactionError("TASK091_CHART_SLIDE_KEY_INVALID") from exc
+            if not isinstance(rows,list):
+                raise SemanticTransactionError("TASK091_SLIDE_CHARTS_INVALID")
+            for row in rows:
+                if not isinstance(row,dict):
+                    continue
+                normalized_series=[]
+                for series in row.get("series") or []:
+                    if not isinstance(series,dict):
+                        continue
+                    normalized_series.append((
+                        str(series.get("name") or ""),
+                        tuple(float(v) for v in (series.get("values") or [])),
+                    ))
+                chart_row={
+                    "slide":slide,"kind":"chart","id":int(row.get("id") or 0),
+                    "name":str(row.get("name") or ""),"frame_id":0,"row":-1,"col":-1,
+                    "text":"","geometry":(),"font_sizes":(),"fill_rgb":"",
+                    "categories":tuple(str(v) for v in (row.get("categories") or [])),
+                    "series":tuple(normalized_series),
+                }
+                key=target_key(slide,chart_row)
+                if key in result:
+                    raise SemanticTransactionError("TASK091_STRUCTURAL_IDENTITY_DUPLICATE")
+                result[key]=chart_row
     if not result:
         raise SemanticTransactionError("TASK091_OOXML_STATE_EMPTY")
     return result
@@ -149,7 +182,7 @@ def expected_targets_for_pair(window_state, spatial_plan, old, new):
 def semantic_diff(before, after):
     rows=[]
     all_keys=sorted(set(before)|set(after),key=repr)
-    structural_fields=("slide","kind","id","name","frame_id","row","col","geometry","font_sizes","fill_rgb")
+    structural_fields=("slide","kind","id","name","frame_id","row","col","geometry","font_sizes","fill_rgb","categories","series")
     for key in all_keys:
         if key not in before:
             rows.append({"key":key,"field":"target","before":None,"after":after[key]})
