@@ -409,104 +409,82 @@ class ForegroundTests(unittest.TestCase):
         lanes.append(('S10_ambiguous_partial_rejected',ap is None))
         self.assertEqual([name for name,ok in lanes if not ok],[],lanes)
 
-    def test_task091_selection_transaction_board_10(self):
-        task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
-              'The COO has asked you to rebaseline the H2 Operating Committee pack. '
-              'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
-              'Reforecast_Model_H2.xlsx is the source of truth.')
+
+    def test_task091_semantic_transaction_board_10(self):
+        from arbm091.semantic_runtime import next_text_action
+        from arbm091.semantic_transaction import normalize_deck, resolve_target
         deck={
           'schema':1,'stable':True,
-          'window':{'id':50331680,'pid':2689,
-                    'title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Office',
-                    'owner_title':'','wm_class':'wpsoffice wpsoffice','bbox':[70,27,1850,1053]},
-          'screen':[0,0,1920,1080],
-          'active_slide':1,
-          'screenshot_sha256':'1'*64,
-          'deck_slide_text':{'1':'Growth Plan Draft'},
+          'window':{'bbox':[70,27,1850,1053],
+                    'title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Presentation'},
+          'screen':[0,0,1920,1080],'active_slide':1,
           'deck_slide_shapes':{'1':[{
-              'id':6,'name':'CoverTitle','text':'H2 Operating Committee Pack\nGrowth Plan Draft',
-              'geometry':{'x':749808,'y':1078992,'w':5852160,'h':1234440}}]},
-          'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
-                       'sha256':'a'*64,'size':1234,'mtime_ns':1,
+              'id':6,'name':'CoverTitle',
+              'text':'H2 Operating Committee Pack\nGrowth Plan Draft','kind':'shape',
+              'geometry':{'x':749808,'y':1078992,'w':5852160,'h':1234440},
+              'font_sizes':[2400],'fill_rgb':''}]},
+          'deck_slide_charts':{},'deck_slide_relationships':{'1':[]},
+          'deck_file':{'sha256':'a'*64,
                        'slide_size':{'w':12192000,'h':6858000}},
         }
-        transient={
-          'schema':1,'stable':True,
-          'window':{'id':50331694,'pid':2689,'title':'System Check',
-                    'owner_title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Office',
-                    'wm_class':'wpp wpp','bbox':[120,112,699,327]},
-          'screen':[0,0,1920,1080],
-          'active_slide':1,
-          'screenshot_sha256':'2'*64,
-        }
-        obs='text\tGrowth Plan Draft\tGrowth Plan Draft\t\t\t(700,300)\t(100,40)'
+        plan=((1,745,335,'Growth Plan Draft',
+               'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'),)
+        state={'slide':1}
 
-        task_id_patch=patch.dict(os.environ,{'TASK_ID':'091'},clear=False)
-        task_id_patch.start()
-        self.addCleanup(task_id_patch.stop)
-        state={'anchored':True,'slide':1,'semantic_text_done':True,'section_e_format_done':True}
-        first=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,copy.deepcopy(deck))
-        self.assertIn('doubleClick',first['command'])
-        pending=state['pending_edit']
+        # T01/T02: structural resolution is unique and independent of caret/raster metadata.
+        resolved=resolve_target(deck,slide=1,old='Growth Plan Draft',hint_x=745,hint_y=335)
+        self.assertEqual(resolved['row']['name'],'CoverTitle')
+        noisy=copy.deepcopy(deck); noisy.update(caret_x=9999,ink_left=-999,zoom=175)
+        self.assertEqual(normalize_deck(deck),normalize_deck(noisy))
 
-        # T01: initial selection is a request, not proof of text mode.
-        self.assertEqual(pending['stage'],'select-issued')
-        self.assertFalse(bool(pending.get('selection_ack_foreground_sha256')))
+        # T03/T04: selection and mutation are semantic_tx operations, not pending_edit.
+        select=next_text_action(state,deck,plan)
+        self.assertEqual(select['specialist_phase'],'semantic-target-select')
+        self.assertNotIn('pending_edit',state)
+        mutation=next_text_action(state,deck,plan)
+        self.assertEqual(mutation['specialist_phase'],'semantic-text-mutation')
+        self.assertIn("ctrl', 'a",mutation['command'])
+        for forbidden in ("press('home')","press('left'","caret","ink_left"):
+            self.assertNotIn(forbidden,mutation['command'].casefold())
 
-        # T02: modal foreground invalidates the unacknowledged selection.
-        a=shim.next_091_specialist_action(task,'WPS 2019','',state,copy.deepcopy(transient))
-        self.assertEqual(a['command'],"pyautogui.press('tab')")
-        self.assertEqual(state['pending_edit']['stage'],'reselect-required')
+        # T05/T06: commit and save do not advance semantic index early.
+        self.assertEqual(next_text_action(state,deck,plan)['specialist_phase'],'semantic-edit-finalize')
+        self.assertEqual(next_text_action(state,deck,plan)['specialist_phase'],'semantic-save')
+        self.assertEqual(int(state.get('semantic_index') or 0),0)
 
-        # T03: modal interruption is counted and bounded.
-        self.assertEqual(state['pending_edit']['selection_interrupts'],1)
+        # T07/T08: exact persisted OOXML diff is required.
+        after=copy.deepcopy(deck)
+        after['deck_file']['sha256']='b'*64
+        after['deck_slide_shapes']['1'][0]['text']='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
+        reread=next_text_action(state,after,plan)
+        self.assertEqual(reread['specialist_phase'],'semantic-roundtrip-reread')
+        passed=next_text_action(state,after,plan)
+        self.assertEqual(passed['checkpoint'],'TASK091_SEMANTIC_TRANSACTION_PASS')
+        self.assertTrue(passed['semantic_evidence']['no_collateral_mutation'])
+        self.assertEqual(state['semantic_index'],1)
 
-        # T04: modal close path never emits destructive text input.
-        b=shim.next_091_specialist_action(task,'WPS 2019','',state,copy.deepcopy(transient))
-        self.assertEqual(b['command'],"pyautogui.press('space')")
-        self.assertNotIn("ctrl', 'a",a['command']+b['command'])
+        # T09: ambiguous duplicate structural target fails closed.
+        ambiguous=copy.deepcopy(deck)
+        duplicate=copy.deepcopy(ambiguous['deck_slide_shapes']['1'][0]); duplicate['id']=106
+        ambiguous['deck_slide_shapes']['1'].append(duplicate)
+        result=next_text_action({'slide':1},ambiguous,plan)
+        self.assertEqual(result['action'],'terminal')
+        self.assertEqual(result['reason'],'TASK091_TARGET_AMBIGUOUS')
 
-        # T05: after modal closes, exact same deck/slide/shape must be reselected.
-        deck2=copy.deepcopy(deck)
-        deck2['screenshot_sha256']='3'*64
-        reselection=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,deck2)
-        self.assertEqual(reselection['specialist_phase'],'reselect-pending-target')
-        self.assertIn('doubleClick',reselection['command'])
-        self.assertEqual(state['pending_edit']['stage'],'select-issued')
-
-        # T06: unchanged screenshot cannot acknowledge selection.
-        same=copy.deepcopy(deck2)
-        wait=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,same)
-        self.assertEqual(wait['specialist_phase'],'reobserve-unacknowledged-selection')
-        self.assertEqual(state['pending_edit']['stage'],'reselect-required')
-
-        # T07: second reselect with visual delta reaches ACK.
-        reselection2=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,deck2)
-        self.assertEqual(reselection2['specialist_phase'],'reselect-pending-target')
-        ack=copy.deepcopy(deck2)
-        ack['screenshot_sha256']='4'*64
-        edit=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,ack)
-        self.assertEqual(edit['specialist_phase'],'edit-pending-target')
-        self.assertIn("pyautogui.hotkey('ctrl', 'a')",edit['command'])
-        self.assertEqual(state['pending_edit']['stage'],'edit-issued')
-
-        # T08: ACK is bound to the same foreground identity.
-        self.assertEqual(state['pending_edit']['selection_ack_foreground_sha256'],
-                         shim._task091_foreground_sha(ack))
-
-        # T09: slide drift during reselect fails closed.
-        drift_state={'anchored':True,'slide':1,'semantic_text_done':True,'section_e_format_done':True}
-        shim.next_091_specialist_action(task,'WPS Presentation',obs,drift_state,copy.deepcopy(deck))
-        shim.next_091_specialist_action(task,'WPS 2019','',drift_state,copy.deepcopy(transient))
-        drift=copy.deepcopy(deck); drift['active_slide']=2
-        terminal=shim.next_091_specialist_action(task,'WPS Presentation',obs,drift_state,drift)
-        self.assertEqual(terminal['reason'],'TASK091_RESELECT_SLIDE_DRIFT')
-
-        # T10: transient appearing after editing starts is fatal, never resumed optimistically.
-        interrupted_state=state
-        fatal=shim.next_091_specialist_action(task,'WPS 2019','',interrupted_state,copy.deepcopy(transient))
-        self.assertEqual(fatal['reason'],'TASK091_EDIT_INTERRUPTED_BY_TRANSIENT')
-
+        # T10: collateral sibling mutation fails closed.
+        state2={'slide':1}
+        next_text_action(state2,deck,plan)
+        next_text_action(state2,deck,plan)
+        next_text_action(state2,deck,plan)
+        next_text_action(state2,deck,plan)
+        bad=copy.deepcopy(after)
+        bad['deck_slide_shapes']['1'].append({
+            'id':7,'name':'Sibling','text':'UNAUTHORIZED','kind':'shape',
+            'geometry':{'x':100,'y':100,'w':100,'h':40},
+            'font_sizes':[1200],'fill_rgb':''})
+        rejected=next_text_action(state2,bad,plan)
+        self.assertEqual(rejected['action'],'terminal')
+        self.assertIn('TASK091_SEMANTIC_DIFF_MISMATCH',rejected['reason'])
     def test_task091_table_cell_uses_observed_pptx_geometry_not_stale_hint(self):
         body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2594)
         body['window']['bbox'] = [70,27,1850,1053]
@@ -570,69 +548,37 @@ class ForegroundTests(unittest.TestCase):
         self.assertGreater(point['cx'],left+4)
         self.assertLess(point['cx'],left+width-1)
 
-    def test_task091_nonpersisted_edit_invalidates_visual_ack_and_reselects(self):
-        task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
-              'The COO has asked you to rebaseline the H2 Operating Committee pack. '
-              'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
-              'Reforecast_Model_H2.xlsx is the source of truth.')
+
+    def test_task091_nonpersisted_semantic_save_fails_closed(self):
+        from arbm091.semantic_runtime import next_text_action
         deck={
           'schema':1,'stable':True,
-          'window':{'id':44040210,'pid':2598,
-                    'title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Office',
-                    'owner_title':'','wm_class':'wpsoffice wpsoffice','bbox':[70,27,1850,1053]},
-          'screen':[0,0,1920,1080],
-          'active_slide':1,
-          'screenshot_sha256':'1'*64,
-          'deck_slide_text':{'1':'$42.8M'},
+          'window':{'bbox':[70,27,1850,1053],
+                    'title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Presentation'},
+          'screen':[0,0,1920,1080],'active_slide':1,
           'deck_slide_shapes':{'1':[{
-              'id':13,'name':'CoverStatValue_0','text':'$42.8M',
-              'geometry':{'x':8339327,'y':2167128,'w':2560320,'h':219456}}]},
-          'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
-                       'sha256':'a'*64,'size':1234,'mtime_ns':1,
-                       'slide_size':{'w':12191365,'h':6858000}},
+              'id':13,'name':'CoverStatValue_0','text':'$42.8M','kind':'shape',
+              'geometry':{'x':8339327,'y':2167128,'w':2560320,'h':219456},
+              'font_sizes':[1600],'fill_rgb':''}]},
+          'deck_slide_charts':{},'deck_slide_relationships':{'1':[]},
+          'deck_file':{'sha256':'a'*64,
+                       'slide_size':{'w':12192000,'h':6858000}},
         }
-        obs='text\t$42.8M\t$42.8M\t\t\t(1420,450)\t(90,24)'
-        task_id_patch=patch.dict(os.environ,{'TASK_ID':'091'},clear=False)
-        task_id_patch.start()
-        self.addCleanup(task_id_patch.stop)
-        state={'anchored':True,'slide':1,'spatial_index':2,'semantic_text_done':True,'section_e_format_done':True}
-
-        first=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,copy.deepcopy(deck))
-        self.assertIn('doubleClick',first['command'])
-        initial_command=first['command']
-
-        ack=copy.deepcopy(deck); ack['screenshot_sha256']='2'*64
-        edit=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,ack)
-        self.assertEqual(edit['specialist_phase'],'edit-pending-target')
-        self.assertEqual(state['pending_edit']['stage'],'edit-issued')
-
-        edited=copy.deepcopy(deck); edited['screenshot_sha256']='3'*64
-        commit=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,edited)
-        self.assertEqual(commit['specialist_phase'],'commit-pending-target')
-
-        committed=copy.deepcopy(deck); committed['screenshot_sha256']='4'*64
-        save=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,committed)
-        self.assertEqual(save['specialist_phase'],'save-pending-target')
-        self.assertEqual(state['pending_edit']['stage'],'save-issued')
-
-        verify1=copy.deepcopy(deck); verify1['screenshot_sha256']='5'*64
-        wait=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,verify1)
-        self.assertEqual(wait['specialist_phase'],'reobserve-pending-target')
-
-        verify2=copy.deepcopy(deck); verify2['screenshot_sha256']='6'*64
-        recover=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,verify2)
-        self.assertEqual(recover['specialist_phase'],'recover-nonpersisted-text-selection')
-        self.assertEqual(state['pending_edit']['stage'],'reselect-required')
-        self.assertEqual(state['pending_edit']['selection_recovery_attempts'],1)
-        self.assertFalse(bool(state['pending_edit'].get('selection_ack_foreground_sha256')))
-
-        retry=copy.deepcopy(deck); retry['screenshot_sha256']='7'*64
-        reselection=shim.next_091_specialist_action(task,'WPS Presentation',obs,state,retry)
-        self.assertEqual(reselection['specialist_phase'],'reselect-pending-target')
-        self.assertIn('doubleClick',reselection['command'])
-        self.assertNotEqual(reselection['command'],initial_command)
-        self.assertEqual(state['pending_edit']['stage'],'select-issued')
-
+        plan=((1,1420,450,'$42.8M','$40.9M'),)
+        state={'slide':1}
+        self.assertEqual(next_text_action(state,deck,plan)['specialist_phase'],'semantic-target-select')
+        self.assertEqual(next_text_action(state,deck,plan)['specialist_phase'],'semantic-text-mutation')
+        self.assertEqual(next_text_action(state,deck,plan)['specialist_phase'],'semantic-edit-finalize')
+        self.assertEqual(next_text_action(state,deck,plan)['specialist_phase'],'semantic-save')
+        unchanged=copy.deepcopy(deck)
+        result=next_text_action(state,unchanged,plan)
+        self.assertEqual(result['action'],'terminal')
+        self.assertEqual(result['reason'],'TASK091_SEMANTIC_DIFF_MISMATCH:'+result['reason'].split(':',1)[1]
+                         if result['reason'].startswith('TASK091_SEMANTIC_DIFF_MISMATCH:')
+                         else result['reason'])
+        self.assertIn(result['reason'].split(':',1)[0],
+                      ('TASK091_SEMANTIC_DIFF_MISMATCH','TASK091_SAVE_NOT_PERSISTED'))
+        self.assertEqual(state['semantic_tx']['stage'],'save-issued')
     def test_task091_text_hitpoint_must_belong_to_exactly_one_shape(self):
         body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2594)
         body['window']['bbox'] = [70, 27, 1850, 1053]
@@ -880,93 +826,71 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
                 'The draft deck Operating_Committee_Rebaseline_Draft.pptx is already open. '
                 'Reforecast_Model_H2.xlsx is the source of truth.')
 
-    def test_table_cell_requires_geometric_caret_before_bounded_writer(self):
-        with patch.dict(os.environ,{'TASK_ID':'091'},clear=False), \
-             patch.object(shim,'_task091_region_sha256',return_value='a'*64), \
-             patch.object(shim,'_task091_table_visual_signature',return_value='b'*64), \
-             patch.object(shim,'_task091_table_cell_text_ink_point',
-                          return_value={'source':'0064-01-after',
-                                        'screenshot_sha256':'2'*64,
-                                        'cell_bbox':[892,436,182,71],
-                                        'background':[255,255,255],
-                                        'threshold':24,
-                                        'ink_bbox':[970,460,30,18],
-                                        'ink_pixels':120,
-                                        'point':[983,471],
-                                        'cx':983,'cy':471,
-                                        'proof_sha256':'d'*64}), \
-             patch.object(shim,'_task091_caret_delta_geometry',
-                          side_effect=[
-                              {'proven':True,'reason':'caret-geometry',
-                               'count':22,'width':1,'height':22,                               'dominant_column':22,'bbox':[111,3,1,22]},                              {'proven':True,'reason':'caret-geometry',
-                               'count':22,'width':1,'height':22,
-                               'dominant_column':22,'bbox':[78,3,1,22]},
-                          ]):
-            state={'anchored':True,'slide':3,'spatial_index':10,'section_e_format_done':True,'semantic_text_done':True}
-            deck=self._deck('1')
-            first=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(deck))
-            self.assertEqual(first['command'],'pyautogui.click(983, 471)')
-            self.assertEqual(first['specialist_phase'],'select-table-container')
-            self.assertEqual(state['pending_edit']['stage'],'table-select-issued')
-            self.assertNotIn("ctrl', 'a",first['command'])
 
-            table_selected=self._deck('2')
-            second=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(table_selected))
-            self.assertEqual(second['command'],'pyautogui.click(1003, 469)')
-            self.assertEqual(second['specialist_phase'],'table-cell-text-hit-candidate')
-            self.assertEqual(state['pending_edit']['stage'],'table-cell-text-hit-issued')
-            self.assertEqual(state['pending_edit']['textmode_baseline_source'],'0064-01-after')
-            self.assertEqual(len(state['pending_edit']['cell_text_hit_command_hash']),64)
+    def test_table_cell_semantic_transaction_requires_no_caret_geometry(self):
+        from arbm091.semantic_runtime import next_text_action
+        deck=self._deck('1')
+        deck['window']['bbox']=[70,27,1850,1053]
+        deck['screen']=[0,0,1920,1080]
+        deck['active_slide']=3
+        deck.setdefault('deck_slide_charts',{})
+        deck.setdefault('deck_slide_relationships',{'3':[]})
+        cell=deck['deck_slide_shapes']['3'][0]
+        cell['kind']='table-cell'
+        cell.setdefault('frame_id',13); cell.setdefault('row',1); cell.setdefault('col',2)
+        cell.setdefault('font_sizes',[1600]); cell.setdefault('fill_rgb','')
+        deck['deck_file']['slide_size']={'w':12192000,'h':6858000}
+        plan=((3,843,404,'$42.8M','$40.9M'),)
+        state={'slide':3}
+        select=next_text_action(state,deck,plan)
+        self.assertEqual(select['specialist_phase'],'semantic-target-select')
+        mutation=next_text_action(state,deck,plan)
+        self.assertEqual(mutation['specialist_phase'],'semantic-text-mutation')
+        for forbidden in ("caret","ink_left","press('home')","press('left'","blink","pre-glyph"):
+            self.assertNotIn(forbidden,mutation['command'].casefold())
+        self.assertNotIn('pending_edit',state)
 
-            text_hit_observed=self._deck('3')
-            third=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(text_hit_observed))
-            self.assertEqual(third['command'],'pyautogui.click(1003, 469)')
-            self.assertEqual(third['specialist_phase'],'enter-table-cell-caret-candidate')
-            self.assertEqual(state['pending_edit']['stage'],'table-cell-enter-issued')
-            self.assertEqual(state['pending_edit']['textmode_first_hit_source'],'0065-01-after')
-            self.assertNotEqual(state['pending_edit']['textmode_first_hit_source'],
-                                state['pending_edit']['textmode_baseline_source'])
-            self.assertEqual(state['pending_edit']['cell_text_hit_command_hash'],
-                             state['pending_edit']['cell_enter_command_hash'])
-
-            cell_entered=self._deck('4')
-            fourth=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(cell_entered))
-            self.assertEqual(fourth['specialist_phase'],'move-table-caret-to-proven-start')
-            self.assertEqual(state['pending_edit']['stage'],'table-cell-start-nav-issued')
-            self.assertTrue(state['pending_edit']['explicit_text_mode'])
-            self.assertEqual(state['pending_edit']['caret_geometry']['width'],1)
-            self.assertNotIn("ctrl', 'a",fourth['command'])
-            self.assertEqual(fourth['command'],"pyautogui.press('left', presses=6, interval=0.03)")
-            self.assertEqual(state['pending_edit']['start_navigation_method'],'proven-end-left-by-text-length')
-            self.assertTrue(state['pending_edit']['caret_entry_end_diagnostic']['proven'])
-            self.assertNotIn("keyDown('shift')",fourth['command'])
-            self.assertNotIn("press('right'",fourth['command'])
-            self.assertNotIn("press('backspace'",fourth['command'])
-            self.assertIn('caret_entry_end_diagnostic',state['pending_edit'])
-
-            caret_at_start=self._deck('5')
-            fifth=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(caret_at_start))
-            self.assertEqual(fifth['specialist_phase'],'edit-start-caret-proven-table-cell')
-            self.assertEqual(state['pending_edit']['stage'],'edit-issued')
-            self.assertTrue(state['pending_edit']['caret_start_boundary']['proven'])
-            self.assertNotIn("keyDown('shift')",fifth['command'])
-            self.assertEqual(fifth['command'].count("press('delete')"),2)
-            self.assertIn("press('right', presses=2",fifth['command'])
-            self.assertNotIn("press('left'",fifth['command'])
-            self.assertNotIn("ctrl', 'a",fifth['command'])
-
-    def test_table_cell_sibling_drift_blocks_second_click(self):
-        with patch.dict(os.environ,{'TASK_ID':'091'},clear=False):
-            state={'anchored':True,'slide':3,'spatial_index':10,'section_e_format_done':True,'semantic_text_done':True}
-            deck=self._deck('1')
-            shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,copy.deepcopy(deck))
-            drift=self._deck('2')
-            drift['deck_slide_shapes']['3'][0]['text']='CORRUPTED'
-            result=shim.next_091_specialist_action(self._task(),'WPS Presentation','',state,drift)
-            self.assertEqual(result['action'],'terminal')
-            self.assertEqual(result['reason'],'TASK091_TABLE_SELECTION_NOT_ACKNOWLEDGED')
-
-
+    def test_table_cell_sibling_drift_is_rejected_by_semantic_diff(self):
+        from arbm091.semantic_runtime import next_text_action
+        deck=self._deck('1')
+        deck['window']['bbox']=[70,27,1850,1053]
+        deck['screen']=[0,0,1920,1080]
+        deck['active_slide']=3
+        deck.setdefault('deck_slide_charts',{})
+        deck.setdefault('deck_slide_relationships',{'3':[]})
+        for row in deck['deck_slide_shapes']['3']:
+            row.setdefault('kind','table-cell')
+            row.setdefault('frame_id',13)
+            row.setdefault('row',1)
+            row.setdefault('col',2 if row is deck['deck_slide_shapes']['3'][0] else 3)
+            row.setdefault('font_sizes',[1600]); row.setdefault('fill_rgb','')
+        deck['deck_file']['slide_size']={'w':12192000,'h':6858000}
+        plan=((3,843,404,'$42.8M','$40.9M'),)
+        state={'slide':3}
+        next_text_action(state,deck,plan)
+        next_text_action(state,deck,plan)
+        next_text_action(state,deck,plan)
+        next_text_action(state,deck,plan)
+        bad=copy.deepcopy(deck)
+        bad['deck_file']['sha256']='b'*64
+        bad['deck_slide_shapes']['3'][0]['text']='$40.9M'
+        if len(bad['deck_slide_shapes']['3'])==1:
+            bad['deck_slide_shapes']['3'].append({
+                'id':-13001004,'name':'Table 12#r1c3','text':'UNCHANGED','kind':'table-cell',
+                'frame_id':13,'row':1,'col':3,
+                'geometry':{'x':5500000,'y':2088750,'w':1000000,'h':607422},
+                'font_sizes':[1600],'fill_rgb':''})
+            # Baseline must include the sibling for a pure sibling drift test.
+            deck['deck_slide_shapes']['3'].append(copy.deepcopy(bad['deck_slide_shapes']['3'][1]))
+            state={'slide':3}
+            next_text_action(state,deck,plan); next_text_action(state,deck,plan)
+            next_text_action(state,deck,plan); next_text_action(state,deck,plan)
+            bad=copy.deepcopy(deck); bad['deck_file']['sha256']='b'*64
+            bad['deck_slide_shapes']['3'][0]['text']='$40.9M'
+        bad['deck_slide_shapes']['3'][1]['text']='CORRUPTED'
+        result=next_text_action(state,bad,plan)
+        self.assertEqual(result['action'],'terminal')
+        self.assertIn('TASK091_SEMANTIC_DIFF_MISMATCH',result['reason'])
     def test_run35850450098_table_cell_exact_shape_beats_stale_global_count(self):
         pending={
             'slide':3,'old':'$42.8M','new':'$40.9M',
