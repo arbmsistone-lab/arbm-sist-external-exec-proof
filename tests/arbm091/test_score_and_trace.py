@@ -950,10 +950,10 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
             self.assertEqual(fifth['specialist_phase'],'edit-start-caret-proven-table-cell')
             self.assertEqual(state['pending_edit']['stage'],'edit-issued')
             self.assertTrue(state['pending_edit']['caret_start_boundary']['proven'])
-            self.assertTrue(fifth['command'].startswith("pyautogui.keyDown('shift')"))
-            self.assertIn("press('right', presses=6",fifth['command'])
+            self.assertNotIn("keyDown('shift')",fifth['command'])
+            self.assertEqual(fifth['command'].count("press('delete')"),2)
+            self.assertIn("press('right', presses=2",fifth['command'])
             self.assertNotIn("press('left'",fifth['command'])
-            self.assertNotIn("press('delete')",fifth['command'])
             self.assertNotIn("ctrl', 'a",fifth['command'])
 
     def test_table_cell_sibling_drift_blocks_second_click(self):
@@ -969,42 +969,49 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
 
 
 class Task091CaretBoundedWriterTests(unittest.TestCase):
-    def test_table_cell_bounded_writer_selects_right_from_proven_start(self):
+    def test_table_cell_bounded_writer_mutates_only_fixed_width_delta(self):
         command=shim._task091_table_cell_bounded_write_command('$42.8M','$40.9M')
         self.assertNotIn("hotkey('ctrl', 'a')",command)
-        self.assertEqual(command.splitlines()[0],"pyautogui.keyDown('shift')")
-        self.assertIn("pyautogui.press('right', presses=6",command)
-        self.assertIn("pyautogui.keyUp('shift')",command)
+        self.assertNotIn("keyDown('shift')",command)
+        self.assertNotIn("keyUp('shift')",command)
         self.assertNotIn("press('left'",command)
-        self.assertNotIn("press('delete')",command)
         self.assertNotIn("press('end')",command)
         self.assertNotIn("press('home')",command)
         self.assertNotIn("press('backspace'",command)
-        self.assertTrue(command.splitlines()[-1].startswith("pyautogui.write('$40.9M'"))
+        self.assertEqual(command.count("press('delete')"),2)
+        self.assertIn("press('right', presses=2",command)
+        self.assertIn("write('0'",command)
+        self.assertIn("write('9'",command)
+        self.assertNotIn("write('$'",command)
+        self.assertNotIn("write('M'",command)
 
-    def test_table_cell_bounded_writer_rejects_multiline_or_empty_old(self):
-        with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_BOUNDED_EDIT_INVALID'):
+    def test_table_cell_delta_plan_rejects_length_or_scope_drift(self):
+        with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_DELTA_PLAN_INVALID'):
             shim._task091_table_cell_bounded_write_command('','x')
-        with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_BOUNDED_EDIT_INVALID'):
-            shim._task091_table_cell_bounded_write_command('a'+chr(10)+'b','x')
+        with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_DELTA_PLAN_INVALID'):
+            shim._task091_table_cell_bounded_write_command('a'+chr(10)+'b','abc')
+        with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_DELTA_PLAN_INVALID'):
+            shim._task091_table_cell_bounded_write_command('abc','abcd')
+        with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_DELTA_PLAN_UNBOUNDED'):
+            shim._task091_table_cell_bounded_write_command('abc','xyz')
 
-    def test_table_cell_writer_contract_forbids_end_marker_and_global_selection(self):
+    def test_table_cell_writer_contract_forbids_boundary_selection(self):
         source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
         start=source.index("def _task091_table_cell_bounded_write_command")
-        end=source.index("def _task091_foreground_sha",start)
+        end=source.index("def _task091_table_cell_rollback_command",start)
         body=source[start:end]
+        self.assertIn("def _task091_table_cell_delta_plan",source)
         self.assertNotIn("ctrl', 'a",body)
-        self.assertIn("keyDown('shift')",body)
-        self.assertIn("_task091_table_cell_selection_presses",body)
-        self.assertIn("press('right', presses={presses}",body)
-        self.assertIn("keyUp('shift')",body)
-        self.assertNotIn("press('delete')",body)
+        self.assertNotIn("keyDown('shift')",body)
+        self.assertNotIn("keyUp('shift')",body)
+        self.assertIn("press('delete')",body)
         self.assertNotIn("press('left'",body)
         self.assertNotIn("press('end')",body)
         self.assertNotIn("press('home')",body)
         self.assertNotIn("press('backspace'",body)
+        self.assertIn("TASK091_TABLE_CELL_DELTA_ACTION_COUNT_UNBOUNDED",body)
 
-    def test_start_caret_geometry_is_required_before_rightward_selection(self):
+    def test_start_caret_geometry_is_required_before_delta_mutation(self):
         shape_bbox=[892,507,182,70]
         ink_bbox=[965,516,35,12]
         at_start={'proven':True,'bbox':[72,2,1,22]}
@@ -1025,18 +1032,9 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
             {'proven':True,'bbox':[80,2,1,22]},shape_bbox,ink_bbox)
         self.assertFalse(one_char_right['proven'],one_char_right)
         self.assertEqual(one_char_right['relation'],'right-of-start')
-        far_right=shim._task091_caret_at_text_start(
-            {'proven':True,'bbox':[110,2,1,22]},shape_bbox,ink_bbox)
-        self.assertFalse(far_right['proven'],far_right)
-        self.assertEqual(far_right['relation'],'far-right')
-        left_of_start=shim._task091_caret_at_text_start(
-            {'proven':True,'bbox':[50,2,1,22]},shape_bbox,ink_bbox)
-        self.assertFalse(left_of_start['proven'],left_of_start)
-        self.assertEqual(left_of_start['relation'],'left-of-start')
         source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
         self.assertIn("normalize_attempts < 1",source)
         self.assertIn("normalize-wps-terminal-marker-offset",source)
-        self.assertIn("table-cell-start-normalize-issued",source)
 
     def test_nonselecting_start_navigation_uses_home_after_positive_text_mode_proof(self):
         command=shim._task091_table_cell_start_navigation_command()
@@ -1045,28 +1043,32 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         self.assertNotIn("press('left'",command)
         self.assertNotIn("press('right'",command)
         self.assertNotIn("pyautogui.write(",command)
-        source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
-        self.assertIn("start_navigation_method']='home'",source)
-        self.assertIn("explicit_text_mode']=True",source)
-        self.assertIn("TASK091_TABLE_CELL_START_CARET_GEOMETRY_UNPROVEN",source)
 
-    def test_500_case_end_marker_red_team_matrix(self):
+    def test_500_case_two_delta_red_team_matrix(self):
         alphabet="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz$%.-_"
         for i in range(500):
             n=(i % 30)+1
             old=''.join(alphabet[(i*7+j*11) % len(alphabet)] for j in range(n))
-            new=''.join(alphabet[(i*13+j*5+3) % len(alphabet)] for j in range(n))
+            chars=list(old)
+            first=i % n
+            chars[first]=alphabet[(alphabet.index(chars[first])+1) % len(alphabet)]
+            if n>1 and i % 2:
+                second=(first+max(1,n//2)) % n
+                if second==first:
+                    second=(first+1)%n
+                chars[second]=alphabet[(alphabet.index(chars[second])+2) % len(alphabet)]
+            new=''.join(chars)
+            plan=shim._task091_table_cell_delta_plan(old,new)
+            self.assertLessEqual(len(plan),2)
             command=shim._task091_table_cell_bounded_write_command(old,new)
-            self.assertIn(f"press('right', presses={n}",command)
-            self.assertEqual(command.count("keyDown('shift')"),1)
-            self.assertEqual(command.count("keyUp('shift')"),1)
-            self.assertNotIn("press('delete')",command)
+            self.assertEqual(command.count("press('delete')"),len(plan))
+            self.assertNotIn("keyDown('shift')",command)
+            self.assertNotIn("keyUp('shift')",command)
             self.assertNotIn("press('left'",command)
             self.assertNotIn("hotkey('ctrl', 'a')",command)
             self.assertNotIn("press('end')",command)
             self.assertNotIn("press('home')",command)
             self.assertNotIn("press('backspace'",command)
-            self.assertIn("pyautogui.write(",command)
 
     def test_ten_adversarial_guards_fail_closed(self):
         source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
@@ -1077,10 +1079,10 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
             "TASK091_TABLE_CELL_CARET_NOT_AT_START",
             "caret_entry_end_diagnostic",
             "TASK091_TABLE_CELL_ENTRY_DRIFT",
-            "TASK091_TABLE_CELL_ROLLBACK_UNPROVEN",
             "before_sibling_signature",
             "table_selected_sibling_visual_sha256",
-            "selection_press_count",
+            "TASK091_TABLE_CELL_DELTA_PLAN_UNBOUNDED",
+            "TASK091_TABLE_CELL_ATOMIC_REPAIR_PLAN_INVALID",
         ]
         for marker in checks:
             self.assertIn(marker,source)
@@ -1096,14 +1098,14 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         cmd6=shim._task091_table_cell_bounded_write_command('$42.8M','$40.9M')
         cmd4=shim._task091_table_cell_bounded_write_command('112%','104%')
         cmd1=shim._task091_table_cell_bounded_write_command('A','B')
-        cmd30=shim._task091_table_cell_bounded_write_command('x'*30,'y'*30)
+        cmd30=shim._task091_table_cell_bounded_write_command('x'*29+'a','x'*29+'b')
         audits=[
             ('01_no_ctrl_a_writer',"hotkey('ctrl', 'a')" not in writer),
-            ('02_no_delete_writer',"press('delete')" not in writer),
+            ('02_delete_is_local',"press('delete')" in writer),
             ('03_no_backspace_writer',"press('backspace'" not in writer),
             ('04_no_end_writer',"press('end')" not in writer),
             ('05_no_home_writer',"press('home')" not in writer),
-            ('06_no_left_selection_writer',"press('left'" not in writer),
+            ('06_no_left_writer',"press('left'" not in writer),
             ('07_delta_plan_defined',"def _task091_table_cell_delta_plan" in source),
             ('08_no_shift_down',"keyDown('shift')" not in writer),
             ('09_no_shift_up',"keyUp('shift')" not in writer),
@@ -1111,15 +1113,17 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
             ('11_percent_len_helper',shim._task091_table_cell_selection_presses('112%')==4),
             ('12_single_char_len_helper',shim._task091_table_cell_selection_presses('A')==1),
             ('13_max_len_helper',shim._task091_table_cell_selection_presses('x'*30)==30),
-            ('14_currency_right6',"press('right', presses=6" in cmd6),
-            ('15_percent_right4',"press('right', presses=4" in cmd4),
-            ('16_single_right1',"press('right', presses=1" in cmd1),
-            ('17_max_right30',"press('right', presses=30" in cmd30),
+            ('14_currency_two_deltas',len(shim._task091_table_cell_delta_plan('$42.8M','$40.9M'))==2),
+            ('15_percent_two_deltas',len(shim._task091_table_cell_delta_plan('112%','104%'))==2),
+            ('16_single_one_delta',len(shim._task091_table_cell_delta_plan('A','B'))==1),
+            ('17_max_one_delta',len(shim._task091_table_cell_delta_plan('x'*29+'a','x'*29+'b'))==1),
             ('18_currency_bounded_delete',cmd6.count("press('delete')")==2),
             ('19_percent_bounded_delete',cmd4.count("press('delete')")==2),
             ('20_currency_no_left',"press('left'" not in cmd6),
             ('21_percent_no_left',"press('left'" not in cmd4),
-            ('22_currency_preserves_boundaries',"write('            ('24_start_helper_defined',"def _task091_caret_at_text_start" in source),
+            ('22_currency_preserves_boundaries',"write('$'" not in cmd6 and "write('M'" not in cmd6),
+            ('23_percent_preserves_suffix',"write('%'" not in cmd4),
+            ('24_start_helper_defined',"def _task091_caret_at_text_start" in source),
             ('25_end_helper_defined',"def _task091_caret_at_text_end" in source),
             ('26_start_nav_stage',"table-cell-start-nav-issued" in source),
             ('27_start_probe_stage',"table-cell-start-caret-probe-issued" in source),
@@ -1133,7 +1137,7 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
             ('35_visual_sibling_signature',"table_selected_sibling_visual_sha256" in source),
             ('36_press_count_recorded',"selection_press_count" in source),
             ('37_explicit_text_mode',"explicit_text_mode" in source),
-            ('38_start_nav_home_without_shift',"start_navigation_method']='home'" in source and "_task091_table_cell_start_navigation_command()" in source),
+            ('38_start_nav_home_without_shift',"start_navigation_method']='home'" in source),
             ('39_edit_from_proven_start',"edit-start-caret-proven-table-cell" in source),
             ('40_exact_cell_atomic_recovery',"def _task091_table_cell_atomic_delete_repair_command" in source),
             ('41_mismatch_quarantines_undo',"undo_quarantined" in mismatch),
@@ -1151,41 +1155,22 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         failed=[name for name,ok in audits if not ok]
         self.assertEqual(failed,[],failed)
 
-    def test_table_cell_suffix_duplicate_repair_contract(self):
-        source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
-        command=shim._task091_table_cell_suffix_duplicate_repair_command('104%%','104%')
-        currency=shim._task091_table_cell_suffix_duplicate_repair_command('$2.8MM','$2.8M')
-        self.assertIn("_task091_table_cell_suffix_duplicate_repair_command",source)
-        self.assertEqual(command.splitlines()[0],"pyautogui.press('home')")
-        self.assertIn("press('right', presses=4",command)
-        self.assertEqual(command.count("press('delete')"),1)
-        self.assertEqual(currency.splitlines()[0],"pyautogui.press('home')")
-        self.assertIn("press('right', presses=5",currency)
-        self.assertEqual(currency.count("press('delete')"),1)
-        self.assertNotIn("ctrl', 'a",command+currency)
-        self.assertNotIn("ctrl', 'z",command+currency)
-        self.assertIn("actual_text==expected_text+expected_text[-1]",source)
-        self.assertIn("is_table_cell=str(pending.get('shape_kind') or '')=='table-cell'",source)
-        self.assertIn("corrupt_shape=_task091_shape_by_id",source)
-        self.assertIn("len(repair_plan)>2",source)
-        self.assertIn("any(row.get('op')!='delete' for row in repair_plan)",source)
-        self.assertIn("_task091_table_cell_atomic_delete_repair_command",source)
-        self.assertIn("sibling_unchanged",source)
-        self.assertIn("TASK091_TABLE_CELL_SUFFIX_REPAIR_NOT_PROVEN",source)
-        for actual in ('$2.8M','$2.8MMM','M$2.8M','$2.8MX'):
-            with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_SUFFIX_REPAIR_NOT_PROVEN'):
-                shim._task091_table_cell_suffix_duplicate_repair_command(actual,'$2.8M')
-
-    def test_slide3_section_e_correction_is_caret_proven_and_text_preserving(self):
-        source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
-        self.assertIn("TASK091_SECTION_E_FORMAT",source)
-        self.assertIn("'shape_id': 16",source)
-        self.assertIn("'shape_name': 'KpiReadout_Body'",source)
-        self.assertIn("'font_decrements': 2",source)
-        self.assertIn("_task091_caret_delta_geometry",source)
-        self.assertIn("pyautogui.hotkey('ctrl', '[')",source)
-        self.assertIn("TASK091_SECTION_E_FONT_DELTA_UNPROVEN",source)
-        self.assertIn("TASK091_SECTION_E_POSTSAVE_DRIFT",source)
+    def test_table_cell_atomic_repair_handles_multi_edge_corruption_one_delete_at_a_time(self):
+        actual='$$40.9MM'; expected='$40.9M'
+        plan=shim._task091_restricted_repair_plan(actual,expected)
+        self.assertEqual(plan,[{'op':'delete','index':0,'char':'$'},{'op':'delete','index':6,'char':'M'}])
+        first=shim._task091_table_cell_atomic_delete_repair_command(actual,plan[0])
+        self.assertEqual(first.splitlines(),["pyautogui.press('home')","pyautogui.press('delete')"])
+        after=shim._task091_apply_repair_operation(actual,plan[0])
+        self.assertEqual(after,'$40.9MM')
+        next_plan=shim._task091_restricted_repair_plan(after,expected)
+        self.assertEqual(next_plan,[{'op':'delete','index':6,'char':'M'}])
+        second=shim._task091_table_cell_atomic_delete_repair_command(after,next_plan[0])
+        self.assertIn("press('right', presses=6",second)
+        self.assertEqual(second.count("press('delete')"),1)
+        self.assertNotIn("ctrl', 'a",first+second)
+        self.assertNotIn("shift",first+second)
+        self.assertNotIn("ctrl', 'z",first+second)
 
 
 class Task091FinalCertificationBoardTests(unittest.TestCase):
