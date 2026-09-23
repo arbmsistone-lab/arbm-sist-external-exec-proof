@@ -13,6 +13,7 @@ from arbm091.semantic_transaction import (
     normalize_deck,
     resolve_target,
     verify_exact_text_transaction,
+    validate_transaction_contract,
 )
 
 SCREEN=[0,0,1920,1080]
@@ -163,6 +164,13 @@ def next_text_action(state,window_state,plan):
         except SemanticTransactionError as exc:
             return _terminal(str(exc))
 
+        try:
+            contract=validate_transaction_contract(
+                window_state,resolved["key"],old,new)
+        except SemanticTransactionError as exc:
+            return _terminal(str(exc))
+        if contract["model_sha256"]!=resolved["model_sha256"]:
+            return _terminal("TASK091_CONTRACT_MODEL_DRIFT")
         state["semantic_tx"]={
             "stage":"select-issued",
             "index":index,"slide":int(slide),"old":str(old),"new":str(new),
@@ -170,6 +178,7 @@ def next_text_action(state,window_state,plan):
             "before_state":before,
             "before_model_sha256":resolved["model_sha256"],
             "before_deck_sha256":str((window_state.get("deck_file") or {}).get("sha256") or ""),
+            "contract":contract,
         }
         return {
             "action":"exec",
@@ -246,25 +255,34 @@ def next_text_action(state,window_state,plan):
             return _terminal(str(exc))
         if roundtrip["model_sha256"]!=str(tx.get("after_model_sha256") or ""):
             return _terminal("TASK091_ROUNDTRIP_MODEL_DRIFT")
+        contract=tx.get("contract") if isinstance(tx.get("contract"),dict) else {}
+        verdict=tx.get("semantic_verdict") if isinstance(tx.get("semantic_verdict"),dict) else {}
         evidence={
-            "contract_validated":True,
-            "target_resolved":True,
-            "target_unique":True,
-            "precondition":True,
-            "mutation_authorized":True,
-            "mutation":True,
-            "save":True,
-            "roundtrip":True,
-            "structural_diff":True,
-            "diff_budget_exact":True,
-            "no_collateral_mutation":True,
-            "semantic_result":True,
+            "contract_validated":contract.get("status")=="PASS",
+            "target_resolved":contract.get("target_resolved") is True,
+            "target_unique":contract.get("target_unique") is True,
+            "precondition":contract.get("precondition") is True,
+            "mutation_authorized":contract.get("mutation_authorized") is True,
+            "mutation":verdict.get("changed_semantic_targets")==1,
+            "save":bool(tx.get("after_deck_sha256"))
+                   and tx.get("after_deck_sha256")!=tx.get("before_deck_sha256"),
+            "roundtrip":roundtrip.get("roundtrip") is True,
+            "structural_diff":verdict.get("structural_diff") is True,
+            "diff_budget_exact":verdict.get("diff_budget_exact") is True,
+            "no_collateral_mutation":verdict.get("no_collateral_mutation") is True
+                                     and verdict.get("collateral_diff")==[],
+            "semantic_result":verdict.get("semantic_result") is True,
             "target_key":list(key),
             "before_model_sha256":tx["before_model_sha256"],
             "after_model_sha256":tx["after_model_sha256"],
             "before_deck_sha256":tx["before_deck_sha256"],
             "after_deck_sha256":tx["after_deck_sha256"],
         }
+        if not all(evidence.get(name) is True for name in (
+                "contract_validated","target_resolved","target_unique","precondition",
+                "mutation_authorized","mutation","save","roundtrip","structural_diff",
+                "diff_budget_exact","no_collateral_mutation","semantic_result")):
+            return _terminal("TASK091_SEMANTIC_EVIDENCE_DERIVATION_FAILED")
         state.setdefault("semantic_evidence",[]).append(evidence)
         state["semantic_tx"]=None
         state["semantic_index"]=int(tx["index"])+1
