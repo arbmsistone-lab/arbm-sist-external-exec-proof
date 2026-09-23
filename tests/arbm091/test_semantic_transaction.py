@@ -124,6 +124,22 @@ class SemanticTransactionTests(unittest.TestCase):
             "PASS",
         )
 
+    def test_unique_contained_shape_text_resolves_without_raster_authority(self):
+        d=deck()
+        d["deck_slide_shapes"]["1"][0]["text"]="Northstar Cloud\nPlanning posture: accelerate growth through H2 scale-up"
+        resolved=resolve_target(
+            d,slide=1,old="Planning posture: accelerate growth through H2 scale-up")
+        self.assertEqual(resolved["match_kind"],"contained")
+        self.assertEqual(resolved["row"]["name"],"CoverArr")
+
+    def test_exact_match_has_priority_over_contained_match(self):
+        d=deck()
+        d["deck_slide_shapes"]["1"].append(
+            shape(9,"Contained","prefix $42.8M suffix",500,100))
+        resolved=resolve_target(d,slide=1,old="$42.8M")
+        self.assertEqual(resolved["match_kind"],"exact")
+        self.assertEqual(resolved["row"]["name"],"CoverArr")
+
 
 if __name__=="__main__":
     unittest.main()
