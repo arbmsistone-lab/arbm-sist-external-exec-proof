@@ -98,11 +98,12 @@ def capture(point):
         title_value = str(window.get('title', ''))
         path = '/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx'
         if 'Operating_Committee_Rebaseline_Draft.pptx' not in title_value or not os.path.isfile(path):
-            return {}, {}, {}, {}, {}
+            return {}, {}, {}, {}, {}, {}, {}
         text_result = {}
         run_result = {}
         shape_result = {}
         chart_result = {}
+        relationship_result = {}
         metadata = {}
         try:
             raw = open(path, 'rb').read()
@@ -199,6 +200,7 @@ def capture(point):
                                        'geometry': geometry, 'kind':'shape',
                                        'font_sizes':font_sizes,'fill_rgb':fill_rgb})
                     rel_targets={}
+                    rel_rows=[]
                     rel_name='ppt/slides/_rels/'+base+'.rels'
                     if rel_name in archive.namelist():
                         try:
@@ -206,10 +208,24 @@ def capture(point):
                             for rel in rel_root:
                                 rid=next((v for k,v in rel.attrib.items() if k.endswith('}id') or k=='Id'),'')
                                 target=str(rel.attrib.get('Target',''))
+                                rel_type=str(rel.attrib.get('Type',''))
+                                target_mode=str(rel.attrib.get('TargetMode',''))
+                                normalized_target=(posixpath.normpath(posixpath.join('ppt/slides',target))
+                                                   if target and target_mode.casefold()!='external'
+                                                   else target)
                                 if rid and target:
-                                    rel_targets[rid]=posixpath.normpath(posixpath.join('ppt/slides',target))
+                                    rel_targets[rid]=normalized_target
+                                if target:
+                                    rel_rows.append({
+                                        'type':rel_type,
+                                        'target':normalized_target,
+                                        'target_mode':target_mode,
+                                    })
+                            rel_rows=sorted(rel_rows,key=lambda row:(
+                                row['type'],row['target_mode'],row['target']))
                         except Exception:
                             rel_targets={}
+                            rel_rows=[]
                     charts=[]
                     for frame in root_xml.iter():
                         if not frame.tag.endswith('}graphicFrame'):
@@ -341,10 +357,11 @@ def capture(point):
                     run_result[key] = parts
                     shape_result[key] = shapes
                     chart_result[key] = charts
+                    relationship_result[key] = rel_rows
                     text_result[key] = _semantic_slide_text(shapes)
         except Exception:
             return {}, {}, {}, {}, {}
-        return text_result, run_result, shape_result, chart_result, metadata
+        return text_result, run_result, shape_result, chart_result, relationship_result, metadata
 
     before = window_info()
     target = None
@@ -433,11 +450,12 @@ def capture(point):
     image.save(output, format='PNG')
     owner_id, owner_pid = hit_owner()
     after = window_info()
-    deck_text, deck_runs, deck_shapes, deck_charts, deck_file = deck_slide_content(after)
+    deck_text, deck_runs, deck_shapes, deck_charts, deck_relationships, deck_file = deck_slide_content(after)
     result = {'window': after, 'target': target, 'controls': controls,
               'focused_control': focused_control, 'deck_slide_text': deck_text,
               'deck_slide_runs': deck_runs, 'deck_slide_shapes': deck_shapes,
-              'deck_slide_charts': deck_charts, 'deck_file': deck_file,
+              'deck_slide_charts': deck_charts, 'deck_slide_relationships': deck_relationships,
+              'deck_file': deck_file,
               'hit_owner_id': owner_id,
               'hit_owner_pid': owner_pid, 'screen': [0, 0, image.width, image.height],
               'stable': before == after, 'captured_monotonic_ns': time.monotonic_ns(),
