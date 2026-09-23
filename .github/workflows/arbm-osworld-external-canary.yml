@@ -29,8 +29,11 @@ jobs:
           sudo chmod 666 /dev/kvm
       - name: Install host dependencies
         run: |
-          python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
-          python -m pip install --disable-pip-version-check -q huggingface_hub
+          set -euo pipefail
+          python -m venv .host-venv
+          .host-venv/bin/python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
+          .host-venv/bin/python -m pip install --disable-pip-version-check -q huggingface_hub
+          echo "$GITHUB_WORKSPACE/.host-venv/bin" >> "$GITHUB_PATH"
       - name: Clone pinned OSWorld classic and prove 369-task catalog
         run: |
           set -euo pipefail
@@ -52,7 +55,13 @@ jobs:
         working-directory: osworld
         run: |
           set -euo pipefail
-          python -m pip install --disable-pip-version-check -q -r requirements.txt
+          python -m venv .venv
+          .venv/bin/python -m pip install --disable-pip-version-check -q --upgrade pip setuptools wheel
+          .venv/bin/python -m pip install --disable-pip-version-check -q -r requirements.txt
+          .venv/bin/python - <<'PY2'
+          import OpenSSL, cryptography, pydrive
+          print('ISOLATED_OSWORLD_PYTHON_OK', OpenSSL.__version__, cryptography.__version__)
+          PY2
           docker pull happysixd/osworld-docker:latest
       - name: Build multi-domain canary task set
         run: |
@@ -80,7 +89,7 @@ jobs:
         working-directory: osworld
         run: |
           set -euo pipefail
-          PYTHONPATH="$GITHUB_WORKSPACE/scripts:$PWD" python scripts/python/run_multienv.py             --headless             --provider_name docker             --path_to_vm "$QCOW_PATH"             --test_all_meta_path evaluation_examples/test_arbm_external_canary.json             --domain all             --observation_type screenshot_a11y_tree             --action_space pyautogui             --model gpt-arbm-osworld-vnext             --temperature 0             --max_steps 100             --max_trajectory_length 8             --max_tokens 4096             --num_envs 1             --result_dir ../external-canary-results
+          PYTHONNOUSERSITE=1 PYTHONPATH="$GITHUB_WORKSPACE/scripts:$PWD" .venv/bin/python scripts/python/run_multienv.py             --headless             --provider_name docker             --path_to_vm "$QCOW_PATH"             --test_all_meta_path evaluation_examples/test_arbm_external_canary.json             --domain all             --observation_type screenshot_a11y_tree             --action_space pyautogui             --model gpt-arbm-osworld-vnext             --temperature 0             --max_steps 100             --max_trajectory_length 8             --max_tokens 4096             --num_envs 1             --result_dir ../external-canary-results
       - name: Summarize official canary
         run: |
           set -euo pipefail
