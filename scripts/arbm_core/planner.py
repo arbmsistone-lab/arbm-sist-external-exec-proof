@@ -11,6 +11,7 @@ class Mission:
     target_entity: str
     desired_state: Mapping[str, Any]
     constraints: tuple[str, ...] = ()
+    retry_budget: int = 1
 
 @dataclass(frozen=True)
 class Plan:
@@ -24,6 +25,8 @@ class HierarchicalPlanner:
     def plan(self, mission: Mission, world: WorldModel) -> Plan:
         if not mission.mission_id or not mission.objective.strip():
             raise ValueError("MISSION_IDENTITY_REQUIRED")
+        if mission.retry_budget < 1 or mission.retry_budget > 3:
+            raise ValueError("MISSION_RETRY_BUDGET_RANGE")
         entity=world.require_entity(mission.target_entity)
         changes={k:v for k,v in mission.desired_state.items() if entity.attributes.get(k)!=v}
         if not changes:
@@ -39,7 +42,7 @@ class HierarchicalPlanner:
                 preconditions=(f"entity.version=={entity.version}",f"world.revision=={world.revision}"),
                 postconditions=(f"{key}=={value!r}",),
                 rollback={"field":key,"value":entity.attributes.get(key)},
-                max_attempts=1,
+                max_attempts=mission.retry_budget,
                 metadata={"mission_id":mission.mission_id,"objective":mission.objective},
             ))
         for action in actions:
