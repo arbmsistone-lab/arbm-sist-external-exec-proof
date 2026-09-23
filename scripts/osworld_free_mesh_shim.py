@@ -2396,7 +2396,8 @@ def request_mesh(body):
     all_attempts=gateway_attempts+router_attempts
     if _local_contract_failure(all_attempts):
         return 422,{'status':'LOCAL_ACTION_CONTRACT_EXHAUSTED','provider_attempts':all_attempts,
-                    'mandatory_cost_usd':0,'paid_fallback_used':False}\n    local_transient=any(a.get('route')=='local-cloud-vlm' and a.get('status') in ('local_model_error','budget_exceeded') for a in all_attempts)
+                    'mandatory_cost_usd':0,'paid_fallback_used':False}
+    local_transient=any(a.get('route')=='local-cloud-vlm' and a.get('status') in ('local_model_error','budget_exceeded') for a in all_attempts)
     return 503,{'status':'LOCAL_TRANSIENT_FAILURE_CURRENT_CYCLE' if local_transient else 'FREE_MESH_EXHAUSTED_CURRENT_CYCLE',
                 'provider_attempts':all_attempts,
                 'mandatory_cost_usd':0,'paid_fallback_used':False}
