@@ -807,6 +807,15 @@ def main():
         '72348b16cbb797ec915fa9cf49fd0f153cb33133': {CONTRACT_WORKFLOW},
         '9645746940a5671ec410824aa12758c9c2977757': {GLOBAL_GATE},
         '999c777d2555b2ff224a9775d8798f7066a7cebb': {CONTRACT_WORKFLOW},
+        '30e7815c5e301baf366c3c7483196d22476c678c': {SEMANTIC_RUNTIME_TEST},
+        '37b3508765a84dca05333b7610e1820abb61709e': {MANIFEST},
+        'f88f1ece85ebeb508513f1f3b980c6dbcd307e04': {SHIM},
+        '76cb23b21f975bcabf695fc66a1ca3401763cfe7': {SEMANTIC_ORACLE},
+        '2333c5d82a6e1dee31248e996ff978a976b0516b': {SEMANTIC_RUNTIME},
+        '0ac9ecc881118a0dc25887c1fc4af04e3d533da6': {SEMANTIC_TEST},
+        '8c729f9824d89290d4cd00888798bbac63ae1a9b': {TRACE_TEST},
+        'd923375561080ddbb19ae5ed34254ed3cb8bffa4': {MESH_TEST},
+        '6885fb6e16e24f1359820c4ecf7e06f8b26e84c8': {MESH_TEST},
     }
     for c_node in post_legacy:
         c_files = set(git('diff-tree', '--no-commit-id', '--name-only', '-r', c_node).splitlines())
