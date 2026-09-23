@@ -55,6 +55,13 @@ class SemanticTransactionTests(unittest.TestCase):
             resolve_target(b,slide=3,old="$42.8M")["key"],
         )
 
+    def test_font_hinting_antialiasing_and_ink_left_are_not_semantic_inputs(self):
+        a=deck()
+        b=copy.deepcopy(a)
+        a.update(hinting="A",antialiasing="subpixel",ink_left=1)
+        b.update(hinting="B",antialiasing="grayscale",ink_left=9999)
+        self.assertEqual(normalize_deck(a),normalize_deck(b))
+
     def test_missing_target_fails_closed(self):
         with self.assertRaisesRegex(SemanticTransactionError,"TASK091_TARGET_MISSING"):
             resolve_target(deck(),slide=3,old="does-not-exist")
@@ -100,6 +107,20 @@ class SemanticTransactionTests(unittest.TestCase):
         after=copy.deepcopy(before)
         after["deck_slide_shapes"]["3"][0]["text"]="$40.9M"
         after["deck_slide_shapes"]["3"][0]["geometry"]["w"]+=1
+        with self.assertRaisesRegex(SemanticTransactionError,"TASK091_SEMANTIC_DIFF_MISMATCH"):
+            verify_exact_text_transaction(before,after,[target],"$40.9M")
+
+    def test_unexpected_slide_relationship_change_fails_closed(self):
+        before=deck()
+        before["deck_slide_relationships"]={"3":[{
+            "type":"slideLayout","target":"ppt/slideLayouts/slideLayout1.xml","target_mode":""
+        }]}
+        target=resolve_target(before,slide=3,old="$42.8M")["key"]
+        after=copy.deepcopy(before)
+        after["deck_slide_shapes"]["3"][0]["text"]="$40.9M"
+        after["deck_slide_relationships"]["3"].append({
+            "type":"hyperlink","target":"https://example.invalid","target_mode":"External"
+        })
         with self.assertRaisesRegex(SemanticTransactionError,"TASK091_SEMANTIC_DIFF_MISMATCH"):
             verify_exact_text_transaction(before,after,[target],"$40.9M")
 
