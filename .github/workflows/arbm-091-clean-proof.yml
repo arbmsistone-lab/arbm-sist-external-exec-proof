@@ -60,6 +60,16 @@ jobs:
       run: |
         python -m pip install -r scripts/requirements-osworld.txt
         python -m pip install PyYAML==6.0.2
+    - name: TEMP semantic migration preflight before provenance block
+      run: |
+        python -m unittest discover -s tests/arbm091 -p 'test_*.py' -v
+        python - <<'PY'
+        from arbm_global_assurance_gate import require_release_ready
+        result=require_release_ready('.')
+        assert result['status']=='RELEASE_READY', result
+        assert result['pass']==16, result
+        print('TASK091_SEMANTIC_PREFLIGHT=PASS')
+        PY
     - name: Verify clean history and exact changed-file scope
       run: python -m arbm091.verify_transplant
     - name: Test score and WPS guards, including negative cases
