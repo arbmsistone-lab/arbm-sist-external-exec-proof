@@ -165,8 +165,11 @@ task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
       'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
       'Reforecast_Model_H2.xlsx is the source of truth.')
 action=shim.next_091_specialist_action(task,'WPS Presentation','',state,deck)
-assert action['command'] == 'pyautogui.doubleClick(745, 335, interval=0.08)', action
+assert action['action'] == 'exec', action
+assert action['specialist_phase'] == 'semantic-target-select', action
+assert 'doubleClick' in action['command'], action
 assert action['target']['source'] == 'task091-pptx-canonical', action
+assert action['target']['label'].endswith('Growth Plan Draft'), action
 probe=copy.deepcopy(deck)
 probe['screen']=[0,0,1920,1080]
 probe['window']['bbox']=[70,27,1850,1053]
