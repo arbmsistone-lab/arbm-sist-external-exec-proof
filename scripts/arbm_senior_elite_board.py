@@ -169,13 +169,12 @@ def review_action(action, *, task_id="", source="generic", state=None,
         and phase=="recover-nonpersisted-text-selection"
         and str(pending091.get("stage") or "")=="reselect-required"
         and str(pending091.get("shape_kind") or "")=="shape"
-        and int(pending091.get("selection_recovery_attempts") or 0)==1
+        and 1 <= int(pending091.get("selection_recovery_attempts") or 0) <= 2
         and bool(re.fullmatch(r"[0-9a-f]{64}",str(pending091.get("commit_command_hash") or ""),re.I))
         and bool(re.fullmatch(r"[0-9a-f]{64}",str(pending091.get("save_command_hash") or ""),re.I))
         and bool(re.fullmatch(r"[0-9a-f]{64}",str(pending091.get("before_deck_sha256") or ""),re.I))
         and repeated
         and no_progress>0
-        and recent.count(command)==1
     )
     bounded_semantic_retry=(bounded_observation_retry or bounded_table_cell_entry
                             or bounded_section_e_text_entry
