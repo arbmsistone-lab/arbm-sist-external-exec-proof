@@ -91,6 +91,38 @@ class SeniorEliteBoardTests(unittest.TestCase):
         self.assertTrue(result['allow'],result)
         self.assertEqual(result['pass'],10)
 
+    def test_task091_second_section_e_click_allows_only_evidence_bound_text_entry(self):
+        command="pyautogui.click(1614, 490)"
+        state={'task091_specialist':{'owned':True,'handoff':False,'section_e_format':{
+            'stage':'text-enter-issued','slide':3,'shape_id':16,'shape_name':'KpiReadout_Body',
+            'cx':1614,'cy':490,'before_deck_sha256':'1'*64,
+            'before_sibling_signature':'2'*64,'before_target_visual_sha256':'3'*64,
+            'foreground_sha256':'4'*64}}}
+        action={'action':'exec','command':command,'specialist_phase':'section-e-enter-text',
+                'target':{'source':'task091-pptx-canonical','label':'KpiReadout_Body','slide':3,
+                          'cx':1614,'cy':490,'proof_sha256':'5'*64}}
+        with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','GITHUB_SHA':'f'*40},clear=False):
+            result=review_action(action,task_id='091',source='task091-specialist',state=state,
+                                 verifier={'progress':False,'no_progress':1},recent_commands=[command])
+        self.assertTrue(result['allow'],result)
+        self.assertEqual(result['pass'],10)
+
+    def test_task091_third_section_e_click_remains_vetoed(self):
+        command="pyautogui.click(1614, 490)"
+        state={'task091_specialist':{'owned':True,'handoff':False,'section_e_format':{
+            'stage':'text-enter-issued','slide':3,'shape_id':16,'shape_name':'KpiReadout_Body',
+            'cx':1614,'cy':490,'before_deck_sha256':'1'*64,
+            'before_sibling_signature':'2'*64,'before_target_visual_sha256':'3'*64,
+            'foreground_sha256':'4'*64}}}
+        action={'action':'exec','command':command,'specialist_phase':'section-e-enter-text',
+                'target':{'source':'task091-pptx-canonical','label':'KpiReadout_Body','slide':3,
+                          'cx':1614,'cy':490,'proof_sha256':'5'*64}}
+        with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','GITHUB_SHA':'f'*40},clear=False):
+            result=review_action(action,task_id='091',source='task091-specialist',state=state,
+                                 verifier={'progress':False,'no_progress':2},recent_commands=[command,command])
+        self.assertFalse(result['allow'])
+        self.assertIn('anti_repetition',result['failed'])
+
     def test_task091_third_identical_table_click_remains_vetoed(self):
         command="pyautogui.click(843, 404)"
         digest=hashlib.sha256(command.encode()).hexdigest()
