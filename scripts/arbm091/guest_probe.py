@@ -11,7 +11,7 @@ import json
 import time
 import os
 import zipfile
-from defusedxml import ElementTree as ET
+from xml.etree import ElementTree as ET
 import hashlib
 from Xlib import X, display
 import pyautogui
