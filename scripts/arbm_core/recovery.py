@@ -12,6 +12,7 @@ class RootCause(str, Enum):
     PROVIDER_FAILURE="provider_failure"
     POLICY_REJECTED="policy_rejected"
     NO_PROGRESS="no_progress"
+    EXECUTION_REJECTED="execution_rejected"
     UNKNOWN="unknown"
 
 @dataclass(frozen=True)
@@ -33,6 +34,7 @@ class RootCauseClassifier:
             (("GEOMETRY","CONTAIN"),RootCause.GEOMETRY_MISMATCH,"recompute_geometry",True,1),
             (("MODAL",),RootCause.APPLICATION_MODAL,"dismiss_bounded_modal",True,1),
             (("PROVIDER","CAPACITY"),RootCause.PROVIDER_FAILURE,"route_alternate_free_provider",True,2),
+            (("EXECUTION_REJECTED",),RootCause.EXECUTION_REJECTED,"reexecute_bounded",True,1),
             (("POLICY","SENIOR_ELITE","ANTI_REPETITION"),RootCause.POLICY_REJECTED,"halt_and_replan",False,0),
             (("NO_STATE_CHANGE","NO_PROGRESS"),RootCause.NO_PROGRESS,"reobserve_then_replan",True,1),
         )
