@@ -1,5 +1,5 @@
 """OpenAI-compatible OSWorld bridge. All guest execution stays in official OSWorld."""
-import argparse, json, os, re, time, hashlib, threading
+import argparse, json, os, re, time, hashlib, threading, copy
 from pathlib import Path
 from PIL import Image
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -16,6 +16,7 @@ from osworld_elite_controller import EliteController
 from arbm_senior_elite_board import require_unanimous as require_senior_elite
 from arbm_safe_http import SafeHttpError, request_json
 from arbm091.semantic_runtime import next_text_action as next_091_semantic_text_action
+from arbm091.semantic_transaction import normalize_deck as task091_normalize_deck, model_sha256 as task091_model_sha256, target_key as task091_target_key, verify_font_transaction as task091_verify_font_transaction
 from osworld_gimp_style_transfer import next_recovery_action
 from osworld_061_calibrated_grade import next_calibrated_action, DONE as CAL_DONE
 
@@ -899,135 +900,127 @@ def _task091_section_e_geometry_persisted(before, after):
 
 
 def _task091_section_e_format_step(state, window_state):
-    """Reduce only Slide 3 Section E body text after proving text-mode caret."""
+    """Caret-free Section E font transaction proved from persisted OOXML."""
     spec=TASK091_SECTION_E_FORMAT
     slide=int(spec['slide'])
     tx=state.get('section_e_format')
     current=int(state.get('slide') or 1)
+
     if not isinstance(tx,dict):
         nav=_task091_nav_command(current,slide)
         if nav:
             state['slide']=slide
             return {'action':'exec','command':nav,
-                    'plan':'Return to slide 3 before the isolated Section E visual-containment correction.',
-                    'specialist_phase':'section-e-navigate-slide'}
+                    'plan':'Navigate to Slide 3 for the isolated semantic font transaction.',
+                    'specialist_phase':'section-e-semantic-navigate'}
         shape=_task091_shape_by_id(window_state,slide,spec['shape_id'])
         if (not isinstance(shape,dict)
-                or str(shape.get('name') or '') != str(spec['shape_name'])
+                or str(shape.get('name') or '')!=str(spec['shape_name'])
                 or str(spec['text_fingerprint']) not in str(shape.get('text') or '')):
             return _task091_terminal('TASK091_SECTION_E_SHAPE_UNPROVEN',state)
+        if not list(shape.get('font_sizes') or []):
+            return _task091_terminal('TASK091_SECTION_E_FONT_SEMANTICS_MISSING',state)
         box=_task091_shape_bbox(window_state,shape)
         if box is None:
             return _task091_terminal('TASK091_SECTION_E_GEOMETRY_UNPROVEN',state)
-        bbox=[int(box['x']),int(box['y']),int(box['w']),int(box['h'])]
-        visual=_task091_region_sha256(window_state,bbox)
-        source=str(window_state.get('source') or '')
+        try:
+            model=task091_normalize_deck(window_state)
+            key=task091_target_key(slide,shape)
+            before_hash=task091_model_sha256(model)
+        except Exception:
+            return _task091_terminal('TASK091_SECTION_E_OOXML_BASELINE_UNPROVEN',state)
         deck_sha=str((window_state.get('deck_file',{}) or {}).get('sha256') or '')
-        siblings=_task091_other_shapes_signature(window_state,slide,spec['shape_id'])
-        if (len(visual)!=64 or len(deck_sha)!=64 or len(siblings)!=64
-                or re.fullmatch(r'\d{4}-\d{2}-(?:before|after)',source) is None):
+        foreground=_task091_foreground_sha(window_state)
+        if len(deck_sha)!=64 or len(foreground)!=64:
             return _task091_terminal('TASK091_SECTION_E_BASELINE_UNPROVEN',state)
         cx=int(box['cx']); cy=int(box['cy'])
         target={'source':'task091-pptx-canonical','label':spec['shape_name'],
                 'role':'task091-canonical-point','slide':slide,
                 'x':cx-1,'y':cy-1,'w':2,'h':2,'cx':cx,'cy':cy,
-                'foreground_sha256':_task091_foreground_sha(window_state),
-                'deck_sha256':deck_sha}
+                'foreground_sha256':foreground,'deck_sha256':deck_sha}
         target['proof_sha256']=task091_spatial_target_proof(target)
-        command=f"pyautogui.click({cx}, {cy})"
         state['section_e_format']={
-            'stage':'shape-select-issued','slide':slide,'shape_id':int(spec['shape_id']),
+            'stage':'select-issued','slide':slide,'shape_id':int(spec['shape_id']),
             'shape_name':str(spec['shape_name']),'text':str(shape.get('text') or ''),
-            'shape_geometry':dict(shape.get('geometry') or {}),'shape_bbox':bbox,
-            'cx':cx,'cy':cy,'before_deck_sha256':deck_sha,
-            'before_sibling_signature':siblings,'before_target_visual_sha256':visual,
-            'baseline_source':source,'foreground_sha256':target['foreground_sha256'],
-            'target':target,'caret_probe_attempts':0,'font_decrements':int(spec['font_decrements']),
+            'target_key':list(key),'before_model_sha256':before_hash,
+            'before_deck_sha256':deck_sha,
+            'before_state':{
+                'deck_slide_shapes':copy.deepcopy(window_state.get('deck_slide_shapes',{})),
+                'deck_file':copy.deepcopy(window_state.get('deck_file',{})),
+            },
+            'font_decrements':int(spec['font_decrements']),
         }
-        return {'action':'exec','command':command,'target':target,
-                'plan':'Select only the proven Slide 3 Section E body shape before entering text mode.',
-                'specialist_phase':'section-e-select-shape'}
+        return {'action':'exec',
+                'command':f"pyautogui.doubleClick({cx}, {cy}, interval=0.08)",
+                'target':target,
+                'plan':'Select only the OOXML-resolved Section E body shape in WPS; caret state is irrelevant.',
+                'specialist_phase':'section-e-semantic-select'}
 
     stage=str(tx.get('stage') or '')
     shape=_task091_shape_by_id(window_state,slide,tx.get('shape_id'))
-    current_sha=str((window_state.get('deck_file',{}) or {}).get('sha256') or '')
-    siblings=_task091_other_shapes_signature(window_state,slide,tx.get('shape_id'))
-    identity_stable=(int(window_state.get('active_slide') or 0)==slide
-            and isinstance(shape,dict)
-            and str(shape.get('name') or '')==str(tx.get('shape_name') or '')
-            and str(shape.get('text') or '')==str(tx.get('text') or '')
-            and siblings==str(tx.get('before_sibling_signature') or ''))
-    geometry_same=(isinstance(shape,dict)
-            and dict(shape.get('geometry') or {})==dict(tx.get('shape_geometry') or {}))
-    stable=identity_stable and geometry_same
-    if stage in ('shape-select-issued','text-enter-issued','caret-probe-issued'):
-        if not stable or current_sha != str(tx.get('before_deck_sha256') or ''):
-            return _task091_terminal('TASK091_SECTION_E_SELECTION_DRIFT',state)
-    if stage == 'shape-select-issued':
-        current_shot=str(window_state.get('screenshot_sha256') or '')
-        if len(current_shot)!=64:
-            return _task091_terminal('TASK091_SECTION_E_SELECTION_EVIDENCE_MISSING',state)
-        tx['selection_source']=str(window_state.get('source') or '')
-        tx['stage']='text-enter-issued'
-        command=f"pyautogui.click({int(tx['cx'])}, {int(tx['cy'])})"
-        target=dict(tx.get('target') or {})
-        return {'action':'exec','command':command,'target':target,
-                'plan':'Enter text mode in the same proven Section E shape with a separately observed second click.',
-                'specialist_phase':'section-e-enter-text'}
-    if stage in ('text-enter-issued','caret-probe-issued'):
-        baseline=str(tx.get('selection_source') or tx.get('baseline_source') or '')
-        current_source=str(window_state.get('source') or '')
-        caret=_task091_caret_delta_geometry(baseline,current_source,list(tx.get('shape_bbox') or []))
-        tx['caret_geometry']=caret
-        if caret.get('proven') is not True:
-            attempts=int(tx.get('caret_probe_attempts') or 0)
-            if attempts>=4:
-                return _task091_terminal('TASK091_SECTION_E_CARET_UNPROVEN',state)
-            tx['caret_probe_attempts']=attempts+1
-            tx['stage']='caret-probe-issued'
-            delay=(0.30,0.55,0.80,1.05)[attempts]
-            return {'action':'exec','command':f"pyautogui.sleep({delay:.2f})",
-                    'plan':'Re-observe the unchanged Section E shape until a narrow text caret is geometrically proven.',
-                    'specialist_phase':f'section-e-caret-probe-{attempts+1}'}
+    if not isinstance(shape,dict) or str(shape.get('name') or '')!=str(tx.get('shape_name') or ''):
+        return _task091_terminal('TASK091_SECTION_E_TARGET_IDENTITY_DRIFT',state)
+
+    if stage=='select-issued':
+        try:
+            if task091_model_sha256(task091_normalize_deck(window_state))!=str(tx.get('before_model_sha256') or ''):
+                return _task091_terminal('TASK091_SECTION_E_PRECONDITION_DRIFT',state)
+        except Exception:
+            return _task091_terminal('TASK091_SECTION_E_PRECONDITION_DRIFT',state)
         tx['stage']='font-issued'
-        tx['selected_screenshot_sha256']=str(window_state.get('screenshot_sha256') or '')
         commands=["pyautogui.hotkey('ctrl', 'a')"]
         for _ in range(int(tx.get('font_decrements') or 1)):
             commands.append("pyautogui.hotkey('ctrl', '[')")
-        command='\n'.join(commands)
-        return {'action':'exec','command':command,
-                'plan':f"A caret is proven inside only KpiReadout_Body. Select that shape text and reduce font by exactly {int(tx.get('font_decrements') or 1)} pt to create rounded-container clearance.",
-                'specialist_phase':'section-e-reduce-font'}
-    if stage == 'font-issued':
+        return {'action':'exec','command':'\n'.join(commands),
+                'plan':'Select the resolved shape text and apply exactly the declared font decrement; OOXML will prove the result.',
+                'specialist_phase':'section-e-semantic-font'}
+
+    if stage=='font-issued':
         tx['stage']='commit-issued'
-        tx['font_observed_source']=str(window_state.get('source') or '')
         return {'action':'exec','command':"pyautogui.press('esc')",
-                'plan':'Exit Section E text mode before validating the local visual delta.',
-                'specialist_phase':'section-e-commit-font'}
-    if stage == 'commit-issued':
-        visual=_task091_region_sha256(window_state,list(tx.get('shape_bbox') or []))
-        if len(visual)!=64 or visual==str(tx.get('before_target_visual_sha256') or ''):
-            return _task091_terminal('TASK091_SECTION_E_FONT_DELTA_UNPROVEN',state)
-        tx['after_target_visual_sha256']=visual
+                'plan':'Finalize the isolated Section E WPS formatting operation.',
+                'specialist_phase':'section-e-semantic-finalize'}
+
+    if stage=='commit-issued':
         tx['stage']='save-issued'
-        return {'action':'exec','command':"pyautogui.hotkey('ctrl', 's')\npyautogui.sleep(0.25)",
-                'plan':'Persist the isolated Section E font reduction after a target-local visual delta is proven.',
-                'specialist_phase':'section-e-save-font'}
-    if stage == 'save-issued':
-        persisted_geometry=(isinstance(shape,dict)
-            and _task091_section_e_geometry_persisted(
-                dict(tx.get('shape_geometry') or {}),
-                dict(shape.get('geometry') or {})))
-        if not identity_stable or not persisted_geometry:
-            return _task091_terminal('TASK091_SECTION_E_POSTSAVE_DRIFT',state)
+        return {'action':'exec','command':"pyautogui.hotkey('ctrl', 's')",
+                'plan':'Persist the isolated Section E formatting transaction.',
+                'specialist_phase':'section-e-semantic-save'}
+
+    if stage=='save-issued':
+        try:
+            verdict=task091_verify_font_transaction(
+                tx['before_state'],window_state,tx['target_key'],tx['font_decrements'])
+        except Exception as exc:
+            return _task091_terminal('TASK091_SECTION_E_SEMANTIC_DIFF_REJECTED:'+str(exc),state)
+        current_sha=str((window_state.get('deck_file',{}) or {}).get('sha256') or '')
         if len(current_sha)!=64 or current_sha==str(tx.get('before_deck_sha256') or ''):
             return _task091_terminal('TASK091_SECTION_E_FONT_NOT_PERSISTED',state)
+        tx['after_model_sha256']=verdict['after_model_sha256']
+        tx['after_deck_sha256']=current_sha
+        tx['semantic_verdict']=verdict
+        tx['stage']='roundtrip-issued'
+        return {'action':'exec','command':"pyautogui.press('esc')",
+                'plan':'Finalize selection so the next observer pass independently re-reads the persisted OOXML.',
+                'specialist_phase':'section-e-semantic-roundtrip'}
+
+    if stage=='roundtrip-issued':
+        try:
+            current_hash=task091_model_sha256(task091_normalize_deck(window_state))
+        except Exception:
+            return _task091_terminal('TASK091_SECTION_E_ROUNDTRIP_UNREADABLE',state)
+        if current_hash!=str(tx.get('after_model_sha256') or ''):
+            return _task091_terminal('TASK091_SECTION_E_ROUNDTRIP_DRIFT',state)
         state['section_e_format_done']=True
+        evidence=tx.get('semantic_verdict')
+        state['section_e_semantic_evidence']=evidence
         state['section_e_format']=None
         return {'action':'checkpoint','checkpoint':'TASK091_SECTION_E_FORMAT_VERIFIED',
                 'slide':slide,'old':tx.get('text'),'new':tx.get('text'),
-                'target':{'source':'task091-section-e-format','shape_id':tx.get('shape_id')},
-                'specialist_phase':'section-e-format-verified'}
+                'semantic_evidence':evidence,
+                'target':{'source':'task091-section-e-semantic','shape_id':tx.get('shape_id')},
+                'specialist_phase':'section-e-semantic-verified'}
+
     return _task091_terminal('TASK091_SECTION_E_FORMAT_STATE_INVALID',state)
 
 def _task091_system_check_close(window_state):
