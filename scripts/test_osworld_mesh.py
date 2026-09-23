@@ -255,7 +255,7 @@ class MeshTests(unittest.TestCase):
    state={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
    select=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck)
    self.assertEqual(select['specialist_phase'],'semantic-target-select')
-   self.assertEqual(select['target']['source'],'task091-ooxml-semantic')
+   self.assertEqual(select['target']['source'],'task091-pptx-canonical')
    self.assertNotIn('pending_edit',state)
    self.assertEqual(state['semantic_tx']['stage'],'select-issued')
 
