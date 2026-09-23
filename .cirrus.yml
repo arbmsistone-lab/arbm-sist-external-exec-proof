@@ -1,20 +1,17 @@
 env:
   ARBM_ZERO_SPEND_MODE: HARD
 
-cirrus_kvm_probe_task:
-  only_if: $CIRRUS_BRANCH == "cirrus-kvm-proof"
+sweff_topology_probe_task:
+  only_if: $CIRRUS_BRANCH == "probe/cirrus-sweff-topology-8cpu-20260907"
   timeout_in: 20m
   container:
     image: ubuntu:24.04
-    cpu: 4
-    memory: 12G
-    kvm: true
-  install_script:
-    - apt-get update -qq
-    - DEBIAN_FRONTEND=noninteractive apt-get install -y -qq qemu-system-x86
+    cpu: 8
+    memory: 32G
   verify_script:
-    - test -c /dev/kvm
-    - grep -Eq '(vmx|svm)' /proc/cpuinfo
-    - qemu-system-x86_64 -accel help | grep -q kvm
-    - timeout 5s qemu-system-x86_64 -machine accel=kvm -cpu host -m 128M -display none -nodefaults -no-reboot || test $? -eq 124
-    - echo CIRRUS_KVM_PROBE=PASS
+    - set -euo pipefail
+    - apt-get update >/dev/null
+    - DEBIAN_FRONTEND=noninteractive apt-get install -y python3 git ca-certificates >/dev/null
+    - git clone --filter=blob:none https://github.com/swefficiency/swefficiency.git sweff
+    - git -C sweff checkout --detach 12d32a2d6800824a7d84bdb6797b5708e7b7957f
+    - python3 -c "import importlib.util,os,json; f='sweff/swefficiency/harness/cpu_assignment.py'; s=importlib.util.spec_from_file_location('m',f); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); p=len(m.discover_physical_cores()); e=max(0,p-4); o={'logicalCpus':len(os.sched_getaffinity(0)),'physicalCoresDiscovered':p,'eligiblePhysicalCores':e,'requiredPhysicalCoresPerWorker':2,'pass':e>=2}; print(json.dumps(o)); raise SystemExit(0 if o['pass'] else 1)"
