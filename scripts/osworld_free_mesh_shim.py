@@ -946,6 +946,7 @@ def _task091_section_e_format_step(state, window_state):
             'before_deck_sha256':deck_sha,
             'before_state':{
                 'deck_slide_shapes':copy.deepcopy(window_state.get('deck_slide_shapes',{})),
+                'deck_slide_charts':copy.deepcopy(window_state.get('deck_slide_charts',{})),
                 'deck_file':copy.deepcopy(window_state.get('deck_file',{})),
             },
             'font_decrements':int(spec['font_decrements']),
