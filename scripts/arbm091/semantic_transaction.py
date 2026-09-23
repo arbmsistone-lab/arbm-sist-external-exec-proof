@@ -203,3 +203,74 @@ def assert_roundtrip(after_state, target_keys, new):
         if row is None or str(row.get("text") or "")!=str(new):
             raise SemanticTransactionError("TASK091_ROUNDTRIP_VALUE_MISMATCH")
     return {"status":"PASS","model_sha256":model_sha256(model)}
+
+
+def verify_font_transaction(before_state, after_state, target_key_value, decrements):
+    before=normalize_deck(before_state)
+    after=normalize_deck(after_state)
+    key=tuple(target_key_value)
+    if set(before)!=set(after) or key not in before or key not in after:
+        raise SemanticTransactionError("TASK091_FONT_STRUCTURAL_SET_DRIFT")
+    for other in before:
+        if other==key:
+            continue
+        if before[other]!=after[other]:
+            raise SemanticTransactionError("TASK091_FONT_COLLATERAL_MUTATION")
+    b=before[key]; a=after[key]
+    for field in ("slide","kind","id","name","frame_id","row","col","text","fill_rgb"):
+        if b.get(field)!=a.get(field):
+            raise SemanticTransactionError("TASK091_FONT_TARGET_IDENTITY_DRIFT")
+    bg=tuple(b.get("geometry") or ()); ag=tuple(a.get("geometry") or ())
+    if len(bg)!=4 or len(ag)!=4:
+        raise SemanticTransactionError("TASK091_FONT_GEOMETRY_MISSING")
+    bx,by,bw,bh=bg; ax,ay,aw,ah=ag
+    if min(bw,bh,aw,ah)<=0 or (ax,ay,aw)!=(bx,by,bw) or not int(bh*0.60)<=ah<=bh:
+        raise SemanticTransactionError("TASK091_FONT_GEOMETRY_OUTSIDE_BUDGET")
+    before_sizes=tuple(b.get("font_sizes") or ())
+    after_sizes=tuple(a.get("font_sizes") or ())
+    delta=100*int(decrements)
+    if not before_sizes or len(before_sizes)!=len(after_sizes):
+        raise SemanticTransactionError("TASK091_FONT_SEMANTICS_MISSING")
+    expected=tuple(int(v)-delta for v in before_sizes)
+    if any(v<=0 for v in expected) or after_sizes!=expected:
+        raise SemanticTransactionError("TASK091_FONT_DELTA_UNPROVEN")
+    return {
+        "status":"PASS",
+        "target_key":list(key),
+        "font_sizes_before":list(before_sizes),
+        "font_sizes_after":list(after_sizes),
+        "expected_font_sizes":list(expected),
+        "geometry_before":list(bg),
+        "geometry_after":list(ag),
+        "before_model_sha256":model_sha256(before),
+        "after_model_sha256":model_sha256(after),
+        "collateral_diff":[],
+    }
+
+
+def verify_fill_transaction(before_state, after_state, target_key_value, expected_rgb):
+    before=normalize_deck(before_state)
+    after=normalize_deck(after_state)
+    key=tuple(target_key_value)
+    if set(before)!=set(after) or key not in before or key not in after:
+        raise SemanticTransactionError("TASK091_FILL_STRUCTURAL_SET_DRIFT")
+    for other in before:
+        if other==key:
+            continue
+        if before[other]!=after[other]:
+            raise SemanticTransactionError("TASK091_FILL_COLLATERAL_MUTATION")
+    b=before[key]; a=after[key]
+    for field in ("slide","kind","id","name","frame_id","row","col","text","geometry","font_sizes"):
+        if b.get(field)!=a.get(field):
+            raise SemanticTransactionError("TASK091_FILL_TARGET_IDENTITY_DRIFT")
+    rgb=str(expected_rgb or "").upper()
+    if a.get("fill_rgb")!=rgb or b.get("fill_rgb")==rgb:
+        raise SemanticTransactionError("TASK091_FILL_RGB_UNPROVEN")
+    return {
+        "status":"PASS","target_key":list(key),
+        "fill_before":b.get("fill_rgb"),"fill_after":a.get("fill_rgb"),
+        "expected_fill_rgb":rgb,
+        "before_model_sha256":model_sha256(before),
+        "after_model_sha256":model_sha256(after),
+        "collateral_diff":[],
+    }
