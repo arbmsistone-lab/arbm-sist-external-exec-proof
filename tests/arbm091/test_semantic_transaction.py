@@ -8,6 +8,7 @@ from arbm091.semantic_transaction import (
     normalize_deck,
     resolve_target,
     verify_exact_text_transaction,
+    validate_transaction_contract,
 )
 
 
@@ -144,6 +145,17 @@ class SemanticTransactionTests(unittest.TestCase):
             verify_exact_text_transaction(before,good,[target],"$40.9M")["status"],
             "PASS",
         )
+
+    def test_contained_shape_target_is_valid_semantic_contract(self):
+        d=deck()
+        d["deck_slide_shapes"]["1"][0]["text"]="H2 Operating Committee Pack\nGrowth Plan Draft"
+        resolved=resolve_target(d,slide=1,old="Growth Plan Draft")
+        verdict=validate_transaction_contract(
+            d,resolved["key"],"Growth Plan Draft",
+            "H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline")
+        self.assertEqual(verdict["status"],"PASS")
+        self.assertTrue(verdict["target_unique"])
+        self.assertTrue(verdict["mutation_authorized"])
 
     def test_unique_contained_shape_text_resolves_without_raster_authority(self):
         d=deck()
