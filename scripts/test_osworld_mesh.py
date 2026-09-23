@@ -807,6 +807,16 @@ class Task091TransactionalTableCellTests(unittest.TestCase):
   self.assertIn("TASK091_SECTION_E_FONT_DELTA_UNPROVEN",source)
   self.assertIn("pyautogui.hotkey('ctrl', '[')",source)
 
+ def test_section_e_postsave_accepts_only_bounded_target_autofit_shrink(self):
+  before={'x':9034272,'y':1883664,'w':2148840,'h':1353312}
+  observed={'x':9034272,'y':1883664,'w':2148840,'h':922020}
+  self.assertTrue(shim._task091_section_e_geometry_persisted(before,observed))
+  self.assertTrue(shim._task091_section_e_geometry_persisted(before,before))
+  self.assertFalse(shim._task091_section_e_geometry_persisted(before,{**observed,'x':observed['x']+1}))
+  self.assertFalse(shim._task091_section_e_geometry_persisted(before,{**observed,'w':observed['w']-1}))
+  self.assertFalse(shim._task091_section_e_geometry_persisted(before,{**observed,'h':before['h']+1}))
+  self.assertFalse(shim._task091_section_e_geometry_persisted(before,{**observed,'h':int(before['h']*0.59)}))
+
  def test_500_case_two_delta_red_team_matrix(self):
   alphabet="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz$%.-_"
   for i in range(500):
