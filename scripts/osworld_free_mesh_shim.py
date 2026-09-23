@@ -15,6 +15,7 @@ from osworld_recovery import recovery_policy, rejects_visual_navigation_loop, se
 from osworld_elite_controller import EliteController
 from arbm_senior_elite_board import require_unanimous as require_senior_elite
 from arbm_safe_http import SafeHttpError, request_json
+from arbm091.semantic_runtime import next_text_action as next_091_semantic_text_action
 from osworld_gimp_style_transfer import next_recovery_action
 from osworld_061_calibrated_grade import next_calibrated_action, DONE as CAL_DONE
 
@@ -1495,6 +1496,13 @@ def next_091_specialist_action(instruction, active_application, observation, sta
         return {'action':'exec','command':"pyautogui.hotkey('ctrl', 'home')",
                 'plan':'Foreground is the official deck; anchor navigation at slide 1.',
                 'specialist_phase':'anchor-slide-1'}
+
+    # Task 091 semantic migration: all textual mutations are owned by the
+    # caret-free transaction runtime. Legacy pending_edit/caret logic remains
+    # below only for historical replay compatibility and is unreachable until
+    # every semantic transaction has been structurally verified.
+    if not state.get('semantic_text_done'):
+        return next_091_semantic_text_action(state,window_state,TASK091_SPATIAL_TEXT_EDITS)
 
     pending=state.get('pending_edit')
     if isinstance(pending,dict):
