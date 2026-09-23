@@ -24,6 +24,8 @@
   "scripts/arbm091/install_observer.py",
   "scripts/arbm091/review_board_50x10.py",
   "scripts/arbm091/score_tracker.py",
+  "scripts/arbm091/semantic_runtime.py",
+  "scripts/arbm091/semantic_transaction.py",
   "scripts/arbm091/trace_gate.py",
   "scripts/arbm091/verify_transplant.py",
   "scripts/arbm091/wps_observer.py",
@@ -114,5 +116,7 @@
   "scripts/test_osworld_wps_foreground.py",
   "tests/arbm091/test_global_assurance_gate.py",
   "tests/arbm091/test_score_and_trace.py",
+  "tests/arbm091/test_semantic_runtime.py",
+  "tests/arbm091/test_semantic_transaction.py",
   "tests/arbm091/test_senior_elite_agent.py"
 ]
