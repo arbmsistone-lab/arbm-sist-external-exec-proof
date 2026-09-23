@@ -88,6 +88,32 @@ class SemanticRuntimeTests(unittest.TestCase):
         result=next_text_action(state,ws,plan)
         self.assertEqual(result["action"],"terminal")
 
+    def test_migration_route_precedes_and_seals_legacy_caret_path(self):
+        from pathlib import Path
+        shim=Path("scripts/osworld_free_mesh_shim.py").read_text(encoding="utf-8")
+        runtime=Path("scripts/arbm091/semantic_runtime.py").read_text(encoding="utf-8")
+        gate="if not state.get('semantic_text_done')"
+        legacy="pending=state.get('pending_edit')"
+        self.assertIn(gate,shim)
+        self.assertIn(legacy,shim)
+        self.assertLess(shim.index(gate),shim.index(legacy))
+        self.assertIn('state["spatial_index"]=len(plan)',runtime)
+        for forbidden in (
+            "_task091_caret","CARET_NOT_AT_START","CARET_GEOMETRY_UNPROVEN",
+            "ink_left","caret_x","press('home')","press('left'",
+        ):
+            self.assertNotIn(forbidden,runtime)
+
+    def test_section_e_decision_path_has_no_caret_dependency(self):
+        from pathlib import Path
+        shim=Path("scripts/osworld_free_mesh_shim.py").read_text(encoding="utf-8")
+        body=shim.split("def _task091_section_e_format_step",1)[1].split(
+            "def _task091_system_check_close",1)[0]
+        self.assertIn("task091_verify_font_transaction",body)
+        self.assertIn("section-e-semantic-roundtrip",body)
+        self.assertNotIn("_task091_caret",body)
+        self.assertNotIn("CARET_UNPROVEN",body)
+
 
 if __name__=="__main__":
     unittest.main()
