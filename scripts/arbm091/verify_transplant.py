@@ -31,6 +31,8 @@ SENIOR_TEST = 'tests/arbm091/test_senior_elite_agent.py'
 GLOBAL_GATE = 'scripts/arbm_global_assurance_gate.py'
 GLOBAL_TEST = 'tests/arbm091/test_global_assurance_gate.py'
 FINAL_BOARD = 'scripts/arbm091/final_certification_board.py'
+SCORE_TRACKER = 'scripts/arbm091/score_tracker.py'
+TEMP_SEMANTIC_ARCH_TEST = 'tests/arbm091/test_semantic_architecture.py'
 SAFE_HTTP = 'scripts/arbm_safe_http.py'
 SEMANTIC_ORACLE = 'scripts/arbm091/semantic_transaction.py'
 SEMANTIC_RUNTIME = 'scripts/arbm091/semantic_runtime.py'
@@ -700,7 +702,7 @@ def main():
     require(len(overlay) == 250, 'EXACTLY_TWO_HUNDRED_FIFTY_REPAIR_COMMITS_REQUIRED')
     allowed_post_scope = {VERIFIER, SHIM, SENIOR_BOARD, SENIOR_TEST, GLOBAL_GATE, GUEST_PROBE,
                           SEMANTIC_ORACLE, SEMANTIC_RUNTIME, SEMANTIC_TEST, SEMANTIC_RUNTIME_TEST,
-                          CONTRACT_WORKFLOW}
+                          SCORE_TRACKER, FINAL_BOARD, WPS_OBSERVER, CONTRACT_WORKFLOW}
     approved_post_commit_scopes = {
         'fdd1c8ef17c7f52352b60c1afd7bffca958182a1': {SAFE_HTTP},
         'f60da82e96d92b0de454d9564d860cba56fad563': {SAFE_HTTP},
@@ -827,6 +829,24 @@ def main():
         '6f13e5b50033b6a89ec98765d8bf3b71fd2591e0': {WORKFLOW},
         'dc4c64f29453a63d27ff4e0ebff3c11fb76f5508': {SHIM},
         'd9a8845d28f8883680b53b032c6a0a6033a3c28e': {SEMANTIC_RUNTIME_TEST},
+        '44dbe27cd5039ea904ad809808ecd9b3d8ebf109': {GUEST_PROBE},
+        '306d4d493447f4a94429c14f8c5359ec1ce9f75d': {WPS_OBSERVER},
+        'bc51d569086a0f2f3c7ab3f42b51231aaa52a19c': {SEMANTIC_ORACLE},
+        '68be3f9f0c87a9a4a4ae03934ff4a2a789b0fb42': {GUEST_PROBE},
+        '13b1c5e2116e61d7e5442b61091d717bc96b582c': {SEMANTIC_RUNTIME},
+        '8845b47a41957a9321712ef8f9ccbb8065415f9d': {SHIM},
+        '2bfbc42eaa5b2d1625e4d6c8bb22628d49a68e76': {SCORE_TRACKER},
+        'f293b4de55c1519f4418ede14055d2f5f6b0fe2e': {TEMP_SEMANTIC_ARCH_TEST},
+        'f3f93cebe522c0f9b662d87caddffc22116e9358': {GLOBAL_GATE},
+        'ed4f31af05d99ce131c8f2fd50e1791379405f33': {FINAL_BOARD},
+        'bc8f88e7d63a9679db559b2784c9d005032d6526': {SEMANTIC_ORACLE},
+        '173f79a47f63d723662266efe44de28daaaf55b5': {SEMANTIC_RUNTIME},
+        '88d613531ef0984a36e0a25bb99da9fdabfafc7e': {TEMP_SEMANTIC_ARCH_TEST},
+        '730c75dd6e4bcca4524b634b6518b56ed543315e': {TEMP_SEMANTIC_ARCH_TEST},
+        'cbc09e5fe6698849ab5bd5b87924c5848e381dc1': {SEMANTIC_TEST},
+        '4ad720c098b7852de33179e93070724757b522a9': {SEMANTIC_RUNTIME_TEST},
+        '2fed2297c0b8bda744affee8e953084d574e2dc8': {TEMP_SEMANTIC_ARCH_TEST},
+        'cbf57d3f663b2b6ea03f4881df40c0d932085f79': {GLOBAL_GATE},
     }
     for c_node in post_legacy:
         c_files = set(git('diff-tree', '--no-commit-id', '--name-only', '-r', c_node).splitlines())
@@ -861,7 +881,7 @@ def main():
     changed = set(git('diff', '--name-only', BASE, 'HEAD').splitlines())
     require(changed == set(manifest), 'CHANGED_FILE_ALLOWLIST_MISMATCH')
     require(set(git('diff', '--name-only', CLEAN_BASELINE, 'HEAD').splitlines())
-            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST, SENIOR_BOARD, SENIOR_TEST, GLOBAL_GATE, GLOBAL_TEST, FINAL_BOARD, SAFE_HTTP, SEMANTIC_ORACLE, SEMANTIC_RUNTIME, SEMANTIC_TEST, SEMANTIC_RUNTIME_TEST},
+            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST, SENIOR_BOARD, SENIOR_TEST, GLOBAL_GATE, GLOBAL_TEST, FINAL_BOARD, SCORE_TRACKER, SAFE_HTTP, SEMANTIC_ORACLE, SEMANTIC_RUNTIME, SEMANTIC_TEST, SEMANTIC_RUNTIME_TEST},
             'REPAIR_TOTAL_SCOPE_MISMATCH')
     exists = subprocess.run(['git', 'cat-file', '-e', PATCH_SOURCE], capture_output=True).returncode == 0
     if exists:
@@ -901,7 +921,7 @@ def main():
                       'clean_baseline_sha': CLEAN_BASELINE, 'baseline_commits': 3,
                       'repair_commits': overlay, 'post_legacy_commits': len(post_legacy), 'new_commits': total_commits, 'changed_files': len(changed),
                       'repair_scope': [VERIFIER, WORKFLOW, LOCAL_VLM, LOCAL_VLM_TEST,
-                                       TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST, SENIOR_BOARD, SENIOR_TEST, GLOBAL_GATE, GLOBAL_TEST, FINAL_BOARD], 'official_score_claimed': False}))
+                                       TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST, SENIOR_BOARD, SENIOR_TEST, GLOBAL_GATE, GLOBAL_TEST, FINAL_BOARD, SCORE_TRACKER, SEMANTIC_ORACLE, SEMANTIC_RUNTIME, SEMANTIC_TEST, SEMANTIC_RUNTIME_TEST], 'official_score_claimed': False}))
 
 
 if __name__ == '__main__':
