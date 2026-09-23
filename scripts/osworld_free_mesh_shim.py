@@ -218,14 +218,8 @@ def _task091_table_cell_selection_presses(old):
     return presses
 
 
-def _task091_table_cell_start_navigation_command(shape_bbox, ink_bbox):
-    """Place the caret at the observed visual start of one proven table cell.
-
-    WPS may ignore Home inside a table cell even while text mode is active.
-    Use only the already-proven cell and raster text geometry: click a bounded
-    point immediately before the first visible glyph, then require a separate
-    caret-geometry proof before any mutation.
-    """
+def _task091_table_cell_start_anchor(shape_bbox, ink_bbox):
+    """Return the exact signed pre-glyph anchor for one proven table cell."""
     if (not isinstance(shape_bbox,list) or len(shape_bbox)!=4
             or not isinstance(ink_bbox,list) or len(ink_bbox)!=4
             or not all(type(v) is int for v in shape_bbox+ink_bbox)):
@@ -238,7 +232,13 @@ def _task091_table_cell_start_navigation_command(shape_bbox, ink_bbox):
     cy=max(sy+4,min(iy+ih//2,sy+sh-4))
     if not (sx < cx < sx+sw and sy < cy < sy+sh):
         raise ValueError('TASK091_TABLE_CELL_START_NAV_POINT_OUTSIDE_CELL')
-    return f"pyautogui.click({cx}, {cy})\npyautogui.sleep(0.20)"
+    return {'cx':cx,'cy':cy}
+
+
+def _task091_table_cell_start_navigation_command(shape_bbox, ink_bbox):
+    """Emit exactly one atomic pointer event at the signed pre-glyph anchor."""
+    anchor=_task091_table_cell_start_anchor(shape_bbox,ink_bbox)
+    return f"pyautogui.click({int(anchor['cx'])}, {int(anchor['cy'])})"
 
 
 def _task091_table_cell_delta_plan(old, new):
@@ -1737,11 +1737,9 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             pending['start_navigation_method']='raster-pre-glyph-click'
             pending['stage']='table-cell-start-nav-issued'
             ink_bbox=list(pending.get('table_text_ink_bbox') or [])
+            anchor=_task091_table_cell_start_anchor(bbox,ink_bbox)
+            anchor_cx=int(anchor['cx']); anchor_cy=int(anchor['cy'])
             command=_task091_table_cell_start_navigation_command(bbox,ink_bbox)
-            sx,sy,sw,sh=bbox
-            ix,iy,iw,ih=ink_bbox
-            anchor_cx=max(sx+4,min(ix-3,sx+sw-4))
-            anchor_cy=max(sy+4,min(iy+ih//2,sy+sh-4))
             start_target={
                 'source':'task091-pptx-canonical',
                 'label':str(pending.get('old') or ''),
