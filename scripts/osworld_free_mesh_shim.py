@@ -319,44 +319,77 @@ def _task091_screenshot_source_path(source):
     return path if path.is_file() else None
 
 def _task091_caret_delta_geometry(before_source, after_source, bbox):
-    """Prove a text caret from a narrow vertical pixel delta inside one cell."""
+    """Prove a text caret from a narrow vertical pixel delta inside one cell.
+
+    WPS caret blink can make the post-action screenshot land on the invisible
+    phase. For an observation-only probe, the paired before screenshot is also
+    causally after the prior GUI action and may contain the visible blink phase.
+    Inspect both samples, but keep the same strict caret geometry gate.
+    """
     before_path=_task091_screenshot_source_path(before_source)
-    after_path=_task091_screenshot_source_path(after_source)
-    if before_path is None or after_path is None or not isinstance(bbox,list) or len(bbox)!=4:
+    if before_path is None or not isinstance(bbox,list) or len(bbox)!=4:
         return {'proven':False,'reason':'evidence-missing'}
     if not all(type(v) is int for v in bbox):
         return {'proven':False,'reason':'bbox-invalid'}
     x,y,w,h=bbox
     if w<=0 or h<=0:
         return {'proven':False,'reason':'bbox-empty'}
+
+    candidate_sources=[str(after_source or '')]
+    match=re.fullmatch(r'(\\d{4}-\\d{2})-after',str(after_source or ''))
+    if match:
+        paired=match.group(1)+'-before'
+        if paired != str(before_source or ''):
+            candidate_sources.append(paired)
+
+    best=None
     try:
-        with Image.open(before_path) as a_img, Image.open(after_path) as b_img:
+        with Image.open(before_path) as a_img:
             a=a_img.convert('RGB').crop((x,y,x+w,y+h))
-            b=b_img.convert('RGB').crop((x,y,x+w,y+h))
-            if a.size != b.size:
-                return {'proven':False,'reason':'size-drift'}
-            xs=[]; ys=[]; col_counts={}
-            for py in range(h):
-                for px in range(w):
-                    av=a.getpixel((px,py)); bv=b.getpixel((px,py))
-                    if max(abs(int(av[i])-int(bv[i])) for i in range(3)) <= 20:
-                        continue
-                    xs.append(px); ys.append(py); col_counts[px]=col_counts.get(px,0)+1
+            for candidate_source in candidate_sources:
+                candidate_path=_task091_screenshot_source_path(candidate_source)
+                if candidate_path is None:
+                    continue
+                with Image.open(candidate_path) as b_img:
+                    b=b_img.convert('RGB').crop((x,y,x+w,y+h))
+                if a.size != b.size:
+                    result={'proven':False,'reason':'size-drift',
+                            'observed_source':candidate_source}
+                    best=best or result
+                    continue
+                xs=[]; ys=[]; col_counts={}
+                for py in range(h):
+                    for px in range(w):
+                        av=a.getpixel((px,py)); bv=b.getpixel((px,py))
+                        if max(abs(int(av[i])-int(bv[i])) for i in range(3)) <= 20:
+                            continue
+                        xs.append(px); ys.append(py)
+                        col_counts[px]=col_counts.get(px,0)+1
+                count=len(xs)
+                if not count:
+                    result={'proven':False,'reason':'no-local-delta','count':0,
+                            'observed_source':candidate_source}
+                else:
+                    dw=max(xs)-min(xs)+1; dh=max(ys)-min(ys)+1
+                    dominant=max(col_counts.values()) if col_counts else 0
+                    proven=(8 <= count <= 160
+                            and dw <= 4
+                            and 8 <= dh <= min(40,h)
+                            and dh >= max(8,dw*4)
+                            and dominant >= max(8,int(count*0.65)))
+                    result={'proven':proven,
+                            'reason':'caret-geometry' if proven else 'delta-not-caret',
+                            'count':count,'width':dw,'height':dh,
+                            'dominant_column':dominant,
+                            'bbox':[min(xs),min(ys),dw,dh],
+                            'observed_source':candidate_source}
+                if result.get('proven') is True:
+                    return result
+                if best is None or int(result.get('count') or 0) > int(best.get('count') or 0):
+                    best=result
     except Exception:
         return {'proven':False,'reason':'image-read-failed'}
-    count=len(xs)
-    if not count:
-        return {'proven':False,'reason':'no-local-delta','count':0}
-    dw=max(xs)-min(xs)+1; dh=max(ys)-min(ys)+1
-    dominant=max(col_counts.values()) if col_counts else 0
-    proven=(8 <= count <= 160
-            and dw <= 4
-            and 8 <= dh <= min(40,h)
-            and dh >= max(8,dw*4)
-            and dominant >= max(8,int(count*0.65)))
-    return {'proven':proven,'reason':'caret-geometry' if proven else 'delta-not-caret',
-            'count':count,'width':dw,'height':dh,'dominant_column':dominant,
-            'bbox':[min(xs),min(ys),dw,dh]}
+    return best or {'proven':False,'reason':'evidence-missing'}
 
 def _task091_table_cell_text_ink_point(window_state, bbox, inset=8, threshold=24):
     """Derive a click point from observed text ink inside one proven table cell.
