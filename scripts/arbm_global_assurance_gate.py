@@ -104,12 +104,15 @@ def inspect_repo(root="."):
         bool(selection_body) and bool(start_nav_body) and bool(writer_body)
         and "presses=len(old)" in selection_body
         and "1 <= presses <= 30" in selection_body
-        and "pyautogui.press('home')" in start_nav_body
+        and "pyautogui.click(" in start_nav_body
+        and "TASK091_TABLE_CELL_START_NAV_POINT_OUTSIDE_CELL" in start_nav_body
+        and "max(sx+4,min(ix-3,sx+sw-4))" in start_nav_body
+        and "max(sy+4,min(iy+ih//2,sy+sh-4))" in start_nav_body
         and "pyautogui.keyDown('shift')" not in start_nav_body
         and "pyautogui.press('left'" not in start_nav_body
         and "pyautogui.press('right'" not in start_nav_body
         and "pyautogui.write(" not in start_nav_body
-        and "start_navigation_method']='home'" in shim
+        and "start_navigation_method']='raster-pre-glyph-click'" in shim
         and "TASK091_TABLE_CELL_START_CARET_GEOMETRY_UNPROVEN" in shim
         and "TASK091_TABLE_CELL_CARET_NOT_AT_START" in shim
         and "def _task091_table_cell_delta_plan" in shim
