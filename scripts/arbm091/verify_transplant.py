@@ -150,11 +150,13 @@ deck['screen']=[0,0,1920,1080]
 deck['deck_slide_shapes']={'1':[
     {'id':6,'name':'CoverTitle','text':'H2 Operating Committee Pack\\nGrowth Plan Draft',
      'paragraphs':['H2 Operating Committee Pack','Growth Plan Draft'],
+     'kind':'shape','font_sizes':[2400],'fill_rgb':'',
      'geometry':{'x':749808,'y':1078992,'w':5852160,'h':1234440}},
     {'id':7,'name':'CoverSub',
      'text':'Northstar Cloud\\nPrepared for July Operating Committee review\\nPlanning posture: accelerate growth through H2 scale-up',
      'paragraphs':['Northstar Cloud','Prepared for July Operating Committee review',
                    'Planning posture: accelerate growth through H2 scale-up'],
+     'kind':'shape','font_sizes':[1600],'fill_rgb':'',
      'geometry':{'x':768096,'y':2743200,'w':5669280,'h':1280160}}]}
 deck['deck_file']={'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
                    'sha256':'a'*64,'size':1234,'mtime_ns':1,
@@ -202,11 +204,13 @@ deck['screen']=[0,0,1920,1080]
 deck['deck_slide_shapes']={'1':[
     {'id':6,'name':'CoverTitle','text':'H2 Operating Committee Pack\\nGrowth Plan Draft',
      'paragraphs':['H2 Operating Committee Pack','Growth Plan Draft'],
+     'kind':'shape','font_sizes':[2400],'fill_rgb':'',
      'geometry':{'x':749808,'y':1078992,'w':5852160,'h':1234440}},
     {'id':7,'name':'CoverSub',
      'text':'Northstar Cloud\\nPrepared for July Operating Committee review\\nPlanning posture: accelerate growth through H2 scale-up',
      'paragraphs':['Northstar Cloud','Prepared for July Operating Committee review',
                    'Planning posture: accelerate growth through H2 scale-up'],
+     'kind':'shape','font_sizes':[1600],'fill_rgb':'',
      'geometry':{'x':768096,'y':2743200,'w':5669280,'h':1280160}}]}
 deck['deck_file']={'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
                    'sha256':'a'*64,'size':1234,'mtime_ns':1,
