@@ -16,6 +16,7 @@ class TransactionResult:
     recovery: RecoveryDecision | None
     rollback_performed: bool
     evidence: Mapping[str, Any]
+    recovered: bool = False
 
 class TransactionCoordinator:
     def __init__(self, verifier: IndependentVerifier | None=None,
@@ -35,11 +36,16 @@ class TransactionCoordinator:
         exec_evidence={}
         for attempt in range(1,action.max_attempts+1):
             exec_evidence=dict(executor(action) or {})
-            after=observe()
-            post=self.verifier.verify_post(action,before,after)
+            if exec_evidence.get("accepted") is False:
+                kind=str(exec_evidence.get("kind") or "").upper()
+                code=("PROVIDER_FAILURE" if kind=="PROVIDER" else "EXECUTION_REJECTED")
+                post=VerificationResult(False,code,exec_evidence)
+            else:
+                after=observe()
+                post=self.verifier.verify_post(action,before,after)
             last_post=post
             if post.passed:
-                return TransactionResult(True,action.digest,attempt,pre,post,None,False,exec_evidence)
+                return TransactionResult(True,action.digest,attempt,pre,post,None,False,exec_evidence,attempt>1)
             recovery=self.classifier.classify(post.code,post.evidence)
             if not recovery.retryable or attempt >= min(action.max_attempts,max(1,recovery.max_retries+1)):
                 rolled=False
