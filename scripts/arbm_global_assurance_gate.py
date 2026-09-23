@@ -59,6 +59,7 @@ def inspect_repo(root="."):
     score_tests=_read(root,"tests/arbm091/test_score_and_trace.py")
     semantic_oracle=_read(root,"scripts/arbm091/semantic_transaction.py")
     semantic_runtime=_read(root,"scripts/arbm091/semantic_runtime.py")
+    evaluator_fixture_contract_exists=(root/"scripts/arbm091/structural_contract.py").exists()
     semantic_tests=_read(root,"tests/arbm091/test_semantic_transaction.py")
     semantic_runtime_tests=_read(root,"tests/arbm091/test_semantic_runtime.py")
     senior_tests=_read(root,"tests/arbm091/test_senior_elite_agent.py")
@@ -88,6 +89,7 @@ def inspect_repo(root="."):
                 and "CHANGED_FILE_ALLOWLIST_MISMATCH" in verifier)
     zero_spend=("ZERO_SPEND_MODE: HARD" in workflow
                 and "NON_ZERO_SPEND_MODE_FORBIDDEN" in shim)
+    no_evaluator_fixture_contract=not evaluator_fixture_contract_exists
     semantic_route=(
         "next_091_semantic_text_action" in shim
         and "if not state.get('semantic_text_done')" in shim
@@ -183,8 +185,10 @@ def inspect_repo(root="."):
         result("privacy_data_protection",privacy,
                ("no_hardcoded_secret_literals","OIDC_secret_transport")),
         result("deterministic_execution",semantic_route and semantic_oracle_exact
-               and caret_decision_isolated and "temperature 0" in workflow,
+               and caret_decision_isolated and no_evaluator_fixture_contract
+               and "temperature 0" in workflow,
                ("semantic_transaction_state_machine","caret_decision_isolated",
+                "no_evaluator_transcribed_fixture_contract",
                 "official_agent_temperature_zero")),
         result("bounded_mutation",semantic_route and semantic_oracle_exact
                and semantic_fail_closed and section_e_containment and direct_gui,
