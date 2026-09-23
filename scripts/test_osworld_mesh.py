@@ -767,10 +767,14 @@ class Task091TransactionalTableCellTests(unittest.TestCase):
   from osworld_control import canonical_action
   self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
 
- def test_table_cell_start_navigation_uses_proven_pre_glyph_anchor(self):
+ def test_table_cell_start_navigation_uses_exact_single_source_pre_glyph_anchor(self):
   shape_bbox=[892,436,182,71]; ink_bbox=[956,444,52,17]
+  anchor=shim._task091_table_cell_start_anchor(shape_bbox,ink_bbox)
+  self.assertEqual(anchor,{'cx':953,'cy':452})
   command=shim._task091_table_cell_start_navigation_command(shape_bbox,ink_bbox)
-  self.assertEqual(command.splitlines()[0],"pyautogui.click(953, 452)")
+  self.assertEqual(command,"pyautogui.click(953, 452)")
+  self.assertEqual(command.count("pyautogui.click("),1)
+  self.assertNotIn("sleep(",command)
   self.assertNotIn("press('home')",command)
   self.assertNotIn("keyDown('shift')",command)
   self.assertNotIn("press('left'",command)
