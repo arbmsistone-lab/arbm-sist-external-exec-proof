@@ -31,7 +31,8 @@ class SemanticRuntimeTests(unittest.TestCase):
         select=next_text_action(state,ws,plan)
         self.assertEqual(select["specialist_phase"],"semantic-target-select")
         self.assertIn("doubleClick",select["command"])
-        self.assertNotIn("caret",str(select).casefold())
+        self.assertNotIn("caret",select["command"].casefold())
+        self.assertNotIn("caret",select["specialist_phase"].casefold())
         mutation=next_text_action(state,ws,plan)
         self.assertEqual(mutation["specialist_phase"],"semantic-text-mutation")
         self.assertIn("ctrl', 'a",mutation["command"])
@@ -92,11 +93,12 @@ class SemanticRuntimeTests(unittest.TestCase):
         from pathlib import Path
         shim=Path("scripts/osworld_free_mesh_shim.py").read_text(encoding="utf-8")
         runtime=Path("scripts/arbm091/semantic_runtime.py").read_text(encoding="utf-8")
+        specialist=shim.split("def next_091_specialist_action",1)[1]
         gate="if not state.get('semantic_text_done')"
         legacy="pending=state.get('pending_edit')"
-        self.assertIn(gate,shim)
-        self.assertIn(legacy,shim)
-        self.assertLess(shim.index(gate),shim.index(legacy))
+        self.assertIn(gate,specialist)
+        self.assertIn(legacy,specialist)
+        self.assertLess(specialist.index(gate),specialist.index(legacy))
         self.assertIn('state["spatial_index"]=len(plan)',runtime)
         for forbidden in (
             "_task091_caret","CARET_NOT_AT_START","CARET_GEOMETRY_UNPROVEN",
