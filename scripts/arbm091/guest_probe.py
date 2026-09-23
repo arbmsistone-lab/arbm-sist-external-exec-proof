@@ -153,8 +153,8 @@ def capture(point):
                             if chunks:
                                 paragraphs.append(''.join(chunks))
                         shape_text = '\n'.join(paragraphs)
-                        if not shape_text:
-                            continue
+                        # Keep non-text shapes too: fills/geometry are semantic
+                        # task state (for example the Slide 9 roadmap time-span block).
                         off = ext = None
                         sp_pr = next((node for node in shape
                                      if node.tag.endswith('}spPr')), None)
