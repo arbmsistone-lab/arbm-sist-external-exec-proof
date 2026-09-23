@@ -1496,6 +1496,8 @@ def next_091_specialist_action(instruction, active_application, observation, sta
     # every semantic transaction has been structurally verified.
     if not state.get('semantic_text_done'):
         return next_091_semantic_text_action(state,window_state,TASK091_SPATIAL_TEXT_EDITS)
+    if not state.get('section_e_format_done'):
+        return _task091_section_e_format_step(state,window_state)
 
     pending=state.get('pending_edit')
     if isinstance(pending,dict):
