@@ -34,6 +34,7 @@ def _snapshot(window_state):
     return {
         "deck_slide_shapes":copy.deepcopy(window_state.get("deck_slide_shapes",{})),
         "deck_slide_charts":copy.deepcopy(window_state.get("deck_slide_charts",{})),
+        "deck_slide_relationships":copy.deepcopy(window_state.get("deck_slide_relationships",{})),
         "deck_file":copy.deepcopy(window_state.get("deck_file",{})),
     }
 
