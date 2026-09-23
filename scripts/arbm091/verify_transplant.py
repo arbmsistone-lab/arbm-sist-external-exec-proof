@@ -823,6 +823,8 @@ def main():
         '5994f55fbcdb371e24ddb7ab4e2ccfac28a93dee': {WORKFLOW},
         '416ed9bc2a069481f5d7722509e36cfb23245f78': {WORKFLOW},
         '818d7698f56f72cdf366a283f67d35f0a749bd87': {WORKFLOW},
+        'bd0b21867ca3d711defb0391df35d79d01e0e1fd': {WORKFLOW},
+        '6f13e5b50033b6a89ec98765d8bf3b71fd2591e0': {WORKFLOW},
         'dc4c64f29453a63d27ff4e0ebff3c11fb76f5508': {SHIM},
         'd9a8845d28f8883680b53b032c6a0a6033a3c28e': {SEMANTIC_RUNTIME_TEST},
     }
