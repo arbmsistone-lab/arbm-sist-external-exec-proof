@@ -58,6 +58,7 @@ jobs:
           python -m venv .venv
           .venv/bin/python -m pip install --disable-pip-version-check -q --upgrade pip setuptools wheel
           .venv/bin/python -m pip install --disable-pip-version-check -q -r requirements.txt
+          .venv/bin/python -m pip install --disable-pip-version-check -q 'pyOpenSSL>=24,<26' 'cryptography>=42,<47'
           .venv/bin/python - <<'PY2'
           import OpenSSL, cryptography, pydrive
           print('ISOLATED_OSWORLD_PYTHON_OK', OpenSSL.__version__, cryptography.__version__)
