@@ -897,8 +897,7 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
              patch.object(shim,'_task091_caret_delta_geometry',
                           side_effect=[
                               {'proven':True,'reason':'caret-geometry',
-                               'count':22,'width':1,'height':22,                               'dominant_column':22,'bbox':[111,3,1,22]},
-                              {'proven':True,'reason':'caret-geometry',
+                               'count':22,'width':1,'height':22,                               'dominant_column':22,'bbox':[111,3,1,22]},                              {'proven':True,'reason':'caret-geometry',
                                'count':22,'width':1,'height':22,
                                'dominant_column':22,'bbox':[78,3,1,22]},
                           ]):
@@ -1004,6 +1003,31 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
             self.assertEqual(result['specialist_phase'],'section-e-select-shape')
             self.assertEqual(state['section_e_format']['shape_id'],16)
             self.assertNotIn('pending_edit',state)
+
+
+
+    def test_guest_probe_semantic_slide_text_preserves_split_run_token(self):
+        import ast
+        source=Path('scripts/arbm091/guest_probe.py').read_text(encoding='utf-8')
+        tree=ast.parse(source)
+        fn=next(node for node in tree.body
+                if isinstance(node,ast.FunctionDef) and node.name=='_semantic_slide_text')
+        ns={}
+        exec(compile(ast.Module(body=[fn],type_ignores=[]),
+                     'guest_probe_semantic_helper','exec'),ns)
+        aggregate=ns['_semantic_slide_text']([
+            {'kind':'shape','text':'Repeated metrics • ARR exit target: $42.8M'},
+            {'kind':'table-cell','text':'$40.9M'},
+        ])
+        self.assertIn('$40.9M',aggregate)
+        self.assertEqual(aggregate.count('$40.9M'),1)
+        self.assertNotIn('$4 0 . 9 M',aggregate)
+
+    def test_section_e_precondition_is_semantic_not_index_magic(self):
+        source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+        self.assertIn("int(next_edit[0])==3",source)
+        self.assertNotIn("if index >= 10 and not state.get('section_e_format_done')",source)
+        self.assertNotIn("if index >= 16 and not state.get('section_e_format_done')",source)
 
 
 

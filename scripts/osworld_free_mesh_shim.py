@@ -1197,8 +1197,7 @@ def _task091_verify_pending(observation,pending,window_state):
                    and exact_shape_text)
     if table_cell_disk_verified or disk_verified:
         return True,'disk-verified',{'source':'target-pptx','slide':slide,
-                                    'shape_id':expected_shape_id,                                    'old_count_before':before_old,'old_count_after':after_old,
-                                    'new_count_before':before_new,'new_count_after':after_new,
+                                    'shape_id':expected_shape_id,                                    'old_count_before':before_old,'old_count_after':after_old,                                    'new_count_before':before_new,'new_count_after':after_new,
                                     'sha256_before':before_sha,'sha256_after':after_sha,
                                     'repair_sha256_before':repair_before or None}
     if disk_mutated and before_old > 0 and after_old < before_old:
@@ -1966,15 +1965,20 @@ def next_091_specialist_action(instruction, active_application, observation, sta
         return _task091_terminal('TASK091_EDIT_NOT_COMMITTED',state)
 
     index=int(state.get('spatial_index') or 0)
-    # Run the isolated Slide 3 containment correction before the first KPI
-    # table-cell edit (index 10), so evaluator-visible pixels are corrected
-    # before any table transaction can fail closed.
-    if index >= 10 and not state.get('section_e_format_done'):
+    next_edit=(TASK091_SPATIAL_TEXT_EDITS[index]
+               if index < len(TASK091_SPATIAL_TEXT_EDITS) else None)
+    # Section E containment is a semantic precondition for any Slide-3 edit.
+    # This remains correct even if TASK091_SPATIAL_TEXT_EDITS is reordered.
+    section_e_required=(
+        isinstance(state.get('section_e_format'),dict)
+        or (next_edit is not None and int(next_edit[0])==3)
+    )
+    if section_e_required and not state.get('section_e_format_done'):
         correction=_task091_section_e_format_step(state,window_state)
         if correction is not None:
             return correction
-    if index < len(TASK091_SPATIAL_TEXT_EDITS):
-        slide,x,y,old,new=TASK091_SPATIAL_TEXT_EDITS[index]
+    if next_edit is not None:
+        slide,x,y,old,new=next_edit
         current=int(state.get('slide') or 1)
         nav=_task091_nav_command(current,slide)
         if nav:
@@ -2392,8 +2396,7 @@ def request_mesh(body):
     all_attempts=gateway_attempts+router_attempts
     if _local_contract_failure(all_attempts):
         return 422,{'status':'LOCAL_ACTION_CONTRACT_EXHAUSTED','provider_attempts':all_attempts,
-                    'mandatory_cost_usd':0,'paid_fallback_used':False}
-    local_transient=any(a.get('route')=='local-cloud-vlm' and a.get('status') in ('local_model_error','budget_exceeded') for a in all_attempts)
+                    'mandatory_cost_usd':0,'paid_fallback_used':False}    local_transient=any(a.get('route')=='local-cloud-vlm' and a.get('status') in ('local_model_error','budget_exceeded') for a in all_attempts)
     return 503,{'status':'LOCAL_TRANSIENT_FAILURE_CURRENT_CYCLE' if local_transient else 'FREE_MESH_EXHAUSTED_CURRENT_CYCLE',
                 'provider_attempts':all_attempts,
                 'mandatory_cost_usd':0,'paid_fallback_used':False}

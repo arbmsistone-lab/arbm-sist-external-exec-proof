@@ -17,6 +17,18 @@ from Xlib import X, display
 import pyautogui
 
 
+def _semantic_slide_text(shapes):
+    """Flatten parsed shape/cell text without splitting DrawingML runs."""
+    parts=[]
+    for row in shapes if isinstance(shapes,list) else []:
+        if not isinstance(row,dict):
+            continue
+        value=' '.join(str(row.get('text') or '').split())
+        if value:
+            parts.append(value)
+    return ' '.join(parts)
+
+
 def capture(point):
     connection = display.Display()
     root = connection.screen().root
@@ -228,7 +240,7 @@ def capture(point):
                     key = str(int(number))
                     run_result[key] = parts
                     shape_result[key] = shapes
-                    text_result[key] = ' '.join(parts)
+                    text_result[key] = _semantic_slide_text(shapes)
         except Exception:
             return {}, {}, {}, {}
         return text_result, run_result, shape_result, metadata
