@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from pathlib import Path
 
 from arbm091.score_tracker import certify, read_text, scan_fatal
@@ -92,6 +93,7 @@ def certify_final(root: Path, sha: str, run_id: str, run_attempt: str, jobs: dic
         "visual": visual,
         "slide3_table": table,
         "focal_status": focal["status"],
+        "semantic_status": focal["semantic"]["status"],
     }
 
 
@@ -107,6 +109,7 @@ def main() -> int:
         jobs = json.loads(args.jobs_json)
         require(isinstance(jobs, dict), "FINAL_JOBS_SCHEMA_INVALID")
         verdict = certify_final(args.root, args.sha, args.run_id, args.run_attempt, jobs)
+        print("TASK091_FINAL=GREEN", file=sys.stderr, flush=True)
         print(json.dumps(verdict, indent=2, sort_keys=True))
         return 0
     except Exception as exc:
