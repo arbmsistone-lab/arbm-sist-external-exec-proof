@@ -336,7 +336,7 @@ def _task091_caret_delta_geometry(before_source, after_source, bbox):
         return {'proven':False,'reason':'bbox-empty'}
 
     candidate_sources=[str(after_source or '')]
-    match=re.fullmatch(r'(\\d{4}-\\d{2})-after',str(after_source or ''))
+    match=re.fullmatch(r'(\d{4}-\d{2})-after',str(after_source or ''))
     if match:
         paired=match.group(1)+'-before'
         if paired != str(before_source or ''):
