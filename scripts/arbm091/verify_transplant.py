@@ -821,6 +821,8 @@ def main():
         'cfe562ddcb119b37dba1603a22ff6291215ffbba': {WORKFLOW},
         '794cf74a1bde35d13f6b45478d6844e44b4770eb': {WORKFLOW},
         '5994f55fbcdb371e24ddb7ab4e2ccfac28a93dee': {WORKFLOW},
+        '416ed9bc2a069481f5d7722509e36cfb23245f78': {WORKFLOW},
+        '818d7698f56f72cdf366a283f67d35f0a749bd87': {WORKFLOW},
         'dc4c64f29453a63d27ff4e0ebff3c11fb76f5508': {SHIM},
         'd9a8845d28f8883680b53b032c6a0a6033a3c28e': {SEMANTIC_RUNTIME_TEST},
     }
