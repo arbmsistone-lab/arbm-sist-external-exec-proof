@@ -177,6 +177,7 @@ def next_text_action(state,window_state,plan):
             "target_key":list(resolved["key"]),
             "before_state":before,
             "before_model_sha256":resolved["model_sha256"],
+            "before_target_text":str(resolved["row"].get("text") or ""),
             "before_deck_sha256":str((window_state.get("deck_file") or {}).get("sha256") or ""),
             "contract":contract,
         }
@@ -197,7 +198,7 @@ def next_text_action(state,window_state,plan):
     row=current_model.get(key)
 
     if stage=="select-issued":
-        if row is None or str(row.get("text") or "")!=str(tx.get("old") or ""):
+        if row is None or str(row.get("text") or "")!=str(tx.get("before_target_text") or ""):
             return _terminal("TASK091_PRECONDITION_DRIFT")
         if model_sha256(current_model)!=str(tx.get("before_model_sha256") or ""):
             return _terminal("TASK091_PRECONDITION_DRIFT")
