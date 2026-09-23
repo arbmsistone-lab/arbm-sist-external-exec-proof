@@ -14,6 +14,7 @@ from arbm091.semantic_transaction import (
     semantic_diff,
     verify_exact_text_transaction,
 )
+from arbm091.semantic_runtime import next_text_action
 from arbm091.score_tracker import (
     SEMANTIC_REQUIRED_STATUSES,
     exact_result,
@@ -98,6 +99,32 @@ class SemanticArchitectureTests(unittest.TestCase):
         unchanged=copy.deepcopy(self.before)
         with self.assertRaisesRegex(SemanticTransactionError,"TASK091_SEMANTIC_DIFF_MISMATCH"):
             verify_exact_text_transaction(self.before,unchanged,[self.key],"$40.9M")
+
+    def test_G2_runtime_rejects_content_change_without_new_persisted_hash(self):
+        after_same_hash=copy.deepcopy(self.after)
+        after_same_hash["deck_file"]["sha256"]=self.before["deck_file"]["sha256"]
+        tx_state={
+            "owned":True,
+            "semantic_index":0,
+            "semantic_tx":{
+                "stage":"save-issued","index":0,"slide":3,
+                "old":"$42.8M","new":"$40.9M",
+                "target_key":list(self.key),
+                "before_state":copy.deepcopy(self.before),
+                "before_model_sha256":next(
+                    __import__("arbm091.semantic_transaction",fromlist=["model_sha256"]).model_sha256(
+                        normalize_deck(self.before)
+                    ) for _ in [0]),
+                "before_deck_sha256":self.before["deck_file"]["sha256"],
+                "contract":{
+                    "status":"PASS","target_resolved":True,"target_unique":True,
+                    "precondition":True,"mutation_authorized":True,
+                },
+            },
+        }
+        result=next_text_action(tx_state,after_same_hash,[(3,843,404,"$42.8M","$40.9M")])
+        self.assertEqual(result["action"],"terminal")
+        self.assertEqual(result["reason"],"TASK091_SAVE_NOT_PERSISTED")
 
     def test_H_exact_single_change_passes(self):
         verdict=verify_exact_text_transaction(self.before,self.after,[self.key],"$40.9M")
