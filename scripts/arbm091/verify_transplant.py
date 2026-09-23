@@ -39,6 +39,7 @@ SEMANTIC_RUNTIME = 'scripts/arbm091/semantic_runtime.py'
 SEMANTIC_TEST = 'tests/arbm091/test_semantic_transaction.py'
 SEMANTIC_RUNTIME_TEST = 'tests/arbm091/test_semantic_runtime.py'
 CONTRACT_WORKFLOW = '.github/workflows/arbm-091-contract-read.yml'
+STRUCTURAL_CONTRACT = 'scripts/arbm091/structural_contract.py'
 WPS_ALIAS_COMMIT = 'f0a49b84c95808b501cd91aed14bd702e8230a9c'
 WPS_ALIAS_TEST_COMMIT = '51f63478520b3e8fa89152460dc12dd7da446945'
 WPS_SWITCH_COMMIT = '379a7c64fad1b2776a93f578de8d2ca766473e18'
@@ -847,6 +848,12 @@ def main():
         '4ad720c098b7852de33179e93070724757b522a9': {SEMANTIC_RUNTIME_TEST},
         '2fed2297c0b8bda744affee8e953084d574e2dc8': {TEMP_SEMANTIC_ARCH_TEST},
         'cbf57d3f663b2b6ea03f4881df40c0d932085f79': {GLOBAL_GATE},
+        'b9a888c83dbd30265525137e6003076e7daec97f': {STRUCTURAL_CONTRACT},
+        '8691fa23e2cff943ed299f0d20963b48628ea1bd': {STRUCTURAL_CONTRACT},
+        'c54e5877bc678957c2fba12a82f3c6379cce66ac': {SEMANTIC_ORACLE},
+        '5329578a76d5e67b39c7864741574ede6c7c14a7': {MESH_TEST},
+        '6a4157f1f0c5c339a8c7446c4947d5b0372f0e31': {SEMANTIC_TEST},
+        '8812ae72e1e512b6eb02f6ecc65991469d740fd0': {GLOBAL_GATE},
     }
     for c_node in post_legacy:
         c_files = set(git('diff-tree', '--no-commit-id', '--name-only', '-r', c_node).splitlines())
