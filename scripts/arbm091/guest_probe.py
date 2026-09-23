@@ -13,6 +13,7 @@ import os
 import zipfile
 import xml.etree.ElementTree as ET
 import hashlib
+import posixpath
 from Xlib import X, display
 import pyautogui
 
@@ -97,10 +98,11 @@ def capture(point):
         title_value = str(window.get('title', ''))
         path = '/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx'
         if 'Operating_Committee_Rebaseline_Draft.pptx' not in title_value or not os.path.isfile(path):
-            return {}, {}, {}, {}
+            return {}, {}, {}, {}, {}
         text_result = {}
         run_result = {}
         shape_result = {}
+        chart_result = {}
         metadata = {}
         try:
             raw = open(path, 'rb').read()
@@ -196,6 +198,67 @@ def capture(point):
                                        'text': shape_text, 'paragraphs': paragraphs,
                                        'geometry': geometry, 'kind':'shape',
                                        'font_sizes':font_sizes,'fill_rgb':fill_rgb})
+                    rel_targets={}
+                    rel_name='ppt/slides/_rels/'+base+'.rels'
+                    if rel_name in archive.namelist():
+                        try:
+                            rel_root=ET.fromstring(archive.read(rel_name))
+                            for rel in rel_root:
+                                rid=next((v for k,v in rel.attrib.items() if k.endswith('}id') or k=='Id'),'')
+                                target=str(rel.attrib.get('Target',''))
+                                if rid and target:
+                                    rel_targets[rid]=posixpath.normpath(posixpath.join('ppt/slides',target))
+                        except Exception:
+                            rel_targets={}
+                    charts=[]
+                    for frame in root_xml.iter():
+                        if not frame.tag.endswith('}graphicFrame'):
+                            continue
+                        c_nv_pr = next((node for node in frame.iter()
+                                      if node.tag.endswith('}cNvPr')), None)
+                        frame_id = int(c_nv_pr.attrib.get('id', '0')) if c_nv_pr is not None else 0
+                        frame_name = str(c_nv_pr.attrib.get('name', '')) if c_nv_pr is not None else ''
+                        chart_ref=next((node for node in frame.iter()
+                                       if node.tag.endswith('}chart')),None)
+                        if chart_ref is None:
+                            continue
+                        rid=next((v for k,v in chart_ref.attrib.items() if k.endswith('}id')),'')
+                        chart_name=rel_targets.get(rid,'')
+                        if not chart_name or chart_name not in archive.namelist():
+                            continue
+                        try:
+                            chart_xml=ET.fromstring(archive.read(chart_name))
+                        except Exception:
+                            continue
+                        series=[]
+                        categories=[]
+                        for ser in [node for node in chart_xml.iter() if node.tag.endswith('}ser')]:
+                            tx=next((node for node in ser if node.tag.endswith('}tx')),None)
+                            series_name=''
+                            if tx is not None:
+                                vals=[str(node.text or '') for node in tx.iter()
+                                      if node.tag.endswith('}v') and node.text is not None]
+                                if vals:
+                                    series_name=vals[0]
+                            cat=next((node for node in ser if node.tag.endswith('}cat')),None)
+                            if cat is not None and not categories:
+                                categories=[str(node.text or '') for node in cat.iter()
+                                            if node.tag.endswith('}v') and node.text is not None]
+                            val=next((node for node in ser if node.tag.endswith('}val')),None)
+                            values=[]
+                            if val is not None:
+                                for node in val.iter():
+                                    if not node.tag.endswith('}v') or node.text is None:
+                                        continue
+                                    try:
+                                        values.append(float(node.text))
+                                    except ValueError:
+                                        pass
+                            series.append({'name':series_name,'values':values})
+                        charts.append({'id':frame_id,'name':frame_name,
+                                       'chart_part':chart_name,
+                                       'categories':categories,'series':series})
+
                     for frame in root_xml.iter():
                         if not frame.tag.endswith('}graphicFrame'):
                             continue
@@ -277,10 +340,11 @@ def capture(point):
                     key = str(int(number))
                     run_result[key] = parts
                     shape_result[key] = shapes
+                    chart_result[key] = charts
                     text_result[key] = _semantic_slide_text(shapes)
         except Exception:
-            return {}, {}, {}, {}
-        return text_result, run_result, shape_result, metadata
+            return {}, {}, {}, {}, {}
+        return text_result, run_result, shape_result, chart_result, metadata
 
     before = window_info()
     target = None
@@ -369,11 +433,11 @@ def capture(point):
     image.save(output, format='PNG')
     owner_id, owner_pid = hit_owner()
     after = window_info()
-    deck_text, deck_runs, deck_shapes, deck_file = deck_slide_content(after)
+    deck_text, deck_runs, deck_shapes, deck_charts, deck_file = deck_slide_content(after)
     result = {'window': after, 'target': target, 'controls': controls,
               'focused_control': focused_control, 'deck_slide_text': deck_text,
               'deck_slide_runs': deck_runs, 'deck_slide_shapes': deck_shapes,
-              'deck_file': deck_file,
+              'deck_slide_charts': deck_charts, 'deck_file': deck_file,
               'hit_owner_id': owner_id,
               'hit_owner_pid': owner_pid, 'screen': [0, 0, image.width, image.height],
               'stable': before == after, 'captured_monotonic_ns': time.monotonic_ns(),
