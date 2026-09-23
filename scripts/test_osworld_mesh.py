@@ -767,9 +767,11 @@ class Task091TransactionalTableCellTests(unittest.TestCase):
   from osworld_control import canonical_action
   self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
 
- def test_table_cell_start_navigation_uses_nonselecting_home_anchor(self):
-  command=shim._task091_table_cell_start_navigation_command()
-  self.assertEqual(command.splitlines()[0],"pyautogui.press('home')")
+ def test_table_cell_start_navigation_uses_proven_pre_glyph_anchor(self):
+  shape_bbox=[892,436,182,71]; ink_bbox=[956,444,52,17]
+  command=shim._task091_table_cell_start_navigation_command(shape_bbox,ink_bbox)
+  self.assertEqual(command.splitlines()[0],"pyautogui.click(953, 452)")
+  self.assertNotIn("press('home')",command)
   self.assertNotIn("keyDown('shift')",command)
   self.assertNotIn("press('left'",command)
   self.assertNotIn("press('right'",command)
