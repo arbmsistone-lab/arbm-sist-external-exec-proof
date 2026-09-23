@@ -57,6 +57,10 @@ def inspect_repo(root="."):
     workflow=_read(root,".github/workflows/arbm-091-clean-proof.yml")
     verifier=_read(root,"scripts/arbm091/verify_transplant.py")
     score_tests=_read(root,"tests/arbm091/test_score_and_trace.py")
+    semantic_oracle=_read(root,"scripts/arbm091/semantic_transaction.py")
+    semantic_runtime=_read(root,"scripts/arbm091/semantic_runtime.py")
+    semantic_tests=_read(root,"tests/arbm091/test_semantic_transaction.py")
+    semantic_runtime_tests=_read(root,"tests/arbm091/test_semantic_runtime.py")
     senior_tests=_read(root,"tests/arbm091/test_senior_elite_agent.py")
     req=_read(root,"scripts/requirements-osworld.txt")
     manifest=_read(root,"audit/arbm091-final-files.json")
@@ -84,67 +88,52 @@ def inspect_repo(root="."):
                 and "CHANGED_FILE_ALLOWLIST_MISMATCH" in verifier)
     zero_spend=("ZERO_SPEND_MODE: HARD" in workflow
                 and "NON_ZERO_SPEND_MODE_FORBIDDEN" in shim)
-    caret=("def _task091_caret_delta_geometry" in shim
-           and "def _task091_caret_at_text_start" in shim
-           and "TASK091_TABLE_CELL_CARET_GEOMETRY_UNPROVEN" in shim
-           and "TASK091_TABLE_CELL_START_CARET_GEOMETRY_UNPROVEN" in shim
-           and "caret_entry_end_diagnostic" in shim
-           and "_task091_table_cell_bounded_write_command" in shim)
-    selection_marker="def _task091_table_cell_selection_presses"
-    start_nav_marker="def _task091_table_cell_start_navigation_command"
-    writer_marker="def _task091_table_cell_bounded_write_command"
-    rollback_marker="def _task091_table_cell_rollback_command"
-    selection_body=(shim.split(selection_marker,1)[1].split(start_nav_marker,1)[0]
-                    if selection_marker in shim and start_nav_marker in shim else "")
-    start_nav_body=(shim.split(start_nav_marker,1)[1].split(writer_marker,1)[0]
-                    if start_nav_marker in shim and writer_marker in shim else "")
-    writer_body=(shim.split(writer_marker,1)[1].split(rollback_marker,1)[0]
-                 if writer_marker in shim and rollback_marker in shim else "")
-    bounded_table_edit=(
-        bool(selection_body) and bool(start_nav_body) and bool(writer_body)
-        and "presses=len(old)" in selection_body
-        and "1 <= presses <= 30" in selection_body
-        and "presses=len(old)" in start_nav_body
-        and "1 <= presses <= 30" in start_nav_body
-        and "pyautogui.press('left', presses={presses}" in start_nav_body
-        and "pyautogui.click(" not in start_nav_body
-        and "pyautogui.keyDown('shift')" not in start_nav_body
-        and "pyautogui.press('right'" not in start_nav_body
-        and "pyautogui.write(" not in start_nav_body
-        and "TASK091_TABLE_CELL_END_CARET_UNPROVEN" in shim
-        and "start_navigation_method']='proven-end-left-by-text-length'" in shim
-        and "TASK091_TABLE_CELL_START_CARET_GEOMETRY_UNPROVEN" in shim
-        and "TASK091_TABLE_CELL_CARET_NOT_AT_START" in shim
-        and "def _task091_table_cell_delta_plan" in shim
-        and "pyautogui.press('delete')" in writer_body
-        and "pyautogui.press('left'" not in writer_body
-        and "pyautogui.keyDown('shift')" not in writer_body
-        and "pyautogui.keyUp('shift')" not in writer_body
-        and "pyautogui.press('end')" not in writer_body
-        and "pyautogui.press('home')" not in writer_body
-        and "pyautogui.press('backspace'" not in writer_body
-        and "hotkey('ctrl', 'a')" not in writer_body
-        and "TASK091_TABLE_CELL_DELTA_ACTION_COUNT_UNBOUNDED" in shim
-        and "def _task091_caret_at_text_start" in shim
-        and "TASK091_TABLE_CELL_CARET_NOT_AT_START" in shim
-        and "TASK091_TABLE_CELL_POSTSAVE_MISMATCH_NO_UNDO" in shim
-        and "def _task091_table_cell_suffix_duplicate_repair_command" in shim
-        and "actual_text==expected_text+expected_text[-1]" in shim
-        and "is_table_cell=str(pending.get('shape_kind') or '')=='table-cell'" in shim
-        and "corrupt_shape=_task091_shape_by_id" in shim
-        and "len(repair_plan)>2" in shim
-        and "any(row.get('op')!='delete' for row in repair_plan)" in shim
-        and "def _task091_table_cell_atomic_delete_repair_command" in shim
-        and "sibling_unchanged" in shim
-        and "TASK091_TABLE_CELL_SUFFIX_REPAIR_NOT_PROVEN" in shim)
+    semantic_route=(
+        "next_091_semantic_text_action" in shim
+        and "if not state.get('semantic_text_done')" in shim
+        and "return next_091_semantic_text_action(state,window_state,TASK091_SPATIAL_TEXT_EDITS)" in shim
+        and "state[\"spatial_index\"]=len(plan)" in semantic_runtime
+        and "verify_exact_text_transaction" in semantic_runtime
+        and "assert_roundtrip" in semantic_runtime
+        and "TASK091_SEMANTIC_TRANSACTION_PASS" in semantic_runtime
+    )
+    semantic_oracle_exact=(
+        "observed_c!=allowed_c" in semantic_oracle
+        and "TASK091_SEMANTIC_DIFF_MISMATCH" in semantic_oracle
+        and '"collateral_diff":[]' in semantic_oracle
+        and "verify_font_transaction" in semantic_oracle
+        and "verify_fill_transaction" in semantic_oracle
+    )
+    caret_decision_isolated=(
+        "_task091_caret" not in semantic_runtime
+        and "ink_left" not in semantic_runtime
+        and "press('home')" not in semantic_runtime
+        and "press('left'" not in semantic_runtime
+        and "_task091_caret_delta_geometry" not in
+            shim[shim.index("def _task091_section_e_format_step"):
+                 shim.index("def _task091_system_check_close")]
+        and "TASK091_SECTION_E_CARET_UNPROVEN" not in
+            shim[shim.index("def _task091_section_e_format_step"):
+                 shim.index("def _task091_system_check_close")]
+    )
+    semantic_fail_closed=(
+        "test_caret_zoom_and_raster_fields_have_zero_decision_power" in semantic_tests
+        and "test_ambiguous_target_without_structural_hint_fails_closed" in semantic_tests
+        and "test_sibling_collateral_change_fails" in semantic_tests
+        and "test_save_without_persistence_fails_roundtrip" in semantic_tests
+        and "test_adversarial_collateral_rejected_then_clean_passes" in semantic_tests
+        and "test_collateral_style_change_is_terminal" in semantic_runtime_tests
+        and "test_unpersisted_save_is_terminal" in semantic_runtime_tests
+    )
     section_e_containment=(
         "TASK091_SECTION_E_FORMAT" in shim
         and "'shape_id': 16" in shim
         and "'shape_name': 'KpiReadout_Body'" in shim
-        and "TASK091_SECTION_E_CARET_UNPROVEN" in shim
-        and "TASK091_SECTION_E_FONT_DELTA_UNPROVEN" in shim
-        and "TASK091_SECTION_E_POSTSAVE_DRIFT" in shim
-        and "pyautogui.hotkey('ctrl', '[')" in shim)
+        and "task091_verify_font_transaction" in shim
+        and "section-e-semantic-roundtrip" in shim
+        and "TASK091_SECTION_E_ROUNDTRIP_DRIFT" in shim
+        and "pyautogui.hotkey('ctrl', '[')" in shim
+    )
     specialist_sources=all(x in shim for x in (
         "source='task091-specialist'","source='generic-mesh'",
         "source='061-calibrated'","source='gimp-specialist'"))
@@ -180,10 +169,14 @@ def inspect_repo(root="."):
                ("strict_transplant_verifier","pinned_github_actions","pinned_python_dependencies")),
         result("privacy_data_protection",privacy,
                ("no_hardcoded_secret_literals","OIDC_secret_transport")),
-        result("deterministic_execution",caret and "temperature 0" in workflow,
-               ("geometric_caret_proof","official_agent_temperature_zero")),
-        result("bounded_mutation",bounded_table_edit and section_e_containment and direct_gui,
-               ("proven_start_caret_rightward_table_writer","global_undo_quarantined_on_mismatch","section_e_caret_proven_font_delta","bounded_action_compiler")),
+        result("deterministic_execution",semantic_route and semantic_oracle_exact
+               and caret_decision_isolated and "temperature 0" in workflow,
+               ("semantic_transaction_state_machine","caret_decision_isolated",
+                "official_agent_temperature_zero")),
+        result("bounded_mutation",semantic_route and semantic_oracle_exact
+               and semantic_fail_closed and section_e_containment and direct_gui,
+               ("exact_semantic_diff_budget","zero_collateral_mutation",
+                "roundtrip_persistence","semantic_section_e_font_delta","bounded_action_compiler")),
         result("specialist_ownership",specialist_sources and "specialist_ownership" in board,
                ("all_specialist_routes_governed","091_generic_bypass_veto")),
         result("observability_auditability",audit_logging and bool(trace),
