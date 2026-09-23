@@ -710,7 +710,11 @@ class Task091TransactionalTableCellTests(unittest.TestCase):
   self.assertIn("press('right', presses=2",command)
   self.assertIn("write('0'",command)
   self.assertIn("write('9'",command)
-  self.assertNotIn("write('
+  self.assertNotIn("write('$'",command)
+  self.assertNotIn("write('M'",command)
+  from osworld_control import canonical_action
+  self.assertEqual(canonical_action({'action':'exec','command':command})['command'],command)
+
  def test_slide3_all_six_kpis_use_bounded_same_length_delta_plans(self):
   pairs=(('$42.8M','$40.9M'),('112%','104%'),('74%','71%'),
          ('$2.6M','$2.8M'),('2','3'),('214','206'))
@@ -725,7 +729,15 @@ class Task091TransactionalTableCellTests(unittest.TestCase):
    self.assertNotIn("press('home')",command)
    self.assertNotIn("press('left'",command)
    self.assertEqual(command.count("press('delete')"),len(plan))
-   if old.startswith('  shape_bbox=[892,436,182,71]
+   if old.startswith('$'):
+    self.assertNotIn("write('$'",command)
+   if old.endswith('M') and new.endswith('M'):
+    self.assertNotIn("write('M'",command)
+   if old.endswith('%') and new.endswith('%'):
+    self.assertNotIn("write('%'",command)
+
+ def test_run35749283855_mid_text_caret_is_rejected_and_end_caret_is_proven(self):
+  shape_bbox=[892,436,182,71]
   text_ink={'ink_bbox':[956,445,52,15],'proof_sha256':'a'*64}
   end=shim._task091_table_cell_text_end_point(text_ink,shape_bbox)
   self.assertIsNotNone(end)
