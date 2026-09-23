@@ -197,7 +197,9 @@ def validate_transaction_contract(window_state, target_key_value, old, new):
     if key not in model:
         raise SemanticTransactionError("TASK091_CONTRACT_TARGET_MISSING")
     row=model[key]
-    if str(row.get("text") or "")!=str(old):
+    current=str(row.get("text") or "")
+    wanted=str(old)
+    if _norm(current)!=_norm(wanted) and _norm(wanted) not in _norm(current):
         raise SemanticTransactionError("TASK091_CONTRACT_OLD_VALUE_MISMATCH")
     if not str(old) or str(old)==str(new):
         raise SemanticTransactionError("TASK091_CONTRACT_MUTATION_INVALID")
