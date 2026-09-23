@@ -947,6 +947,7 @@ def _task091_section_e_format_step(state, window_state):
             'before_state':{
                 'deck_slide_shapes':copy.deepcopy(window_state.get('deck_slide_shapes',{})),
                 'deck_slide_charts':copy.deepcopy(window_state.get('deck_slide_charts',{})),
+                'deck_slide_relationships':copy.deepcopy(window_state.get('deck_slide_relationships',{})),
                 'deck_file':copy.deepcopy(window_state.get('deck_file',{})),
             },
             'font_decrements':int(spec['font_decrements']),
@@ -1506,6 +1507,26 @@ def next_091_specialist_action(instruction, active_application, observation, sta
     if not state.get('section_e_format_done'):
         return _task091_section_e_format_step(state,window_state)
 
+    # New Task 091 architecture boundary. Once semantic text transactions and
+    # Section E are complete, legacy pending_edit/caret machinery is forbidden
+    # from participating in any fresh Task 091 decision. The legacy code below
+    # remains only for historical replay compatibility.
+    if state.get('pending_edit') is not None:
+        return _task091_terminal('TASK091_LEGACY_TEXT_STATE_FORBIDDEN',state)
+    if int(state.get('spatial_index') or 0) != len(TASK091_SPATIAL_TEXT_EDITS):
+        return _task091_terminal('TASK091_SEMANTIC_PLAN_INCOMPLETE',state)
+    if not state.get('saved'):
+        state['saved']=True
+        return {'action':'exec','command':"pyautogui.hotkey('ctrl', 's')",
+                'plan':'Persist the completed semantic text and Section E transactions before structural handoff.',
+                'specialist_phase':'semantic-pass-final-save'}
+    state['mode']='STRUCTURAL_HANDOFF'
+    state['handoff']=True
+    state['handoff_reason']='SEMANTIC_TEXT_AND_SECTION_E_VERIFIED_CHART_FILL_REMAINS'
+    return None
+
+    # Historical replay compatibility only. Fresh Task 091 execution returns
+    # above and can never enter this block.
     pending=state.get('pending_edit')
     if isinstance(pending,dict):
         stage=pending.get('stage')
