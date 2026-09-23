@@ -112,15 +112,16 @@ def inspect_repo(root="."):
         and "start_navigation_method']='home'" in shim
         and "TASK091_TABLE_CELL_START_CARET_GEOMETRY_UNPROVEN" in shim
         and "TASK091_TABLE_CELL_CARET_NOT_AT_START" in shim
-        and "pyautogui.press('right', presses={presses}" in writer_body
-        and "pyautogui.press('delete')" not in writer_body
+        and "def _task091_table_cell_delta_plan" in shim
+        and "pyautogui.press('delete')" in writer_body
         and "pyautogui.press('left'" not in writer_body
-        and "pyautogui.keyDown('shift')" in writer_body
-        and "pyautogui.keyUp('shift')" in writer_body
+        and "pyautogui.keyDown('shift')" not in writer_body
+        and "pyautogui.keyUp('shift')" not in writer_body
         and "pyautogui.press('end')" not in writer_body
         and "pyautogui.press('home')" not in writer_body
         and "pyautogui.press('backspace'" not in writer_body
         and "hotkey('ctrl', 'a')" not in writer_body
+        and "TASK091_TABLE_CELL_DELTA_ACTION_COUNT_UNBOUNDED" in shim
         and "def _task091_caret_at_text_start" in shim
         and "TASK091_TABLE_CELL_CARET_NOT_AT_START" in shim
         and "TASK091_TABLE_CELL_POSTSAVE_MISMATCH_NO_UNDO" in shim
@@ -128,8 +129,9 @@ def inspect_repo(root="."):
         and "actual_text==expected_text+expected_text[-1]" in shim
         and "is_table_cell=str(pending.get('shape_kind') or '')=='table-cell'" in shim
         and "corrupt_shape=_task091_shape_by_id" in shim
-        and "current_text==expected_text+expected_text[-1]" in shim
-        and "repair_plan != expected_plan" in shim
+        and "len(repair_plan)>2" in shim
+        and "any(row.get('op')!='delete' for row in repair_plan)" in shim
+        and "def _task091_table_cell_atomic_delete_repair_command" in shim
         and "sibling_unchanged" in shim
         and "TASK091_TABLE_CELL_SUFFIX_REPAIR_NOT_PROVEN" in shim)
     section_e_containment=(
