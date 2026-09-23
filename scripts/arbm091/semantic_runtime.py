@@ -112,6 +112,7 @@ def next_text_action(state,window_state,plan):
     if not isinstance(tx,dict):
         if index>=len(plan):
             state["semantic_text_done"]=True
+            state["spatial_index"]=len(plan)
             return {"action":"checkpoint",
                     "checkpoint":"TASK091_SEMANTIC_TEXT_TRANSACTIONS_COMPLETE",
                     "semantic_index":index}
