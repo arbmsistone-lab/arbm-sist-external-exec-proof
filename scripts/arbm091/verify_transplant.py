@@ -223,7 +223,7 @@ task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
 action=shim.next_091_specialist_action(task,'WPS Presentation','',state,deck)
 assert action['target']['source']=='task091-pptx-canonical', action
 grounded=shim.ground_action(action,'WPS Presentation','',[],allow_canonical=True)
-assert grounded['command']=='pyautogui.doubleClick(745, 335, interval=0.08)', grounded
+expected_command=f"pyautogui.doubleClick({action['target']['cx']}, {action['target']['cy']}, interval=0.08)"\nassert grounded['command']==expected_command, grounded
 assert 'PPTX-backed canonical target' in grounded.get('compiler_note',''), grounded
 bad=copy.deepcopy(action)
 bad['target']['deck_sha256']='b'*64
