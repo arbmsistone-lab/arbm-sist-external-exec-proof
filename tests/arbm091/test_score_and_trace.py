@@ -1235,51 +1235,56 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
                     lambda point:(0,0),'WPS Office')
 
     def test_autofit_radio_group_contract_is_structural_and_fail_closed(self):
-        import ast
+        import ast,base64,zlib
         source=Path('scripts/arbm091/guest_probe.py').read_text(encoding='utf-8')
         tree=ast.parse(source)
-        names={'_RADIO_GLYPH_SIZE','_RADIO_UNSELECTED_SHA256','_RADIO_UNSELECTED_ZLIB_B64',
-               '_RADIO_SELECTED_SHA256','_RADIO_SELECTED_ZLIB_B64'}
         keep=[]
         for node in tree.body:
             if isinstance(node,(ast.Import,ast.ImportFrom)):
                 imports={alias.name for alias in node.names}
-                if imports & {'base64','hashlib','zlib'}: keep.append(node)
-            elif isinstance(node,ast.Assign):
-                assigned={target.id for target in node.targets if isinstance(target,ast.Name)}
-                if assigned & names: keep.append(node)
-            elif isinstance(node,ast.FunctionDef) and node.name in ('_exact_gray_matches','_task091_autofit_radio_controls'):
+                if 'hashlib' in imports:
+                    keep.append(node)
+            elif isinstance(node,ast.FunctionDef) and node.name=='_task091_autofit_radio_controls':
                 keep.append(node)
         ns={}
         exec(compile(ast.Module(body=keep,type_ignores=[]),'autofit-radio-contract','exec'),ns)
-        import base64,zlib
-        un=zlib.decompress(base64.b64decode(ns['_RADIO_UNSELECTED_ZLIB_B64']))
-        sel=zlib.decompress(base64.b64decode(ns['_RADIO_SELECTED_ZLIB_B64']))
-        W,H=400,500; rw,rh=ns['_RADIO_GLYPH_SIZE']
-        def frame(selected_index=2, omit=None, duplicate=False):
-            data=bytearray([247])*(W*H)
-            ys=(280,310,340)
-            for i,y in enumerate(ys):
-                if i==omit: continue
-                glyph=sel if i==selected_index else un
-                for dy in range(rh):
-                    data[(y+dy)*W+320:(y+dy)*W+320+rw]=glyph[dy*rw:(dy+1)*rw]
-            if duplicate:
-                glyph=un
-                for dy in range(rh):
-                    data[(370+dy)*W+320:(370+dy)*W+320+rw]=glyph[dy*rw:(dy+1)*rw]
-            return bytes(data)
         resolve=ns['_task091_autofit_radio_controls']
-        controls=resolve(frame(),(W,H),[0,0,W,H],lambda point:(77,2883),'WPS Office')
+        W,H=1920,1080
+        active=[70,27,1850,1053]
+        crop=zlib.decompress(base64.b64decode("eNrtmP9Pmkccx/8irHXtmizLsq3OL1NURGzJzLRdNbFL19aZ2tl2CS5xsd2yRWe7rmqdJbZlIkJphmzoI+YRW4otoJQh20oF7MM34eGeu193j88DEhBZ6ZJl2fP+gVwux4v73Ofu874DIUGCBL2caJv+rur+SrJ4gm+GDCSTAVLrL5bwfNrHo6YDRUYx40tPRwfwZ6K95MDR8XD+b2xcyOqwkTtt0s4iOoZ+W+g4E8uLcIuzOvQZsw8YthFKiHx1BpiYlMk17BpH5DMXa67RiCE+qh0OO97Zl4W4m5EIWp1CJC8OgO9bSKIZt1GkQfzzbIUFztforWd7w8a3sxCqTMR0CsEMnPfX/4KgphkvSkSiQ4kTKrr7WwatVjhXDmch7mcGMpuexYWBp1VPEFp6d4NF6FGiU7klV0G0UWvOQaxkLqcjhXgmNvrr5hDUykJpBN01BNFapWOlPAuR1O4k9d52UjuGveb2rhgz3GZdkk/ANAKaao32np7EenV2jvzpraXZRNy+KGu6iZcgrpQeUdNoB8HMHa8ZCiGgzMlzQEcGaDpA6jeLPyTAblBPzzrAP3ZuRbyECiZIkKB/3dkZAP+2s8e659PtxJ1VvgXVx2KFnR35r7zfpoyyZTsl6pQB7oHIdfYzvQ9/PWvJROxoV0SOs/vFRjwURiTXWDsHfVf7pR6JHvRdH6zrDbKI0MlCzp4cqNNQaTsHioMjj19ghOKNW5YPRzEi/PXJQs6OaJ3kzZEt3s6Boptm7QwovmDg4GeMum2y0VvI2dnlMNXfCHMuCBT9kEP0Q3j1U6A+dOiwq5CzMy8ggkOnNvMgXp+53FPI2R9Wjlnnj0zkm0Vb7JmkkLMzRG/VB1N0JA/iWAz+9J9ydqGACRIkaLeS4yZNJtL9CiUnaHZSAFBOM1UsYZMI8igilG+MXZXYKwozJqwrb3kwY5F7s4v2lV9ay7xGwHunI3sg3E6EJl8TicomEHJ6uDe71/mN9CXKOUkh7wG23u53I2o59U51Va4mbje2EpDRNjWORdUt0UdlIlGpjlk43qCksxAmgH7kavYYAgSPiN5sDI522s0yp6N6yTEVx4j4n39clgcXm8z2Tk0uYpxDjPKIdpGoRGoJShcSsT6lq0ITwxeTligOs3qRPn89Hp86lxuIez9LKF1F1APutfy09TvG/RbuK/mBWWp9T5NkEbFPvkpuHWVHfrzLck5gRukY/p11PhBThWujfpm/45FVVoyAd5r9iD49DvMk1TU6soaTSjI8It71eXyw3bZuCBMjbqvYhhHuqts+X9jYYPp93pPNoNJba2H7D5ztjNjKLfFJWc0Vv+fLWpkWqFsigyU4rhtg7kT5OUfOPEKL3AYnw69wzDzLBPHAywgF5/+svwDYz0cE"))
+        self.assertEqual(len(crop),67*93)
+        def real_frame(second=False):
+            data=bytearray([247])*(W*H)
+            def paste(x0,y0):
+                for dy in range(93):
+                    data[(y0+dy)*W+x0:(y0+dy)*W+x0+67]=crop[dy*67:(dy+1)*67]
+            paste(1538,655)
+            if second:
+                paste(1360,655)
+            return data
+        owner=lambda point:(12582927,2566)
+        controls=resolve(bytes(real_frame()),(W,H),active,owner,'wpsoffice wpsoffice',2566)
+        self.assertEqual(len(controls),3)
         self.assertEqual([c['label'] for c in controls],
                          ['Do not Autofit','Shrink text on overflow','Resize shape to fit text'])
         self.assertEqual([c['selected'] for c in controls],[False,False,True])
+        self.assertTrue(all(c['frame_bbox']==active for c in controls))
+        self.assertTrue(all(c['pid']==2566 and c['owner_id']==12582927 for c in controls))
+        self.assertTrue(all(c['structural_family']=='wps-autofit-radio-group-v2' for c in controls))
+        self.assertEqual(resolve(bytes(bytearray([247])*(W*H)),(W,H),active,owner,
+                                 'wpsoffice wpsoffice',2566),[])
         with self.assertRaisesRegex(RuntimeError,'GROUP_AMBIGUOUS'):
-            resolve(frame(omit=1),(W,H),[0,0,W,H],lambda point:(77,2883),'WPS Office')
-        with self.assertRaisesRegex(RuntimeError,'GROUP_AMBIGUOUS'):
-            resolve(frame(duplicate=True),(W,H),[0,0,W,H],lambda point:(77,2883),'WPS Office')
-        with self.assertRaisesRegex(RuntimeError,'OWNER_UNPROVEN'):
-            resolve(frame(),(W,H),[0,0,W,H],lambda point:(0,0),'WPS Office')
+            resolve(bytes(real_frame(second=True)),(W,H),active,owner,'wpsoffice wpsoffice',2566)
+        with self.assertRaisesRegex(RuntimeError,'OWNER_MISMATCH'):
+            resolve(bytes(real_frame()),(W,H),active,lambda point:(12582927,9999),
+                    'wpsoffice wpsoffice',2566)
+        multi=real_frame()
+        first=controls[0]['bbox']; cx=first[0]+first[2]//2; cy=first[1]+first[3]//2
+        for yy in range(cy-3,cy+4):
+            for xx in range(cx-3,cx+4):
+                multi[yy*W+xx]=45
+        with self.assertRaisesRegex(RuntimeError,'SELECTION_AMBIGUOUS'):
+            resolve(bytes(multi),(W,H),active,owner,'wpsoffice wpsoffice',2566)
 
     def test_section_e_precondition_is_semantic_not_index_magic(self):
         source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')

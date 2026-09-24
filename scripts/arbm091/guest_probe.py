@@ -41,12 +41,6 @@ _TEXT_BOX_TEMPLATE_ZLIB_B64=(
     'uR0hBmTJkiXL/803Fuswng=='
 )
 
-_RADIO_GLYPH_SIZE=(17,17)
-_RADIO_UNSELECTED_SHA256='ad803aa2f498c706060a52c7457cc195f685b0f44a331215d2f663cfacefef66'
-_RADIO_UNSELECTED_ZLIB_B64=('eNqNjzEOgCAMRe9/FE1EQUz0AB0x0RtgbNwpCatVQRgc7PCStr/9bQi/whld1cNMKbcdIBGC3J98EzY2BN76zr5S5ZkG8jJYGBpzAUdGRYVdw6jLgmAM5cjEmMulK4Nktu0v27C/h7VHnFSAziHoI0n9MjZiWv3n5yc5kwpW')
-_RADIO_SELECTED_SHA256='18b7a3b2e19a532e404e1febd36931e8c6e3a165136625e865559627ed1e3cb9'
-_RADIO_SELECTED_ZLIB_B64=('eNqNj8EOgjAMhp9oCaiPK0TR+BZL5sgSOE/NApwhhWtJr3YUOHnwP+3/urZ/if4SBqe1C7j53npABG9B/GD6tWDG5b9l395vDZMydgVP9DgqdSiIPFNyQN1JsdJAUDHQSFe1KCc0Ai4CMgHcEtLokxdBvQ4tmCQ5D223tZ/s/Oa1bo5BYA/2nOQxlhLdTftxTWVM3c0/L/8C8w3vUQ==')
-
 _TEXT_OPTIONS_TEMPLATE_SIZE=(150,28)
 _TEXT_OPTIONS_TEMPLATE_SHA256='f5b37d1bddcc0222c75aa3ff6e1a7737b5ee84cdaa2b93966354a0e50acf7ff6'
 _TEXT_OPTIONS_TEMPLATE_ZLIB_B64=(
@@ -87,39 +81,98 @@ def _exact_gray_matches(haystack,haystack_size,needle,needle_size,region):
     return matches
 
 
-def _task091_autofit_radio_controls(gray_bytes,screen_size,active_rect,owner_resolver,application):
+def _task091_autofit_radio_controls(gray_bytes,screen_size,active_rect,owner_resolver,application,expected_pid):
     sw,sh=(int(v) for v in screen_size)
-    uw,uh=_RADIO_GLYPH_SIZE
-    unselected=zlib.decompress(base64.b64decode(_RADIO_UNSELECTED_ZLIB_B64))
-    selected=zlib.decompress(base64.b64decode(_RADIO_SELECTED_ZLIB_B64))
-    if (hashlib.sha256(unselected).hexdigest()!=_RADIO_UNSELECTED_SHA256 or
-        hashlib.sha256(selected).hexdigest()!=_RADIO_SELECTED_SHA256):
-        raise RuntimeError('TASK091_AUTOFIT_RADIO_SIGNATURE_CORRUPT')
+    if len(gray_bytes)!=sw*sh:
+        raise ValueError('TASK091_AUTOFIT_RADIO_VISUAL_BYTES_INVALID')
     ax,ay,aw,ah=(int(v) for v in active_rect)
-    region=[ax+int(aw*0.76), ay+int(ah*0.54), int(aw*0.22), int(ah*0.24)]
-    rows=[]
-    for is_selected,needle in ((False,unselected),(True,selected)):
-        for x,y,w,h in _exact_gray_matches(gray_bytes,(sw,sh),needle,(uw,uh),region):
-            rows.append({'bbox':[x,y,w,h],'selected':is_selected})
-    rows=sorted(rows,key=lambda row:(row['bbox'][1],row['bbox'][0]))
-    if not rows:
+    if aw<=0 or ah<=0 or int(expected_pid or 0)<=0:
+        raise RuntimeError('TASK091_AUTOFIT_RADIO_FRAME_UNPROVEN')
+    # Scan the current WPS object-formatting pane band, then derive the radio
+    # group from shape/spacing. No absolute point or historical coordinate is used.
+    rx=max(0,ax+int(aw*0.68)); rr=min(sw,ax+aw)
+    ry=max(0,ay+int(ah*0.35)); rb=min(sh,ay+int(ah*0.88))
+    width=max(0,rr-rx); height=max(0,rb-ry)
+    if width<=0 or height<=0:
+        raise RuntimeError('TASK091_AUTOFIT_RADIO_FRAME_UNPROVEN')
+    mask=bytearray(width*height)
+    for yy in range(height):
+        src=(ry+yy)*sw+rx
+        dst=yy*width
+        for xx in range(width):
+            mask[dst+xx]=1 if gray_bytes[src+xx] < 220 else 0
+    seen=bytearray(width*height)
+    rings=[]
+    for sy in range(height):
+        for sx in range(width):
+            seed=sy*width+sx
+            if not mask[seed] or seen[seed]:
+                continue
+            seen[seed]=1
+            stack=[(sx,sy)]; points=[]
+            while stack:
+                x,y=stack.pop(); points.append((x,y))
+                for dy in (-1,0,1):
+                    for dx in (-1,0,1):
+                        if dx==0 and dy==0:
+                            continue
+                        nx=x+dx; ny=y+dy
+                        if nx<0 or ny<0 or nx>=width or ny>=height:
+                            continue
+                        pos=ny*width+nx
+                        if mask[pos] and not seen[pos]:
+                            seen[pos]=1; stack.append((nx,ny))
+            xs=[p[0] for p in points]; ys=[p[1] for p in points]
+            x0=min(xs); y0=min(ys); w=max(xs)-x0+1; h=max(ys)-y0+1
+            if not (12<=w<=16 and 12<=h<=16 and 30<=len(points)<=100):
+                continue
+            gx=rx+x0; gy=ry+y0
+            cx=gx+w//2; cy=gy+h//2
+            half=3
+            dark_center=0
+            for yy in range(max(gy,cy-half),min(gy+h,cy+half+1)):
+                base=yy*sw
+                for xx in range(max(gx,cx-half),min(gx+w,cx+half+1)):
+                    if gray_bytes[base+xx] < 100:
+                        dark_center += 1
+            rings.append({'bbox':[gx,gy,w,h],'dark_center':dark_center})
+    groups=[]
+    for i in range(len(rings)):
+        for j in range(i+1,len(rings)):
+            for k in range(j+1,len(rings)):
+                group=sorted((rings[i],rings[j],rings[k]),key=lambda row:row['bbox'][1])
+                xs=[row['bbox'][0] for row in group]
+                ys=[row['bbox'][1] for row in group]
+                gaps=(ys[1]-ys[0],ys[2]-ys[1])
+                if max(xs)-min(xs)>2:
+                    continue
+                if not all(24<=gap<=36 for gap in gaps) or abs(gaps[0]-gaps[1])>2:
+                    continue
+                groups.append(group)
+    if not groups:
         return []
-    if len(rows)!=3:
+    unique=[]
+    seen_groups=set()
+    for group in groups:
+        key=tuple(tuple(row['bbox']) for row in group)
+        if key not in seen_groups:
+            seen_groups.add(key); unique.append(group)
+    if len(unique)!=1:
         raise RuntimeError('TASK091_AUTOFIT_RADIO_GROUP_AMBIGUOUS')
-    xs=[row['bbox'][0] for row in rows]
-    ys=[row['bbox'][1] for row in rows]
-    if max(xs)-min(xs)>2 or not all(24<=ys[i+1]-ys[i]<=36 for i in range(2)):
-        raise RuntimeError('TASK091_AUTOFIT_RADIO_GROUP_GEOMETRY_INVALID')
-    if sum(1 for row in rows if row['selected'])!=1:
+    group=unique[0]
+    selected=[row['dark_center']>=8 for row in group]
+    if sum(1 for value in selected if value)!=1:
         raise RuntimeError('TASK091_AUTOFIT_RADIO_SELECTION_AMBIGUOUS')
     labels=('Do not Autofit','Shrink text on overflow','Resize shape to fit text')
-    result=[]
-    owner_key=None
-    for label,row in zip(labels,rows):
+    result=[]; owner_key=None
+    frame_digest=hashlib.sha256(gray_bytes).hexdigest()
+    for index,(label,row,is_selected) in enumerate(zip(labels,group,selected)):
         x,y,w,h=row['bbox']; cx=x+w//2; cy=y+h//2
         owner_id,owner_pid=owner_resolver((cx,cy))
         if int(owner_id or 0)<=0 or int(owner_pid or 0)<=0:
             raise RuntimeError('TASK091_AUTOFIT_RADIO_OWNER_UNPROVEN')
+        if int(owner_pid)!=int(expected_pid):
+            raise RuntimeError('TASK091_AUTOFIT_RADIO_OWNER_MISMATCH')
         current_owner=(int(owner_id),int(owner_pid))
         if owner_key is None:
             owner_key=current_owner
@@ -129,11 +182,13 @@ def _task091_autofit_radio_controls(gray_bytes,screen_size,active_rect,owner_res
             'label':label,'role':'visual-radio','pid':int(owner_pid),
             'application':str(application or ''),'bbox':[x,y,w,h],
             'showing':True,'enabled':True,'focused':False,'depth':4096,
-            'selected':bool(row['selected']),'owner_id':int(owner_id),
-            'structural_family':'wps-autofit-radio-group-v1',
-            'cx':cx,'cy':cy,
+            'selected':bool(is_selected),'owner_id':int(owner_id),
+            'structural_family':'wps-autofit-radio-group-v2',
+            'structural_index':index,'frame_bbox':list(active_rect),
+            'frame_visual_sha256':frame_digest,'cx':cx,'cy':cy,
         })
     return result
+
 
 
 def _task091_panel_disclosure_visual_control(gray_bytes,screen_size,active_rect,owner_resolver,application):
@@ -727,21 +782,19 @@ def capture(point):
                 if target is not None and target != disclosure:
                     raise RuntimeError('TASK091_VISUAL_CONTROL_TARGET_AMBIGUOUS:PANEL_DISCLOSURE')
                 target=disclosure
-    if any(str(row.get('label') or '').strip().casefold()=='panel disclosure'
-           for row in controls if isinstance(row,dict)):
-        radios=_task091_autofit_radio_controls(
-            gray,image.size,active_rect,hit_owner,
-            before.get('wm_class') or before.get('title') or '')
-        for radio in radios:
-            controls.append(radio)
-            if point is not None and contains(radio['bbox']):
-                if target is not None and target != radio:
-                    raise RuntimeError('TASK091_VISUAL_CONTROL_TARGET_AMBIGUOUS:AUTOFIT_RADIO')
-                target=radio
-        if radios:
-            controls=sorted(controls,key=lambda value:(
-                not value.get('focused',False),-int(value.get('depth') or 0),
-                value['bbox'][1],value['bbox'][0],value['bbox'][2]*value['bbox'][3]))[:128]
+    radios=_task091_autofit_radio_controls(
+        gray,image.size,active_rect,hit_owner,
+        before.get('wm_class') or before.get('title') or '',before.get('pid'))
+    for radio in radios:
+        controls.append(radio)
+        if point is not None and contains(radio['bbox']):
+            if target is not None and target != radio:
+                raise RuntimeError('TASK091_VISUAL_CONTROL_TARGET_AMBIGUOUS:AUTOFIT_RADIO')
+            target=radio
+    if radios:
+        controls=sorted(controls,key=lambda value:(
+            not value.get('focused',False),-int(value.get('depth') or 0),
+            value['bbox'][1],value['bbox'][0],value['bbox'][2]*value['bbox'][3]))[:128]
     output = io.BytesIO()
     image.save(output, format='PNG')
     owner_id, owner_pid = hit_owner()
