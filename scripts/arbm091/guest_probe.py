@@ -364,6 +364,7 @@ def capture(point):
         return text_result, run_result, shape_result, chart_result, relationship_result, metadata
 
     before = window_info()
+    owner_before_id, owner_before_pid = hit_owner()
     target = None
     controls = []
     focused_control = None
@@ -401,7 +402,10 @@ def capture(point):
                     'showing': True, 'enabled': enabled,
                     'focused': focused, 'depth': depth}
             if label and role not in ('application', 'frame', 'window'):
-                if pid == before['pid'] and in_active_window(rect):
+                app_low=str(application or '').casefold()
+                wps_control=(pid == before['pid'] or
+                             any(token in app_low for token in ('wps','wpp','kingsoft')))
+                if wps_control and in_active_window(rect):
                     controls.append(item)
                 if point is not None and contains(rect):
                     candidates.append(item)
@@ -415,7 +419,13 @@ def capture(point):
         getter = getattr(application, 'get_process_id', None) or getattr(application, 'getProcessId', None)
         pid = int(getter()) if getter else 0
         name = str(application.name or '')
-        if pid != before['pid'] and name.casefold() not in ('gnome-shell', 'gnome shell', 'unity', 'ubuntu dock'):
+        low = name.casefold()
+        wps_family = any(token in low for token in ('wps', 'wpp', 'kingsoft'))
+        allowed = (pid == before['pid'] or
+                   (owner_before_pid and pid == owner_before_pid) or
+                   wps_family or
+                   low in ('gnome-shell', 'gnome shell', 'unity', 'ubuntu dock'))
+        if not allowed:
             continue
         for child in application:
             visit(child, name, pid, 0)
@@ -458,7 +468,10 @@ def capture(point):
               'deck_file': deck_file,
               'hit_owner_id': owner_id,
               'hit_owner_pid': owner_pid, 'screen': [0, 0, image.width, image.height],
-              'stable': before == after, 'captured_monotonic_ns': time.monotonic_ns(),
+              'stable': before == after and
+                        (point is None or
+                         (owner_before_id, owner_before_pid) == (owner_id, owner_pid)),
+              'captured_monotonic_ns': time.monotonic_ns(),
               'screenshot_base64': base64.b64encode(output.getvalue()).decode('ascii')}
     connection.close()
     return result
