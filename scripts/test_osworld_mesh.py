@@ -298,10 +298,24 @@ class MeshTests(unittest.TestCase):
    deck_autofit=copy.deepcopy(deck)
    deck_autofit['source']='0010-01-after'
    deck_autofit['screenshot_sha256']='f'*64
-   autofit_capture=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck_autofit)
-   self.assertEqual(autofit_capture['reason'],'TASK091_COVERTITLE_AUTOFIT_OPTIONS_CAPTURED')
-   state['semantic_tx']['stage']='select-issued'
-   state['semantic_tx']['autofit_preflight_done']=True
+   deck_autofit['controls']=[
+    {'label':'Do not Autofit','role':'visual-radio','pid':2883,'application':'WPS Office',
+     'bbox':[1551,665,17,17],'showing':True,'enabled':True,'selected':False},
+    {'label':'Shrink text on overflow','role':'visual-radio','pid':2883,'application':'WPS Office',
+     'bbox':[1551,695,17,17],'showing':True,'enabled':True,'selected':False},
+    {'label':'Resize shape to fit text','role':'visual-radio','pid':2883,'application':'WPS Office',
+     'bbox':[1551,725,17,17],'showing':True,'enabled':True,'selected':True},
+   ]
+   deck_autofit['deck_slide_shapes']['1'][0]['autofit_mode']='RESIZE_SHAPE_TO_FIT_TEXT'
+   select_autofit=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck_autofit)
+   self.assertEqual(select_autofit['specialist_phase'],'semantic-cover-autofit-do-not-select')
+   self.assertEqual(select_autofit['target']['label'],'Do not Autofit')
+   deck_selected=copy.deepcopy(deck_autofit)
+   deck_selected['screenshot_sha256']='1'*64
+   for control in deck_selected['controls']:
+    control['selected']=control['label']=='Do not Autofit'
+   confirmed=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck_selected)
+   self.assertEqual(confirmed['checkpoint'],'TASK091_COVERTITLE_AUTOFIT_SELECTION_CONFIRMED')
    mutation=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck)
    self.assertEqual(mutation['specialist_phase'],'semantic-text-mutation')
    self.assertIn("hotkey('ctrl', 'h')",mutation['command'])
@@ -320,6 +334,7 @@ class MeshTests(unittest.TestCase):
    final_cover=copy.deepcopy(cover)
    final_cover['text']='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
    final_cover['paragraphs']=['H2 Operating Committee Pack','Stabilize-and-Recover Rebaseline']
+   final_cover['autofit_mode']='DO_NOT_AUTOFIT'
    deck_after=copy.deepcopy(deck)
    deck_after['deck_slide_shapes']['1'][0]=final_cover
    deck_after['deck_slide_text']['1']='H2 Operating Committee Pack Stabilize-and-Recover Rebaseline Planning posture: accelerate growth through H2 scale-up'
