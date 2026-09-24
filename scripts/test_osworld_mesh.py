@@ -267,7 +267,7 @@ class MeshTests(unittest.TestCase):
    deck_pane=copy.deepcopy(deck)
    deck_pane['screenshot_sha256']='c'*64
    captured=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck_pane)
-   self.assertEqual(captured['action'],'terminal')
+   self.assertEqual(captured['action'],'exec')
    self.assertEqual(captured['specialist_phase'],'semantic-cover-autofit-textbox-pane-open')
    self.assertEqual(state['semantic_tx']['autofit_panel_points']['text_options'],[1730,219])
    self.assertEqual(state['semantic_tx']['autofit_panel_points']['text_box'],[1730,251])
