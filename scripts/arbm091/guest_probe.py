@@ -345,6 +345,53 @@ def _task091_text_options_visual_control(gray_bytes,screen_size,active_rect,owne
     }
 
 
+def _task091_slide_canvas_bbox(image, deck_file):
+    """Resolve Task 091's rendered slide rectangle from its full-width navy band."""
+    if os.environ.get('TASK_ID') != '091':
+        return None
+    slide_size=(deck_file or {}).get('slide_size',{}) if isinstance(deck_file,dict) else {}
+    sw=int(slide_size.get('w') or 0); sh=int(slide_size.get('h') or 0)
+    if sw<=0 or sh<=0:
+        return None
+    rgb=image.convert('RGB')
+    width,height=rgb.size
+    x0=250; x1=min(width-250,1700)
+    y0=180; y1=min(height,900)
+    best=None
+    for y in range(y0,y1):
+        run=None
+        for x in range(x0,x1):
+            r,g,b=rgb.getpixel((x,y))
+            dark=(r<65 and g<95 and b<130 and b>r+15)
+            if dark and run is None:
+                run=x
+            if (not dark or x==x1-1) and run is not None:
+                end=x if not dark else x+1
+                length=end-run
+                if best is None or length>best[0]:
+                    best=(length,run,end,y)
+                run=None
+    if best is None or best[0] < 700:
+        return None
+    length,left,right,anchor_y=best
+    rows=[]
+    for y in range(max(y0,anchor_y-100),min(y1,anchor_y+120)):
+        dark_count=0
+        for x in range(left,right):
+            r,g,b=rgb.getpixel((x,y))
+            if r<65 and g<95 and b<130 and b>r+15:
+                dark_count+=1
+        if dark_count >= int(length*0.85):
+            rows.append(y)
+    if not rows:
+        return None
+    top=min(rows)
+    slide_h=round(length*sh/sw)
+    if slide_h<=0 or top+slide_h>height:
+        return None
+    return [int(left),int(top),int(length),int(slide_h)]
+
+
 def capture(point):
     connection = display.Display()
     root = connection.screen().root
@@ -839,11 +886,13 @@ def capture(point):
     owner_id, owner_pid = hit_owner()
     after = window_info()
     deck_text, deck_runs, deck_shapes, deck_charts, deck_relationships, deck_file = deck_slide_content(after)
+    slide_canvas_bbox=_task091_slide_canvas_bbox(image,deck_file)
     result = {'window': after, 'target': target, 'controls': controls,
               'focused_control': focused_control, 'deck_slide_text': deck_text,
               'deck_slide_runs': deck_runs, 'deck_slide_shapes': deck_shapes,
               'deck_slide_charts': deck_charts, 'deck_slide_relationships': deck_relationships,
               'deck_file': deck_file,
+              'slide_canvas_bbox': slide_canvas_bbox,
               'hit_owner_id': owner_id,
               'hit_owner_pid': owner_pid, 'screen': [0, 0, image.width, image.height],
               'autofit_radio_diagnostics':autofit_radio_diagnostics,

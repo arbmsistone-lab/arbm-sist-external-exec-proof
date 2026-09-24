@@ -87,6 +87,7 @@ def snapshot(controller, root: Path, name: str, point, active_slide=None):
         'deck_slide_charts': payload.get('deck_slide_charts', {}),
         'deck_slide_relationships': payload.get('deck_slide_relationships', {}),
         'deck_file': payload.get('deck_file', {}),
+        'slide_canvas_bbox': payload.get('slide_canvas_bbox'),
         'screen': payload.get('screen', []),
         'screenshot_sha256': hashlib.sha256(png).hexdigest(),
     }

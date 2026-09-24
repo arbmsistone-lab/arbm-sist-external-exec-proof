@@ -16,6 +16,7 @@ def base_state():
         "window":{"bbox":[70,27,1850,1053],"title":"Operating_Committee_Rebaseline_Draft.pptx - WPS Presentation"},
         "active_slide":3,
         "deck_file":{"sha256":"a"*64,"slide_size":{"w":12192000,"h":6858000}},
+        "slide_canvas_bbox":[443,194,1413,795],
         "deck_slide_shapes":{
             "3":[{
                 "id":-13001003,"name":"Table 12#r1c2","text":"$42.8M",
@@ -28,6 +29,22 @@ def base_state():
 
 
 class SemanticRuntimeTests(unittest.TestCase):
+    def test_artifact_calibrated_canvas_maps_cover_stat(self):
+        ws=base_state()
+        ws["active_slide"]=1
+        ws["deck_file"]["slide_size"]={"w":12191365,"h":6858000}
+        ws["slide_canvas_bbox"]=[352,263,1135,638]
+        ws["deck_slide_shapes"]={"1":[{
+            "id":13,"name":"CoverStatValue_0","text":"$42.8M","kind":"shape",
+            "geometry":{"x":8339327,"y":2167128,"w":2560320,"h":219456},
+            "font_sizes":[2100,2100],"fill_rgb":"",
+        }]}
+        state={"slide":1}
+        action=next_text_action(state,ws,((1,1338,393,"$42.8M","$40.9M"),))
+        self.assertEqual(action["specialist_phase"],"semantic-target-select")
+        self.assertEqual((action["target"]["cx"],action["target"]["cy"]),(1248,475))
+        self.assertIn("doubleClick(1248, 475",action["command"])
+
     def test_transaction_has_no_caret_or_character_navigation(self):
         ws=base_state()
         state={"slide":3}

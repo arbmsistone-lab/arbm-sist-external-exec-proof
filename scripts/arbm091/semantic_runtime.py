@@ -52,9 +52,18 @@ def _screen_center(window_state,row):
     gx,gy,gw,gh=(int(v) for v in geom)
     if gx<0 or gy<0 or gw<=0 or gh<=0:
         raise SemanticTransactionError("TASK091_TARGET_GEOMETRY_INVALID")
-    vx,vy,vw,vh=VIEWPORT
+    canvas=window_state.get("slide_canvas_bbox")
+    if not (isinstance(canvas,list) and len(canvas)==4 and all(type(v) is int for v in canvas)):
+        raise SemanticTransactionError("TASK091_SLIDE_CANVAS_UNPROVEN")
+    vx,vy,vw,vh=canvas
+    if vx<0 or vy<0 or vw<=0 or vh<=0:
+        raise SemanticTransactionError("TASK091_SLIDE_CANVAS_INVALID")
+    if abs((vw/vh)-(sw/sh)) > 0.02:
+        raise SemanticTransactionError("TASK091_SLIDE_CANVAS_ASPECT_MISMATCH")
     cx=round(vx+((gx+gw/2)/sw)*vw)
     cy=round(vy+((gy+gh/2)/sh)*vh)
+    if not (vx <= cx < vx+vw and vy <= cy < vy+vh):
+        raise SemanticTransactionError("TASK091_TARGET_OUTSIDE_SLIDE_CANVAS")
     return int(cx),int(cy)
 
 
