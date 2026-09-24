@@ -1229,19 +1229,19 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
         import base64,zlib
         un=zlib.decompress(base64.b64decode(ns['_RADIO_UNSELECTED_ZLIB_B64']))
         sel=zlib.decompress(base64.b64decode(ns['_RADIO_SELECTED_ZLIB_B64']))
-        W,H=400,240; rw,rh=ns['_RADIO_GLYPH_SIZE']
+        W,H=400,400; rw,rh=ns['_RADIO_GLYPH_SIZE']
         def frame(selected_index=2, omit=None, duplicate=False):
             data=bytearray([247])*(W*H)
-            ys=(80,110,140)
+            ys=(230,260,290)
             for i,y in enumerate(ys):
                 if i==omit: continue
                 glyph=sel if i==selected_index else un
                 for dy in range(rh):
-                    data[(y+dy)*W+300:(y+dy)*W+300+rw]=glyph[dy*rw:(dy+1)*rw]
+                    data[(y+dy)*W+320:(y+dy)*W+320+rw]=glyph[dy*rw:(dy+1)*rw]
             if duplicate:
                 glyph=un
                 for dy in range(rh):
-                    data[(170+dy)*W+300:(170+dy)*W+300+rw]=glyph[dy*rw:(dy+1)*rw]
+                    data[(320+dy)*W+320:(320+dy)*W+320+rw]=glyph[dy*rw:(dy+1)*rw]
             return bytes(data)
         resolve=ns['_task091_autofit_radio_controls']
         controls=resolve(frame(),(W,H),[0,0,W,H],lambda point:(77,2883),'WPS Office')
