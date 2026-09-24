@@ -24,29 +24,35 @@ function gitBlobSha(bytes){
   return crypto.createHash("sha1").update(header).update(bytes).digest("hex");
 }
 async function fetchSnapshot(expectedSha){
-  const configured=required("ARBM_SNAPSHOT_REST_URL");
-  const origin=new URL(configured).origin;
-  const base=`${origin}/rest/v1/arbm_ci_source_files_v2?sha=eq.${encodeURIComponent(expectedSha)}&select=path,content_base64,blob_sha,size_bytes&order=path.asc`;
-  const apiKey=required("ARBM_SNAPSHOT_API_KEY");
-  const proofToken=required("ARBM_SNAPSHOT_PROOF_TOKEN");
-  const response=await fetch(base,{
-    headers:{
-      apikey:apiKey,
-      "x-arbm-proof-token":proofToken,
-      accept:"application/json",
-    },
-    signal:AbortSignal.timeout(30000),
-  });
-  if(!response.ok){const body=(await response.text()).slice(0,500);throw new Error(`snapshot_http_${response.status}:${body}`);}
-  const rows=await response.json();
-  if(!Array.isArray(rows)||!rows.length) throw new Error("snapshot_empty");
-  return rows;
+  const base="https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-platform-api-v1/v1/ci-source-package";
+  const token=required("ARBM_SOURCE_TOKEN");
+  let offset=0,packageMeta=null;
+  const rows=[];
+  while(true){
+    const u=new URL(base);
+    u.searchParams.set("sha",expectedSha);
+    u.searchParams.set("offset",String(offset));
+    u.searchParams.set("limit","100");
+    const response=await fetch(u,{headers:{authorization:`Bearer ${token}`,accept:"application/json"},signal:AbortSignal.timeout(30000)});
+    if(!response.ok){const body=(await response.text()).slice(0,500);throw new Error(`snapshot_http_${response.status}:${body}`);}
+    const payload=await response.json();
+    if(!payload?.ok||!payload?.package||!Array.isArray(payload?.files))throw new Error("snapshot_payload_invalid");
+    packageMeta??=payload.package;
+    if(String(payload.package.sha||"").toLowerCase()!==expectedSha||payload.package.locked!==true)throw new Error("snapshot_package_invalid");
+    rows.push(...payload.files);
+    if(!payload.has_more)break;
+    offset+=payload.files.length;
+    if(offset>5000)throw new Error("snapshot_file_limit");
+  }
+  if(!rows.length)throw new Error("snapshot_empty");
+  return {rows,packageMeta};
 }
 export async function runSnapshotUi12pCert(){
   const expectedSha=required("ARBM_EXPECTED_SHA").toLowerCase();
-  const expectedDigest=required("ARBM_SNAPSHOT_PACKAGE_DIGEST").toLowerCase();
-  const expectedCount=Number(required("ARBM_SNAPSHOT_FILE_COUNT"));
-  const rows=await fetchSnapshot(expectedSha);
+  const {rows,packageMeta}=await fetchSnapshot(expectedSha);
+  const expectedDigest=String(packageMeta.package_digest||"").toLowerCase();
+  const expectedCount=Number(packageMeta.file_count||0);
+  if(!/^[0-9a-f]{64}$/.test(expectedDigest))throw new Error("snapshot_digest_invalid");
   if(rows.length!==expectedCount) throw new Error(`snapshot_count_mismatch:${rows.length}:${expectedCount}`);
 
   const normalized=rows.map((row)=>{
