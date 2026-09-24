@@ -441,6 +441,13 @@ class ForegroundTests(unittest.TestCase):
         select=next_text_action(state,deck,plan)
         self.assertEqual(select['specialist_phase'],'semantic-target-select')
         self.assertNotIn('pending_edit',state)
+        preflight=next_text_action(state,deck,plan)
+        self.assertEqual(preflight['specialist_phase'],'semantic-cover-autofit-pane-open')
+        pane=copy.deepcopy(deck); pane['screenshot_sha256']='c'*64
+        captured=next_text_action(state,pane,plan)
+        self.assertEqual(captured['reason'],'TASK091_COVERTITLE_AUTOFIT_PANE_CAPTURED')
+        state['semantic_tx']['stage']='select-issued'
+        state['semantic_tx']['autofit_preflight_done']=True
         mutation=next_text_action(state,deck,plan)
         self.assertEqual(mutation['specialist_phase'],'semantic-text-mutation')
         self.assertIn("hotkey('ctrl', 'h')",mutation['command'])
