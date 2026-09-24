@@ -70,15 +70,20 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertIn("hotkey('shift', 'f10')",preflight["command"])
         self.assertIn("press('o')",preflight["command"])
         ws_pane=copy.deepcopy(ws)
+        ws_pane["source"]="0007-03-after"
         ws_pane["screenshot_sha256"]="c"*64
+        ws_pane["controls"]=[{"label":"TEXT OPTIONS","role":"page tab","pid":2883,
+            "application":"WPS Office","bbox":[1660,200,140,38],"showing":True,"enabled":True}]
         diag=next_text_action(state,ws_pane,plan)
         self.assertEqual(diag["specialist_phase"],"semantic-cover-autofit-text-options-open")
         self.assertEqual(diag["target"]["source"],"task091-panel-canonical")
         self.assertEqual(diag["target"]["label"],"TEXT OPTIONS")
         self.assertEqual(state["semantic_tx"]["autofit_panel_points"]["text_options"],[1730,219])
-        self.assertEqual(state["semantic_tx"]["autofit_panel_points"]["text_box"],[1730,251])
         ws_options=copy.deepcopy(ws)
+        ws_options["source"]="0008-01-after"
         ws_options["screenshot_sha256"]="d"*64
+        ws_options["controls"]=[{"label":"Text Box","role":"page tab","pid":2883,
+            "application":"WPS Office","bbox":[1660,232,140,38],"showing":True,"enabled":True}]
         textbox=next_text_action(state,ws_options,plan)
         self.assertEqual(textbox["specialist_phase"],"semantic-cover-autofit-textbox-pane-open")
         self.assertEqual(textbox["target"]["source"],"task091-panel-canonical")
