@@ -72,8 +72,15 @@ class SemanticRuntimeTests(unittest.TestCase):
         ws_pane=copy.deepcopy(ws)
         ws_pane["screenshot_sha256"]="c"*64
         diag=next_text_action(state,ws_pane,plan)
-        self.assertEqual(diag["action"],"terminal")
-        self.assertEqual(diag["reason"],"TASK091_COVERTITLE_AUTOFIT_PANE_CAPTURED")
+        self.assertEqual(diag["specialist_phase"],"semantic-cover-autofit-textbox-pane-open")
+        self.assertIn("pyautogui.click(",diag["command"])
+        self.assertEqual(state["semantic_tx"]["autofit_panel_points"]["text_options"],[1730,219])
+        self.assertEqual(state["semantic_tx"]["autofit_panel_points"]["text_box"],[1730,251])
+        ws_textbox=copy.deepcopy(ws)
+        ws_textbox["screenshot_sha256"]="d"*64
+        captured=next_text_action(state,ws_textbox,plan)
+        self.assertEqual(captured["action"],"terminal")
+        self.assertEqual(captured["reason"],"TASK091_COVERTITLE_TEXTBOX_PANE_CAPTURED")
         state["semantic_tx"]["stage"]="select-issued"
         state["semantic_tx"]["autofit_preflight_done"]=True
         mutation=next_text_action(state,ws,plan)

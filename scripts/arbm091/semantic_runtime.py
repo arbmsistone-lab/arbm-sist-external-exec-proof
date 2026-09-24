@@ -292,7 +292,42 @@ def next_text_action(state,window_state,plan):
         current_shot=str(window_state.get("screenshot_sha256") or "")
         if not current_shot or current_shot==str(tx.get("pre_autofit_screenshot_sha256") or ""):
             return _terminal("TASK091_COVERTITLE_AUTOFIT_PANE_NOT_OBSERVED")
-        return _terminal("TASK091_COVERTITLE_AUTOFIT_PANE_CAPTURED")
+        if row is None or dict(row.get("geometry") or {})!={"x":749808,"y":1078992,"w":5852160,"h":1234440}:
+            return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_BEFORE_AUTOFIT")
+        window=(window_state.get("window") or {}).get("bbox")
+        if window!=WINDOW:
+            return _terminal("TASK091_COVERTITLE_AUTOFIT_WINDOW_DRIFT")
+        wx,wy,ww,wh=(int(v) for v in window)
+        right=wx+ww
+        text_options_x=right-190
+        text_options_y=wy+192
+        text_box_x=right-190
+        text_box_y=wy+224
+        tx["stage"]="autofit-textbox-pane-issued"
+        tx["autofit_pane_screenshot_sha256"]=current_shot
+        tx["autofit_panel_points"]={
+            "text_options":[text_options_x,text_options_y],
+            "text_box":[text_box_x,text_box_y],
+        }
+        return {
+            "action":"exec",
+            "command":"\n".join((
+                f"pyautogui.click({text_options_x}, {text_options_y})",
+                "pyautogui.sleep(0.35)",
+                f"pyautogui.click({text_box_x}, {text_box_y})",
+                "pyautogui.sleep(0.8)",
+            )),
+            "plan":"Open Text Options then the Text Box subpanel using coordinates derived from the verified current Object Formatting pane geometry; no document mutation is authorized.",
+            "specialist_phase":"semantic-cover-autofit-textbox-pane-open",
+        }
+
+    if stage=="autofit-textbox-pane-issued":
+        current_shot=str(window_state.get("screenshot_sha256") or "")
+        if not current_shot or current_shot==str(tx.get("autofit_pane_screenshot_sha256") or ""):
+            return _terminal("TASK091_COVERTITLE_TEXTBOX_PANE_NOT_OBSERVED")
+        if row is None or dict(row.get("geometry") or {})!={"x":749808,"y":1078992,"w":5852160,"h":1234440}:
+            return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_DURING_AUTOFIT_NAV")
+        return _terminal("TASK091_COVERTITLE_TEXTBOX_PANE_CAPTURED")
 
     if stage=="mutation-issued":
         # Finish the WPS editing operation. Disk state is verified only after save.
