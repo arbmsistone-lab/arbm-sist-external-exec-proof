@@ -292,7 +292,7 @@ def next_text_action(state,window_state,plan):
         current_shot=str(window_state.get("screenshot_sha256") or "")
         if not current_shot or current_shot==str(tx.get("pre_autofit_screenshot_sha256") or ""):
             return _terminal("TASK091_COVERTITLE_AUTOFIT_PANE_NOT_OBSERVED")
-        if row is None or dict(row.get("geometry") or {})!={"x":749808,"y":1078992,"w":5852160,"h":1234440}:
+        if row is None or tuple(row.get("geometry") or ())!=(749808,1078992,5852160,1234440):
             return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_BEFORE_AUTOFIT")
         window=(window_state.get("window") or {}).get("bbox")
         if window!=WINDOW:
@@ -325,7 +325,7 @@ def next_text_action(state,window_state,plan):
         current_shot=str(window_state.get("screenshot_sha256") or "")
         if not current_shot or current_shot==str(tx.get("autofit_pane_screenshot_sha256") or ""):
             return _terminal("TASK091_COVERTITLE_TEXTBOX_PANE_NOT_OBSERVED")
-        if row is None or dict(row.get("geometry") or {})!={"x":749808,"y":1078992,"w":5852160,"h":1234440}:
+        if row is None or tuple(row.get("geometry") or ())!=(749808,1078992,5852160,1234440):
             return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_DURING_AUTOFIT_NAV")
         return _terminal("TASK091_COVERTITLE_TEXTBOX_PANE_CAPTURED")
 
