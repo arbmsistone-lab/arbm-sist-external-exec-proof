@@ -503,8 +503,14 @@ class ForegroundTests(unittest.TestCase):
         captured2=next_text_action(state2,pane2,plan)
         self.assertEqual(captured2['action'],'exec')
         self.assertEqual(captured2['specialist_phase'],'semantic-cover-autofit-text-options-open')
-        textbox2=copy.deepcopy(deck); textbox2['screenshot_sha256']='e'*64
-        textbox_capture2=next_text_action(state2,textbox2,plan)
+        options2=copy.deepcopy(deck); options2['screenshot_sha256']='e'*64
+        textbox2=next_text_action(state2,options2,plan)
+        self.assertEqual(textbox2['action'],'exec')
+        self.assertEqual(textbox2['specialist_phase'],'semantic-cover-autofit-textbox-pane-open')
+        self.assertEqual(textbox2['target']['source'],'task091-panel-canonical')
+        self.assertEqual(textbox2['target']['label'],'Text Box')
+        textbox_state2=copy.deepcopy(deck); textbox_state2['screenshot_sha256']='f'*64
+        textbox_capture2=next_text_action(state2,textbox_state2,plan)
         self.assertEqual(textbox_capture2['reason'],'TASK091_COVERTITLE_TEXTBOX_PANE_CAPTURED')
         state2['semantic_tx']['stage']='select-issued'
         state2['semantic_tx']['autofit_preflight_done']=True
