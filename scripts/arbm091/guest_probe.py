@@ -159,6 +159,8 @@ def _task091_autofit_radio_controls(gray_bytes,screen_size,active_rect,owner_res
             seen_groups.add(key); unique.append(group)
     frame_digest=hashlib.sha256(gray_bytes).hexdigest()
     if len(unique)!=1:
+        if diagnostics is None:
+            raise RuntimeError('TASK091_AUTOFIT_RADIO_GROUP_AMBIGUOUS')
         if isinstance(diagnostics,list):
             diagnostics.append({
                 'failure_class':'RADIO_GROUP_AMBIGUOUS',
@@ -201,6 +203,14 @@ def _task091_autofit_radio_controls(gray_bytes,screen_size,active_rect,owner_res
     if selected_count!=1 and failure_class is None:
         failure_class='RADIO_SELECTION_AMBIGUOUS'
     if failure_class is not None:
+        if diagnostics is None:
+            legacy_reason={
+                'RADIO_SELECTION_AMBIGUOUS':'TASK091_AUTOFIT_RADIO_SELECTION_AMBIGUOUS',
+                'OWNER_UNPROVEN':'TASK091_AUTOFIT_RADIO_OWNER_UNPROVEN',
+                'OWNER_DRIFT':'TASK091_AUTOFIT_RADIO_OWNER_DRIFT',
+            }.get(failure_class)
+            if legacy_reason:
+                raise RuntimeError(legacy_reason)
         if isinstance(diagnostics,list):
             diagnostics.append({
                 'failure_class':failure_class,
