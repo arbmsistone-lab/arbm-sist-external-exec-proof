@@ -598,6 +598,7 @@ def verify_workflow_delta():
     text = Path(WORKFLOW).read_text()
     current = yaml.safe_load(text)
     expected = copy.deepcopy(original)
+    expected.setdefault('on', {}).setdefault('push', {})['branches'] = ['chatgpt/arbm-091-clean-rebuild-20260922']
     expected.setdefault('concurrency', {})['cancel-in-progress'] = True
     expected['jobs']['focal-091']['env']['TASK_ID'] = '091'
     expected['jobs']['focal-091']['steps'].insert(1, ENVIRONMENT_PREFLIGHT)
@@ -682,6 +683,16 @@ test -s /tmp/091-repair-geometry/task-091/wps-trace.jsonl
     expected['jobs']['final-certification'] = yaml.safe_load(FINAL_CERTIFICATION_JOB_YAML)['final-certification']
     require(len(re.findall(r'(?m)^\s+TASK_ID: [\'"]091[\'"]\s*$', text)) == 1,
             'TASK091_MUST_BE_QUOTED_YAML_STRING')
+    pointer_run = current['jobs']['replay']['steps'][7]['run']
+    require("action['target']['source']=='task091-pptx-canonical'" in pointer_run,
+            'TASK091_DYNAMIC_CANONICAL_SOURCE_REQUIRED')
+    require("action['target']['cx']" in pointer_run and "action['target']['cy']" in pointer_run,
+            'TASK091_DYNAMIC_CANONICAL_COORDINATES_REQUIRED')
+    require("doubleClick(745, 335" not in pointer_run,
+            'TASK091_OBSOLETE_FIXED_COORDINATES_FORBIDDEN')
+    require(current.get('on', {}).get('push', {}).get('branches') ==
+            ['chatgpt/arbm-091-clean-rebuild-20260922'],
+            'TASK091_ACTIVE_BRANCH_ALLOWLIST_MISMATCH')
     normalized_current = normalize(current)
     normalized_expected = normalize(expected)
     if normalized_current != normalized_expected:
@@ -690,6 +701,26 @@ test -s /tmp/091-repair-geometry/task-091/wps-trace.jsonl
         right = yaml.safe_dump(normalized_current, sort_keys=True).splitlines()
         print('\n'.join(difflib.unified_diff(left, right, fromfile='EXPECTED_WORKFLOW', tofile='CURRENT_WORKFLOW', lineterm='')))
     require(normalized_current == normalized_expected, 'UNEXPECTED_WORKFLOW_SEMANTIC_DELTA')
+    bad_branch_old = copy.deepcopy(expected)
+    bad_branch_old.setdefault('on', {}).setdefault('push', {})['branches'] = ['chatgpt/arbm-091-clean-transplant-proof-20260918']
+    require(normalize(bad_branch_old) != normalized_expected, 'OLD_BRANCH_MUST_BE_REJECTED')
+    bad_branch_random = copy.deepcopy(expected)
+    bad_branch_random.setdefault('on', {}).setdefault('push', {})['branches'] = ['chatgpt/random-branch']
+    require(normalize(bad_branch_random) != normalized_expected, 'RANDOM_BRANCH_MUST_BE_REJECTED')
+    bad_pointer_fixed = copy.deepcopy(expected)
+    bad_pointer_fixed['jobs']['replay']['steps'][7]['run'] = bad_pointer_fixed['jobs']['replay']['steps'][7]['run'].replace(
+        "expected_command=f\"pyautogui.doubleClick({action['target']['cx']}, {action['target']['cy']}, interval=0.08)\"",
+        "expected_command='pyautogui.doubleClick(745, 335, interval=0.08)'")
+    require(normalize(bad_pointer_fixed) != normalized_expected, 'OBSOLETE_FIXED_POINTER_MUST_BE_REJECTED')
+    bad_pointer_arbitrary = copy.deepcopy(expected)
+    bad_pointer_arbitrary['jobs']['replay']['steps'][7]['run'] = bad_pointer_arbitrary['jobs']['replay']['steps'][7]['run'].replace(
+        "expected_command=f\"pyautogui.doubleClick({action['target']['cx']}, {action['target']['cy']}, interval=0.08)\"",
+        "expected_command='pyautogui.doubleClick(123, 456, interval=0.08)'")
+    require(normalize(bad_pointer_arbitrary) != normalized_expected, 'ARBITRARY_POINTER_MUST_BE_REJECTED')
+    print('SEMANTIC_REFERENCE_UPDATED=PASS')
+    print('AUTHORIZED_DELTA_1=PASS')
+    print('AUTHORIZED_DELTA_2=PASS')
+    print('UNAUTHORIZED_DELTA_REJECTION=PASS')
     unquoted = re.sub(r'(?m)^(\s+TASK_ID:) [\'"]091[\'"]\s*$', r'\1 091', text)
     require(not re.search(r'(?m)^\s+TASK_ID: [\'"]091[\'"]\s*$', unquoted),
             'TASK091_QUOTING_NEGATIVE_TEST_FAILED')

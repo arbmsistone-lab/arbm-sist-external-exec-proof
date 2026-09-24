@@ -3,7 +3,6 @@ run-name: ARBM 091 clean proof ${{ github.sha }}
 'on':
   push:
     branches:
-    - chatgpt/arbm-091-clean-transplant-proof-20260918
     - chatgpt/arbm-091-clean-rebuild-20260922
   workflow_dispatch: {}
 permissions:
@@ -340,7 +339,7 @@ jobs:
         assert action['target']['source']=='task091-pptx-canonical', action
         grounded=shim.ground_action(action,'WPS Presentation','',[],allow_canonical=True)
         expected_command=f"pyautogui.doubleClick({action['target']['cx']}, {action['target']['cy']}, interval=0.08)"
-assert grounded['command']==expected_command, grounded
+        assert grounded['command']==expected_command, grounded
         assert 'PPTX-backed canonical target' in grounded.get('compiler_note',''), grounded
         bad=copy.deepcopy(action)
         bad['target']['deck_sha256']='b'*64
