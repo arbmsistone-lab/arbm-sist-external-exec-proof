@@ -443,7 +443,11 @@ class ForegroundTests(unittest.TestCase):
         self.assertNotIn('pending_edit',state)
         mutation=next_text_action(state,deck,plan)
         self.assertEqual(mutation['specialist_phase'],'semantic-text-mutation')
-        self.assertIn("ctrl', 'a",mutation['command'])
+        self.assertIn("hotkey('ctrl', 'h')",mutation['command'])
+        self.assertIn("Growth Plan Draft",mutation['command'])
+        self.assertIn("Stabilize-and-Recover Rebaseline",mutation['command'])
+        self.assertIn("hotkey('alt', 'a')",mutation['command'])
+        self.assertNotIn("hotkey('ctrl', 'a')",mutation['command'])
         for forbidden in ("press('home')","press('left'","caret","ink_left"):
             self.assertNotIn(forbidden,mutation['command'].casefold())
 
