@@ -902,6 +902,8 @@ def main():
         '73fa51e3f1bc8b1c65d77898d1c4d256355f5625': {SEMANTIC_RUNTIME_TEST},
         'd4394c60b36cf9d0cb30edbc2e2a58609699d8fc': {WORKFLOW},
         '542a1c34e3350f1bd84af095d604c8381189f695': {WORKFLOW},
+        'bd8ca2ab4800e570aac2f7146d5d45acc6615cd5': {WORKFLOW},
+        'f21d10de28b9c9f271486ba67c7f8d8dc695d64a': {WORKFLOW, VERIFIER},
     }
     for c_node in post_legacy:
         c_files = set(git('diff-tree', '--no-commit-id', '--name-only', '-r', c_node).splitlines())
