@@ -524,10 +524,23 @@ class ForegroundTests(unittest.TestCase):
         self.assertEqual(disclosure['specialist_phase'],'semantic-cover-autofit-disclosure-open')
         self.assertEqual(disclosure['target']['label'],'PANEL DISCLOSURE')
         options_state=copy.deepcopy(deck); options_state['source']='0010-01-after'; options_state['screenshot_sha256']='f'*64
-        options_capture=next_text_action(state,options_state,plan)
-        self.assertEqual(options_capture['reason'],'TASK091_COVERTITLE_AUTOFIT_OPTIONS_CAPTURED')
-        state['semantic_tx']['stage']='select-issued'
-        state['semantic_tx']['autofit_preflight_done']=True
+        options_state['controls']=[
+            {'label':'Do not Autofit','role':'visual-radio','pid':2883,'application':'WPS Office',
+             'bbox':[1551,665,17,17],'showing':True,'enabled':True,'selected':False},
+            {'label':'Shrink text on overflow','role':'visual-radio','pid':2883,'application':'WPS Office',
+             'bbox':[1551,695,17,17],'showing':True,'enabled':True,'selected':False},
+            {'label':'Resize shape to fit text','role':'visual-radio','pid':2883,'application':'WPS Office',
+             'bbox':[1551,725,17,17],'showing':True,'enabled':True,'selected':True},
+        ]
+        options_state['deck_slide_shapes']['1'][0]['autofit_mode']='RESIZE_SHAPE_TO_FIT_TEXT'
+        select_autofit=next_text_action(state,options_state,plan)
+        self.assertEqual(select_autofit['specialist_phase'],'semantic-cover-autofit-do-not-select')
+        self.assertEqual(select_autofit['target']['label'],'Do not Autofit')
+        selected_state=copy.deepcopy(options_state); selected_state['screenshot_sha256']='1'*64
+        for control in selected_state['controls']:
+            control['selected']=control['label']=='Do not Autofit'
+        confirmed=next_text_action(state,selected_state,plan)
+        self.assertEqual(confirmed['checkpoint'],'TASK091_COVERTITLE_AUTOFIT_SELECTION_CONFIRMED')
         mutation=next_text_action(state,deck,plan)
         self.assertEqual(mutation['specialist_phase'],'semantic-text-mutation')
         self.assertIn("hotkey('ctrl', 'h')",mutation['command'])
@@ -591,10 +604,22 @@ class ForegroundTests(unittest.TestCase):
         self.assertEqual(disclosure2['action'],'exec')
         self.assertEqual(disclosure2['target']['label'],'PANEL DISCLOSURE')
         options_state2=copy.deepcopy(deck); options_state2['source']='0020-01-after'; options_state2['screenshot_sha256']='1'*64
-        options_capture2=next_text_action(state2,options_state2,plan)
-        self.assertEqual(options_capture2['reason'],'TASK091_COVERTITLE_AUTOFIT_OPTIONS_CAPTURED')
-        state2['semantic_tx']['stage']='select-issued'
-        state2['semantic_tx']['autofit_preflight_done']=True
+        options_state2['controls']=[
+            {'label':'Do not Autofit','role':'visual-radio','pid':2883,'application':'WPS Office',
+             'bbox':[1551,665,17,17],'showing':True,'enabled':True,'selected':False},
+            {'label':'Shrink text on overflow','role':'visual-radio','pid':2883,'application':'WPS Office',
+             'bbox':[1551,695,17,17],'showing':True,'enabled':True,'selected':False},
+            {'label':'Resize shape to fit text','role':'visual-radio','pid':2883,'application':'WPS Office',
+             'bbox':[1551,725,17,17],'showing':True,'enabled':True,'selected':True},
+        ]
+        options_state2['deck_slide_shapes']['1'][0]['autofit_mode']='RESIZE_SHAPE_TO_FIT_TEXT'
+        select_autofit2=next_text_action(state2,options_state2,plan)
+        self.assertEqual(select_autofit2['target']['label'],'Do not Autofit')
+        selected_state2=copy.deepcopy(options_state2); selected_state2['screenshot_sha256']='2'*64
+        for control in selected_state2['controls']:
+            control['selected']=control['label']=='Do not Autofit'
+        confirmed2=next_text_action(state2,selected_state2,plan)
+        self.assertEqual(confirmed2['checkpoint'],'TASK091_COVERTITLE_AUTOFIT_SELECTION_CONFIRMED')
         next_text_action(state2,deck,plan)  # mutation
         next_text_action(state2,deck,plan)  # finalize
         next_text_action(state2,deck,plan)  # save
