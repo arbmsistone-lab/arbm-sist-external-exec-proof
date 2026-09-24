@@ -560,6 +560,7 @@ class ForegroundTests(unittest.TestCase):
         after=copy.deepcopy(deck)
         after['deck_file']['sha256']='b'*64
         after['deck_slide_shapes']['1'][0]['text']='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
+        after['deck_slide_shapes']['1'][0]['autofit_mode']='DO_NOT_AUTOFIT'
         reread=next_text_action(state,after,plan)
         self.assertEqual(reread['specialist_phase'],'semantic-roundtrip-reread')
         passed=next_text_action(state,after,plan)
