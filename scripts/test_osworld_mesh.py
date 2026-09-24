@@ -260,8 +260,15 @@ class MeshTests(unittest.TestCase):
    self.assertNotIn('pending_edit',state)
    self.assertEqual(state['semantic_tx']['stage'],'select-issued')
 
-   mutation=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck)
-   self.assertEqual(mutation['specialist_phase'],'semantic-text-mutation')
+   preflight=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck)
+   self.assertEqual(preflight['specialist_phase'],'semantic-cover-autofit-pane-open')
+   self.assertIn("hotkey('shift', 'f10')",preflight['command'])
+   self.assertIn("press('o')",preflight['command'])
+   deck_pane=copy.deepcopy(deck)
+   deck_pane['screenshot_sha256']='c'*64
+   captured=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck_pane)
+   self.assertEqual(captured['action'],'terminal')
+   self.assertEqual(captured['reason'],'TASK091_COVERTITLE_AUTOFIT_PANE_CAPTURED')
    self.assertIn("hotkey('ctrl', 'h')",mutation['command'])
    self.assertIn("Growth Plan Draft",mutation['command'])
    self.assertIn("Stabilize-and-Recover Rebaseline",mutation['command'])
