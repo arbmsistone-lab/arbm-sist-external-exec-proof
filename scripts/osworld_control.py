@@ -218,6 +218,25 @@ def canonical_target_proof(target):
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
+def task091_panel_target_proof(target):
+    if not isinstance(target,dict):
+        return ''
+    payload='|'.join((
+        str(target.get('source') or ''),
+        normalized_target(target.get('role')),
+        normalized_target(target.get('label')),
+        str(int(target.get('x') or 0)),
+        str(int(target.get('y') or 0)),
+        str(int(target.get('w') or 0)),
+        str(int(target.get('h') or 0)),
+        str(int(target.get('cx') or 0)),
+        str(int(target.get('cy') or 0)),
+        ','.join(str(int(v)) for v in (target.get('window_bbox') or [])),
+        str(target.get('screenshot_sha256') or ''),
+    ))
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
 def task091_spatial_target_proof(target):
     if not isinstance(target,dict):
         return ''
@@ -278,6 +297,56 @@ def _validate_task091_pptx_pointer(action):
         raise ValueError('TASK091_CANONICAL_POINTER_COORDINATES_INVALID')
     if abs(px-cx)>0.5 or abs(py-cy)>0.5:
         raise ValueError('TASK091_CANONICAL_POINTER_COORDINATES_MISMATCH')
+    return action
+
+
+def _validate_task091_panel_pointer(action):
+    target=action.get('target') if isinstance(action,dict) else None
+    if not isinstance(target,dict):
+        raise ValueError('TASK091_PANEL_TARGET_REQUIRED')
+    required=('label','role','x','y','w','h','cx','cy','window_bbox',
+              'screenshot_sha256','proof_sha256')
+    if any(target.get(key) in (None,'') for key in required):
+        raise ValueError('TASK091_PANEL_TARGET_INCOMPLETE')
+    if str(target.get('source') or '').lower()!='task091-panel-canonical':
+        raise ValueError('TASK091_PANEL_TARGET_SOURCE_INVALID')
+    if normalized_target(target.get('role'))!='task091-panel-point':
+        raise ValueError('TASK091_PANEL_TARGET_ROLE_INVALID')
+    bbox=target.get('window_bbox')
+    if bbox != [70,27,1850,1053]:
+        raise ValueError('TASK091_PANEL_WINDOW_GEOMETRY_INVALID')
+    label=str(target.get('label') or '')
+    offsets={
+        'TEXT OPTIONS':(-190,192),
+        'Text Box':(-190,224),
+    }
+    if label not in offsets:
+        raise ValueError('TASK091_PANEL_LABEL_NOT_ALLOWLISTED')
+    wx,wy,ww,wh=(int(v) for v in bbox)
+    ox,oy=offsets[label]
+    expected_cx=wx+ww+ox
+    expected_cy=wy+oy
+    cx=int(target.get('cx')); cy=int(target.get('cy'))
+    x=int(target.get('x')); y=int(target.get('y'))
+    w=int(target.get('w')); h=int(target.get('h'))
+    if (cx,cy)!=(expected_cx,expected_cy) or (x,y,w,h)!=(cx-1,cy-1,2,2):
+        raise ValueError('TASK091_PANEL_TARGET_GEOMETRY_INVALID')
+    shot=str(target.get('screenshot_sha256') or '')
+    if not re.fullmatch(r'[0-9a-f]{64}',shot):
+        raise ValueError('TASK091_PANEL_SCREENSHOT_DIGEST_INVALID')
+    expected=task091_panel_target_proof(target)
+    if not expected or expected!=str(target.get('proof_sha256') or ''):
+        raise ValueError('TASK091_PANEL_TARGET_PROOF_INVALID')
+    calls=_gui_calls(action.get('command',''))
+    if len(calls)!=1 or calls[0].func.attr!='click':
+        raise ValueError('TASK091_PANEL_POINTER_ATOMIC_REQUIRED')
+    call=calls[0]
+    try:
+        px=float(ast.literal_eval(call.args[0])); py=float(ast.literal_eval(call.args[1]))
+    except (ValueError,TypeError,IndexError):
+        raise ValueError('TASK091_PANEL_POINTER_COORDINATES_INVALID')
+    if abs(px-cx)>0.5 or abs(py-cy)>0.5:
+        raise ValueError('TASK091_PANEL_POINTER_COORDINATES_MISMATCH')
     return action
 
 
@@ -473,12 +542,15 @@ def ground_action(action, active_application, observation='', verified_milestone
     if a.get('action')=='exec' and re.search(r'pyautogui\.(?:click|doubleClick|rightClick)\s*\(',a.get('command','')):
         target=a.get('target')
         source=str(target.get('source') or '').lower() if isinstance(target,dict) else ''
-        if source in {'accessibility-canonical','task091-pptx-canonical'}:
+        if source in {'accessibility-canonical','task091-pptx-canonical','task091-panel-canonical'}:
             if not allow_canonical:
                 raise ValueError('CANONICAL_TARGET_UNTRUSTED')
             if source=='accessibility-canonical':
                 a=_validate_canonical_pointer(a)
                 note='Trusted local canonical accessibility target accepted without secondary re-resolution.'
+            elif source=='task091-panel-canonical':
+                a=_validate_task091_panel_pointer(a)
+                note='Trusted Task 091 panel target accepted with signed screenshot/window proof.'
             else:
                 a=_validate_task091_pptx_pointer(a)
                 note='Trusted Task 091 PPTX-backed canonical target accepted with signed foreground/deck proof.'

@@ -72,12 +72,19 @@ class SemanticRuntimeTests(unittest.TestCase):
         ws_pane=copy.deepcopy(ws)
         ws_pane["screenshot_sha256"]="c"*64
         diag=next_text_action(state,ws_pane,plan)
-        self.assertEqual(diag["specialist_phase"],"semantic-cover-autofit-textbox-pane-open")
-        self.assertIn("pyautogui.click(",diag["command"])
+        self.assertEqual(diag["specialist_phase"],"semantic-cover-autofit-text-options-open")
+        self.assertEqual(diag["target"]["source"],"task091-panel-canonical")
+        self.assertEqual(diag["target"]["label"],"TEXT OPTIONS")
         self.assertEqual(state["semantic_tx"]["autofit_panel_points"]["text_options"],[1730,219])
         self.assertEqual(state["semantic_tx"]["autofit_panel_points"]["text_box"],[1730,251])
+        ws_options=copy.deepcopy(ws)
+        ws_options["screenshot_sha256"]="d"*64
+        textbox=next_text_action(state,ws_options,plan)
+        self.assertEqual(textbox["specialist_phase"],"semantic-cover-autofit-textbox-pane-open")
+        self.assertEqual(textbox["target"]["source"],"task091-panel-canonical")
+        self.assertEqual(textbox["target"]["label"],"Text Box")
         ws_textbox=copy.deepcopy(ws)
-        ws_textbox["screenshot_sha256"]="d"*64
+        ws_textbox["screenshot_sha256"]="e"*64
         captured=next_text_action(state,ws_textbox,plan)
         self.assertEqual(captured["action"],"terminal")
         self.assertEqual(captured["reason"],"TASK091_COVERTITLE_TEXTBOX_PANE_CAPTURED")

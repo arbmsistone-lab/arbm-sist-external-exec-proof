@@ -5,7 +5,7 @@ import copy
 import hashlib
 import json
 
-from osworld_control import task091_spatial_target_proof
+from osworld_control import task091_spatial_target_proof, task091_panel_target_proof
 from arbm091.semantic_transaction import (
     SemanticTransactionError,
     assert_roundtrip,
@@ -146,6 +146,24 @@ def _cover_title_lock_required(tx):
     row=next((x for x in before if int(x.get("id") or 0)==6 and str(x.get("name") or "")=="CoverTitle"),None)
     geom=(row or {}).get("geometry") or {}
     return geom=={"x":749808,"y":1078992,"w":5852160,"h":1234440}
+
+
+def _panel_target(window_state,label,cx,cy):
+    shot=str(window_state.get("screenshot_sha256") or "")
+    window=(window_state.get("window") or {}).get("bbox")
+    if window!=WINDOW or len(shot)!=64:
+        raise SemanticTransactionError("TASK091_PANEL_CONTEXT_UNPROVEN")
+    target={
+        "source":"task091-panel-canonical",
+        "label":str(label),
+        "role":"task091-panel-point",
+        "x":int(cx)-1,"y":int(cy)-1,"w":2,"h":2,
+        "cx":int(cx),"cy":int(cy),
+        "window_bbox":list(window),
+        "screenshot_sha256":shot,
+    }
+    target["proof_sha256"]=task091_panel_target_proof(target)
+    return target
 
 
 def _resolved_row_by_key(window_state,key):
@@ -303,27 +321,48 @@ def next_text_action(state,window_state,plan):
         text_options_y=wy+192
         text_box_x=right-190
         text_box_y=wy+224
-        tx["stage"]="autofit-textbox-pane-issued"
+        tx["stage"]="autofit-text-options-issued"
         tx["autofit_pane_screenshot_sha256"]=current_shot
         tx["autofit_panel_points"]={
             "text_options":[text_options_x,text_options_y],
             "text_box":[text_box_x,text_box_y],
         }
+        try:
+            target=_panel_target(window_state,"TEXT OPTIONS",text_options_x,text_options_y)
+        except SemanticTransactionError as exc:
+            return _terminal(str(exc))
         return {
             "action":"exec",
-            "command":"\n".join((
-                f"pyautogui.click({text_options_x}, {text_options_y})",
-                "pyautogui.sleep(0.35)",
-                f"pyautogui.click({text_box_x}, {text_box_y})",
-                "pyautogui.sleep(0.8)",
-            )),
-            "plan":"Open Text Options then the Text Box subpanel using coordinates derived from the verified current Object Formatting pane geometry; no document mutation is authorized.",
+            "command":f"pyautogui.click({text_options_x}, {text_options_y})",
+            "target":target,
+            "plan":"Open TEXT OPTIONS with one signed panel-canonical pointer action; no document mutation is authorized.",
+            "specialist_phase":"semantic-cover-autofit-text-options-open",
+        }
+
+    if stage=="autofit-text-options-issued":
+        current_shot=str(window_state.get("screenshot_sha256") or "")
+        if not current_shot or current_shot==str(tx.get("autofit_pane_screenshot_sha256") or ""):
+            return _terminal("TASK091_COVERTITLE_TEXT_OPTIONS_NOT_OBSERVED")
+        if row is None or tuple(row.get("geometry") or ())!=(749808,1078992,5852160,1234440):
+            return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_DURING_AUTOFIT_NAV")
+        tx["stage"]="autofit-textbox-pane-issued"
+        tx["text_options_screenshot_sha256"]=current_shot
+        text_box_x,text_box_y=tx["autofit_panel_points"]["text_box"]
+        try:
+            target=_panel_target(window_state,"Text Box",text_box_x,text_box_y)
+        except SemanticTransactionError as exc:
+            return _terminal(str(exc))
+        return {
+            "action":"exec",
+            "command":f"pyautogui.click({text_box_x}, {text_box_y})",
+            "target":target,
+            "plan":"Open Text Box with one signed panel-canonical pointer action after TEXT OPTIONS was freshly observed.",
             "specialist_phase":"semantic-cover-autofit-textbox-pane-open",
         }
 
     if stage=="autofit-textbox-pane-issued":
         current_shot=str(window_state.get("screenshot_sha256") or "")
-        if not current_shot or current_shot==str(tx.get("autofit_pane_screenshot_sha256") or ""):
+        if not current_shot or current_shot==str(tx.get("text_options_screenshot_sha256") or ""):
             return _terminal("TASK091_COVERTITLE_TEXTBOX_PANE_NOT_OBSERVED")
         if row is None or tuple(row.get("geometry") or ())!=(749808,1078992,5852160,1234440):
             return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_DURING_AUTOFIT_NAV")
