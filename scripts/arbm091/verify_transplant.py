@@ -38,6 +38,10 @@ SEMANTIC_ORACLE = 'scripts/arbm091/semantic_transaction.py'
 SEMANTIC_RUNTIME = 'scripts/arbm091/semantic_runtime.py'
 SEMANTIC_TEST = 'tests/arbm091/test_semantic_transaction.py'
 SEMANTIC_RUNTIME_TEST = 'tests/arbm091/test_semantic_runtime.py'
+TASK091_FIXTURE_HELPER = 'scripts/arbm091/test_fixture_state.py'
+AUTHORIZED_FIXTURE_MIGRATION_SHA = '64ca0cb2a7267496fec7671beb2a025dd2d6633a'
+AUTHORIZED_FIXTURE_MIGRATION_PARENT = '1e6e7889e183ee5669539912c5af508539fc2b92'
+AUTHORIZED_FIXTURE_MIGRATION_SCOPE = {TASK091_FIXTURE_HELPER, MESH_TEST, TRACE_TEST, SEMANTIC_RUNTIME_TEST}
 CONTRACT_WORKFLOW = '.github/workflows/arbm-091-contract-read.yml'
 STRUCTURAL_CONTRACT = 'scripts/arbm091/structural_contract.py'
 WPS_ALIAS_COMMIT = 'f0a49b84c95808b501cd91aed14bd702e8230a9c'
@@ -754,6 +758,7 @@ def main():
                           SEMANTIC_ORACLE, SEMANTIC_RUNTIME, SEMANTIC_TEST, SEMANTIC_RUNTIME_TEST,
                           SCORE_TRACKER, FINAL_BOARD, WPS_OBSERVER, CONTRACT_WORKFLOW}
     approved_post_commit_scopes = {
+        AUTHORIZED_FIXTURE_MIGRATION_SHA: AUTHORIZED_FIXTURE_MIGRATION_SCOPE,
         'fdd1c8ef17c7f52352b60c1afd7bffca958182a1': {SAFE_HTTP},
         'f60da82e96d92b0de454d9564d860cba56fad563': {SAFE_HTTP},
         '06d8d8f242b0564bf59a5e0112857490fb03be9f': {SAFE_HTTP},
@@ -943,6 +948,8 @@ def main():
         'e07949c0b6a9a77e88655c2ffba32b9410b450d4': {GUEST_PROBE, TRACE_TEST},
         '768ea271bd00d95c72fa6c63fb83f3e31be9f142': {TRACE_TEST},
     }
+    require(git('rev-parse', AUTHORIZED_FIXTURE_MIGRATION_SHA + '^') == AUTHORIZED_FIXTURE_MIGRATION_PARENT,
+            'AUTHORIZED_FIXTURE_MIGRATION_PARENT_MISMATCH')
     for c_node in post_legacy:
         c_files = set(git('diff-tree', '--no-commit-id', '--name-only', '-r', c_node).splitlines())
         exact_scope = approved_post_commit_scopes.get(c_node)
@@ -974,9 +981,11 @@ def main():
             'REPAIR_DELETION_FORBIDDEN')
     manifest = json.loads(Path('audit/arbm091-final-files.json').read_text())
     changed = set(git('diff', '--name-only', BASE, 'HEAD').splitlines())
-    require(changed == set(manifest), 'CHANGED_FILE_ALLOWLIST_MISMATCH')
+    expected_changed = set(manifest)
+    expected_changed.add(TASK091_FIXTURE_HELPER)
+    require(changed == expected_changed, 'CHANGED_FILE_ALLOWLIST_MISMATCH')
     require(set(git('diff', '--name-only', CLEAN_BASELINE, 'HEAD').splitlines())
-            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST, SENIOR_BOARD, SENIOR_TEST, GLOBAL_GATE, GLOBAL_TEST, FINAL_BOARD, SCORE_TRACKER, SAFE_HTTP, SEMANTIC_ORACLE, SEMANTIC_RUNTIME, SEMANTIC_TEST, SEMANTIC_RUNTIME_TEST},
+            == {WORKFLOW, VERIFIER, LOCAL_VLM, LOCAL_VLM_TEST, TRACE_GATE, TRACE_TEST, SHIM, MESH_TEST, WPS_OBSERVER, GUEST_PROBE, CONTROL, REVIEW_BOARD, MANIFEST, ELITE_BOARD, ELITE_TEST, SENIOR_BOARD, SENIOR_TEST, GLOBAL_GATE, GLOBAL_TEST, FINAL_BOARD, SCORE_TRACKER, SAFE_HTTP, SEMANTIC_ORACLE, SEMANTIC_RUNTIME, SEMANTIC_TEST, SEMANTIC_RUNTIME_TEST, TASK091_FIXTURE_HELPER},
             'REPAIR_TOTAL_SCOPE_MISMATCH')
     exists = subprocess.run(['git', 'cat-file', '-e', PATCH_SOURCE], capture_output=True).returncode == 0
     if exists:
