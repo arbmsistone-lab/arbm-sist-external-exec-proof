@@ -271,8 +271,15 @@ class MeshTests(unittest.TestCase):
    self.assertEqual(captured['specialist_phase'],'semantic-cover-autofit-text-options-open')
    self.assertEqual(state['semantic_tx']['autofit_panel_points']['text_options'],[1730,219])
    self.assertEqual(state['semantic_tx']['autofit_panel_points']['text_box'],[1730,251])
+   deck_options=copy.deepcopy(deck)
+   deck_options['screenshot_sha256']='d'*64
+   textbox=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck_options)
+   self.assertEqual(textbox['action'],'exec')
+   self.assertEqual(textbox['specialist_phase'],'semantic-cover-autofit-textbox-pane-open')
+   self.assertEqual(textbox['target']['source'],'task091-panel-canonical')
+   self.assertEqual(textbox['target']['label'],'Text Box')
    deck_textbox=copy.deepcopy(deck)
-   deck_textbox['screenshot_sha256']='d'*64
+   deck_textbox['screenshot_sha256']='e'*64
    textbox_capture=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck_textbox)
    self.assertEqual(textbox_capture['reason'],'TASK091_COVERTITLE_TEXTBOX_PANE_CAPTURED')
    state['semantic_tx']['stage']='select-issued'
