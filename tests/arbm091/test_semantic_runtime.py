@@ -130,6 +130,33 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertNotIn("press('home')",mutation["command"])
         self.assertNotIn("press('left'",mutation["command"])
 
+    def test_coversub_uses_proven_fixed_geometry_autofit_lock(self):
+        ws=base_state()
+        ws["active_slide"]=1
+        ws["deck_slide_shapes"]={"1":[{
+            "id":7,"name":"CoverSub",
+            "text":"Northstar Cloud\nPrepared for July Operating Committee review\nPlanning posture: accelerate growth through H2 scale-up",
+            "kind":"shape","frame_id":0,"row":-1,"col":-1,
+            "geometry":{"x":768096,"y":2743200,"w":5669280,"h":1280160},
+            "font_sizes":[1800,1800,1300,1300,1300,1300],"fill_rgb":"",
+            "autofit_mode":"RESIZE_SHAPE_TO_FIT_TEXT",
+        }]}
+        ws["deck_slide_relationships"]={"1":[]}
+        state={"slide":1}
+        plan=((1,900,520,
+               "Planning posture: accelerate growth through H2 scale-up",
+               "Northstar Cloud\nPrepared for July Operating Committee review\nPlanning posture: stabilize and recover with disciplined sequencing"),)
+        select=next_text_action(state,ws,plan)
+        self.assertEqual(select["specialist_phase"],"semantic-target-select")
+        preflight=next_text_action(state,ws,plan)
+        self.assertEqual(preflight["specialist_phase"],"semantic-cover-autofit-pane-open")
+        self.assertIn("hotkey('shift', 'f10')",preflight["command"])
+        self.assertEqual(
+            tuple(state["semantic_tx"]["before_state"]["deck_slide_shapes"]["1"][0]["geometry"][k]
+                  for k in ("x","y","w","h")),
+            (768096,2743200,5669280,1280160),
+        )
+
     def test_contained_replace_rejects_boundary_drift(self):
         from arbm091.semantic_runtime import _contained_replacement
         with self.assertRaisesRegex(Exception,"TASK091_CONTAINED_REPLACE_BOUNDARY_DRIFT"):

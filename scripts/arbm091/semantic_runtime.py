@@ -136,16 +136,30 @@ def _mutation_command(before_text, old, new):
     return _write_command(new), "whole-target-replace"
 
 
-def _cover_title_lock_required(tx):
+_AUTOFIT_GEOMETRY_LOCKS={
+    (1,"shape",6,"CoverTitle"):(749808,1078992,5852160,1234440),
+    (1,"shape",7,"CoverSub"):(768096,2743200,5669280,1280160),
+}
+
+
+def _locked_autofit_geometry(tx):
     if not isinstance(tx,dict):
+        return None
+    return _AUTOFIT_GEOMETRY_LOCKS.get(tuple(tx.get("target_key") or ()))
+
+
+def _cover_title_lock_required(tx):
+    expected=_locked_autofit_geometry(tx)
+    if expected is None:
         return False
     key=tuple(tx.get("target_key") or ())
-    if key!=(1,"shape",6,"CoverTitle"):
-        return False
-    before=(tx.get("before_state") or {}).get("deck_slide_shapes",{}).get("1",[])
-    row=next((x for x in before if int(x.get("id") or 0)==6 and str(x.get("name") or "")=="CoverTitle"),None)
+    before=(tx.get("before_state") or {}).get("deck_slide_shapes",{}).get(str(key[0]),[])
+    row=next((x for x in before
+              if int(x.get("id") or 0)==int(key[2])
+              and str(x.get("name") or "")==str(key[3])),None)
     geom=(row or {}).get("geometry") or {}
-    return geom=={"x":749808,"y":1078992,"w":5852160,"h":1234440}
+    actual=tuple(int(geom.get(k) or 0) for k in ("x","y","w","h"))
+    return actual==expected
 
 
 def _panel_target(window_state,label):
@@ -193,12 +207,17 @@ def _panel_target(window_state,label):
     target["proof_sha256"]=task091_panel_target_proof(target)
     return target
 
-def _raw_cover_title(window_state):
-    rows=(window_state.get("deck_slide_shapes",{}) or {}).get("1",[]) if isinstance(window_state,dict) else []
+def _raw_locked_shape(window_state,tx):
+    key=tuple(tx.get("target_key") or ()) if isinstance(tx,dict) else ()
+    expected=_locked_autofit_geometry(tx)
+    if expected is None or len(key)!=4:
+        raise SemanticTransactionError("TASK091_AUTOFIT_LOCK_TARGET_UNPROVEN")
+    rows=(window_state.get("deck_slide_shapes",{}) or {}).get(str(key[0]),[]) if isinstance(window_state,dict) else []
     matches=[row for row in rows if isinstance(row,dict)
-             and int(row.get("id") or 0)==6 and str(row.get("name") or "")=="CoverTitle"]
+             and int(row.get("id") or 0)==int(key[2])
+             and str(row.get("name") or "")==str(key[3])]
     if len(matches)!=1:
-        raise SemanticTransactionError("TASK091_COVERTITLE_RAW_STATE_UNPROVEN")
+        raise SemanticTransactionError("TASK091_AUTOFIT_LOCK_RAW_STATE_UNPROVEN")
     return matches[0]
 
 
@@ -363,7 +382,7 @@ def next_text_action(state,window_state,plan):
         current_shot=str(window_state.get("screenshot_sha256") or "")
         if not current_shot or current_shot==str(tx.get("pre_autofit_screenshot_sha256") or ""):
             return _terminal("TASK091_COVERTITLE_AUTOFIT_PANE_NOT_OBSERVED")
-        if row is None or tuple(row.get("geometry") or ())!=(749808,1078992,5852160,1234440):
+        if row is None or tuple(row.get("geometry") or ())!=tuple(_locked_autofit_geometry(tx) or ()):
             return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_BEFORE_AUTOFIT")
         window=(window_state.get("window") or {}).get("bbox")
         if window!=WINDOW:
@@ -387,7 +406,7 @@ def next_text_action(state,window_state,plan):
         current_shot=str(window_state.get("screenshot_sha256") or "")
         if not current_shot or current_shot==str(tx.get("autofit_pane_screenshot_sha256") or ""):
             return _terminal("TASK091_COVERTITLE_TEXT_OPTIONS_NOT_OBSERVED")
-        if row is None or tuple(row.get("geometry") or ())!=(749808,1078992,5852160,1234440):
+        if row is None or tuple(row.get("geometry") or ())!=tuple(_locked_autofit_geometry(tx) or ()):
             return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_DURING_AUTOFIT_NAV")
         tx["stage"]="autofit-textbox-pane-issued"
         tx["text_options_screenshot_sha256"]=current_shot
@@ -408,7 +427,7 @@ def next_text_action(state,window_state,plan):
         current_shot=str(window_state.get("screenshot_sha256") or "")
         if not current_shot or current_shot==str(tx.get("text_options_screenshot_sha256") or ""):
             return _terminal("TASK091_COVERTITLE_TEXTBOX_PANE_NOT_OBSERVED")
-        if row is None or tuple(row.get("geometry") or ())!=(749808,1078992,5852160,1234440):
+        if row is None or tuple(row.get("geometry") or ())!=tuple(_locked_autofit_geometry(tx) or ()):
             return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_DURING_AUTOFIT_NAV")
         try:
             target=_panel_target(window_state,"PANEL DISCLOSURE")
@@ -429,11 +448,11 @@ def next_text_action(state,window_state,plan):
         current_shot=str(window_state.get("screenshot_sha256") or "")
         if not current_shot or current_shot==str(tx.get("textbox_pane_screenshot_sha256") or ""):
             return _terminal("TASK091_COVERTITLE_AUTOFIT_OPTIONS_NOT_OBSERVED")
-        if row is None or tuple(row.get("geometry") or ())!=(749808,1078992,5852160,1234440):
+        if row is None or tuple(row.get("geometry") or ())!=tuple(_locked_autofit_geometry(tx) or ()):
             return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_DURING_AUTOFIT_NAV")
         try:
             radios=_autofit_controls(window_state)
-            raw=_raw_cover_title(window_state)
+            raw=_raw_locked_shape(window_state,tx)
         except SemanticTransactionError as exc:
             return _terminal(str(exc))
         if str(raw.get("autofit_mode") or "")!="RESIZE_SHAPE_TO_FIT_TEXT":
@@ -464,7 +483,7 @@ def next_text_action(state,window_state,plan):
             return _terminal(str(exc))
         if radios["Do not Autofit"].get("selected") is not True:
             return _terminal("TASK091_AUTOFIT_SELECTION_NOT_CONFIRMED")
-        if row is None or tuple(row.get("geometry") or ())!=(749808,1078992,5852160,1234440):
+        if row is None or tuple(row.get("geometry") or ())!=tuple(_locked_autofit_geometry(tx) or ()):
             return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_AFTER_AUTOFIT_SELECTION")
         tx["autofit_selection_confirmed"]=True
         tx["autofit_preflight_done"]=True
@@ -505,14 +524,14 @@ def next_text_action(state,window_state,plan):
             return _terminal("TASK091_SAVE_NOT_PERSISTED")
         if _cover_title_lock_required(tx):
             try:
-                raw=_raw_cover_title(window_state)
+                raw=_raw_locked_shape(window_state,tx)
             except SemanticTransactionError as exc:
                 return _terminal(str(exc))
             if tx.get("autofit_selection_confirmed") is not True:
                 return _terminal("TASK091_AUTOFIT_SELECTION_EVIDENCE_MISSING")
             if str(raw.get("autofit_mode") or "")!="DO_NOT_AUTOFIT":
                 return _terminal("TASK091_AUTOFIT_NOT_PERSISTED")
-            if raw.get("geometry")!={"x":749808,"y":1078992,"w":5852160,"h":1234440}:
+            if tuple(int((raw.get("geometry") or {}).get(k) or 0) for k in ("x","y","w","h"))!=tuple(_locked_autofit_geometry(tx) or ()):
                 return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_AFTER_SAVE")
             tx["autofit_persisted"]=True
         tx["after_model_sha256"]=verdict["after_model_sha256"]
@@ -534,12 +553,12 @@ def next_text_action(state,window_state,plan):
             return _terminal("TASK091_ROUNDTRIP_MODEL_DRIFT")
         if _cover_title_lock_required(tx):
             try:
-                raw=_raw_cover_title(window_state)
+                raw=_raw_locked_shape(window_state,tx)
             except SemanticTransactionError as exc:
                 return _terminal(str(exc))
             if tx.get("autofit_persisted") is not True or str(raw.get("autofit_mode") or "")!="DO_NOT_AUTOFIT":
                 return _terminal("TASK091_AUTOFIT_ROUNDTRIP_NOT_PERSISTED")
-            if raw.get("geometry")!={"x":749808,"y":1078992,"w":5852160,"h":1234440}:
+            if tuple(int((raw.get("geometry") or {}).get(k) or 0) for k in ("x","y","w","h"))!=tuple(_locked_autofit_geometry(tx) or ()):
                 return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_AFTER_REOPEN")
         contract=tx.get("contract") if isinstance(tx.get("contract"),dict) else {}
         verdict=tx.get("semantic_verdict") if isinstance(tx.get("semantic_verdict"),dict) else {}
