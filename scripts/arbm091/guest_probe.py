@@ -81,7 +81,7 @@ def _exact_gray_matches(haystack,haystack_size,needle,needle_size,region):
     return matches
 
 
-def _task091_autofit_radio_controls(gray_bytes,screen_size,active_rect,owner_resolver,application):
+def _task091_autofit_radio_controls(gray_bytes,screen_size,active_rect,owner_resolver,application,expected_pid=None):
     sw,sh=(int(v) for v in screen_size)
     if len(gray_bytes)!=sw*sh:
         raise ValueError('TASK091_AUTOFIT_RADIO_VISUAL_BYTES_INVALID')
