@@ -81,12 +81,12 @@ def _exact_gray_matches(haystack,haystack_size,needle,needle_size,region):
     return matches
 
 
-def _task091_autofit_radio_controls(gray_bytes,screen_size,active_rect,owner_resolver,application,expected_pid):
+def _task091_autofit_radio_controls(gray_bytes,screen_size,active_rect,owner_resolver,application):
     sw,sh=(int(v) for v in screen_size)
     if len(gray_bytes)!=sw*sh:
         raise ValueError('TASK091_AUTOFIT_RADIO_VISUAL_BYTES_INVALID')
     ax,ay,aw,ah=(int(v) for v in active_rect)
-    if aw<=0 or ah<=0 or int(expected_pid or 0)<=0:
+    if aw<=0 or ah<=0:
         raise RuntimeError('TASK091_AUTOFIT_RADIO_FRAME_UNPROVEN')
     # Scan the current WPS object-formatting pane band, then derive the radio
     # group from shape/spacing. No absolute point or historical coordinate is used.
@@ -171,8 +171,6 @@ def _task091_autofit_radio_controls(gray_bytes,screen_size,active_rect,owner_res
         owner_id,owner_pid=owner_resolver((cx,cy))
         if int(owner_id or 0)<=0 or int(owner_pid or 0)<=0:
             raise RuntimeError('TASK091_AUTOFIT_RADIO_OWNER_UNPROVEN')
-        if int(owner_pid)!=int(expected_pid):
-            raise RuntimeError('TASK091_AUTOFIT_RADIO_OWNER_MISMATCH')
         current_owner=(int(owner_id),int(owner_pid))
         if owner_key is None:
             owner_key=current_owner
@@ -784,7 +782,7 @@ def capture(point):
                 target=disclosure
     radios=_task091_autofit_radio_controls(
         gray,image.size,active_rect,hit_owner,
-        before.get('wm_class') or before.get('title') or '',before.get('pid'))
+        before.get('wm_class') or before.get('title') or '')
     for radio in radios:
         controls.append(radio)
         if point is not None and contains(radio['bbox']):
