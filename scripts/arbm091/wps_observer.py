@@ -14,8 +14,8 @@ import time
 from pathlib import Path
 from urllib.parse import urlparse
 import requests
-from osworld_control import canonical_action
-from arbm091.trace_gate import digest, parse_atom, pointer, preflight, postflight, require
+from osworld_control import canonical_action, task091_panel_target_proof
+from arbm091.trace_gate import digest, parse_atom, pointer, preflight, postflight, require, inside
 
 _LOCK = threading.Lock()
 _PROBE = Path(__file__).with_name('guest_probe.py').read_text()
@@ -101,6 +101,57 @@ def snapshot(controller, root: Path, name: str, point, active_slide=None):
                      'screenshot_sha256': hashlib.sha256(png).hexdigest()}
 
 
+def _read_window_state(root: Path):
+    path=root/'window-state.json'
+    if not path.is_file():
+        return None
+    try:
+        value=json.loads(path.read_text(encoding='utf-8'))
+    except Exception:
+        return None
+    return value if isinstance(value,dict) else None
+
+
+def _consume_panel_envelope(root: Path, command: str, prior: dict, before: dict, point):
+    path=root/'pending-panel-target.json'
+    if not path.is_file():
+        return None
+    try:
+        envelope=json.loads(path.read_text(encoding='utf-8'))
+        require(isinstance(envelope,dict) and envelope.get('schema')==1,'TASK091_PANEL_ENVELOPE_SCHEMA_INVALID')
+        require(str(envelope.get('candidate_sha') or '')==str(os.environ.get('GITHUB_SHA') or ''),'TASK091_PANEL_ENVELOPE_SHA_MISMATCH')
+        require(str(envelope.get('command') or '')==str(command or ''),'TASK091_PANEL_ENVELOPE_COMMAND_MISMATCH')
+        signed=envelope.get('target')
+        require(isinstance(signed,dict) and str(signed.get('source') or '').casefold()=='task091-panel-canonical','TASK091_PANEL_SIGNED_TARGET_MISSING')
+        require(task091_panel_target_proof(signed)==str(signed.get('proof_sha256') or ''),'TASK091_PANEL_SIGNATURE_INVALID')
+        require(isinstance(prior,dict)
+                and str(prior.get('source') or '')==str(signed.get('source_observation_id') or '')
+                and str(prior.get('screenshot_sha256') or '')==str(signed.get('screenshot_sha256') or ''),
+                'TASK091_PANEL_STALE_SOURCE_FRAME')
+        require((prior.get('window') or {}).get('bbox')==signed.get('window_bbox')
+                and (before.get('window') or {}).get('bbox')==signed.get('window_bbox'),
+                'TASK091_PANEL_WINDOW_FRAME_MISMATCH')
+        observed=before.get('target')
+        require(isinstance(observed,dict),'TASK091_PANEL_CONTROL_NOT_OBSERVED')
+        require(observed.get('showing') is True and observed.get('enabled') is True,'TASK091_PANEL_CONTROL_NOT_INTERACTIVE')
+        require(str(observed.get('label') or '').strip().casefold()==str(signed.get('label') or '').strip().casefold(),'TASK091_PANEL_CONTROL_IDENTITY_MISMATCH')
+        require(str(observed.get('role') or '').strip().casefold()==str(signed.get('control_role') or '').strip().casefold(),'TASK091_PANEL_CONTROL_ROLE_MISMATCH')
+        require(int(observed.get('pid') or 0)==int(signed.get('control_pid') or -1),'TASK091_PANEL_CONTROL_PID_MISMATCH')
+        require(observed.get('bbox')==[int(signed[k]) for k in ('x','y','w','h')],'TASK091_PANEL_CONTROL_BOUNDS_MISMATCH')
+        require(point==(int(signed.get('cx')),int(signed.get('cy'))) and inside(point,observed.get('bbox')),'TASK091_PANEL_POINT_OUTSIDE_PROVEN_BOUNDS')
+        require(int(before.get('hit_owner_pid') or 0)==int(observed.get('pid') or -1)
+                and int(before.get('hit_owner_id') or 0)>0,'TASK091_PANEL_HIT_OWNER_MISMATCH')
+        return {'label':signed.get('label'),'role':signed.get('control_role'),
+                'bbox':observed.get('bbox'),'pid':observed.get('pid'),
+                'source_observation_id':signed.get('source_observation_id'),
+                'proof_sha256':signed.get('proof_sha256')}
+    finally:
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+
+
 def append(root: Path, row: dict):
     with _LOCK:
         path = root / 'wps-trace.jsonl'
@@ -163,8 +214,12 @@ def install(environment_class):
                        'command_sha256': hashlib.sha256(atom.encode()).hexdigest()}
                 try:
                     point = pointer(atom)
+                    prior=_read_window_state(root)
                     before, reference = snapshot(controller, root, f'{step:04d}-{substep:02d}-before', point, active_slide)
                     row['before'] = reference
+                    panel_proof=_consume_panel_envelope(root,atom,prior,before,point)
+                    if panel_proof is not None:
+                        row['panel_target_proof']=panel_proof
                     row['scope'] = preflight(atom, before)
                     next_active_slide = _next_active_slide(atom, active_slide)
                     result = original_execute(atom)
