@@ -269,6 +269,10 @@ class MeshTests(unittest.TestCase):
    captured=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck_pane)
    self.assertEqual(captured['action'],'terminal')
    self.assertEqual(captured['reason'],'TASK091_COVERTITLE_AUTOFIT_PANE_CAPTURED')
+   state['semantic_tx']['stage']='select-issued'
+   state['semantic_tx']['autofit_preflight_done']=True
+   mutation=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck)
+   self.assertEqual(mutation['specialist_phase'],'semantic-text-mutation')
    self.assertIn("hotkey('ctrl', 'h')",mutation['command'])
    self.assertIn("Growth Plan Draft",mutation['command'])
    self.assertIn("Stabilize-and-Recover Rebaseline",mutation['command'])
