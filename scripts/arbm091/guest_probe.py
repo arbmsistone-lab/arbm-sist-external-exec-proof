@@ -30,6 +30,17 @@ def _semantic_slide_text(shapes):
             parts.append(value)
     return ' '.join(parts)
 
+
+_TEXT_BOX_TEMPLATE_SIZE=(90,28)
+_TEXT_BOX_TEMPLATE_SHA256='2cf145b871cf828e198a0ce312a515e07cb2c3e829a09d6a1cb86fb54d1694bb'
+_TEXT_BOX_TEMPLATE_ZLIB_B64=(
+    'eNrtkt9PglAYhv9yqK3xQyOGF7VM11oX1rp0VhdNbMYompaUabk5PTTLCDJCvnPbOaOzYVdyW7w37Pv28O7bAxhn+Tu54jmS1b5N'
+    'n4pT0AEsVf9ZYhwWOT53NMEYOrtyuRW9x4C7RLOPRqWDMQpsuY/Qc2Qp04/NC7akzbWXUaUYgCWc9RpiE2IAlrp6vl8loJ336BCU'
+    'jo2tGVvS5jrgzrrnaQ3AcKm4DEjRTG8mb/RE6RYnm09cVDmcDwREpkmuy4AUzUTtyg3GM031F5qpcDO6E97I5CktBqS2AWZBNWDR'
+    'xtdDvjsQxvHNDEjd7Gpta2P6y3O4rfuaTjybisuAlJ6d8LQUfO5Uo0Rz7dVpSk9wLdYfz0UDGJDOM7dmk0+E7+Vh0jMv7vWB/s9S'
+    'uR0hBmTJkiXL/803Fuswng=='
+)
+
 _TEXT_OPTIONS_TEMPLATE_SIZE=(150,28)
 _TEXT_OPTIONS_TEMPLATE_SHA256='f5b37d1bddcc0222c75aa3ff6e1a7737b5ee84cdaa2b93966354a0e50acf7ff6'
 _TEXT_OPTIONS_TEMPLATE_ZLIB_B64=(
@@ -68,6 +79,30 @@ def _exact_gray_matches(haystack,haystack_size,needle,needle_size,region):
                 matches.append([xx,yy,nw,nh])
             offset=found+1
     return matches
+
+
+def _task091_text_box_visual_control(gray_bytes,screen_size,active_rect,owner_resolver,application):
+    template=zlib.decompress(base64.b64decode(_TEXT_BOX_TEMPLATE_ZLIB_B64))
+    if hashlib.sha256(template).hexdigest()!=_TEXT_BOX_TEMPLATE_SHA256:
+        raise RuntimeError('TASK091_VISUAL_SIGNATURE_CORRUPT:TEXT_BOX')
+    matches=_exact_gray_matches(
+        gray_bytes,screen_size,template,_TEXT_BOX_TEMPLATE_SIZE,active_rect)
+    if not matches:
+        return None
+    if len(matches)!=1:
+        raise RuntimeError('TASK091_VISUAL_CONTROL_AMBIGUOUS:TEXT_BOX')
+    rect=matches[0]
+    x,y,w,h=rect
+    cx=x+w//2; cy=y+h//2
+    owner_id,owner_pid=owner_resolver((cx,cy))
+    if int(owner_id or 0)<=0 or int(owner_pid or 0)<=0:
+        raise RuntimeError('TASK091_VISUAL_CONTROL_OWNER_UNPROVEN:TEXT_BOX')
+    return {
+        'label':'Text Box','role':'visual-tab','pid':int(owner_pid),
+        'application':str(application or ''),'bbox':rect,'showing':True,'enabled':True,
+        'focused':False,'depth':4096,'visual_signature_sha256':_TEXT_BOX_TEMPLATE_SHA256,
+        'owner_id':int(owner_id),'cx':cx,'cy':cy,
+    }
 
 
 def _task091_text_options_visual_control(gray_bytes,screen_size,active_rect,owner_resolver,application):
@@ -521,20 +556,28 @@ def capture(point):
         target = first
 
     image = pyautogui.screenshot()
-    if not any(str(row.get('label') or '').strip().casefold()=='text options'
+    gray=image.convert('L').tobytes()
+    visual_specs=(
+        ('TEXT OPTIONS',_task091_text_options_visual_control),
+        ('Text Box',_task091_text_box_visual_control),
+    )
+    for visual_label,resolver in visual_specs:
+        if any(str(row.get('label') or '').strip().casefold()==visual_label.casefold()
                for row in controls if isinstance(row,dict)):
-        visual_control=_task091_text_options_visual_control(
-            image.convert('L').tobytes(), image.size, active_rect, hit_owner,
+            continue
+        visual_control=resolver(
+            gray, image.size, active_rect, hit_owner,
             before.get('wm_class') or before.get('title') or '')
-        if visual_control is not None:
-            controls.append(visual_control)
-            controls=sorted(controls,key=lambda value:(
-                not value.get('focused',False),-int(value.get('depth') or 0),
-                value['bbox'][1],value['bbox'][0],value['bbox'][2]*value['bbox'][3]))[:128]
-            if point is not None and contains(visual_control['bbox']):
-                if target is not None and target != visual_control:
-                    raise RuntimeError('TASK091_VISUAL_CONTROL_TARGET_AMBIGUOUS:TEXT_OPTIONS')
-                target=visual_control
+        if visual_control is None:
+            continue
+        controls.append(visual_control)
+        controls=sorted(controls,key=lambda value:(
+            not value.get('focused',False),-int(value.get('depth') or 0),
+            value['bbox'][1],value['bbox'][0],value['bbox'][2]*value['bbox'][3]))[:128]
+        if point is not None and contains(visual_control['bbox']):
+            if target is not None and target != visual_control:
+                raise RuntimeError('TASK091_VISUAL_CONTROL_TARGET_AMBIGUOUS:'+visual_label.upper().replace(' ','_'))
+            target=visual_control
     output = io.BytesIO()
     image.save(output, format='PNG')
     owner_id, owner_pid = hit_owner()
