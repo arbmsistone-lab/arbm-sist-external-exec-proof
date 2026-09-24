@@ -193,6 +193,32 @@ def _panel_target(window_state,label):
     target["proof_sha256"]=task091_panel_target_proof(target)
     return target
 
+def _raw_cover_title(window_state):
+    rows=(window_state.get("deck_slide_shapes",{}) or {}).get("1",[]) if isinstance(window_state,dict) else []
+    matches=[row for row in rows if isinstance(row,dict)
+             and int(row.get("id") or 0)==6 and str(row.get("name") or "")=="CoverTitle"]
+    if len(matches)!=1:
+        raise SemanticTransactionError("TASK091_COVERTITLE_RAW_STATE_UNPROVEN")
+    return matches[0]
+
+
+def _autofit_controls(window_state):
+    controls=window_state.get("controls",[]) if isinstance(window_state,dict) else []
+    labels=("Do not Autofit","Shrink text on overflow","Resize shape to fit text")
+    result={}
+    for label in labels:
+        rows=[row for row in controls if isinstance(row,dict)
+              and str(row.get("label") or "").strip().casefold()==label.casefold()
+              and str(row.get("role") or "")=="visual-radio"
+              and row.get("showing") is True and row.get("enabled") is True]
+        if len(rows)!=1:
+            raise SemanticTransactionError("TASK091_AUTOFIT_RADIO_GROUP_NOT_OBSERVED")
+        result[label]=rows[0]
+    if sum(1 for row in result.values() if row.get("selected") is True)!=1:
+        raise SemanticTransactionError("TASK091_AUTOFIT_RADIO_SELECTION_AMBIGUOUS")
+    return result
+
+
 def _resolved_row_by_key(window_state,key):
     return normalize_deck(window_state).get(tuple(key))
 
@@ -405,7 +431,49 @@ def next_text_action(state,window_state,plan):
             return _terminal("TASK091_COVERTITLE_AUTOFIT_OPTIONS_NOT_OBSERVED")
         if row is None or tuple(row.get("geometry") or ())!=(749808,1078992,5852160,1234440):
             return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_DURING_AUTOFIT_NAV")
-        return _terminal("TASK091_COVERTITLE_AUTOFIT_OPTIONS_CAPTURED")
+        try:
+            radios=_autofit_controls(window_state)
+            raw=_raw_cover_title(window_state)
+        except SemanticTransactionError as exc:
+            return _terminal(str(exc))
+        if str(raw.get("autofit_mode") or "")!="RESIZE_SHAPE_TO_FIT_TEXT":
+            return _terminal("TASK091_AUTOFIT_CURRENT_MODE_UNEXPECTED")
+        if radios["Resize shape to fit text"].get("selected") is not True:
+            return _terminal("TASK091_AUTOFIT_UI_OOXML_MODE_MISMATCH")
+        try:
+            target=_panel_target(window_state,"Do not Autofit")
+        except SemanticTransactionError as exc:
+            return _terminal(str(exc))
+        tx["stage"]="autofit-do-not-issued"
+        tx["autofit_options_screenshot_sha256"]=current_shot
+        return {
+            "action":"exec",
+            "command":f"pyautogui.click({target['cx']}, {target['cy']})",
+            "target":target,
+            "plan":"Select the uniquely observed Do not Autofit radio in the current WPS Text Box panel.",
+            "specialist_phase":"semantic-cover-autofit-do-not-select",
+        }
+
+    if stage=="autofit-do-not-issued":
+        current_shot=str(window_state.get("screenshot_sha256") or "")
+        if not current_shot or current_shot==str(tx.get("autofit_options_screenshot_sha256") or ""):
+            return _terminal("TASK091_AUTOFIT_SELECTION_NOT_OBSERVED")
+        try:
+            radios=_autofit_controls(window_state)
+        except SemanticTransactionError as exc:
+            return _terminal(str(exc))
+        if radios["Do not Autofit"].get("selected") is not True:
+            return _terminal("TASK091_AUTOFIT_SELECTION_NOT_CONFIRMED")
+        if row is None or tuple(row.get("geometry") or ())!=(749808,1078992,5852160,1234440):
+            return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_AFTER_AUTOFIT_SELECTION")
+        tx["autofit_selection_confirmed"]=True
+        tx["autofit_preflight_done"]=True
+        tx["stage"]="select-issued"
+        return {
+            "action":"checkpoint",
+            "checkpoint":"TASK091_COVERTITLE_AUTOFIT_SELECTION_CONFIRMED",
+            "autofit_selected_mode":"DO_NOT_AUTOFIT",
+        }
 
     if stage=="mutation-issued":
         # Finish the WPS editing operation. Disk state is verified only after save.
@@ -435,6 +503,18 @@ def next_text_action(state,window_state,plan):
         current_sha=str((window_state.get("deck_file") or {}).get("sha256") or "")
         if len(current_sha)!=64 or current_sha==str(tx.get("before_deck_sha256") or ""):
             return _terminal("TASK091_SAVE_NOT_PERSISTED")
+        if _cover_title_lock_required(tx):
+            try:
+                raw=_raw_cover_title(window_state)
+            except SemanticTransactionError as exc:
+                return _terminal(str(exc))
+            if tx.get("autofit_selection_confirmed") is not True:
+                return _terminal("TASK091_AUTOFIT_SELECTION_EVIDENCE_MISSING")
+            if str(raw.get("autofit_mode") or "")!="DO_NOT_AUTOFIT":
+                return _terminal("TASK091_AUTOFIT_NOT_PERSISTED")
+            if raw.get("geometry")!={"x":749808,"y":1078992,"w":5852160,"h":1234440}:
+                return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_AFTER_SAVE")
+            tx["autofit_persisted"]=True
         tx["after_model_sha256"]=verdict["after_model_sha256"]
         tx["after_deck_sha256"]=current_sha
         tx["semantic_verdict"]=verdict
@@ -452,6 +532,15 @@ def next_text_action(state,window_state,plan):
             return _terminal(str(exc))
         if roundtrip["model_sha256"]!=str(tx.get("after_model_sha256") or ""):
             return _terminal("TASK091_ROUNDTRIP_MODEL_DRIFT")
+        if _cover_title_lock_required(tx):
+            try:
+                raw=_raw_cover_title(window_state)
+            except SemanticTransactionError as exc:
+                return _terminal(str(exc))
+            if tx.get("autofit_persisted") is not True or str(raw.get("autofit_mode") or "")!="DO_NOT_AUTOFIT":
+                return _terminal("TASK091_AUTOFIT_ROUNDTRIP_NOT_PERSISTED")
+            if raw.get("geometry")!={"x":749808,"y":1078992,"w":5852160,"h":1234440}:
+                return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_AFTER_REOPEN")
         contract=tx.get("contract") if isinstance(tx.get("contract"),dict) else {}
         verdict=tx.get("semantic_verdict") if isinstance(tx.get("semantic_verdict"),dict) else {}
         evidence={

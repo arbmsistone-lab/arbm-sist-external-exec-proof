@@ -1208,6 +1208,53 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
             resolve(triangle_screen([(300,90)]),(width,height),active,
                     lambda point:(0,0),'WPS Office')
 
+    def test_autofit_radio_group_contract_is_structural_and_fail_closed(self):
+        import ast
+        source=Path('scripts/arbm091/guest_probe.py').read_text(encoding='utf-8')
+        tree=ast.parse(source)
+        names={'_RADIO_GLYPH_SIZE','_RADIO_UNSELECTED_SHA256','_RADIO_UNSELECTED_ZLIB_B64',
+               '_RADIO_SELECTED_SHA256','_RADIO_SELECTED_ZLIB_B64'}
+        keep=[]
+        for node in tree.body:
+            if isinstance(node,(ast.Import,ast.ImportFrom)):
+                imports={alias.name for alias in node.names}
+                if imports & {'base64','hashlib','zlib'}: keep.append(node)
+            elif isinstance(node,ast.Assign):
+                assigned={target.id for target in node.targets if isinstance(target,ast.Name)}
+                if assigned & names: keep.append(node)
+            elif isinstance(node,ast.FunctionDef) and node.name in ('_exact_gray_matches','_task091_autofit_radio_controls'):
+                keep.append(node)
+        ns={}
+        exec(compile(ast.Module(body=keep,type_ignores=[]),'autofit-radio-contract','exec'),ns)
+        import base64,zlib
+        un=zlib.decompress(base64.b64decode(ns['_RADIO_UNSELECTED_ZLIB_B64']))
+        sel=zlib.decompress(base64.b64decode(ns['_RADIO_SELECTED_ZLIB_B64']))
+        W,H=400,240; rw,rh=ns['_RADIO_GLYPH_SIZE']
+        def frame(selected_index=2, omit=None, duplicate=False):
+            data=bytearray([247])*(W*H)
+            ys=(80,110,140)
+            for i,y in enumerate(ys):
+                if i==omit: continue
+                glyph=sel if i==selected_index else un
+                for dy in range(rh):
+                    data[(y+dy)*W+300:(y+dy)*W+300+rw]=glyph[dy*rw:(dy+1)*rw]
+            if duplicate:
+                glyph=un
+                for dy in range(rh):
+                    data[(170+dy)*W+300:(170+dy)*W+300+rw]=glyph[dy*rw:(dy+1)*rw]
+            return bytes(data)
+        resolve=ns['_task091_autofit_radio_controls']
+        controls=resolve(frame(),(W,H),[0,0,W,H],lambda point:(77,2883),'WPS Office')
+        self.assertEqual([c['label'] for c in controls],
+                         ['Do not Autofit','Shrink text on overflow','Resize shape to fit text'])
+        self.assertEqual([c['selected'] for c in controls],[False,False,True])
+        with self.assertRaisesRegex(RuntimeError,'GROUP_AMBIGUOUS'):
+            resolve(frame(omit=1),(W,H),[0,0,W,H],lambda point:(77,2883),'WPS Office')
+        with self.assertRaisesRegex(RuntimeError,'GROUP_AMBIGUOUS'):
+            resolve(frame(duplicate=True),(W,H),[0,0,W,H],lambda point:(77,2883),'WPS Office')
+        with self.assertRaisesRegex(RuntimeError,'OWNER_UNPROVEN'):
+            resolve(frame(),(W,H),[0,0,W,H],lambda point:(0,0),'WPS Office')
+
     def test_section_e_precondition_is_semantic_not_index_magic(self):
         source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
         self.assertIn("int(next_edit[0])==3",source)

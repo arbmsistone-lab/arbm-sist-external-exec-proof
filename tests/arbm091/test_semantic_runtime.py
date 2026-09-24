@@ -100,11 +100,25 @@ class SemanticRuntimeTests(unittest.TestCase):
         ws_options_open=copy.deepcopy(ws)
         ws_options_open["source"]="0010-01-after"
         ws_options_open["screenshot_sha256"]="f"*64
-        captured=next_text_action(state,ws_options_open,plan)
-        self.assertEqual(captured["action"],"terminal")
-        self.assertEqual(captured["reason"],"TASK091_COVERTITLE_AUTOFIT_OPTIONS_CAPTURED")
-        state["semantic_tx"]["stage"]="select-issued"
-        state["semantic_tx"]["autofit_preflight_done"]=True
+        ws_options_open["controls"]=[
+            {"label":"Do not Autofit","role":"visual-radio","pid":2883,"application":"WPS Office",
+             "bbox":[1551,665,17,17],"showing":True,"enabled":True,"selected":False},
+            {"label":"Shrink text on overflow","role":"visual-radio","pid":2883,"application":"WPS Office",
+             "bbox":[1551,695,17,17],"showing":True,"enabled":True,"selected":False},
+            {"label":"Resize shape to fit text","role":"visual-radio","pid":2883,"application":"WPS Office",
+             "bbox":[1551,725,17,17],"showing":True,"enabled":True,"selected":True},
+        ]
+        ws_options_open["deck_slide_shapes"]["1"][0]["autofit_mode"]="RESIZE_SHAPE_TO_FIT_TEXT"
+        select_autofit=next_text_action(state,ws_options_open,plan)
+        self.assertEqual(select_autofit["specialist_phase"],"semantic-cover-autofit-do-not-select")
+        self.assertEqual(select_autofit["target"]["label"],"Do not Autofit")
+        ws_selected=copy.deepcopy(ws_options_open)
+        ws_selected["screenshot_sha256"]="1"*64
+        for control in ws_selected["controls"]:
+            control["selected"]=control["label"]=="Do not Autofit"
+        confirmed=next_text_action(state,ws_selected,plan)
+        self.assertEqual(confirmed["checkpoint"],"TASK091_COVERTITLE_AUTOFIT_SELECTION_CONFIRMED")
+        self.assertTrue(state["semantic_tx"]["autofit_preflight_done"])
         mutation=next_text_action(state,ws,plan)
         self.assertEqual(mutation["specialist_phase"],"semantic-text-mutation")
         self.assertNotEqual(mutation.get("action"),"terminal")
