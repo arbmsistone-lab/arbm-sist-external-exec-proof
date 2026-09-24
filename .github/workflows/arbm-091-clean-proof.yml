@@ -521,55 +521,55 @@ jobs:
         before=json.loads((root/'0009-01-before.json').read_text())
         snap=json.loads((root/'0009-01-after.json').read_text())
         blocked=json.loads((root/'0010-01-before.json').read_text())
+        snap['screen']=[0,0,1920,1080]
+        snap['deck_file']['slide_size']={'w':12192000,'h':6858000}
+        before['screen']=[0,0,1920,1080]
+        before['deck_file']['slide_size']={'w':12192000,'h':6858000}
+        before_shape=next(row for row in before['deck_slide_shapes']['1'] if int(row.get('id') or 0)==6)
         shape=next(row for row in snap['deck_slide_shapes']['1'] if int(row.get('id') or 0)==6)
         assert shape['geometry']['h']==922020, shape
-        point=shim._task091_shape_center(snap,shape)
-        assert [point['cx'],point['cy']]==[869,372], point
-
-        state={'owned':True,'anchored':True,'slide':1,'spatial_index':0,'mode':'TARGET_VERIFYING',
-               'pending_edit':{
-                 'slide':1,'old':'Growth Plan Draft',
-                 'new':'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline',
-                 'stage':'save-issued','shape_id':6,'repair_attempts':0,
-                 'target':{'label':'Growth Plan Draft','role':'task091-canonical-point',
-                           'bbox':[744,334,2,2],'cx':745,'cy':335,
-                           'source':'task091-pptx-canonical','slide':1},
-                 'text_hit_x':745,'text_hit_y':335,
-                 'text_hint_x':745,'text_hint_y':335,
-                 'before_old_count':1,'before_new_count':0,
-                 'before_deck_sha256':before['deck_file']['sha256'],
-                 'selected_screenshot_sha256':'1'*64,
-                 'edited_screenshot_sha256':'2'*64,
-                 'verify_attempts':0}}
-        task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
-              'The COO has asked you to rebaseline the H2 Operating Committee pack. '
-              'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
-              'Reforecast_Model_H2.xlsx is the source of truth.')
-        action=shim.next_091_specialist_action(task,'WPS Presentation','',state,snap)
-        assert action['command']=='pyautogui.doubleClick(745, 335, interval=0.08)', action
-        assert state['pending_edit']['repair_shape_id']==6, state['pending_edit']
-        assert state['pending_edit']['repair_target_cx']==745, state['pending_edit']
-        assert state['pending_edit']['repair_target_cy']==335, state['pending_edit']
-        assert state['pending_edit']['repair_shape_geometry']['h']==922020, state['pending_edit']
-
+        old=str(before_shape.get('text') or '')
+        before_box=shim._task091_shape_bbox(before,before_shape)
+        assert before_box is not None, before_shape
+        prior=shim._task091_shape_point(before,1,old,int(before_box['cx']),int(before_box['cy']))
+        assert prior is not None and int(prior['shape'].get('id') or 0)==6, prior
+        repaired=shim._task091_drift_safe_text_point(snap,shape,prior['cx'],prior['cy'])
+        assert repaired is not None and int(repaired['shape'].get('id') or 0)==6, repaired
+        cx=int(repaired['cx']); cy=int(repaired['cy'])
+        bbox=repaired['shape_bbox']
+        assert bbox[0] <= cx < bbox[0]+bbox[2] and bbox[1] <= cy < bbox[1]+bbox[3], repaired
+        target={'source':'task091-pptx-canonical','label':str(shape.get('text') or ''),
+                'role':'task091-canonical-point','slide':1,
+                'x':cx-1,'y':cy-1,'w':2,'h':2,'cx':cx,'cy':cy,
+                'foreground_sha256':shim._task091_foreground_sha(snap),
+                'deck_sha256':snap['deck_file']['sha256']}
+        target['proof_sha256']=shim.task091_spatial_target_proof(target)
+        action={'action':'exec',
+                'command':f"pyautogui.doubleClick({cx}, {cy}, interval=0.08)",
+                'target':target,
+                'plan':'Reuse only the dynamically reprojected canonical text point inside shape 6.'}
+        grounded=shim.ground_action(action,'WPS Presentation','',[],allow_canonical=True)
+        assert grounded['command']==action['command'], grounded
         probe=copy.deepcopy(snap)
         probe['target']=None
         probe['active_slide']=1
         assert preflight(action['command'],probe)=='wps-content'
+        arbitrary=copy.deepcopy(action)
+        arbitrary['command']=f"pyautogui.doubleClick({cx+470}, {cy+160}, interval=0.08)"
         try:
-            preflight('pyautogui.doubleClick(1215, 470, interval=0.08)',probe)
+            shim.ground_action(arbitrary,'WPS Presentation','',[],allow_canonical=True)
         except ValueError as exc:
-            assert 'TASK091_SHAPE_POINT_UNPROVEN' in str(exc), exc
+            assert 'TASK091_CANONICAL_POINTER_COORDINATES_MISMATCH' in str(exc), exc
         else:
-            raise AssertionError('outside-shape text hit was not rejected')
-
+            raise AssertionError('outside/arbitrary repair point was accepted')
         assert blocked['deck_file']['sha256']==snap['deck_file']['sha256']
         print(json.dumps({'status':'PASS','corpus_run':'35448424940',
                           'old_failure':'TASK091_SHAPE_POINT_UNPROVEN',
-                          'root_cause':'repair-must-reuse-signed-text-hit-not-shape-center',
-                          'shape_id':6,'signed_text_hit':[745,335],
+                          'root_cause':'repair-reprojects-signed-canonical-point-into-current-shape',
+                          'shape_id':6,'prior_target':[prior['cx'],prior['cy']],
+                          'dynamic_repair_target':[cx,cy],
                           'current_height':922020,
-                          'outside_shape_rejected':True,'zero_spend':'HARD'},sort_keys=True))
+                          'arbitrary_point_rejected':True,'zero_spend':'HARD'},sort_keys=True))
         print('RUN35448424940_REPAIR_GEOMETRY_REGRESSION=PASS')
         PY
         grep -F 'RUN35448424940_REPAIR_GEOMETRY_REGRESSION=PASS' /tmp/run35448424940-repair-geometry-regression.json
