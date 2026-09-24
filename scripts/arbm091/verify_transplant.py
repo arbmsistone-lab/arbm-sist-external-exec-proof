@@ -932,6 +932,7 @@ def main():
         'a811d60b4c2e2fc3947ce5d6d9686b22bcb245c1': {TRACE_TEST},
         '85e69798800cd7c78cef663b93fa2e3df1ad2e93': {TRACE_TEST},
         '1a2b9e0e738e35bea970d1edccf29d8461724efb': {GUEST_PROBE, TRACE_TEST},
+        '939b25dbc0b16deca565bb04f06771cd6a379aca': {GUEST_PROBE, SEMANTIC_RUNTIME, CONTROL, MESH_TEST, TRACE_TEST, SEMANTIC_RUNTIME_TEST},
         '488fcc25c564e75261c5b14fc33a267669f5c7c5': {GUEST_PROBE, TRACE_TEST},
     }
     for c_node in post_legacy:
