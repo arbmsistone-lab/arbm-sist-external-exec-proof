@@ -148,19 +148,47 @@ def _cover_title_lock_required(tx):
     return geom=={"x":749808,"y":1078992,"w":5852160,"h":1234440}
 
 
-def _panel_target(window_state,label,cx,cy):
+def _panel_target(window_state,label):
     shot=str(window_state.get("screenshot_sha256") or "")
+    source=str(window_state.get("source") or "")
     window=(window_state.get("window") or {}).get("bbox")
-    if window!=WINDOW or len(shot)!=64:
+    controls=window_state.get("controls",[]) if isinstance(window_state,dict) else []
+    if window!=WINDOW or len(shot)!=64 or not source:
         raise SemanticTransactionError("TASK091_PANEL_CONTEXT_UNPROVEN")
+    matches=[]
+    for row in controls if isinstance(controls,list) else []:
+        if not isinstance(row,dict):
+            continue
+        if str(row.get("label") or "").strip().casefold()!=str(label).strip().casefold():
+            continue
+        if row.get("showing") is not True or row.get("enabled") is not True:
+            continue
+        bbox=row.get("bbox")
+        if not (isinstance(bbox,list) and len(bbox)==4 and all(type(v) is int for v in bbox)):
+            continue
+        x,y,w,h=bbox
+        if w<=0 or h<=0 or not str(row.get("role") or "").strip() or type(row.get("pid")) is not int:
+            continue
+        wx,wy,ww,wh=window
+        cx=x+w//2; cy=y+h//2
+        if not (wx <= cx < wx+ww and wy <= cy < wy+wh):
+            continue
+        matches.append((row,x,y,w,h,cx,cy))
+    if len(matches)!=1:
+        raise SemanticTransactionError(
+            "TASK091_PANEL_CONTROL_" + ("AMBIGUOUS" if len(matches)>1 else "NOT_OBSERVED"))
+    row,x,y,w,h,cx,cy=matches[0]
     target={
         "source":"task091-panel-canonical",
-        "label":str(label),
+        "label":str(row.get("label") or ""),
         "role":"task091-panel-point",
-        "x":int(cx)-1,"y":int(cy)-1,"w":2,"h":2,
-        "cx":int(cx),"cy":int(cy),
+        "control_role":str(row.get("role") or ""),
+        "control_pid":int(row.get("pid")),
+        "application":str(row.get("application") or ""),
+        "x":x,"y":y,"w":w,"h":h,"cx":cx,"cy":cy,
         "window_bbox":list(window),
         "screenshot_sha256":shot,
+        "source_observation_id":source,
     }
     target["proof_sha256"]=task091_panel_target_proof(target)
     return target
@@ -315,25 +343,16 @@ def next_text_action(state,window_state,plan):
         window=(window_state.get("window") or {}).get("bbox")
         if window!=WINDOW:
             return _terminal("TASK091_COVERTITLE_AUTOFIT_WINDOW_DRIFT")
-        wx,wy,ww,wh=(int(v) for v in window)
-        right=wx+ww
-        text_options_x=right-190
-        text_options_y=wy+192
-        text_box_x=right-190
-        text_box_y=wy+224
         tx["stage"]="autofit-text-options-issued"
         tx["autofit_pane_screenshot_sha256"]=current_shot
-        tx["autofit_panel_points"]={
-            "text_options":[text_options_x,text_options_y],
-            "text_box":[text_box_x,text_box_y],
-        }
         try:
-            target=_panel_target(window_state,"TEXT OPTIONS",text_options_x,text_options_y)
+            target=_panel_target(window_state,"TEXT OPTIONS")
         except SemanticTransactionError as exc:
             return _terminal(str(exc))
+        tx["autofit_panel_points"]={"text_options":[target["cx"],target["cy"]]}
         return {
             "action":"exec",
-            "command":f"pyautogui.click({text_options_x}, {text_options_y})",
+            "command":f"pyautogui.click({target['cx']}, {target['cy']})",
             "target":target,
             "plan":"Open TEXT OPTIONS with one signed panel-canonical pointer action; no document mutation is authorized.",
             "specialist_phase":"semantic-cover-autofit-text-options-open",
@@ -347,14 +366,14 @@ def next_text_action(state,window_state,plan):
             return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_DURING_AUTOFIT_NAV")
         tx["stage"]="autofit-textbox-pane-issued"
         tx["text_options_screenshot_sha256"]=current_shot
-        text_box_x,text_box_y=tx["autofit_panel_points"]["text_box"]
         try:
-            target=_panel_target(window_state,"Text Box",text_box_x,text_box_y)
+            target=_panel_target(window_state,"Text Box")
         except SemanticTransactionError as exc:
             return _terminal(str(exc))
+        tx["autofit_panel_points"]["text_box"]=[target["cx"],target["cy"]]
         return {
             "action":"exec",
-            "command":f"pyautogui.click({text_box_x}, {text_box_y})",
+            "command":f"pyautogui.click({target['cx']}, {target['cy']})",
             "target":target,
             "plan":"Open Text Box with one signed panel-canonical pointer action after TEXT OPTIONS was freshly observed.",
             "specialist_phase":"semantic-cover-autofit-textbox-pane-open",

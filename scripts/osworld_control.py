@@ -233,6 +233,10 @@ def task091_panel_target_proof(target):
         str(int(target.get('cy') or 0)),
         ','.join(str(int(v)) for v in (target.get('window_bbox') or [])),
         str(target.get('screenshot_sha256') or ''),
+        str(target.get('source_observation_id') or ''),
+        str(int(target.get('control_pid') or 0)),
+        normalized_target(target.get('control_role')),
+        normalized_target(target.get('application')),
     ))
     return hashlib.sha256(payload.encode()).hexdigest()
 
@@ -305,7 +309,8 @@ def _validate_task091_panel_pointer(action):
     if not isinstance(target,dict):
         raise ValueError('TASK091_PANEL_TARGET_REQUIRED')
     required=('label','role','x','y','w','h','cx','cy','window_bbox',
-              'screenshot_sha256','proof_sha256')
+              'screenshot_sha256','source_observation_id','control_pid',
+              'control_role','application','proof_sha256')
     if any(target.get(key) in (None,'') for key in required):
         raise ValueError('TASK091_PANEL_TARGET_INCOMPLETE')
     if str(target.get('source') or '').lower()!='task091-panel-canonical':
@@ -316,21 +321,22 @@ def _validate_task091_panel_pointer(action):
     if bbox != [70,27,1850,1053]:
         raise ValueError('TASK091_PANEL_WINDOW_GEOMETRY_INVALID')
     label=str(target.get('label') or '')
-    offsets={
-        'TEXT OPTIONS':(-190,192),
-        'Text Box':(-190,224),
-    }
-    if label not in offsets:
+    if label not in {'TEXT OPTIONS','Text Box'}:
         raise ValueError('TASK091_PANEL_LABEL_NOT_ALLOWLISTED')
     wx,wy,ww,wh=(int(v) for v in bbox)
-    ox,oy=offsets[label]
-    expected_cx=wx+ww+ox
-    expected_cy=wy+oy
     cx=int(target.get('cx')); cy=int(target.get('cy'))
     x=int(target.get('x')); y=int(target.get('y'))
     w=int(target.get('w')); h=int(target.get('h'))
-    if (cx,cy)!=(expected_cx,expected_cy) or (x,y,w,h)!=(cx-1,cy-1,2,2):
+    if w<=0 or h<=0 or (cx,cy)!=(x+w//2,y+h//2):
         raise ValueError('TASK091_PANEL_TARGET_GEOMETRY_INVALID')
+    if not (wx <= x and wy <= y and x+w <= wx+ww and y+h <= wy+wh):
+        raise ValueError('TASK091_PANEL_TARGET_OUTSIDE_WINDOW')
+    if type(target.get('control_pid')) is not int or int(target.get('control_pid'))<=0:
+        raise ValueError('TASK091_PANEL_CONTROL_PID_INVALID')
+    if not str(target.get('control_role') or '').strip():
+        raise ValueError('TASK091_PANEL_CONTROL_ROLE_INVALID')
+    if not re.fullmatch(r'\d{4}-\d{2}-(?:before|after)',str(target.get('source_observation_id') or '')):
+        raise ValueError('TASK091_PANEL_OBSERVATION_ID_INVALID')
     shot=str(target.get('screenshot_sha256') or '')
     if not re.fullmatch(r'[0-9a-f]{64}',shot):
         raise ValueError('TASK091_PANEL_SCREENSHOT_DIGEST_INVALID')

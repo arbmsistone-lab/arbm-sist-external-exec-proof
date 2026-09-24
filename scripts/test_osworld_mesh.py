@@ -265,14 +265,21 @@ class MeshTests(unittest.TestCase):
    self.assertIn("hotkey('shift', 'f10')",preflight['command'])
    self.assertIn("press('o')",preflight['command'])
    deck_pane=copy.deepcopy(deck)
+   deck_pane['source']='0007-03-after'
    deck_pane['screenshot_sha256']='c'*64
+   deck_pane['controls']=[{'label':'TEXT OPTIONS','role':'page tab','pid':2883,
+                           'application':'WPS Office','bbox':[1660,200,140,38],
+                           'showing':True,'enabled':True}]
    captured=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck_pane)
    self.assertEqual(captured['action'],'exec')
    self.assertEqual(captured['specialist_phase'],'semantic-cover-autofit-text-options-open')
    self.assertEqual(state['semantic_tx']['autofit_panel_points']['text_options'],[1730,219])
-   self.assertEqual(state['semantic_tx']['autofit_panel_points']['text_box'],[1730,251])
    deck_options=copy.deepcopy(deck)
+   deck_options['source']='0008-01-after'
    deck_options['screenshot_sha256']='d'*64
+   deck_options['controls']=[{'label':'Text Box','role':'page tab','pid':2883,
+                              'application':'WPS Office','bbox':[1660,232,140,38],
+                              'showing':True,'enabled':True}]
    textbox=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck_options)
    self.assertEqual(textbox['action'],'exec')
    self.assertEqual(textbox['specialist_phase'],'semantic-cover-autofit-textbox-pane-open')
@@ -699,3 +706,5 @@ class Task091TransactionalTableCellTests(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
+[executed on device: zevanory-relay-01 (cce4fc57-a2e2-43c0-a267-5b24b4f96dfa)]

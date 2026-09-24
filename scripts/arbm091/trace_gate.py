@@ -233,10 +233,16 @@ def preflight(command: str, snapshot: dict) -> str:
         if launcher and name in ('click', 'doubleClick'):
             return 'application-switch'
         require(app != 'unapproved', 'UNAPPROVED_APPLICATION')
-        require(type(target.get('pid')) is int and target['pid'] == window['pid'],
+        target_pid=target.get('pid')
+        hit_child=(type(target_pid) is int and target_pid>0
+                   and type(snapshot.get('hit_owner_pid')) is int
+                   and target_pid==snapshot.get('hit_owner_pid')
+                   and int(snapshot.get('hit_owner_id') or 0)>0)
+        require(type(target_pid) is int and (target_pid == window['pid'] or hit_child),
                 'BACKGROUND_TARGET_PID_MISMATCH')
         require(inside(point, window.get('bbox')), 'POINTER_OUTSIDE_FOREGROUND')
-        require(snapshot.get('hit_owner_id') == window['id'], 'POINTER_OCCLUDED_OR_FOREIGN_WINDOW')
+        require(snapshot.get('hit_owner_id') == window['id'] or hit_child,
+                'POINTER_OCCLUDED_OR_FOREIGN_WINDOW')
         if app == 'wps-transient' and str(window.get('title','')).strip().casefold() == 'system check':
             require(name == 'click', 'SYSTEM_CHECK_POINTER_ACTION_FORBIDDEN')
             require(str(target.get('label','')).strip().casefold() == 'close'
