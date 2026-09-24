@@ -484,10 +484,17 @@ class ForegroundTests(unittest.TestCase):
 
         # T10: collateral sibling mutation fails closed.
         state2={'slide':1}
-        next_text_action(state2,deck,plan)
-        next_text_action(state2,deck,plan)
-        next_text_action(state2,deck,plan)
-        next_text_action(state2,deck,plan)
+        next_text_action(state2,deck,plan)  # select
+        preflight2=next_text_action(state2,deck,plan)
+        self.assertEqual(preflight2['specialist_phase'],'semantic-cover-autofit-pane-open')
+        pane2=copy.deepcopy(deck); pane2['screenshot_sha256']='d'*64
+        captured2=next_text_action(state2,pane2,plan)
+        self.assertEqual(captured2['reason'],'TASK091_COVERTITLE_AUTOFIT_PANE_CAPTURED')
+        state2['semantic_tx']['stage']='select-issued'
+        state2['semantic_tx']['autofit_preflight_done']=True
+        next_text_action(state2,deck,plan)  # mutation
+        next_text_action(state2,deck,plan)  # finalize
+        next_text_action(state2,deck,plan)  # save
         bad=copy.deepcopy(after)
         bad['deck_slide_shapes']['1'].append({
             'id':7,'name':'Sibling','text':'UNAUTHORIZED','kind':'shape',
