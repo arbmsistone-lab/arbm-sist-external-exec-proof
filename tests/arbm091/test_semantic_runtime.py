@@ -37,15 +37,8 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertIn("doubleClick",select["command"])
         self.assertNotIn("caret",select["command"].casefold())
         self.assertNotIn("caret",select["specialist_phase"].casefold())
-        preflight=next_text_action(state,ws,plan)
-        self.assertEqual(preflight["specialist_phase"],"semantic-cover-autofit-pane-open")
-        self.assertIn("hotkey('shift', 'f10')",preflight["command"])
-        self.assertIn("press('o')",preflight["command"])
-        ws_pane=copy.deepcopy(ws)
-        ws_pane["screenshot_sha256"]="c"*64
-        diag=next_text_action(state,ws_pane,plan)
-        self.assertEqual(diag["action"],"terminal")
-        self.assertEqual(diag["reason"],"TASK091_COVERTITLE_AUTOFIT_PANE_CAPTURED")
+        mutation=next_text_action(state,ws,plan)
+        self.assertEqual(mutation["specialist_phase"],"semantic-text-mutation")
         self.assertIn("ctrl', 'a",mutation["command"])
         self.assertIn("$40.9M",mutation["command"])
         forbidden=("press('left'","press('right'","press('home')","ink_left","caret_x")
@@ -72,6 +65,17 @@ class SemanticRuntimeTests(unittest.TestCase):
             state["semantic_tx"]["before_target_text"],
             "H2 Operating Committee Pack\nGrowth Plan Draft",
         )
+        preflight=next_text_action(state,ws,plan)
+        self.assertEqual(preflight["specialist_phase"],"semantic-cover-autofit-pane-open")
+        self.assertIn("hotkey('shift', 'f10')",preflight["command"])
+        self.assertIn("press('o')",preflight["command"])
+        ws_pane=copy.deepcopy(ws)
+        ws_pane["screenshot_sha256"]="c"*64
+        diag=next_text_action(state,ws_pane,plan)
+        self.assertEqual(diag["action"],"terminal")
+        self.assertEqual(diag["reason"],"TASK091_COVERTITLE_AUTOFIT_PANE_CAPTURED")
+        state["semantic_tx"]["stage"]="select-issued"
+        state["semantic_tx"]["autofit_preflight_done"]=True
         mutation=next_text_action(state,ws,plan)
         self.assertEqual(mutation["specialist_phase"],"semantic-text-mutation")
         self.assertNotEqual(mutation.get("action"),"terminal")
