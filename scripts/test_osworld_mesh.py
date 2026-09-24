@@ -5,6 +5,7 @@ sys.path.insert(0,str(pathlib.Path(__file__).parent))
 import osworld_free_mesh_shim as shim
 REAL_REQUEST_MESH=shim.request_mesh
 from osworld_control import Verifier, ground_action
+from arbm091.test_fixture_state import observed_task091_state
 
 class MeshTests(unittest.TestCase):
  def setUp(self):
@@ -204,6 +205,10 @@ class MeshTests(unittest.TestCase):
    'deck_file':{'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
                 'sha256':'a'*64,'size':1234,'mtime_ns':1,
                 'slide_size':{'w':12192000,'h':6858000}}}
+  deck=observed_task091_state(deck, screen=deck['screen'], window_bbox=deck['window']['bbox'],
+   slide_canvas_bbox=[352,263,1135,638], slide_size=deck['deck_file']['slide_size'],
+   frame_identity={'active_slide':deck['active_slide']},
+   owner_evidence={'window_id':deck['window']['id'],'pid':deck['window']['pid'],'wm_class':deck['window']['wm_class']})
   deck_obs='text\tGrowth Plan Draft\tGrowth Plan Draft\t\t\t(700, 300)\t(100, 40)'
   with patch.dict(os.environ,{'TASK_ID':'091','ZERO_SPEND_MODE':'HARD'},clear=False):
    # Modal recovery stays bounded and independent of semantic mutation.

@@ -45,6 +45,16 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertEqual((action["target"]["cx"],action["target"]["cy"]),(1248,475))
         self.assertIn("doubleClick(1248, 475",action["command"])
 
+    def test_missing_canvas_is_rejected_fail_closed(self):
+        ws=base_state(); ws.pop("slide_canvas_bbox")
+        result=next_text_action({"slide":3},ws,((3,843,404,"$42.8M","$40.9M"),))
+        self.assertEqual(result,{"action":"terminal","reason":"TASK091_SLIDE_CANVAS_UNPROVEN"})
+
+    def test_wrong_canvas_aspect_is_rejected_fail_closed(self):
+        ws=base_state(); ws["slide_canvas_bbox"]=[352,263,1135,500]
+        result=next_text_action({"slide":3},ws,((3,843,404,"$42.8M","$40.9M"),))
+        self.assertEqual(result,{"action":"terminal","reason":"TASK091_SLIDE_CANVAS_ASPECT_MISMATCH"})
+
     def test_transaction_has_no_caret_or_character_navigation(self):
         ws=base_state()
         state={"slide":3}

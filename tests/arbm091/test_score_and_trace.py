@@ -11,6 +11,7 @@ from pathlib import Path
 from arbm091.score_tracker import exact_result, scan_fatal
 from arbm091.trace_gate import DECK, WORKBOOK, classify, digest, preflight, postflight, verify_trace
 from arbm091 import wps_observer
+from arbm091.test_fixture_state import observed_task091_state
 import osworld_free_mesh_shim as shim
 from unittest.mock import patch
 
@@ -482,6 +483,10 @@ class ForegroundTests(unittest.TestCase):
           'deck_file':{'sha256':'a'*64,
                        'slide_size':{'w':12192000,'h':6858000}},
         }
+        deck=observed_task091_state(deck, screen=deck['screen'], window_bbox=deck['window']['bbox'],
+            slide_canvas_bbox=[352,263,1135,638], slide_size=deck['deck_file']['slide_size'],
+            frame_identity={'active_slide':deck['active_slide']},
+            owner_evidence={'window_id':deck['window'].get('id'),'pid':deck['window'].get('pid'),'wm_class':deck['window'].get('wm_class')})
         plan=((1,745,335,'Growth Plan Draft',
                'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'),)
         state={'slide':1}
@@ -711,6 +716,10 @@ class ForegroundTests(unittest.TestCase):
           'deck_file':{'sha256':'a'*64,
                        'slide_size':{'w':12192000,'h':6858000}},
         }
+        deck=observed_task091_state(deck, screen=deck['screen'], window_bbox=deck['window']['bbox'],
+            slide_canvas_bbox=[352,263,1135,638], slide_size=deck['deck_file']['slide_size'],
+            frame_identity={'active_slide':deck['active_slide']},
+            owner_evidence={'window_id':deck['window'].get('id'),'pid':deck['window'].get('pid'),'wm_class':deck['window'].get('wm_class')})
         plan=((1,1420,450,'$42.8M','$40.9M'),)
         state={'slide':1}
         self.assertEqual(next_text_action(state,deck,plan)['specialist_phase'],'semantic-target-select')
@@ -941,7 +950,7 @@ class TraceTests(unittest.TestCase):
 class Task091FinalAtomicTableCellTests(unittest.TestCase):
     def _deck(self, shot='1'):
         source_map={'1':'0063-01-after','2':'0064-01-after','3':'0065-01-after','4':'0066-01-after'}
-        return {
+        state={
           'schema':1,'stable':True,'source':source_map.get(str(shot),'0069-01-after'),
           'window':{'id':12582927,'pid':2594,
                     'title':'Operating_Committee_Rebaseline_Draft.pptx - WPS Office',
@@ -966,6 +975,10 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
                        'sha256':'a'*64,'size':113361,'mtime_ns':1,
                        'slide_size':{'w':12191365,'h':6858000}},
         }
+        return observed_task091_state(state, screen=state['screen'], window_bbox=state['window']['bbox'],
+            slide_canvas_bbox=[352,263,1135,638], slide_size=state['deck_file']['slide_size'],
+            frame_identity={'active_slide':state['active_slide']},
+            owner_evidence={'window_id':state['window']['id'],'pid':state['window']['pid'],'wm_class':state['window']['wm_class']})
 
     def _task(self):
         return ('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
