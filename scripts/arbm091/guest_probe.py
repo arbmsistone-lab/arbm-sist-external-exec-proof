@@ -81,7 +81,7 @@ def _exact_gray_matches(haystack,haystack_size,needle,needle_size,region):
     return matches
 
 
-def _task091_autofit_radio_controls(gray_bytes,screen_size,active_rect,owner_resolver,application,expected_pid=None):
+def _task091_autofit_radio_controls(gray_bytes,screen_size,active_rect,owner_resolver,application,expected_pid=None,diagnostics=None):
     sw,sh=(int(v) for v in screen_size)
     if len(gray_bytes)!=sw*sh:
         raise ValueError('TASK091_AUTOFIT_RADIO_VISUAL_BYTES_INVALID')
@@ -157,34 +157,63 @@ def _task091_autofit_radio_controls(gray_bytes,screen_size,active_rect,owner_res
         key=tuple(tuple(row['bbox']) for row in group)
         if key not in seen_groups:
             seen_groups.add(key); unique.append(group)
+    frame_digest=hashlib.sha256(gray_bytes).hexdigest()
     if len(unique)!=1:
-        raise RuntimeError('TASK091_AUTOFIT_RADIO_GROUP_AMBIGUOUS')
+        if isinstance(diagnostics,list):
+            diagnostics.append({
+                'failure_class':'RADIO_GROUP_AMBIGUOUS',
+                'radio_count':sum(len(group) for group in unique),
+                'selected_count':None,
+                'radio_identities':[],
+                'radio_bounds':[[list(row['bbox']) for row in group] for group in unique],
+                'owners':[],
+                'frame_signature':frame_digest,
+                'current_frame':list(active_rect),
+                'selected_identity':None,
+            })
+        return []
     group=unique[0]
     selected=[row['dark_center']>=8 for row in group]
-    if sum(1 for value in selected if value)!=1:
-        raise RuntimeError('TASK091_AUTOFIT_RADIO_SELECTION_AMBIGUOUS')
     labels=('Do not Autofit','Shrink text on overflow','Resize shape to fit text')
-    result=[]; owner_key=None
-    frame_digest=hashlib.sha256(gray_bytes).hexdigest()
+    result=[]; owner_key=None; owners=[]
+    failure_class=None
     for index,(label,row,is_selected) in enumerate(zip(labels,group,selected)):
         x,y,w,h=row['bbox']; cx=x+w//2; cy=y+h//2
         owner_id,owner_pid=owner_resolver((cx,cy))
+        owners.append({'label':label,'owner_id':int(owner_id or 0),'pid':int(owner_pid or 0)})
         if int(owner_id or 0)<=0 or int(owner_pid or 0)<=0:
-            raise RuntimeError('TASK091_AUTOFIT_RADIO_OWNER_UNPROVEN')
-        current_owner=(int(owner_id),int(owner_pid))
+            failure_class='OWNER_UNPROVEN'
+        current_owner=(int(owner_id or 0),int(owner_pid or 0))
         if owner_key is None:
             owner_key=current_owner
-        elif current_owner!=owner_key:
-            raise RuntimeError('TASK091_AUTOFIT_RADIO_OWNER_DRIFT')
+        elif current_owner!=owner_key and failure_class is None:
+            failure_class='OWNER_DRIFT'
         result.append({
-            'label':label,'role':'visual-radio','pid':int(owner_pid),
+            'label':label,'role':'visual-radio','pid':int(owner_pid or 0),
             'application':str(application or ''),'bbox':[x,y,w,h],
             'showing':True,'enabled':True,'focused':False,'depth':4096,
-            'selected':bool(is_selected),'owner_id':int(owner_id),
+            'selected':bool(is_selected),'owner_id':int(owner_id or 0),
             'structural_family':'wps-autofit-radio-group-v2',
             'structural_index':index,'frame_bbox':list(active_rect),
             'frame_visual_sha256':frame_digest,'cx':cx,'cy':cy,
         })
+    selected_count=sum(1 for value in selected if value)
+    if selected_count!=1 and failure_class is None:
+        failure_class='RADIO_SELECTION_AMBIGUOUS'
+    if failure_class is not None:
+        if isinstance(diagnostics,list):
+            diagnostics.append({
+                'failure_class':failure_class,
+                'radio_count':len(group),
+                'selected_count':selected_count,
+                'radio_identities':list(labels),
+                'radio_bounds':[list(row['bbox']) for row in group],
+                'owners':owners,
+                'frame_signature':frame_digest,
+                'current_frame':list(active_rect),
+                'selected_identity':(labels[selected.index(True)] if selected_count==1 else None),
+            })
+        return []
     return result
 
 
@@ -780,9 +809,11 @@ def capture(point):
                 if target is not None and target != disclosure:
                     raise RuntimeError('TASK091_VISUAL_CONTROL_TARGET_AMBIGUOUS:PANEL_DISCLOSURE')
                 target=disclosure
+    autofit_radio_diagnostics=[]
     radios=_task091_autofit_radio_controls(
         gray,image.size,active_rect,hit_owner,
-        before.get('wm_class') or before.get('title') or '')
+        before.get('wm_class') or before.get('title') or '',
+        diagnostics=autofit_radio_diagnostics)
     for radio in radios:
         controls.append(radio)
         if point is not None and contains(radio['bbox']):
@@ -805,6 +836,7 @@ def capture(point):
               'deck_file': deck_file,
               'hit_owner_id': owner_id,
               'hit_owner_pid': owner_pid, 'screen': [0, 0, image.width, image.height],
+              'autofit_radio_diagnostics':autofit_radio_diagnostics,
               'stable': before == after and
                         (point is None or
                          (owner_before_id, owner_before_pid) == (owner_id, owner_pid)),
