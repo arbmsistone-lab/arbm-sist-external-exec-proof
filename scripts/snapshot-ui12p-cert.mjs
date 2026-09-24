@@ -75,6 +75,7 @@ export async function runSnapshotUi12pCert(){
 
   const env={...process.env,ARBM_EXPECTED_SHA:expectedSha,GITHUB_SHA:expectedSha,NODE_OPTIONS:"--max-old-space-size=2048"};
   run("npm",["ci","--ignore-scripts","--no-audit","--no-fund"],root,env);
+  run("npm",["run","ci:portable:core"],root,{...env,ARBM_CI_PROVIDER:"render",ARBM_CI_SCOPE:"provider"});
   run("npm",["run","typecheck"],root,env);
   run("node",["--test",
     "tests/theme-global-pdv-v1.test.mjs",
@@ -121,4 +122,26 @@ export async function runSnapshotUi12pCert(){
     }
   }
   console.log(JSON.stringify({marker:"ARBM_UI12P_REMOTE_CERTIFICATION",state:"PASS",sha:expectedSha,digest}));
+
+  const contract="ARBM_ONE_CLOUD_CRITICAL_V1";
+  const subject="render:arbm-one-render-runner";
+  const hmacSecret=required("ARBM_RENDER_CI_HMAC_V1");
+  const timestamp=Math.floor(Date.now()/1000);
+  const nonce=crypto.randomBytes(24).toString("hex");
+  const serviceRef=String(process.env.RENDER_SERVICE_ID||process.env.RENDER_SERVICE_NAME||"arbm-one-ui12p-cert").replace(/[^A-Za-z0-9_-]/g,"-");
+  const buildRef=`${serviceRef}:${timestamp}`;
+  const canonical=`render|${expectedSha}|${contract}|success|${buildRef}|${timestamp}|${nonce}|${subject}`;
+  const signature=crypto.createHmac("sha256",hmacSecret).update(canonical).digest("hex");
+  const body={provider:"render",sha:expectedSha,status:"success",gate_contract_version:contract,build_ref:buildRef,timestamp,nonce};
+  const attest=await fetch("https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-platform-api-v1/v1/ci-attest",{
+    method:"POST",
+    headers:{"content-type":"application/json","x-arbm-ci-signature":signature},
+    body:JSON.stringify(body),
+    signal:AbortSignal.timeout(15000),
+  });
+  const responseText=await attest.text();
+  if(attest.status!==200 && !(attest.status===409 && responseText.includes("DUPLICATE_EVIDENCE_REJECTED"))){
+    throw new Error(`render_attest_http_${attest.status}:${responseText.slice(0,300)}`);
+  }
+  console.log(JSON.stringify({marker:"ARBM_RENDER_PROVIDER_ATTEST",state:"PASS",sha:expectedSha,buildRef}));
 }
