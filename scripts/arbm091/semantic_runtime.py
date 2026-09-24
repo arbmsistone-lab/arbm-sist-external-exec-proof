@@ -136,6 +136,18 @@ def _mutation_command(before_text, old, new):
     return _write_command(new), "whole-target-replace"
 
 
+def _cover_title_lock_required(tx):
+    if not isinstance(tx,dict):
+        return False
+    key=tuple(tx.get("target_key") or ())
+    if key!=(1,"shape",6,"CoverTitle"):
+        return False
+    before=(tx.get("before_state") or {}).get("deck_slide_shapes",{}).get("1",[])
+    row=next((x for x in before if int(x.get("id") or 0)==6 and str(x.get("name") or "")=="CoverTitle"),None)
+    geom=(row or {}).get("geometry") or {}
+    return geom=={"x":749808,"y":1078992,"w":5852160,"h":1234440}
+
+
 def _resolved_row_by_key(window_state,key):
     return normalize_deck(window_state).get(tuple(key))
 
@@ -242,6 +254,20 @@ def next_text_action(state,window_state,plan):
             return _terminal("TASK091_PRECONDITION_DRIFT")
         if model_sha256(current_model)!=str(tx.get("before_model_sha256") or ""):
             return _terminal("TASK091_PRECONDITION_DRIFT")
+        if _cover_title_lock_required(tx) and not tx.get("autofit_preflight_done"):
+            tx["stage"]="autofit-pane-open-issued"
+            tx["pre_autofit_screenshot_sha256"]=str(window_state.get("screenshot_sha256") or "")
+            return {
+                "action":"exec",
+                "command":"\n".join((
+                    "pyautogui.press('esc')",
+                    "pyautogui.hotkey('shift', 'f10')",
+                    "pyautogui.press('o')",
+                    "pyautogui.sleep(0.8)",
+                )),
+                "plan":"Open the selected CoverTitle Format Object pane without mutating content so the exact AutoFit control can be grounded from fresh evidence.",
+                "specialist_phase":"semantic-cover-autofit-pane-open",
+            }
         try:
             command,mutation_mode=_mutation_command(
                 tx.get("before_target_text"),tx.get("old"),tx.get("new"))
@@ -261,6 +287,12 @@ def next_text_action(state,window_state,plan):
             "specialist_phase":"semantic-text-mutation",
             "expected_change":tx["new"],
         }
+
+    if stage=="autofit-pane-open-issued":
+        current_shot=str(window_state.get("screenshot_sha256") or "")
+        if not current_shot or current_shot==str(tx.get("pre_autofit_screenshot_sha256") or ""):
+            return _terminal("TASK091_COVERTITLE_AUTOFIT_PANE_NOT_OBSERVED")
+        return _terminal("TASK091_COVERTITLE_AUTOFIT_PANE_CAPTURED")
 
     if stage=="mutation-issued":
         # Finish the WPS editing operation. Disk state is verified only after save.
