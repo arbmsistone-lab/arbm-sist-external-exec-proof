@@ -446,7 +446,7 @@ class ForegroundTests(unittest.TestCase):
         pane=copy.deepcopy(deck); pane['screenshot_sha256']='c'*64
         captured=next_text_action(state,pane,plan)
         self.assertEqual(captured['action'],'exec')
-        self.assertEqual(captured['specialist_phase'],'semantic-cover-autofit-textbox-pane-open')
+        self.assertEqual(captured['specialist_phase'],'semantic-cover-autofit-text-options-open')
         self.assertEqual(state['semantic_tx']['autofit_panel_points']['text_options'],[1730,219])
         self.assertEqual(state['semantic_tx']['autofit_panel_points']['text_box'],[1730,251])
         textbox=copy.deepcopy(deck); textbox['screenshot_sha256']='d'*64
@@ -496,7 +496,7 @@ class ForegroundTests(unittest.TestCase):
         pane2=copy.deepcopy(deck); pane2['screenshot_sha256']='d'*64
         captured2=next_text_action(state2,pane2,plan)
         self.assertEqual(captured2['action'],'exec')
-        self.assertEqual(captured2['specialist_phase'],'semantic-cover-autofit-textbox-pane-open')
+        self.assertEqual(captured2['specialist_phase'],'semantic-cover-autofit-text-options-open')
         textbox2=copy.deepcopy(deck); textbox2['screenshot_sha256']='e'*64
         textbox_capture2=next_text_action(state2,textbox2,plan)
         self.assertEqual(textbox_capture2['reason'],'TASK091_COVERTITLE_TEXTBOX_PANE_CAPTURED')
