@@ -262,7 +262,11 @@ class MeshTests(unittest.TestCase):
 
    mutation=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck)
    self.assertEqual(mutation['specialist_phase'],'semantic-text-mutation')
-   self.assertIn("hotkey('ctrl', 'a')",mutation['command'])
+   self.assertIn("hotkey('ctrl', 'h')",mutation['command'])
+   self.assertIn("Growth Plan Draft",mutation['command'])
+   self.assertIn("Stabilize-and-Recover Rebaseline",mutation['command'])
+   self.assertIn("hotkey('alt', 'a')",mutation['command'])
+   self.assertNotIn("hotkey('ctrl', 'a')",mutation['command'])
    for forbidden in ("press('home')","press('left'","caret","ink_left"):
     self.assertNotIn(forbidden,mutation['command'].casefold())
 

@@ -96,6 +96,46 @@ def _write_command(value):
     return "\n".join(commands)
 
 
+def _contained_replacement(before_text, old, new):
+    before_text=str(before_text or "")
+    old=str(old or "")
+    new=str(new or "")
+    if not old or before_text==old:
+        return None
+    if before_text.count(old)!=1:
+        raise SemanticTransactionError("TASK091_CONTAINED_REPLACE_OLD_NOT_UNIQUE")
+    prefix,suffix=before_text.split(old,1)
+    if not new.startswith(prefix) or (suffix and not new.endswith(suffix)):
+        raise SemanticTransactionError("TASK091_CONTAINED_REPLACE_BOUNDARY_DRIFT")
+    end=len(new)-len(suffix) if suffix else len(new)
+    replacement=new[len(prefix):end]
+    if not replacement or "\n" in replacement:
+        raise SemanticTransactionError("TASK091_CONTAINED_REPLACE_VALUE_INVALID")
+    return replacement
+
+
+def _contained_replace_command(old, replacement):
+    # WPS Presentation's native Replace preserves the matched run formatting.
+    # The semantic transaction has already proven the old text is unique in the
+    # exact OOXML target; post-save structural diff remains fail-closed.
+    return "\n".join((
+        "pyautogui.hotkey('ctrl', 'h')",
+        f"pyautogui.write({str(old)!r}, interval=0.08)",
+        "pyautogui.press('tab')",
+        f"pyautogui.write({str(replacement)!r}, interval=0.08)",
+        "pyautogui.hotkey('alt', 'a')",
+        "pyautogui.press('enter')",
+        "pyautogui.press('esc')",
+    ))
+
+
+def _mutation_command(before_text, old, new):
+    replacement=_contained_replacement(before_text,old,new)
+    if replacement is not None:
+        return _contained_replace_command(old,replacement), "contained-native-replace"
+    return _write_command(new), "whole-target-replace"
+
+
 def _resolved_row_by_key(window_state,key):
     return normalize_deck(window_state).get(tuple(key))
 
@@ -202,11 +242,22 @@ def next_text_action(state,window_state,plan):
             return _terminal("TASK091_PRECONDITION_DRIFT")
         if model_sha256(current_model)!=str(tx.get("before_model_sha256") or ""):
             return _terminal("TASK091_PRECONDITION_DRIFT")
+        try:
+            command,mutation_mode=_mutation_command(
+                tx.get("before_target_text"),tx.get("old"),tx.get("new"))
+        except SemanticTransactionError as exc:
+            return _terminal(str(exc))
         tx["stage"]="mutation-issued"
+        tx["mutation_mode"]=mutation_mode
         return {
             "action":"exec",
-            "command":_write_command(tx["new"]),
-            "plan":"Replace the complete text of the structurally resolved WPS target. No caret position is observed or inferred.",
+            "command":command,
+            "plan":("Use WPS native Replace for the unique contained semantic run so "
+                    "the surrounding paragraph/run formatting is preserved; exact "
+                    "OOXML diff verification remains fail-closed."
+                    if mutation_mode=="contained-native-replace" else
+                    "Replace the complete text of the structurally resolved WPS target. "
+                    "No caret position is observed or inferred."),
             "specialist_phase":"semantic-text-mutation",
             "expected_change":tx["new"],
         }

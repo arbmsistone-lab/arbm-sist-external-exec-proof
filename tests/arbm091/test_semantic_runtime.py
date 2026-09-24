@@ -68,6 +68,22 @@ class SemanticRuntimeTests(unittest.TestCase):
         mutation=next_text_action(state,ws,plan)
         self.assertEqual(mutation["specialist_phase"],"semantic-text-mutation")
         self.assertNotEqual(mutation.get("action"),"terminal")
+        self.assertIn("hotkey('ctrl', 'h')",mutation["command"])
+        self.assertIn("Growth Plan Draft",mutation["command"])
+        self.assertIn("Stabilize-and-Recover Rebaseline",mutation["command"])
+        self.assertIn("hotkey('alt', 'a')",mutation["command"])
+        self.assertNotIn("hotkey('ctrl', 'a')",mutation["command"])
+        self.assertNotIn("press('home')",mutation["command"])
+        self.assertNotIn("press('left'",mutation["command"])
+
+    def test_contained_replace_rejects_boundary_drift(self):
+        from arbm091.semantic_runtime import _contained_replacement
+        with self.assertRaisesRegex(Exception,"TASK091_CONTAINED_REPLACE_BOUNDARY_DRIFT"):
+            _contained_replacement(
+                "H2 Operating Committee Pack\nGrowth Plan Draft",
+                "Growth Plan Draft",
+                "CORRUPTED PREFIX\nStabilize-and-Recover Rebaseline",
+            )
 
     def test_exact_persisted_diff_advances_only_after_roundtrip(self):
         ws=base_state()
