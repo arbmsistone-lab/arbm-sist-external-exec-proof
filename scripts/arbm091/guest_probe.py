@@ -81,6 +81,75 @@ def _exact_gray_matches(haystack,haystack_size,needle,needle_size,region):
     return matches
 
 
+def _task091_panel_disclosure_visual_control(gray_bytes,screen_size,active_rect,owner_resolver,application):
+    sw,sh=(int(v) for v in screen_size)
+    if len(gray_bytes)!=sw*sh:
+        raise ValueError('TASK091_PANEL_VISUAL_BYTES_INVALID')
+    ax,ay,aw,ah=(int(v) for v in active_rect)
+    rx=max(0,ax+int(aw*0.70)); ry=max(0,ay+int(ah*0.22))
+    rr=min(sw,ax+aw); rb=min(sh,ay+int(ah*0.92))
+    dark=set()
+    for y in range(ry,rb):
+        base=y*sw
+        for x in range(rx,rr):
+            if gray_bytes[base+x] < 100:
+                dark.add((x,y))
+    candidates=[]
+    while dark:
+        seed=dark.pop(); stack=[seed]; points=[seed]
+        while stack:
+            x,y=stack.pop()
+            for dy in (-1,0,1):
+                for dx in (-1,0,1):
+                    if dx==0 and dy==0:
+                        continue
+                    q=(x+dx,y+dy)
+                    if q in dark:
+                        dark.remove(q); stack.append(q); points.append(q)
+        xs=[p[0] for p in points]; ys=[p[1] for p in points]
+        x=min(xs); y=min(ys); w=max(xs)-x+1; h=max(ys)-y+1
+        if not (4<=w<=8 and 8<=h<=14 and 18<=len(points)<=55):
+            continue
+        rows=[]; valid=True
+        for yy in range(y,y+h):
+            row=sorted(px for px,py in points if py==yy)
+            if not row:
+                continue
+            if row[-1]-row[0]+1!=len(row):
+                valid=False; break
+            rows.append(len(row))
+        if not valid or len(rows)<8:
+            continue
+        peak=max(rows); peak_at=rows.index(peak)
+        if peak<4 or peak_at<2 or peak_at>len(rows)-3 or rows[0]>2 or rows[-1]>2:
+            continue
+        if any(rows[i+1]<rows[i] or rows[i+1]-rows[i]>1 for i in range(peak_at)):
+            continue
+        if any(rows[i+1]>rows[i] or rows[i]-rows[i+1]>1 for i in range(peak_at,len(rows)-1)):
+            continue
+        candidates.append([x,y,w,h])
+    if not candidates:
+        return None
+    if len(candidates)!=1:
+        raise RuntimeError('TASK091_PANEL_DISCLOSURE_AMBIGUOUS')
+    rect=candidates[0]
+    x,y,w,h=rect; cx=x+w//2; cy=y+h//2
+    owner_id,owner_pid=owner_resolver((cx,cy))
+    if int(owner_id or 0)<=0 or int(owner_pid or 0)<=0:
+        raise RuntimeError('TASK091_PANEL_DISCLOSURE_OWNER_UNPROVEN')
+    crop=bytearray()
+    for yy in range(y,y+h):
+        crop.extend(gray_bytes[yy*sw+x:yy*sw+x+w])
+    return {
+        'label':'PANEL DISCLOSURE','role':'visual-disclosure','pid':int(owner_pid),
+        'application':str(application or ''),'bbox':rect,'showing':True,'enabled':True,
+        'focused':False,'depth':4096,
+        'visual_signature_sha256':hashlib.sha256(bytes(crop)).hexdigest(),
+        'structural_family':'wps-panel-disclosure-v1',
+        'owner_id':int(owner_id),'cx':cx,'cy':cy,
+    }
+
+
 def _task091_text_box_visual_control(gray_bytes,screen_size,active_rect,owner_resolver,application):
     template=zlib.decompress(base64.b64decode(_TEXT_BOX_TEMPLATE_ZLIB_B64))
     if hashlib.sha256(template).hexdigest()!=_TEXT_BOX_TEMPLATE_SHA256:
@@ -578,6 +647,20 @@ def capture(point):
             if target is not None and target != visual_control:
                 raise RuntimeError('TASK091_VISUAL_CONTROL_TARGET_AMBIGUOUS:'+visual_label.upper().replace(' ','_'))
             target=visual_control
+    if not any(str(row.get('label') or '').strip().casefold() in ('text options','text box')
+               for row in controls if isinstance(row,dict)):
+        disclosure=_task091_panel_disclosure_visual_control(
+            gray,image.size,active_rect,hit_owner,
+            before.get('wm_class') or before.get('title') or '')
+        if disclosure is not None:
+            controls.append(disclosure)
+            controls=sorted(controls,key=lambda value:(
+                not value.get('focused',False),-int(value.get('depth') or 0),
+                value['bbox'][1],value['bbox'][0],value['bbox'][2]*value['bbox'][3]))[:128]
+            if point is not None and contains(disclosure['bbox']):
+                if target is not None and target != disclosure:
+                    raise RuntimeError('TASK091_VISUAL_CONTROL_TARGET_AMBIGUOUS:PANEL_DISCLOSURE')
+                target=disclosure
     output = io.BytesIO()
     image.save(output, format='PNG')
     owner_id, owner_pid = hit_owner()

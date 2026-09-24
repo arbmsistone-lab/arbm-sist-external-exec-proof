@@ -515,9 +515,17 @@ class ForegroundTests(unittest.TestCase):
         self.assertEqual(textbox['specialist_phase'],'semantic-cover-autofit-textbox-pane-open')
         self.assertEqual(textbox['target']['source'],'task091-panel-canonical')
         self.assertEqual(textbox['target']['label'],'Text Box')
-        textbox_state=copy.deepcopy(deck); textbox_state['screenshot_sha256']='e'*64
-        textbox_capture=next_text_action(state,textbox_state,plan)
-        self.assertEqual(textbox_capture['reason'],'TASK091_COVERTITLE_TEXTBOX_PANE_CAPTURED')
+        textbox_state=copy.deepcopy(deck); textbox_state['source']='0009-01-after'; textbox_state['screenshot_sha256']='e'*64
+        textbox_state['controls']=[{'label':'PANEL DISCLOSURE','role':'visual-disclosure','pid':2883,
+                                    'application':'WPS Office','bbox':[1532,341,5,10],
+                                    'showing':True,'enabled':True}]
+        disclosure=next_text_action(state,textbox_state,plan)
+        self.assertEqual(disclosure['action'],'exec')
+        self.assertEqual(disclosure['specialist_phase'],'semantic-cover-autofit-disclosure-open')
+        self.assertEqual(disclosure['target']['label'],'PANEL DISCLOSURE')
+        options_state=copy.deepcopy(deck); options_state['source']='0010-01-after'; options_state['screenshot_sha256']='f'*64
+        options_capture=next_text_action(state,options_state,plan)
+        self.assertEqual(options_capture['reason'],'TASK091_COVERTITLE_AUTOFIT_OPTIONS_CAPTURED')
         state['semantic_tx']['stage']='select-issued'
         state['semantic_tx']['autofit_preflight_done']=True
         mutation=next_text_action(state,deck,plan)
@@ -575,9 +583,16 @@ class ForegroundTests(unittest.TestCase):
         self.assertEqual(textbox2['specialist_phase'],'semantic-cover-autofit-textbox-pane-open')
         self.assertEqual(textbox2['target']['source'],'task091-panel-canonical')
         self.assertEqual(textbox2['target']['label'],'Text Box')
-        textbox_state2=copy.deepcopy(deck); textbox_state2['screenshot_sha256']='f'*64
-        textbox_capture2=next_text_action(state2,textbox_state2,plan)
-        self.assertEqual(textbox_capture2['reason'],'TASK091_COVERTITLE_TEXTBOX_PANE_CAPTURED')
+        textbox_state2=copy.deepcopy(deck); textbox_state2['source']='0019-01-after'; textbox_state2['screenshot_sha256']='f'*64
+        textbox_state2['controls']=[{'label':'PANEL DISCLOSURE','role':'visual-disclosure','pid':2883,
+                                     'application':'WPS Office','bbox':[1532,341,5,10],
+                                     'showing':True,'enabled':True}]
+        disclosure2=next_text_action(state2,textbox_state2,plan)
+        self.assertEqual(disclosure2['action'],'exec')
+        self.assertEqual(disclosure2['target']['label'],'PANEL DISCLOSURE')
+        options_state2=copy.deepcopy(deck); options_state2['source']='0020-01-after'; options_state2['screenshot_sha256']='1'*64
+        options_capture2=next_text_action(state2,options_state2,plan)
+        self.assertEqual(options_capture2['reason'],'TASK091_COVERTITLE_AUTOFIT_OPTIONS_CAPTURED')
         state2['semantic_tx']['stage']='select-issued'
         state2['semantic_tx']['autofit_preflight_done']=True
         next_text_action(state2,deck,plan)  # mutation
@@ -1150,6 +1165,47 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
                     lambda point:(88,2723),'WPS Office')
         with self.assertRaisesRegex(RuntimeError,'OWNER_UNPROVEN'):
             resolve(screen_with((83,61)),(width,height),[0,0,width,height],
+                    lambda point:(0,0),'WPS Office')
+
+    def test_panel_wide_structural_disclosure_publication_fail_closed(self):
+        import ast
+        source=Path('scripts/arbm091/guest_probe.py').read_text(encoding='utf-8')
+        tree=ast.parse(source)
+        keep=[]
+        for node in tree.body:
+            if isinstance(node,(ast.Import,ast.ImportFrom)):
+                names={alias.name for alias in node.names}
+                if names & {'hashlib'}:
+                    keep.append(node)
+            elif isinstance(node,ast.FunctionDef) and node.name=='_task091_panel_disclosure_visual_control':
+                keep.append(node)
+        ns={}
+        exec(compile(ast.Module(body=keep,type_ignores=[]),
+                     'guest_probe_panel_disclosure_contract','exec'),ns)
+        resolve=ns['_task091_panel_disclosure_visual_control']
+        width,height=400,240
+        def triangle_screen(points):
+            data=bytearray([255])*(width*height)
+            pattern=(1,2,3,4,5,5,4,3,2,1)
+            for x,y in points:
+                for dy,roww in enumerate(pattern):
+                    for dx in range(roww):
+                        data[(y+dy)*width+x+dx]=0
+            return bytes(data)
+        active=[0,0,width,height]
+        control=resolve(triangle_screen([(300,90)]),(width,height),active,
+                        lambda point:(99,2715),'WPS Office')
+        self.assertEqual(control['label'],'PANEL DISCLOSURE')
+        self.assertEqual(control['role'],'visual-disclosure')
+        self.assertEqual(control['bbox'],[300,90,5,10])
+        self.assertEqual(control['pid'],2715)
+        self.assertIsNone(resolve(triangle_screen([]),(width,height),active,
+                                  lambda point:(99,2715),'WPS Office'))
+        with self.assertRaisesRegex(RuntimeError,'DISCLOSURE_AMBIGUOUS'):
+            resolve(triangle_screen([(300,90),(330,130)]),(width,height),active,
+                    lambda point:(99,2715),'WPS Office')
+        with self.assertRaisesRegex(RuntimeError,'OWNER_UNPROVEN'):
+            resolve(triangle_screen([(300,90)]),(width,height),active,
                     lambda point:(0,0),'WPS Office')
 
     def test_section_e_precondition_is_semantic_not_index_magic(self):

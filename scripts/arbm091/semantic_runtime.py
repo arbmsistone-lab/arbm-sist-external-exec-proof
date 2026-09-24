@@ -384,7 +384,28 @@ def next_text_action(state,window_state,plan):
             return _terminal("TASK091_COVERTITLE_TEXTBOX_PANE_NOT_OBSERVED")
         if row is None or tuple(row.get("geometry") or ())!=(749808,1078992,5852160,1234440):
             return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_DURING_AUTOFIT_NAV")
-        return _terminal("TASK091_COVERTITLE_TEXTBOX_PANE_CAPTURED")
+        try:
+            target=_panel_target(window_state,"PANEL DISCLOSURE")
+        except SemanticTransactionError as exc:
+            return _terminal(str(exc))
+        tx["stage"]="autofit-disclosure-issued"
+        tx["textbox_pane_screenshot_sha256"]=current_shot
+        tx["autofit_panel_points"]["disclosure"]=[target["cx"],target["cy"]]
+        return {
+            "action":"exec",
+            "command":f"pyautogui.click({target['cx']}, {target['cy']})",
+            "target":target,
+            "plan":"Expand the uniquely observed WPS panel disclosure with one signed current-frame action; no AutoFit option is assumed or selected.",
+            "specialist_phase":"semantic-cover-autofit-disclosure-open",
+        }
+
+    if stage=="autofit-disclosure-issued":
+        current_shot=str(window_state.get("screenshot_sha256") or "")
+        if not current_shot or current_shot==str(tx.get("textbox_pane_screenshot_sha256") or ""):
+            return _terminal("TASK091_COVERTITLE_AUTOFIT_OPTIONS_NOT_OBSERVED")
+        if row is None or tuple(row.get("geometry") or ())!=(749808,1078992,5852160,1234440):
+            return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_DURING_AUTOFIT_NAV")
+        return _terminal("TASK091_COVERTITLE_AUTOFIT_OPTIONS_CAPTURED")
 
     if stage=="mutation-issued":
         # Finish the WPS editing operation. Disk state is verified only after save.

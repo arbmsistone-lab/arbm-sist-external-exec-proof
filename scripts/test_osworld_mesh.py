@@ -286,9 +286,20 @@ class MeshTests(unittest.TestCase):
    self.assertEqual(textbox['target']['source'],'task091-panel-canonical')
    self.assertEqual(textbox['target']['label'],'Text Box')
    deck_textbox=copy.deepcopy(deck)
+   deck_textbox['source']='0009-01-after'
    deck_textbox['screenshot_sha256']='e'*64
-   textbox_capture=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck_textbox)
-   self.assertEqual(textbox_capture['reason'],'TASK091_COVERTITLE_TEXTBOX_PANE_CAPTURED')
+   deck_textbox['controls']=[{'label':'PANEL DISCLOSURE','role':'visual-disclosure','pid':2883,
+                              'application':'WPS Office','bbox':[1532,341,5,10],
+                              'showing':True,'enabled':True}]
+   disclosure=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck_textbox)
+   self.assertEqual(disclosure['action'],'exec')
+   self.assertEqual(disclosure['specialist_phase'],'semantic-cover-autofit-disclosure-open')
+   self.assertEqual(disclosure['target']['label'],'PANEL DISCLOSURE')
+   deck_autofit=copy.deepcopy(deck)
+   deck_autofit['source']='0010-01-after'
+   deck_autofit['screenshot_sha256']='f'*64
+   autofit_capture=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck_autofit)
+   self.assertEqual(autofit_capture['reason'],'TASK091_COVERTITLE_AUTOFIT_OPTIONS_CAPTURED')
    state['semantic_tx']['stage']='select-issued'
    state['semantic_tx']['autofit_preflight_done']=True
    mutation=shim.next_091_specialist_action(task,'WPS Presentation',deck_obs,state,deck)

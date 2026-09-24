@@ -321,8 +321,10 @@ def _validate_task091_panel_pointer(action):
     if bbox != [70,27,1850,1053]:
         raise ValueError('TASK091_PANEL_WINDOW_GEOMETRY_INVALID')
     label=str(target.get('label') or '')
-    if label not in {'TEXT OPTIONS','Text Box'}:
+    if label not in {'TEXT OPTIONS','Text Box','PANEL DISCLOSURE'}:
         raise ValueError('TASK091_PANEL_LABEL_NOT_ALLOWLISTED')
+    if label=='PANEL DISCLOSURE' and normalized_target(target.get('control_role'))!='visual-disclosure':
+        raise ValueError('TASK091_PANEL_DISCLOSURE_ROLE_INVALID')
     wx,wy,ww,wh=(int(v) for v in bbox)
     cx=int(target.get('cx')); cy=int(target.get('cy'))
     x=int(target.get('x')); y=int(target.get('y'))

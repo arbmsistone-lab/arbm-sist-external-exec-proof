@@ -89,10 +89,20 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertEqual(textbox["target"]["source"],"task091-panel-canonical")
         self.assertEqual(textbox["target"]["label"],"Text Box")
         ws_textbox=copy.deepcopy(ws)
+        ws_textbox["source"]="0009-01-after"
         ws_textbox["screenshot_sha256"]="e"*64
-        captured=next_text_action(state,ws_textbox,plan)
+        ws_textbox["controls"]=[{"label":"PANEL DISCLOSURE","role":"visual-disclosure","pid":2883,
+            "application":"WPS Office","bbox":[1532,341,5,10],"showing":True,"enabled":True}]
+        disclosure=next_text_action(state,ws_textbox,plan)
+        self.assertEqual(disclosure["action"],"exec")
+        self.assertEqual(disclosure["specialist_phase"],"semantic-cover-autofit-disclosure-open")
+        self.assertEqual(disclosure["target"]["label"],"PANEL DISCLOSURE")
+        ws_options_open=copy.deepcopy(ws)
+        ws_options_open["source"]="0010-01-after"
+        ws_options_open["screenshot_sha256"]="f"*64
+        captured=next_text_action(state,ws_options_open,plan)
         self.assertEqual(captured["action"],"terminal")
-        self.assertEqual(captured["reason"],"TASK091_COVERTITLE_TEXTBOX_PANE_CAPTURED")
+        self.assertEqual(captured["reason"],"TASK091_COVERTITLE_AUTOFIT_OPTIONS_CAPTURED")
         state["semantic_tx"]["stage"]="select-issued"
         state["semantic_tx"]["autofit_preflight_done"]=True
         mutation=next_text_action(state,ws,plan)
