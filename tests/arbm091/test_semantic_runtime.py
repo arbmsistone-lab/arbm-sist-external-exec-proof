@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from arbm091.semantic_runtime import next_text_action
+from arbm091.semantic_runtime import _current_autofit_group, next_text_action
 from arbm091.score_tracker import SEMANTIC_REQUIRED_STATUSES, verify_semantic_architecture
 
 
@@ -130,9 +130,11 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertNotIn("press('home')",mutation["command"])
         self.assertNotIn("press('left'",mutation["command"])
 
-    def test_coversub_uses_proven_fixed_geometry_autofit_lock(self):
+    def _coversub_state_with_current_autofit_group(self):
         ws=base_state()
         ws["active_slide"]=1
+        ws["source"]="0015-01-after"
+        ws["screenshot_sha256"]="a"*64
         ws["deck_slide_shapes"]={"1":[{
             "id":7,"name":"CoverSub",
             "text":"Northstar Cloud\nPrepared for July Operating Committee review\nPlanning posture: accelerate growth through H2 scale-up",
@@ -142,20 +144,93 @@ class SemanticRuntimeTests(unittest.TestCase):
             "autofit_mode":"RESIZE_SHAPE_TO_FIT_TEXT",
         }]}
         ws["deck_slide_relationships"]={"1":[]}
+        return ws
+
+    def _current_group(self):
+        return [
+            {"label":"Do not Autofit","role":"visual-radio","pid":2701,"owner_id":50331653,
+             "application":"wpsoffice wpsoffice","bbox":[1553,667,14,14],
+             "frame_bbox":[70,27,1850,1053],"frame_visual_sha256":"9"*64,
+             "structural_family":"wps-autofit-radio-group-v2","structural_index":0,
+             "showing":True,"enabled":True,"selected":False},
+            {"label":"Shrink text on overflow","role":"visual-radio","pid":2701,"owner_id":50331653,
+             "application":"wpsoffice wpsoffice","bbox":[1553,697,14,14],
+             "frame_bbox":[70,27,1850,1053],"frame_visual_sha256":"9"*64,
+             "structural_family":"wps-autofit-radio-group-v2","structural_index":1,
+             "showing":True,"enabled":True,"selected":False},
+            {"label":"Resize shape to fit text","role":"visual-radio","pid":2701,"owner_id":50331653,
+             "application":"wpsoffice wpsoffice","bbox":[1553,727,14,14],
+             "frame_bbox":[70,27,1850,1053],"frame_visual_sha256":"9"*64,
+             "structural_family":"wps-autofit-radio-group-v2","structural_index":2,
+             "showing":True,"enabled":True,"selected":True},
+        ]
+
+    def test_coversub_reuses_published_current_frame_autofit_group(self):
+        ws=self._coversub_state_with_current_autofit_group()
         state={"slide":1}
         plan=((1,900,520,
                "Planning posture: accelerate growth through H2 scale-up",
                "Northstar Cloud\nPrepared for July Operating Committee review\nPlanning posture: stabilize and recover with disciplined sequencing"),)
         select=next_text_action(state,ws,plan)
         self.assertEqual(select["specialist_phase"],"semantic-target-select")
-        preflight=next_text_action(state,ws,plan)
-        self.assertEqual(preflight["specialist_phase"],"semantic-cover-autofit-pane-open")
-        self.assertIn("hotkey('shift', 'f10')",preflight["command"])
+        observed=copy.deepcopy(ws)
+        observed["source"]="0016-01-after"
+        observed["screenshot_sha256"]="b"*64
+        observed["controls"]=self._current_group()
+        direct=next_text_action(state,observed,plan)
+        self.assertEqual(direct["specialist_phase"],"semantic-cover-autofit-do-not-select")
+        self.assertEqual(direct["target"]["label"],"Do not Autofit")
+        self.assertEqual(direct["target"]["control_pid"],2701)
+        self.assertEqual((direct["target"]["x"],direct["target"]["y"],direct["target"]["w"],direct["target"]["h"]),
+                         (1553,667,14,14))
+        self.assertNotIn("shift', 'f10",direct["command"])
+        self.assertEqual(state["semantic_tx"]["autofit_preflight_source"],
+                         "current-frame-published-group")
         self.assertEqual(
             tuple(state["semantic_tx"]["before_state"]["deck_slide_shapes"]["1"][0]["geometry"][k]
                   for k in ("x","y","w","h")),
             (768096,2743200,5669280,1280160),
         )
+
+    def test_current_autofit_group_absent_rejected(self):
+        ws=self._coversub_state_with_current_autofit_group()
+        tx={"selection_before_screenshot_sha256":"a"*64}
+        with self.assertRaisesRegex(Exception,"CURRENT_GROUP_ABSENT"):
+            _current_autofit_group(ws,tx)
+
+    def test_current_autofit_group_ambiguous_rejected(self):
+        ws=self._coversub_state_with_current_autofit_group()
+        ws["source"]="0016-01-after"; ws["screenshot_sha256"]="b"*64
+        ws["controls"]=self._current_group()+[copy.deepcopy(self._current_group()[0])]
+        tx={"selection_before_screenshot_sha256":"a"*64}
+        with self.assertRaisesRegex(Exception,"RADIO_GROUP_NOT_OBSERVED"):
+            _current_autofit_group(ws,tx)
+
+    def test_current_autofit_group_wrong_owner_rejected(self):
+        ws=self._coversub_state_with_current_autofit_group()
+        ws["source"]="0016-01-after"; ws["screenshot_sha256"]="b"*64
+        ws["controls"]=self._current_group()
+        ws["controls"][1]["owner_id"]=999
+        tx={"selection_before_screenshot_sha256":"a"*64}
+        with self.assertRaisesRegex(Exception,"WRONG_OWNER"):
+            _current_autofit_group(ws,tx)
+
+    def test_current_autofit_group_stale_frame_rejected(self):
+        ws=self._coversub_state_with_current_autofit_group()
+        ws["source"]="0016-01-after"; ws["screenshot_sha256"]="a"*64
+        ws["controls"]=self._current_group()
+        tx={"selection_before_screenshot_sha256":"a"*64}
+        with self.assertRaisesRegex(Exception,"STALE_FRAME"):
+            _current_autofit_group(ws,tx)
+
+    def test_current_autofit_group_frame_mismatch_rejected(self):
+        ws=self._coversub_state_with_current_autofit_group()
+        ws["source"]="0016-01-after"; ws["screenshot_sha256"]="b"*64
+        ws["controls"]=self._current_group()
+        ws["controls"][2]["frame_bbox"]=[71,27,1850,1053]
+        tx={"selection_before_screenshot_sha256":"a"*64}
+        with self.assertRaisesRegex(Exception,"FRAME_MISMATCH"):
+            _current_autofit_group(ws,tx)
 
     def test_contained_replace_rejects_boundary_drift(self):
         from arbm091.semantic_runtime import _contained_replacement

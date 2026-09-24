@@ -238,6 +238,63 @@ def _autofit_controls(window_state):
     return result
 
 
+def _current_autofit_group(window_state,tx):
+    controls=window_state.get("controls",[]) if isinstance(window_state,dict) else []
+    labels=("Do not Autofit","Shrink text on overflow","Resize shape to fit text")
+    candidates=[row for row in controls if isinstance(row,dict)
+                and str(row.get("label") or "").strip().casefold()
+                in {label.casefold() for label in labels}]
+    if not candidates:
+        raise SemanticTransactionError("TASK091_AUTOFIT_CURRENT_GROUP_ABSENT")
+    radios=_autofit_controls(window_state)
+    source=str(window_state.get("source") or "")
+    shot=str(window_state.get("screenshot_sha256") or "")
+    before_shot=str((tx or {}).get("selection_before_screenshot_sha256") or "")
+    if not source or len(shot)!=64 or (before_shot and shot==before_shot):
+        raise SemanticTransactionError("TASK091_AUTOFIT_CURRENT_GROUP_STALE_FRAME")
+    owner=None
+    frame_hash=None
+    expected_index={
+        "Do not Autofit":0,
+        "Shrink text on overflow":1,
+        "Resize shape to fit text":2,
+    }
+    for label,row in radios.items():
+        bbox=row.get("bbox")
+        frame_bbox=row.get("frame_bbox")
+        current_owner=(int(row.get("owner_id") or 0),int(row.get("pid") or 0),
+                       str(row.get("application") or ""))
+        if current_owner[0]<=0 or current_owner[1]<=0 or not current_owner[2]:
+            raise SemanticTransactionError("TASK091_AUTOFIT_CURRENT_GROUP_OWNER_UNPROVEN")
+        if owner is None:
+            owner=current_owner
+        elif current_owner!=owner:
+            raise SemanticTransactionError("TASK091_AUTOFIT_CURRENT_GROUP_WRONG_OWNER")
+        if not (isinstance(bbox,list) and len(bbox)==4 and all(type(v) is int for v in bbox)):
+            raise SemanticTransactionError("TASK091_AUTOFIT_CURRENT_GROUP_BOUNDS_UNPROVEN")
+        x,y,w,h=bbox
+        if w<=0 or h<=0:
+            raise SemanticTransactionError("TASK091_AUTOFIT_CURRENT_GROUP_BOUNDS_UNPROVEN")
+        cx=x+w//2; cy=y+h//2
+        wx,wy,ww,wh=WINDOW
+        if not (wx<=cx<wx+ww and wy<=cy<wy+wh):
+            raise SemanticTransactionError("TASK091_AUTOFIT_CURRENT_GROUP_BOUNDS_UNPROVEN")
+        if frame_bbox!=WINDOW:
+            raise SemanticTransactionError("TASK091_AUTOFIT_CURRENT_GROUP_FRAME_MISMATCH")
+        fh=str(row.get("frame_visual_sha256") or "")
+        if len(fh)!=64:
+            raise SemanticTransactionError("TASK091_AUTOFIT_CURRENT_GROUP_FRAME_UNPROVEN")
+        if frame_hash is None:
+            frame_hash=fh
+        elif fh!=frame_hash:
+            raise SemanticTransactionError("TASK091_AUTOFIT_CURRENT_GROUP_FRAME_MISMATCH")
+        if str(row.get("structural_family") or "")!="wps-autofit-radio-group-v2":
+            raise SemanticTransactionError("TASK091_AUTOFIT_CURRENT_GROUP_IDENTITY_MISMATCH")
+        if int(row.get("structural_index") if row.get("structural_index") is not None else -1)!=expected_index[label]:
+            raise SemanticTransactionError("TASK091_AUTOFIT_CURRENT_GROUP_IDENTITY_MISMATCH")
+    return radios
+
+
 def _resolved_row_by_key(window_state,key):
     return normalize_deck(window_state).get(tuple(key))
 
@@ -321,6 +378,7 @@ def next_text_action(state,window_state,plan):
             "before_model_sha256":resolved["model_sha256"],
             "before_target_text":str(resolved["row"].get("text") or ""),
             "before_deck_sha256":str((window_state.get("deck_file") or {}).get("sha256") or ""),
+            "selection_before_screenshot_sha256":str(window_state.get("screenshot_sha256") or ""),
             "contract":contract,
         }
         return {
@@ -345,6 +403,33 @@ def next_text_action(state,window_state,plan):
         if model_sha256(current_model)!=str(tx.get("before_model_sha256") or ""):
             return _terminal("TASK091_PRECONDITION_DRIFT")
         if _cover_title_lock_required(tx) and not tx.get("autofit_preflight_done"):
+            controls=window_state.get("controls",[]) if isinstance(window_state,dict) else []
+            labels={"do not autofit","shrink text on overflow","resize shape to fit text"}
+            has_autofit_candidate=any(
+                isinstance(item,dict)
+                and str(item.get("label") or "").strip().casefold() in labels
+                for item in controls)
+            if has_autofit_candidate:
+                try:
+                    radios=_current_autofit_group(window_state,tx)
+                    raw=_raw_locked_shape(window_state,tx)
+                    target=_panel_target(window_state,"Do not Autofit")
+                except SemanticTransactionError as exc:
+                    return _terminal(str(exc))
+                if str(raw.get("autofit_mode") or "")!="RESIZE_SHAPE_TO_FIT_TEXT":
+                    return _terminal("TASK091_AUTOFIT_CURRENT_MODE_UNEXPECTED")
+                if radios["Resize shape to fit text"].get("selected") is not True:
+                    return _terminal("TASK091_AUTOFIT_UI_OOXML_MODE_MISMATCH")
+                tx["stage"]="autofit-do-not-issued"
+                tx["autofit_options_screenshot_sha256"]=str(window_state.get("screenshot_sha256") or "")
+                tx["autofit_preflight_source"]="current-frame-published-group"
+                return {
+                    "action":"exec",
+                    "command":f"pyautogui.click({target['cx']}, {target['cy']})",
+                    "target":target,
+                    "plan":"Use the already-published, owner-consistent current-frame AutoFit group for the selected locked shape; do not reopen the proven Text Options/Text Box path.",
+                    "specialist_phase":"semantic-cover-autofit-do-not-select",
+                }
             tx["stage"]="autofit-pane-open-issued"
             tx["pre_autofit_screenshot_sha256"]=str(window_state.get("screenshot_sha256") or "")
             return {
@@ -355,7 +440,7 @@ def next_text_action(state,window_state,plan):
                     "pyautogui.press('o')",
                     "pyautogui.sleep(0.8)",
                 )),
-                "plan":"Open the selected CoverTitle Format Object pane without mutating content so the exact AutoFit control can be grounded from fresh evidence.",
+                "plan":"Open the selected locked-shape Format Object pane only when no current-frame AutoFit group is already published.",
                 "specialist_phase":"semantic-cover-autofit-pane-open",
             }
         try:
