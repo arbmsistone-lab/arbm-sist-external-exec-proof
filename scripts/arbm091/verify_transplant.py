@@ -394,29 +394,40 @@ root=Path('/tmp/091-shape-target/task-091/wps-observations')
 snap=json.loads((root/'0013-01-after.json').read_text())
 snap['screen']=[0,0,1920,1080]
 snap['deck_file']['slide_size']={'w':12192000,'h':6858000}
-state={'owned':True,'anchored':True,'slide':1,'spatial_index':1}
-task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
-      'The COO has asked you to rebaseline the H2 Operating Committee pack. '
-      'The draft deck Operating_Committee_Rebaseline_Draft.pptx is open. '
-      'Reforecast_Model_H2.xlsx is the source of truth.')
-action=shim.next_091_specialist_action(task,'WPS Presentation','',state,snap)
-assert action['target']['source']=='task091-pptx-canonical', action
-assert action['command']=='pyautogui.doubleClick(738, 516, interval=0.08)', action
-assert state['pending_edit']['shape_id']==7, state['pending_edit']
-assert state['pending_edit']['shape_name']=='CoverSub', state['pending_edit']
-assert action['command']!='pyautogui.doubleClick(861, 586, interval=0.08)'
-wrong=copy.deepcopy(snap)
-wrong['screen']=[0,0,1919,1080]
-blocked_state={'owned':True,'anchored':True,'slide':1,'spatial_index':1}
-first=shim.next_091_specialist_action(task,'WPS Presentation','',blocked_state,wrong)
-assert 'sleep' in first['command'], first
-second=shim.next_091_specialist_action(task,'WPS Presentation','',blocked_state,wrong)
-assert second['action']=='terminal' and second['reason']=='TASK091_SHAPE_GEOMETRY_UNPROVEN', second
+old='Planning posture: accelerate growth through H2 scale-up'
+point=shim._task091_shape_point(snap,1,old,738,503)
+assert point is not None, point
+assert int(point['shape'].get('id') or 0)==7, point
+assert point['shape'].get('name')=='CoverSub', point
+cx=int(point['cx']); cy=int(point['cy'])
+target={'source':'task091-pptx-canonical','label':old,
+        'role':'task091-canonical-point','slide':1,
+        'x':cx-1,'y':cy-1,'w':2,'h':2,'cx':cx,'cy':cy,
+        'foreground_sha256':shim._task091_foreground_sha(snap),
+        'deck_sha256':snap['deck_file']['sha256']}
+target['proof_sha256']=shim.task091_spatial_target_proof(target)
+action={'action':'exec',
+        'command':f"pyautogui.doubleClick({cx}, {cy}, interval=0.08)",
+        'target':target,
+        'plan':'Select only the OOXML-resolved exact CoverSub target.'}
+grounded=shim.ground_action(action,'WPS Presentation','',[],allow_canonical=True)
+assert grounded['command']==action['command'], grounded
+assert 'PPTX-backed canonical target' in grounded.get('compiler_note',''), grounded
+arbitrary=copy.deepcopy(action)
+arbitrary['command']=f"pyautogui.doubleClick({cx+123}, {cy+77}, interval=0.08)"
+try:
+    shim.ground_action(arbitrary,'WPS Presentation','',[],allow_canonical=True)
+except ValueError as exc:
+    assert 'TASK091_CANONICAL_POINTER_COORDINATES_MISMATCH' in str(exc), exc
+else:
+    raise AssertionError('arbitrary coordinates were accepted')
 print(json.dumps({'status':'PASS','corpus_run':'35444915125',
                   'old_failure':'TASK091_EDIT_NOT_VERIFIED',
                   'root_cause':'static-point-hit-CoverTitle-instead-of-CoverSub',
-                  'new_target':[738,516],'shape_id':7,'shape_name':'CoverSub',
-                  'empty_shape_center_rejected':[861,586],
+                  'selection_basis':point.get('selection_basis'),
+                  'shape_id':7,'shape_name':'CoverSub',
+                  'dynamic_target':[cx,cy],
+                  'arbitrary_coordinates_rejected':True,
                   'zero_spend':'HARD'},sort_keys=True))
 print('RUN35444915125_SHAPE_TARGET_REGRESSION=PASS')
 PY
@@ -904,6 +915,7 @@ def main():
         '542a1c34e3350f1bd84af095d604c8381189f695': {WORKFLOW},
         'bd8ca2ab4800e570aac2f7146d5d45acc6615cd5': {WORKFLOW},
         'f21d10de28b9c9f271486ba67c7f8d8dc695d64a': {WORKFLOW, VERIFIER},
+        'd3f665d9b398d3097fa2f6b5011d364d5303c5bb': {WORKFLOW},
     }
     for c_node in post_legacy:
         c_files = set(git('diff-tree', '--no-commit-id', '--name-only', '-r', c_node).splitlines())
