@@ -1054,6 +1054,55 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
         self.assertEqual(aggregate.count('$40.9M'),1)
         self.assertNotIn('$4 0 . 9 M',aggregate)
 
+    def test_run36010833253_visual_text_options_observation_contract(self):
+        import ast
+        source=Path('scripts/arbm091/guest_probe.py').read_text(encoding='utf-8')
+        tree=ast.parse(source)
+        keep=[]
+        wanted_assigns={'_TEXT_OPTIONS_TEMPLATE_SIZE','_TEXT_OPTIONS_TEMPLATE_SHA256',
+                        '_TEXT_OPTIONS_TEMPLATE_ZLIB_B64'}
+        for node in tree.body:
+            if isinstance(node,(ast.Import,ast.ImportFrom)):
+                names={alias.name for alias in node.names}
+                if names & {'base64','hashlib','zlib'}:
+                    keep.append(node)
+            elif isinstance(node,ast.Assign):
+                names={target.id for target in node.targets if isinstance(target,ast.Name)}
+                if names & wanted_assigns:
+                    keep.append(node)
+            elif isinstance(node,ast.FunctionDef) and node.name in (
+                    '_exact_gray_matches','_task091_text_options_visual_control'):
+                keep.append(node)
+        ns={}
+        exec(compile(ast.Module(body=keep,type_ignores=[]),
+                     'guest_probe_visual_contract','exec'),ns)
+        import base64,zlib
+        template=zlib.decompress(base64.b64decode(ns['_TEXT_OPTIONS_TEMPLATE_ZLIB_B64']))
+        tw,th=ns['_TEXT_OPTIONS_TEMPLATE_SIZE']
+        width,height=400,200
+        def screen_with(*points):
+            data=bytearray([255])*(width*height)
+            for x,y in points:
+                for dy in range(th):
+                    data[(y+dy)*width+x:(y+dy)*width+x+tw]=template[dy*tw:(dy+1)*tw]
+            return bytes(data)
+        resolve=ns['_task091_text_options_visual_control']
+        control=resolve(screen_with((83,61)),(width,height),[0,0,width,height],
+                        lambda point:(77,2883),'WPS Office')
+        self.assertEqual(control['label'],'TEXT OPTIONS')
+        self.assertEqual(control['role'],'visual-tab')
+        self.assertEqual(control['bbox'],[83,61,150,28])
+        self.assertEqual([control['cx'],control['cy']],[158,75])
+        self.assertEqual(control['pid'],2883)
+        self.assertIsNone(resolve(screen_with(),(width,height),[0,0,width,height],
+                                  lambda point:(77,2883),'WPS Office'))
+        with self.assertRaisesRegex(RuntimeError,'VISUAL_CONTROL_AMBIGUOUS'):
+            resolve(screen_with((83,61),(200,120)),(width,height),[0,0,width,height],
+                    lambda point:(77,2883),'WPS Office')
+        with self.assertRaisesRegex(RuntimeError,'OWNER_UNPROVEN'):
+            resolve(screen_with((83,61)),(width,height),[0,0,width,height],
+                    lambda point:(0,0),'WPS Office')
+
     def test_section_e_precondition_is_semantic_not_index_magic(self):
         source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
         self.assertIn("int(next_edit[0])==3",source)

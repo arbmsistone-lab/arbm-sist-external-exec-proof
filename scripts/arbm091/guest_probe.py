@@ -14,6 +14,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 import hashlib
 import posixpath
+import zlib
 from Xlib import X, display
 import pyautogui
 
@@ -28,6 +29,69 @@ def _semantic_slide_text(shapes):
         if value:
             parts.append(value)
     return ' '.join(parts)
+
+_TEXT_OPTIONS_TEMPLATE_SIZE=(150,28)
+_TEXT_OPTIONS_TEMPLATE_SHA256='f5b37d1bddcc0222c75aa3ff6e1a7737b5ee84cdaa2b93966354a0e50acf7ff6'
+_TEXT_OPTIONS_TEMPLATE_ZLIB_B64=(
+    'eNr7/n0UjIJRMApGwSgYBaNgqIJnOMHgdO6oq0ZdNeqqUVeNuoowWBPrVX/2G/Gu2h0WCgTRF4+GA6m8O4Wbvn3bk98DEgvNfAWU'
+    '/3asNa3l8NfvD5NDowoXv5wGlVnQ+eX7x01VmROuff/+MHXdt+8fSvZ+/3q4Mn3CVWyWG3pEmYS/IN5Vr+/cqJty+877o2kX7ty5'
+    '/2V33tPXZduf3jmfvunOvS9AR+1OWntuQ/L2bw8z9t87Xz/5EVQG6KrPM3P3np2TegXo4PQHYFedSt99YcXEj1hssbzy/cFtkmLw'
+    'c8cioPeOZoFC5vv7+qVbq999//4i+xhY8mXBpm/fv+3IffEw8+L3b9tK30JkvgFddTn58vfvX6Z0f36YWTv9C9BV31ZXf8BhBwAy'
+    'K4+L'
+)
+
+
+def _exact_gray_matches(haystack,haystack_size,needle,needle_size,region):
+    hw,hh=(int(v) for v in haystack_size)
+    nw,nh=(int(v) for v in needle_size)
+    if hw<=0 or hh<=0 or nw<=0 or nh<=0:
+        raise ValueError('TASK091_VISUAL_TEMPLATE_DIMENSIONS_INVALID')
+    if len(haystack)!=hw*hh or len(needle)!=nw*nh:
+        raise ValueError('TASK091_VISUAL_TEMPLATE_BYTES_INVALID')
+    x,y,w,h=(int(v) for v in region)
+    left=max(0,x); top=max(0,y)
+    right=min(hw,x+w); bottom=min(hh,y+h)
+    if right-left<nw or bottom-top<nh:
+        return []
+    first=needle[:nw]
+    matches=[]
+    for yy in range(top,bottom-nh+1):
+        row=haystack[yy*hw+left:yy*hw+right]
+        offset=0
+        while True:
+            found=row.find(first,offset)
+            if found<0:
+                break
+            xx=left+found
+            if all(haystack[(yy+dy)*hw+xx:(yy+dy)*hw+xx+nw]
+                   == needle[dy*nw:(dy+1)*nw] for dy in range(1,nh)):
+                matches.append([xx,yy,nw,nh])
+            offset=found+1
+    return matches
+
+
+def _task091_text_options_visual_control(gray_bytes,screen_size,active_rect,owner_resolver,application):
+    template=zlib.decompress(base64.b64decode(_TEXT_OPTIONS_TEMPLATE_ZLIB_B64))
+    if hashlib.sha256(template).hexdigest()!=_TEXT_OPTIONS_TEMPLATE_SHA256:
+        raise RuntimeError('TASK091_VISUAL_SIGNATURE_CORRUPT')
+    matches=_exact_gray_matches(
+        gray_bytes,screen_size,template,_TEXT_OPTIONS_TEMPLATE_SIZE,active_rect)
+    if not matches:
+        return None
+    if len(matches)!=1:
+        raise RuntimeError('TASK091_VISUAL_CONTROL_AMBIGUOUS:TEXT_OPTIONS')
+    rect=matches[0]
+    x,y,w,h=rect
+    cx=x+w//2; cy=y+h//2
+    owner_id,owner_pid=owner_resolver((cx,cy))
+    if int(owner_id or 0)<=0 or int(owner_pid or 0)<=0:
+        raise RuntimeError('TASK091_VISUAL_CONTROL_OWNER_UNPROVEN:TEXT_OPTIONS')
+    return {
+        'label':'TEXT OPTIONS','role':'visual-tab','pid':int(owner_pid),
+        'application':str(application or ''),'bbox':rect,'showing':True,'enabled':True,
+        'focused':False,'depth':4096,'visual_signature_sha256':_TEXT_OPTIONS_TEMPLATE_SHA256,
+        'owner_id':int(owner_id),'cx':cx,'cy':cy,
+    }
 
 
 def capture(point):
@@ -70,8 +134,9 @@ def capture(point):
                 'title': title(window), 'wm_class': ' '.join(window.get_wm_class() or ()),
                 'owner_title': title(owner) if owner else '', 'bbox': box(window)}
 
-    def hit_owner():
-        if point is None:
+    def hit_owner(candidate=None):
+        candidate = point if candidate is None else candidate
+        if candidate is None:
             return 0, 0
         current = root
         chain = []
@@ -79,7 +144,7 @@ def capture(point):
             child_hit = None
             for child in reversed(current.query_tree().children[-256:]):
                 try:
-                    if child.get_attributes().map_state == X.IsViewable and contains(box(child)):
+                    if child.get_attributes().map_state == X.IsViewable and contains(box(child), candidate):
                         child_hit = child
                         break
                 except Exception:
@@ -456,6 +521,20 @@ def capture(point):
         target = first
 
     image = pyautogui.screenshot()
+    if not any(str(row.get('label') or '').strip().casefold()=='text options'
+               for row in controls if isinstance(row,dict)):
+        visual_control=_task091_text_options_visual_control(
+            image.convert('L').tobytes(), image.size, active_rect, hit_owner,
+            before.get('wm_class') or before.get('title') or '')
+        if visual_control is not None:
+            controls.append(visual_control)
+            controls=sorted(controls,key=lambda value:(
+                not value.get('focused',False),-int(value.get('depth') or 0),
+                value['bbox'][1],value['bbox'][0],value['bbox'][2]*value['bbox'][3]))[:128]
+            if point is not None and contains(visual_control['bbox']):
+                if target is not None and target != visual_control:
+                    raise RuntimeError('TASK091_VISUAL_CONTROL_TARGET_AMBIGUOUS:TEXT_OPTIONS')
+                target=visual_control
     output = io.BytesIO()
     image.save(output, format='PNG')
     owner_id, owner_pid = hit_owner()
