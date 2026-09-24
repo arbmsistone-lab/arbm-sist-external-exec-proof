@@ -193,7 +193,6 @@ def _panel_target(window_state,label):
     target["proof_sha256"]=task091_panel_target_proof(target)
     return target
 
-
 def _resolved_row_by_key(window_state,key):
     return normalize_deck(window_state).get(tuple(key))
 

@@ -706,5 +706,3 @@ class Task091TransactionalTableCellTests(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
-
-[executed on device: zevanory-relay-01 (cce4fc57-a2e2-43c0-a267-5b24b4f96dfa)]

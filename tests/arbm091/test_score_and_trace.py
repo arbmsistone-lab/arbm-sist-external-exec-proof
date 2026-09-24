@@ -998,3 +998,417 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
         self.assertEqual(result['action'],'terminal')
         self.assertIn('TASK091_SEMANTIC_DIFF_MISMATCH',result['reason'])
     def test_run35850450098_table_cell_exact_shape_beats_stale_global_count(self):
+        pending={
+            'slide':3,'old':'$42.8M','new':'$40.9M',
+            'shape_id':-13001003,'shape_kind':'table-cell',
+            'before_old_count':2,'before_new_count':0,
+            'before_deck_sha256':'a'*64,
+        }
+        window_state={
+            'deck_file':{'sha256':'b'*64},
+            'deck_slide_text':{'3':'$42.8M $42.8M'},
+            'deck_slide_shapes':{'3':[
+                {'id':-13001003,'kind':'table-cell','name':'Table 12#r1c2',
+                 'text':'$40.9M','geometry':{'x':1,'y':1,'w':10,'h':10}},
+                {'id':-13001004,'kind':'table-cell','name':'Table 12#r1c3',
+                 'text':'Ahead','geometry':{'x':20,'y':1,'w':10,'h':10}},
+            ]},
+        }
+        pending['before_sibling_signature']=shim._task091_other_shapes_signature(
+            window_state,3,-13001003)
+        verified,status,detail=shim._task091_verify_pending('',pending,window_state)
+        self.assertTrue(verified,detail)
+        self.assertEqual(status,'disk-verified')
+
+        collateral=copy.deepcopy(window_state)
+        collateral['deck_slide_shapes']['3'][1]['text']='Changed'
+        verified2,status2,_=shim._task091_verify_pending('',pending,collateral)
+        self.assertFalse(verified2)
+        self.assertNotEqual(status2,'disk-verified')
+
+    def test_section_e_runs_before_first_slide3_kpi_table_edit(self):
+        with patch.dict(os.environ,{'TASK_ID':'091'},clear=False),              patch.object(shim,'_task091_region_sha256',return_value='a'*64):
+            state={'anchored':True,'slide':3,'spatial_index':len(shim.TASK091_SPATIAL_TEXT_EDITS),'semantic_text_done':True}
+            result=shim.next_091_specialist_action(
+                self._task(),'WPS Presentation','',state,self._deck('1'))
+            self.assertEqual(result['specialist_phase'],'section-e-semantic-select')
+            self.assertEqual(state['section_e_format']['shape_id'],16)
+            self.assertNotIn('pending_edit',state)
+
+
+
+    def test_guest_probe_semantic_slide_text_preserves_split_run_token(self):
+        import ast
+        source=Path('scripts/arbm091/guest_probe.py').read_text(encoding='utf-8')
+        tree=ast.parse(source)
+        fn=next(node for node in tree.body
+                if isinstance(node,ast.FunctionDef) and node.name=='_semantic_slide_text')
+        ns={}
+        exec(compile(ast.Module(body=[fn],type_ignores=[]),
+                     'guest_probe_semantic_helper','exec'),ns)
+        aggregate=ns['_semantic_slide_text']([
+            {'kind':'shape','text':'Repeated metrics • ARR exit target: $42.8M'},
+            {'kind':'table-cell','text':'$40.9M'},
+        ])
+        self.assertIn('$40.9M',aggregate)
+        self.assertEqual(aggregate.count('$40.9M'),1)
+        self.assertNotIn('$4 0 . 9 M',aggregate)
+
+    def test_section_e_precondition_is_semantic_not_index_magic(self):
+        source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+        self.assertIn("int(next_edit[0])==3",source)
+        self.assertNotIn("if index >= 10 and not state.get('section_e_format_done')",source)
+        self.assertNotIn("if index >= 16 and not state.get('section_e_format_done')",source)
+
+
+
+class Task091CaretBoundedWriterTests(unittest.TestCase):
+    def test_table_cell_bounded_writer_mutates_only_fixed_width_delta(self):
+        command=shim._task091_table_cell_bounded_write_command('$42.8M','$40.9M')
+        self.assertNotIn("hotkey('ctrl', 'a')",command)
+        self.assertNotIn("keyDown('shift')",command)
+        self.assertNotIn("keyUp('shift')",command)
+        self.assertNotIn("press('left'",command)
+        self.assertNotIn("press('end')",command)
+        self.assertNotIn("press('home')",command)
+        self.assertNotIn("press('backspace'",command)
+        self.assertEqual(command.count("press('delete')"),2)
+        self.assertIn("press('right', presses=2",command)
+        self.assertIn("write('0'",command)
+        self.assertIn("write('9'",command)
+        self.assertNotIn("write('$'",command)
+        self.assertNotIn("write('M'",command)
+
+    def test_table_cell_delta_plan_rejects_length_or_scope_drift(self):
+        with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_DELTA_PLAN_INVALID'):
+            shim._task091_table_cell_bounded_write_command('','x')
+        with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_DELTA_PLAN_INVALID'):
+            shim._task091_table_cell_bounded_write_command('a'+chr(10)+'b','abc')
+        with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_DELTA_PLAN_INVALID'):
+            shim._task091_table_cell_bounded_write_command('abc','abcd')
+        with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_DELTA_PLAN_UNBOUNDED'):
+            shim._task091_table_cell_bounded_write_command('abc','xyz')
+
+    def test_table_cell_writer_contract_forbids_boundary_selection(self):
+        source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+        start=source.index("def _task091_table_cell_bounded_write_command")
+        end=source.index("def _task091_table_cell_rollback_command",start)
+        body=source[start:end]
+        self.assertIn("def _task091_table_cell_delta_plan",source)
+        self.assertNotIn("ctrl', 'a",body)
+        self.assertNotIn("keyDown('shift')",body)
+        self.assertNotIn("keyUp('shift')",body)
+        self.assertIn("press('delete')",body)
+        self.assertNotIn("press('left'",body)
+        self.assertNotIn("press('end')",body)
+        self.assertNotIn("press('home')",body)
+        self.assertNotIn("press('backspace'",body)
+        self.assertIn("TASK091_TABLE_CELL_DELTA_ACTION_COUNT_UNBOUNDED",body)
+
+    def test_start_caret_geometry_is_required_before_delta_mutation(self):
+        shape_bbox=[892,507,182,70]
+        ink_bbox=[965,516,35,12]
+        at_start={'proven':True,'bbox':[72,2,1,22]}
+        accepted=shim._task091_caret_at_text_start(at_start,shape_bbox,ink_bbox)
+        self.assertTrue(accepted['proven'],accepted)
+        at_end={'proven':True,'bbox':[108,2,1,22]}
+        rejected=shim._task091_caret_at_text_start(at_end,shape_bbox,ink_bbox)
+        self.assertFalse(rejected['proven'],rejected)
+
+    def test_start_caret_terminal_marker_offset_allows_only_one_proven_normalization(self):
+        shape_bbox=[892,507,182,70]
+        ink_bbox=[965,516,35,12]
+        at_start=shim._task091_caret_at_text_start(
+            {'proven':True,'bbox':[72,2,1,22]},shape_bbox,ink_bbox)
+        self.assertTrue(at_start['proven'],at_start)
+        self.assertEqual(at_start['relation'],'at-start')
+        one_char_right=shim._task091_caret_at_text_start(
+            {'proven':True,'bbox':[80,2,1,22]},shape_bbox,ink_bbox)
+        self.assertFalse(one_char_right['proven'],one_char_right)
+        self.assertEqual(one_char_right['relation'],'right-of-start')
+        source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+        self.assertIn("normalize_attempts < 1",source)
+        self.assertIn("normalize-wps-terminal-marker-offset",source)
+
+    def test_start_navigation_moves_left_exactly_by_proven_text_length(self):
+        command=shim._task091_table_cell_start_navigation_command('$42.8M')
+        self.assertEqual(command,"pyautogui.press('left', presses=6, interval=0.03)")
+        self.assertNotIn("keyDown('shift')",command)
+        self.assertNotIn("press('right'",command)
+        self.assertNotIn("pyautogui.write(",command)
+        with self.assertRaisesRegex(ValueError,'TASK091_TABLE_CELL_START_NAV_TEXT_INVALID'):
+            shim._task091_table_cell_start_navigation_command('')
+
+    def test_500_case_two_delta_red_team_matrix(self):
+        alphabet="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz$%.-_"
+        for i in range(500):
+            n=(i % 30)+1
+            old=''.join(alphabet[(i*7+j*11) % len(alphabet)] for j in range(n))
+            chars=list(old)
+            first=i % n
+            chars[first]=alphabet[(alphabet.index(chars[first])+1) % len(alphabet)]
+            if n>1 and i % 2:
+                second=(first+max(1,n//2)) % n
+                if second==first:
+                    second=(first+1)%n
+                chars[second]=alphabet[(alphabet.index(chars[second])+2) % len(alphabet)]
+            new=''.join(chars)
+            plan=shim._task091_table_cell_delta_plan(old,new)
+            self.assertLessEqual(len(plan),2)
+            command=shim._task091_table_cell_bounded_write_command(old,new)
+            self.assertEqual(command.count("press('delete')"),len(plan))
+            self.assertNotIn("keyDown('shift')",command)
+            self.assertNotIn("keyUp('shift')",command)
+            self.assertNotIn("press('left'",command)
+            self.assertNotIn("hotkey('ctrl', 'a')",command)
+            self.assertNotIn("press('end')",command)
+            self.assertNotIn("press('home')",command)
+            self.assertNotIn("press('backspace'",command)
+
+    def test_ten_adversarial_guards_fail_closed(self):
+        source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+        checks=[
+            "TASK091_TABLE_CELL_START_NAV_DRIFT",
+            "TASK091_TABLE_CELL_START_CARET_EVIDENCE_MISSING",
+            "TASK091_TABLE_CELL_START_CARET_GEOMETRY_UNPROVEN",
+            "TASK091_TABLE_CELL_CARET_NOT_AT_START",
+            "caret_entry_end_diagnostic",
+            "TASK091_TABLE_CELL_ENTRY_DRIFT",
+            "before_sibling_signature",
+            "table_selected_sibling_visual_sha256",
+            "TASK091_TABLE_CELL_DELTA_PLAN_UNBOUNDED",
+            "TASK091_TABLE_CELL_ATOMIC_REPAIR_PLAN_INVALID",
+        ]
+        for marker in checks:
+            self.assertIn(marker,source)
+
+    def test_fifty_adversarial_table_transaction_audits(self):
+        source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+        writer_start=source.index("def _task091_table_cell_bounded_write_command")
+        writer_end=source.index("def _task091_table_cell_rollback_command",writer_start)
+        writer=source[writer_start:writer_end]
+        mismatch_start=source.index("if status in ('collateral-mutation','disk-text-mismatch')")
+        mismatch_end=source.index("if status=='collateral-mutation':",mismatch_start)
+        mismatch=source[mismatch_start:mismatch_end]
+        cmd6=shim._task091_table_cell_bounded_write_command('$42.8M','$40.9M')
+        cmd4=shim._task091_table_cell_bounded_write_command('112%','104%')
+        cmd1=shim._task091_table_cell_bounded_write_command('A','B')
+        cmd30=shim._task091_table_cell_bounded_write_command('x'*29+'a','x'*29+'b')
+        audits=[
+            ('01_no_ctrl_a_writer',"hotkey('ctrl', 'a')" not in writer),
+            ('02_delete_is_local',"press('delete')" in writer),
+            ('03_no_backspace_writer',"press('backspace'" not in writer),
+            ('04_no_end_writer',"press('end')" not in writer),
+            ('05_no_home_writer',"press('home')" not in writer),
+            ('06_no_left_writer',"press('left'" not in writer),
+            ('07_delta_plan_defined',"def _task091_table_cell_delta_plan" in source),
+            ('08_no_shift_down',"keyDown('shift')" not in writer),
+            ('09_no_shift_up',"keyUp('shift')" not in writer),
+            ('10_exact_len_helper',shim._task091_table_cell_selection_presses('$42.8M')==6),
+            ('11_percent_len_helper',shim._task091_table_cell_selection_presses('112%')==4),
+            ('12_single_char_len_helper',shim._task091_table_cell_selection_presses('A')==1),
+            ('13_max_len_helper',shim._task091_table_cell_selection_presses('x'*30)==30),
+            ('14_currency_two_deltas',len(shim._task091_table_cell_delta_plan('$42.8M','$40.9M'))==2),
+            ('15_percent_two_deltas',len(shim._task091_table_cell_delta_plan('112%','104%'))==2),
+            ('16_single_one_delta',len(shim._task091_table_cell_delta_plan('A','B'))==1),
+            ('17_max_one_delta',len(shim._task091_table_cell_delta_plan('x'*29+'a','x'*29+'b'))==1),
+            ('18_currency_bounded_delete',cmd6.count("press('delete')")==2),
+            ('19_percent_bounded_delete',cmd4.count("press('delete')")==2),
+            ('20_currency_no_left',"press('left'" not in cmd6),
+            ('21_percent_no_left',"press('left'" not in cmd4),
+            ('22_currency_preserves_boundaries',"write('$'" not in cmd6 and "write('M'" not in cmd6),
+            ('23_percent_preserves_suffix',"write('%'" not in cmd4),
+            ('24_start_helper_defined',"def _task091_caret_at_text_start" in source),
+            ('25_end_helper_defined',"def _task091_caret_at_text_end" in source),
+            ('26_start_nav_stage',"table-cell-start-nav-issued" in source),
+            ('27_start_probe_stage',"table-cell-start-caret-probe-issued" in source),
+            ('28_start_nav_drift_gate',"TASK091_TABLE_CELL_START_NAV_DRIFT" in source),
+            ('29_start_evidence_gate',"TASK091_TABLE_CELL_START_CARET_EVIDENCE_MISSING" in source),
+            ('30_start_geometry_gate',"TASK091_TABLE_CELL_START_CARET_GEOMETRY_UNPROVEN" in source),
+            ('31_start_boundary_gate',"TASK091_TABLE_CELL_CARET_NOT_AT_START" in source),
+            ('32_entry_end_is_required',"TASK091_TABLE_CELL_END_CARET_UNPROVEN" in source
+             and "caret_entry_end_diagnostic" in source),
+            ('33_entry_drift_gate',"TASK091_TABLE_CELL_ENTRY_DRIFT" in source),
+            ('34_sibling_signature',"before_sibling_signature" in source),
+            ('35_visual_sibling_signature',"table_selected_sibling_visual_sha256" in source),
+            ('36_press_count_recorded',"selection_press_count" in source),
+            ('37_explicit_text_mode',"explicit_text_mode" in source),
+            ('38_start_nav_exact_len',"start_navigation_method']='proven-end-left-by-text-length'" in source
+             and "_task091_table_cell_start_navigation_command(pending['old'])" in source),
+            ('39_edit_from_proven_start',"edit-start-caret-proven-table-cell" in source),
+            ('40_exact_cell_atomic_recovery',"def _task091_table_cell_atomic_delete_repair_command" in source),
+            ('41_mismatch_quarantines_undo',"undo_quarantined" in mismatch),
+            ('42_mismatch_no_ctrl_z',"ctrl', 'z" not in mismatch),
+            ('43_mismatch_no_rollback_call',"_task091_table_cell_rollback_command()" not in mismatch),
+            ('44_mismatch_preserves_failure_sha',"failure_deck_sha256" in mismatch),
+            ('45_mismatch_preserves_failure_text',"failure_text" in mismatch),
+            ('46_mismatch_records_reason',"failure_reason" in mismatch),
+            ('47_mismatch_fail_closed_mode',"TARGET_FAIL_CLOSED" in mismatch),
+            ('48_section_e_two_point',"'font_decrements': 2" in source),
+            ('49_zero_spend_contract',"NON_ZERO_SPEND_MODE_FORBIDDEN" in source),
+            ('50_no_generic_evaluator_change',"official evaluator" not in writer.casefold()),
+        ]
+        self.assertEqual(len(audits),50)
+        failed=[name for name,ok in audits if not ok]
+        self.assertEqual(failed,[],failed)
+
+    def test_table_cell_atomic_repair_handles_multi_edge_corruption_one_delete_at_a_time(self):
+        actual='$$40.9MM'; expected='$40.9M'
+        plan=shim._task091_restricted_repair_plan(actual,expected)
+        self.assertEqual(plan,[{'op':'delete','index':1,'char':'$'},{'op':'delete','index':6,'char':'M'}])
+        first=shim._task091_table_cell_atomic_delete_repair_command(actual,plan[0])
+        self.assertIn("press('right', presses=1",first)
+        self.assertEqual(first.count("press('delete')"),1)
+        after=shim._task091_apply_repair_operation(actual,plan[0])
+        self.assertEqual(after,'$40.9MM')
+        next_plan=shim._task091_restricted_repair_plan(after,expected)
+        self.assertEqual(next_plan,[{'op':'delete','index':6,'char':'M'}])
+        second=shim._task091_table_cell_atomic_delete_repair_command(after,next_plan[0])
+        self.assertIn("press('right', presses=6",second)
+        self.assertEqual(second.count("press('delete')"),1)
+        self.assertNotIn("ctrl', 'a",first+second)
+        self.assertNotIn("shift",first+second)
+        self.assertNotIn("ctrl', 'z",first+second)
+
+
+class Task091FinalCertificationBoardTests(unittest.TestCase):
+    def _root(self):
+        root=Path(self.tmp.name)/'final-board'
+        root.mkdir(parents=True,exist_ok=True)
+        return root
+
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_final_board_requires_visual_13_of_13_and_zero_penalty(self):
+        from arbm091.final_certification_board import _verify_visual
+        root=self._root()
+        (root/'osworld.log').write_text(
+            'TASK091_SECTION_E_SCORE=0.3000/0.3000 VISUAL_GATES=13/13 E_PENALTY=0.0000\n'
+            'TASK091_SECTION_E_FAILURES=NONE\n',encoding='utf-8')
+        verdict=_verify_visual(root)
+        self.assertEqual(verdict['visual_gates'],'13/13')
+        self.assertEqual(verdict['section_e_score'],'0.3000')
+        (root/'osworld.log').write_text(
+            'TASK091_SECTION_E_SCORE=0.2769/0.3000 VISUAL_GATES=12/13 E_PENALTY=0.0231\n'
+            'TASK091_SECTION_E_FAILURES=slide3:rounded_text_containment\n',encoding='utf-8')
+        with self.assertRaisesRegex((ValueError,SystemExit),'SECTION_E_NOT_FULL_SCORE|VISUAL_GATES_NOT_13_OF_13'):
+            _verify_visual(root)
+
+    def test_final_board_requires_exact_slide3_table_values(self):
+        from arbm091.final_certification_board import _verify_slide3_table
+        root=self._root()
+        obs=root/'wps-observations'
+        obs.mkdir()
+        expected={
+            'Table 12#r1c2':'$40.9M','Table 12#r2c2':'104%',
+            'Table 12#r3c2':'71%','Table 12#r4c2':'$2.8M',
+            'Table 12#r5c2':'3','Table 12#r6c2':'206',
+        }
+        row={'deck_slide_shapes':{'3':[
+            {'kind':'table-cell','name':name,'text':value} for name,value in expected.items()
+        ]}}
+        (obs/'9999-01-after.json').write_text(json.dumps(row),encoding='utf-8')
+        self.assertEqual(_verify_slide3_table(root),expected)
+        row['deck_slide_shapes']['3'][0]['text']='BROKEN_TABLE_VALUE'
+        (obs/'9999-01-after.json').write_text(json.dumps(row),encoding='utf-8')
+        with self.assertRaisesRegex((ValueError,SystemExit),'FINAL_SLIDE3_TABLE_MISMATCH'):
+            _verify_slide3_table(root)
+
+    def test_prefocal_boards_are_never_release_authorities(self):
+        from arbm091.review_board_50x10 import evaluate as review_evaluate
+        from arbm091.elite_board_100 import evaluate as elite_evaluate
+        actual='H2 Operating Committee PPackSStabilize-and-Recover RRebaseline'
+        expected='H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'
+        plan=shim._task091_restricted_repair_plan(actual,expected)
+        review=review_evaluate(actual,expected,plan,{'id':6,'name':'CoverTitle','text':actual},'a'*64,'b'*64)
+        self.assertEqual(review['status'],'PRE_FOCAL_ADVISORY_PASS')
+        self.assertFalse(review['release_approval'])
+        source=Path('scripts/arbm091/elite_board_100.py').read_text(encoding='utf-8')
+        self.assertIn("'status':'PRE_FOCAL_ADVISORY_PASS'",source)
+        self.assertIn("'release_approval':False",source)
+
+
+
+if __name__ == '__main__':
+    unittest.main()
+
+
+class Task091CompactEditTests(unittest.TestCase):
+    def test_text_mode_is_pointer_established_not_f2_injected(self):
+        samples=[
+            ('$42.8M', '$40.9M'),
+            ('214', '206'),
+            ('GTM', 'Data Migration'),
+            ('Planning posture: accelerate growth through H2 scale-up',
+             'Planning posture: stabilize and recover with disciplined sequencing'),
+            ('Growth Plan Draft',
+             'H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline'),
+        ]
+        for old,new in samples:
+            self.assertFalse(shim._task091_needs_explicit_text_mode(old,new))
+            command=shim._task091_write_command(new, ensure_text_mode=False)
+            self.assertEqual(command.splitlines()[0], "pyautogui.hotkey('ctrl', 'a')")
+            self.assertNotIn("pyautogui.press('f2')", command)
+            with self.assertRaisesRegex(ValueError, 'TASK091_TEXT_MODE_MUST_BE_POINTER_ESTABLISHED'):
+                shim._task091_write_command(new, ensure_text_mode=True)
+
+
+    def test_guest_probe_keeps_signed_table_cell_extraction_contract(self):
+        source=Path('scripts/arbm091/guest_probe.py').read_text(encoding='utf-8')
+        compile(source, 'guest_probe.py', 'exec')
+        self.assertIn("graphicFrame", source)
+        self.assertIn("tblGrid", source)
+        self.assertIn("'kind':'table-cell'", source)
+        for token in ("gridSpan", "rowSpan", "hMerge", "vMerge"):
+            self.assertIn(token, source)
+        self.assertIn("grid_index += grid_span", source)
+
+    def test_all_task091_spatial_replacements_use_bounded_post_hit_writer(self):
+        checked=0
+        for _slide,_x,_y,old,new in shim.TASK091_SPATIAL_TEXT_EDITS:
+            if shim._task091_norm(old)==shim._task091_norm(new):
+                continue
+            checked += 1
+            self.assertFalse(shim._task091_needs_explicit_text_mode(old,new), (old,new))
+            command=shim._task091_write_command(new, ensure_text_mode=False)
+            self.assertEqual(command.splitlines()[0], "pyautogui.hotkey('ctrl', 'a')")
+            self.assertNotIn("press('f2')", command)
+            self.assertLessEqual(len(command.splitlines()), 7)
+        self.assertGreaterEqual(checked, 70)
+
+    def test_empty_replacement_is_not_authorized_as_text_mode(self):
+        self.assertFalse(shim._task091_needs_explicit_text_mode('', 'x'))
+        self.assertFalse(shim._task091_needs_explicit_text_mode('x', ''))
+
+    def test_persisted_extra_paragraph_break_routes_to_atomic_repair(self):
+        pending={
+            'slide':1,
+            'old':'Planning posture: accelerate growth through H2 scale-up',
+            'new':'Northstar Cloud\nPrepared for July Operating Committee review\nPlanning posture: stabilize and recover with disciplined sequencing',
+            'shape_id':7,
+            'before_old_count':1,
+            'before_new_count':0,
+            'before_deck_sha256':'a'*64,
+            'repair_before_deck_sha256':'',
+            'target':{'bbox':[737,515,2,2],'cx':738,'cy':516},
+        }
+        actual='Northstar Cloud\nPrepared for July Operating Committee review\n\nPlanning posture: stabilize and recover with disciplined sequencing'
+        state={
+            'deck_slide_text':{'1':actual},
+            'deck_slide_shapes':{'1':[{'id':7,'name':'CoverSub','text':actual,
+                                      'geometry':{'x':768096,'y':2743200,'w':5669280,'h':1280160}}]},
+            'deck_file':{'sha256':'b'*64},
+        }
+        verified,status,detail=shim._task091_verify_pending('',pending,state)
+        self.assertFalse(verified)
+        self.assertEqual(status,'disk-text-mismatch')
+        self.assertTrue(detail['semantic_target_present'])
+        self.assertFalse(detail['exact_shape_text'])
+        plan=shim._task091_restricted_repair_plan(actual,pending['new'])
+        self.assertEqual(plan,[{'op':'delete','index':61,'char':'\n'}], plan)
+
+
+if __name__ == '__main__':
+    unittest.main()
