@@ -1275,8 +1275,10 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
                                  'wpsoffice wpsoffice',2566),[])
         with self.assertRaisesRegex(RuntimeError,'GROUP_AMBIGUOUS'):
             resolve(bytes(real_frame(second=True)),(W,H),active,owner,'wpsoffice wpsoffice',2566)
-        with self.assertRaisesRegex(RuntimeError,'OWNER_MISMATCH'):
-            resolve(bytes(real_frame()),(W,H),active,lambda point:(12582927,9999),
+        def wrong_owner(point):
+            return (12582927,9999) if point[1] > 700 else (12582927,2566)
+        with self.assertRaisesRegex(RuntimeError,'OWNER_DRIFT'):
+            resolve(bytes(real_frame()),(W,H),active,wrong_owner,
                     'wpsoffice wpsoffice',2566)
         multi=real_frame()
         first=controls[0]['bbox']; cx=first[0]+first[2]//2; cy=first[1]+first[3]//2
