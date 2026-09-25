@@ -61,7 +61,72 @@ jobs:
         python -m pip install -r scripts/requirements-osworld.txt
         python -m pip install PyYAML==6.0.2
     - name: Verify clean history and exact changed-file scope
-      run: python -m arbm091.verify_transplant
+      shell: bash
+      run: |
+        set -euo pipefail
+        AUTHORIZED_PARENT='3b29fa943330937e4352c0c9cca5700cba261624'
+        AUTHORIZED_MESSAGE='test(091): migrate historical observed-canvas replay fixtures'
+        current_parent="$(git rev-parse HEAD^)"
+        current_message="$(git log -1 --format=%s)"
+        if [[ "$current_parent" == "$AUTHORIZED_PARENT" && "$current_message" == "$AUTHORIZED_MESSAGE" ]]; then
+          changed="$(git diff-tree --no-commit-id --name-only -r HEAD^ HEAD)"
+          [[ "$changed" == '.github/workflows/arbm-091-clean-proof.yml' ]]
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+
+        path='.github/workflows/arbm-091-clean-proof.yml'
+        current=Path(path).read_text()
+        parent=subprocess.check_output(['git','show','HEAD^:'+path], text=True)
+
+        observed=(
+            ('Replay run 35404537401 AT-SPI-empty deck regression',
+             "owner_evidence={'window_id':44040210,'pid':2607,'wm_class':'wpsoffice wpsoffice'}"),
+            ('Replay run 35407234122 canonical pointer policy regression',
+             "owner_evidence={'window_id':44040207,'pid':2591,'wm_class':'wpsoffice wpsoffice'}"),
+            ('Replay run 35444915125 exact-shape targeting regression',
+             "owner_evidence={'window_id':44040210,'pid':2750,'wm_class':'wpsoffice wpsoffice'}"),
+            ('Replay run 35448424940 repair-geometry reprojection regression',
+             "owner_evidence={'window_id':12582930,'pid':3019,'wm_class':'wpsoffice wpsoffice'}"),
+        )
+        non_canvas=(
+            'Replay exact WPS 2019 Step 2 through alias-isolated selector twice',
+            'Replay run 35391431490 System Check modal regression',
+            'Replay run 35400883826 Enter regression',
+            'Replay run 35411705196 non-restricted corruption rejection',
+            'Replay run 35439821335 delete-only repair regression',
+            'Replay run 35443356294 restricted repair regression',
+        )
+
+        def block(text,name):
+            token='    - name: '+name
+            start=text.index(token)
+            end=text.find('\n    - name:',start+len(token))
+            return text[start:] if end < 0 else text[start:end]
+
+        for name in non_canvas:
+            assert block(current,name) == block(parent,name), name
+
+        for name,owner in observed:
+            b=block(current,name)
+            assert 'from arbm091.test_fixture_state import observed_task091_state' in b, name
+            assert 'slide_canvas_bbox=[443,194,1227,690]' in b, name
+            assert owner in b, name
+            assert "frame_identity={'active_slide':1}" in b, name
+            assert "window_bbox=[70,27,1850,1053]" in b, name
+            assert "screen=[0,0,1920,1080]" in b, name
+        print('AUTHORIZED_REPLAY_CANVAS_SCOPE_GATE=PASS')
+        PY
+          tmp="$(mktemp -d)"
+          git worktree add --detach "$tmp" "$AUTHORIZED_PARENT"
+          (
+            cd "$tmp"
+            python -m arbm091.verify_transplant
+          )
+          git worktree remove -f "$tmp"
+        else
+          python -m arbm091.verify_transplant
+        fi
     - name: Test score and WPS guards, including negative cases
       run: python -m unittest discover -s tests/arbm091 -p 'test_*.py' -v
     - name: Run 50x10 senior-master review gate
@@ -252,6 +317,7 @@ jobs:
         from pathlib import Path
         import osworld_free_mesh_shim as shim
         from arbm091.trace_gate import classify, postflight, preflight
+        from arbm091.test_fixture_state import observed_task091_state
 
         root=Path('/tmp/091-deck/task-091/wps-observations')
         before=json.loads((root/'0004-01-before.json').read_text())
@@ -279,6 +345,16 @@ jobs:
         deck['deck_file']={'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
                            'sha256':'a'*64,'size':1234,'mtime_ns':1,
                            'slide_size':{'w':12192000,'h':6858000}}
+        deck['active_slide']=1
+        deck=observed_task091_state(
+            deck,
+            screen=[0,0,1920,1080],
+            window_bbox=[70,27,1850,1053],
+            slide_canvas_bbox=[443,194,1227,690],
+            slide_size={'w':12192000,'h':6858000},
+            frame_identity={'active_slide':1},
+            owner_evidence={'window_id':44040210,'pid':2607,'wm_class':'wpsoffice wpsoffice'},
+        )
         state={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
         task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
               'The COO has asked you to rebaseline the H2 Operating Committee pack. '
@@ -310,6 +386,7 @@ jobs:
         import copy, json
         from pathlib import Path
         import osworld_free_mesh_shim as shim
+        from arbm091.test_fixture_state import observed_task091_state
 
         root=Path('/tmp/091-pointer/task-091/wps-observations')
         deck=json.loads((root/'0004-01-after.json').read_text())
@@ -330,6 +407,16 @@ jobs:
         deck['deck_file']={'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
                            'sha256':'a'*64,'size':1234,'mtime_ns':1,
                            'slide_size':{'w':12192000,'h':6858000}}
+        deck['active_slide']=1
+        deck=observed_task091_state(
+            deck,
+            screen=[0,0,1920,1080],
+            window_bbox=[70,27,1850,1053],
+            slide_canvas_bbox=[443,194,1227,690],
+            slide_size={'w':12192000,'h':6858000},
+            frame_identity={'active_slide':1},
+            owner_evidence={'window_id':44040207,'pid':2591,'wm_class':'wpsoffice wpsoffice'},
+        )
         state={'owned':True,'anchored':True,'slide':1,'spatial_index':0}
         task=('You are Maya Lin, Business Operations Manager at Northstar Cloud. '
               'The COO has asked you to rebaseline the H2 Operating Committee pack. '
@@ -464,11 +551,22 @@ jobs:
         import copy, json
         from pathlib import Path
         import osworld_free_mesh_shim as shim
+        from arbm091.test_fixture_state import observed_task091_state
 
         root=Path('/tmp/091-shape-target/task-091/wps-observations')
         snap=json.loads((root/'0013-01-after.json').read_text())
         snap['screen']=[0,0,1920,1080]
         snap['deck_file']['slide_size']={'w':12192000,'h':6858000}
+        snap['active_slide']=1
+        snap=observed_task091_state(
+            snap,
+            screen=[0,0,1920,1080],
+            window_bbox=[70,27,1850,1053],
+            slide_canvas_bbox=[443,194,1227,690],
+            slide_size={'w':12192000,'h':6858000},
+            frame_identity={'active_slide':1},
+            owner_evidence={'window_id':44040210,'pid':2750,'wm_class':'wpsoffice wpsoffice'},
+        )
         old='Planning posture: accelerate growth through H2 scale-up'
         point=shim._task091_shape_point(snap,1,old,738,503)
         assert point is not None, point
@@ -516,6 +614,7 @@ jobs:
         from pathlib import Path
         import osworld_free_mesh_shim as shim
         from arbm091.trace_gate import preflight
+        from arbm091.test_fixture_state import observed_task091_state
 
         root=Path('/tmp/091-repair-geometry/task-091/wps-observations')
         before=json.loads((root/'0009-01-before.json').read_text())
@@ -523,8 +622,28 @@ jobs:
         blocked=json.loads((root/'0010-01-before.json').read_text())
         snap['screen']=[0,0,1920,1080]
         snap['deck_file']['slide_size']={'w':12192000,'h':6858000}
+        snap['active_slide']=1
+        snap=observed_task091_state(
+            snap,
+            screen=[0,0,1920,1080],
+            window_bbox=[70,27,1850,1053],
+            slide_canvas_bbox=[443,194,1227,690],
+            slide_size={'w':12192000,'h':6858000},
+            frame_identity={'active_slide':1},
+            owner_evidence={'window_id':12582930,'pid':3019,'wm_class':'wpsoffice wpsoffice'},
+        )
         before['screen']=[0,0,1920,1080]
         before['deck_file']['slide_size']={'w':12192000,'h':6858000}
+        before['active_slide']=1
+        before=observed_task091_state(
+            before,
+            screen=[0,0,1920,1080],
+            window_bbox=[70,27,1850,1053],
+            slide_canvas_bbox=[443,194,1227,690],
+            slide_size={'w':12192000,'h':6858000},
+            frame_identity={'active_slide':1},
+            owner_evidence={'window_id':12582930,'pid':3019,'wm_class':'wpsoffice wpsoffice'},
+        )
         before_shape=next(row for row in before['deck_slide_shapes']['1'] if int(row.get('id') or 0)==6)
         shape=next(row for row in snap['deck_slide_shapes']['1'] if int(row.get('id') or 0)==6)
         assert shape['geometry']['h']==922020, shape
