@@ -26,7 +26,7 @@ def _probe_once(controller, point):
     parsed = urlparse(server)
     require(parsed.scheme == 'http' and parsed.hostname in ('localhost', '127.0.0.1'),
             'PROBE_ISOLATED_GUEST_ONLY')
-    code = 'POINT = ' + repr(point) + '\n' + _PROBE
+    code = "import os\nos.environ['TASK_ID'] = '091'\nPOINT = " + repr(point) + '\n' + _PROBE
     session = requests.Session()
     session.trust_env = False
     try:

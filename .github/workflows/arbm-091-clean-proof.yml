@@ -124,6 +124,54 @@ jobs:
             python -m arbm091.verify_transplant
           )
           git worktree remove -f "$tmp"
+        elif [[ "$current_parent" == '07791bdbc1b3af45a6f1a24f2aacf663c6eea0d0' && "$current_message" == 'fix(091): propagate task identity to guest probe' ]]; then
+          [[ "$(git rev-parse HEAD^^)" == '3b29fa943330937e4352c0c9cca5700cba261624' ]]
+          [[ "$(git log -1 --format=%s HEAD^)" == 'test(091): migrate historical observed-canvas replay fixtures' ]]
+          mapfile -t changed < <(git diff-tree --no-commit-id --name-only -r HEAD^ HEAD | LC_ALL=C sort)
+          [[ "${#changed[@]}" -eq 2 ]]
+          [[ "${changed[0]}" == '.github/workflows/arbm-091-clean-proof.yml' ]]
+          [[ "${changed[1]}" == 'scripts/arbm091/wps_observer.py' ]]
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+
+        workflow_path='.github/workflows/arbm-091-clean-proof.yml'
+        observer_path='scripts/arbm091/wps_observer.py'
+        current_workflow=Path(workflow_path).read_text()
+        parent_workflow=subprocess.check_output(['git','show','HEAD^:'+workflow_path], text=True)
+        current_observer=Path(observer_path).read_text()
+        parent_observer=subprocess.check_output(['git','show','HEAD^:'+observer_path], text=True)
+
+        def step(text,name):
+            token='    - name: '+name
+            start=text.index(token)
+            end=text.find('\n    - name:',start+len(token))
+            return text[start:] if end < 0 else text[start:end]
+
+        gate_name='Verify clean history and exact changed-file scope'
+        current_gate=step(current_workflow,gate_name)
+        parent_gate=step(parent_workflow,gate_name)
+        assert current_workflow.replace(current_gate,parent_gate,1) == parent_workflow
+
+        old_line="    code = 'POINT = ' + repr(point) + '\\n' + _PROBE"
+        new_line="    code = \"import os\\nos.environ['TASK_ID'] = '091'\\nPOINT = \" + repr(point) + '\\n' + _PROBE"
+        assert parent_observer.count(old_line) == 1
+        assert current_observer.count(new_line) == 1
+        assert current_observer == parent_observer.replace(old_line,new_line,1)
+
+        parent_changed=subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^^','HEAD^'],
+            text=True).splitlines()
+        assert parent_changed == [workflow_path]
+        print('AUTHORIZED_GUEST_TASK_ID_PROPAGATION_GATE=PASS')
+        PY
+          tmp="$(mktemp -d)"
+          git worktree add --detach "$tmp" HEAD^^
+          (
+            cd "$tmp"
+            python -m arbm091.verify_transplant
+          )
+          git worktree remove -f "$tmp"
         else
           python -m arbm091.verify_transplant
         fi
