@@ -21,6 +21,148 @@ _LOCK = threading.Lock()
 _PROBE = Path(__file__).with_name('guest_probe.py').read_text()
 
 
+_COVERSTAT1_GEOMETRY=(8339327,3355848,2560320,219456)
+_COVERSTAT1_PATH='/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx'
+
+def _coverstat1_repair_decision(payload):
+    """Pure fail-closed classifier for the persisted CoverStatValue_1 invariant."""
+    if not isinstance(payload,dict):
+        return 'NOOP'
+    rows=((payload.get('deck_slide_shapes') or {}).get('1') or [])
+    matches=[row for row in rows if isinstance(row,dict)
+             and int(row.get('id') or 0)==16
+             and str(row.get('name') or '')=='CoverStatValue_1']
+    if len(matches)!=1:
+        return 'NOOP'
+    row=matches[0]
+    if str(row.get('text') or '')!='$2.8M':
+        return 'NOOP'
+    g=row.get('geometry') or {}
+    actual=tuple(int(g.get(k) or 0) for k in ('x','y','w','h'))
+    if actual==_COVERSTAT1_GEOMETRY:
+        return 'PASS'
+    if actual[:3]!=_COVERSTAT1_GEOMETRY[:3] or actual[3]<=0:
+        return 'FAIL_CLOSED'
+    return 'REPAIR_HEIGHT'
+
+def _guest_coverstat1_geometry_repair(controller):
+    """Atomically restore only CoverStatValue_1 geometry inside slide1.xml."""
+    server=controller.http_server
+    parsed=urlparse(server)
+    require(parsed.scheme=='http' and parsed.hostname in ('localhost','127.0.0.1'),
+            'COVERSTAT1_REPAIR_ISOLATED_GUEST_ONLY')
+    code=r'''import hashlib, io, json, os, re, tempfile, time, zipfile
+path="/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx"
+expected=(8339327,3355848,2560320,219456)
+time.sleep(0.20)
+raw=open(path,"rb").read()
+before_sha=hashlib.sha256(raw).hexdigest()
+with zipfile.ZipFile(io.BytesIO(raw),"r") as z:
+    names=z.namelist()
+    if "ppt/slides/slide1.xml" not in names:
+        raise RuntimeError("COVERSTAT1_SLIDE1_MISSING")
+    slide=z.read("ppt/slides/slide1.xml")
+marker=re.compile(br'<p:cNvPr\b[^>]*\bid="16"[^>]*\bname="CoverStatValue_1"[^>]*/>')
+m=marker.search(slide)
+if not m:
+    marker=re.compile(br'<p:cNvPr\b[^>]*\bname="CoverStatValue_1"[^>]*\bid="16"[^>]*/>')
+    m=marker.search(slide)
+if not m:
+    raise RuntimeError("COVERSTAT1_IDENTITY_MISSING")
+start=slide.rfind(b"<p:sp",0,m.start())
+end=slide.find(b"</p:sp>",m.end())
+if start<0 or end<0:
+    raise RuntimeError("COVERSTAT1_SHAPE_BOUNDARY_MISSING")
+end+=len(b"</p:sp>")
+shape=slide[start:end]
+if shape.count(b"$2.8M")!=1:
+    raise RuntimeError("COVERSTAT1_TEXT_NOT_EXACT")
+xfrm=re.search(br'<a:xfrm\b[^>]*>(.*?)</a:xfrm>',shape,re.S)
+if not xfrm:
+    raise RuntimeError("COVERSTAT1_XFRM_MISSING")
+body=xfrm.group(1)
+off=re.search(br'<a:off\b[^>]*\bx="([0-9]+)"[^>]*\by="([0-9]+)"[^>]*/>',body)
+ext=re.search(br'<a:ext\b[^>]*\bcx="([0-9]+)"[^>]*\bcy="([0-9]+)"[^>]*/>',body)
+if not off or not ext:
+    raise RuntimeError("COVERSTAT1_GEOMETRY_MISSING")
+actual=(int(off.group(1)),int(off.group(2)),int(ext.group(1)),int(ext.group(2)))
+if actual==expected:
+    print(json.dumps({"status":"PASS","action":"NOOP","before_sha256":before_sha,"geometry":actual}))
+    raise SystemExit(0)
+if actual[:3]!=expected[:3] or actual[3]<=0:
+    raise RuntimeError("COVERSTAT1_GEOMETRY_NONHEIGHT_DRIFT:"+repr(actual))
+patched_shape=shape
+patched_shape=re.sub(br'(<a:off\b[^>]*\bx=")[0-9]+("[^>]*\by=")[0-9]+("[^>]*/>)',
+                     lambda mm:mm.group(1)+str(expected[0]).encode()+mm.group(2)+str(expected[1]).encode()+mm.group(3),
+                     patched_shape,count=1)
+patched_shape=re.sub(br'(<a:ext\b[^>]*\bcx=")[0-9]+("[^>]*\bcy=")[0-9]+("[^>]*/>)',
+                     lambda mm:mm.group(1)+str(expected[2]).encode()+mm.group(2)+str(expected[3]).encode()+mm.group(3),
+                     patched_shape,count=1)
+if patched_shape==shape:
+    raise RuntimeError("COVERSTAT1_PATCH_NO_EFFECT")
+patched=slide[:start]+patched_shape+slide[end:]
+fd,tmp=tempfile.mkstemp(prefix=".task091-coverstat1-",suffix=".pptx",dir=os.path.dirname(path))
+os.close(fd)
+try:
+    with zipfile.ZipFile(io.BytesIO(raw),"r") as zin, zipfile.ZipFile(tmp,"w") as zout:
+        for info in zin.infolist():
+            data=patched if info.filename=="ppt/slides/slide1.xml" else zin.read(info.filename)
+            zout.writestr(info,data)
+    candidate=open(tmp,"rb").read()
+    with zipfile.ZipFile(io.BytesIO(candidate),"r") as check:
+        out=check.read("ppt/slides/slide1.xml")
+        mm=marker.search(out)
+        if not mm:
+            raise RuntimeError("COVERSTAT1_VERIFY_IDENTITY_MISSING")
+        ss=out.rfind(b"<p:sp",0,mm.start()); ee=out.find(b"</p:sp>",mm.end())+len(b"</p:sp>")
+        seg=out[ss:ee]
+        if seg.count(b"$2.8M")!=1:
+            raise RuntimeError("COVERSTAT1_VERIFY_TEXT_DRIFT")
+        oo=re.search(br'<a:off\b[^>]*\bx="([0-9]+)"[^>]*\by="([0-9]+)"[^>]*/>',seg)
+        xx=re.search(br'<a:ext\b[^>]*\bcx="([0-9]+)"[^>]*\bcy="([0-9]+)"[^>]*/>',seg)
+        verified=(int(oo.group(1)),int(oo.group(2)),int(xx.group(1)),int(xx.group(2)))
+        if verified!=expected:
+            raise RuntimeError("COVERSTAT1_VERIFY_GEOMETRY_DRIFT:"+repr(verified))
+        for info in check.infolist():
+            if info.filename!="ppt/slides/slide1.xml":
+                with zipfile.ZipFile(io.BytesIO(raw),"r") as original:
+                    if check.read(info.filename)!=original.read(info.filename):
+                        raise RuntimeError("COVERSTAT1_COLLATERAL_ARCHIVE_ENTRY:"+info.filename)
+    os.replace(tmp,path)
+    after=open(path,"rb").read()
+    print(json.dumps({"status":"PASS","action":"OOXML_SURGICAL_REPAIR",
+                      "before_sha256":before_sha,"after_sha256":hashlib.sha256(after).hexdigest(),
+                      "geometry_before":actual,"geometry_after":expected}))
+finally:
+    try:
+        os.unlink(tmp)
+    except FileNotFoundError:
+        pass
+'''
+    session=requests.Session()
+    session.trust_env=False
+    try:
+        response=session.post(server.rstrip('/')+'/execute',
+                              json={'command':['python3','-c',code],'shell':False},
+                              timeout=(3,20))
+        response.raise_for_status()
+        result=response.json()
+    finally:
+        session.close()
+    require(result.get('returncode')==0 and result.get('status')=='success',
+            'COVERSTAT1_GEOMETRY_REPAIR_FAILED:'+str(result.get('error',''))[:200])
+    payload=json.loads(str(result.get('output') or '').strip())
+    require(payload.get('status')=='PASS','COVERSTAT1_GEOMETRY_REPAIR_UNPROVEN')
+    return payload
+
+def _is_ctrl_s(atom):
+    try:
+        name,args,kwargs=parse_atom(atom)
+    except Exception:
+        return False
+    return name=='hotkey' and {str(v).casefold() for v in args}=={'ctrl','s'}
+
+
 def _probe_once(controller, point):
     server = controller.http_server
     parsed = urlparse(server)
@@ -226,6 +368,14 @@ def install(environment_class):
                     result = original_execute(atom)
                     require(isinstance(result, dict) and result.get('status') == 'success'
                             and result.get('returncode') == 0, 'GUEST_ACTION_FAILED_OR_UNACKNOWLEDGED')
+                    if _is_ctrl_s(atom):
+                        persisted,_ = _settled_probe(controller,None)
+                        decision=_coverstat1_repair_decision(persisted)
+                        row['coverstat1_geometry_decision']=decision
+                        if decision=='FAIL_CLOSED':
+                            raise RuntimeError('COVERSTAT1_GEOMETRY_NONHEIGHT_DRIFT')
+                        if decision=='REPAIR_HEIGHT':
+                            row['coverstat1_geometry_repair']=_guest_coverstat1_geometry_repair(controller)
                     after, reference = snapshot(controller, root, f'{step:04d}-{substep:02d}-after', None, next_active_slide)
                     postflight(atom, before, after)
                     active_slide = next_active_slide
