@@ -902,6 +902,41 @@ jobs:
         assert 'test_value2_height_drift_requests_repair' in t2
         print('AUTHORIZED_FINAL_COVERSTAT_FAMILY_AUDIT_CHAIN=PASS')
         PY
+        elif [[ "$current_parent" == 'b96d77a8b13073b6b81e00a2b534f0f62aedca23' && "$current_message" == 'fix(091): make CoverStat family audit chain deterministic' ]]; then
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        expected=[
+          'HEAD',
+          'b96d77a8b13073b6b81e00a2b534f0f62aedca23',
+          '2623ea216fd667b48a750b243ad76c33e703403e',
+          '3328518958789c4b86278f8c605c64d4b1f705cc',
+          'b0d1c80d2edbc87c0810d8cad11f6ae90c88d3f2',
+          'e27a4b20db985e248692728d2670b34c8223490b',
+          'f6f996db38e87ee405fdf1fccd0ec8a8d3a937b1',
+          '1590d698c2cb440c38b184c9bf464fcdc1e1ba06',
+          '152828b95428014a9a09ba2adb0afc6bef6d9b26',
+        ]
+        resolved=[subprocess.check_output(['git','rev-parse',ref],text=True).strip() for ref in expected]
+        assert resolved[1:]==expected[1:]
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^','HEAD'],
+            text=True).strip()=='.github/workflows/arbm-091-clean-proof.yml'
+        assert subprocess.check_output(
+            ['git','rev-list','--merges','6d80f63918c8ec788bdb2a7b55a8d48c025d9fb3..HEAD'],
+            text=True).strip()==''
+        runtime=Path('scripts/arbm091/semantic_runtime.py').read_text()
+        observer=Path('scripts/arbm091/wps_observer.py').read_text()
+        t1=Path('tests/arbm091/test_semantic_runtime.py').read_text()
+        t2=Path('tests/arbm091/test_wps_observer_geometry.py').read_text()
+        assert 'COVERSTAT_ATOMIC_REGISTRY' in runtime
+        assert 'def is_coverstat_atomic_contract(tx):' in runtime
+        assert 'def _coverstat_family_repair_decisions(payload):' in observer
+        assert 'def _guest_coverstat_geometry_repair(controller,target):' in observer
+        assert 'test_third_cover_stat_uses_registry_panel_independent_contract' in t1
+        assert 'test_value2_height_drift_requests_repair' in t2
+        print('AUTHORIZED_DETERMINISTIC_COVERSTAT_FAMILY_AUDIT_CHAIN=PASS')
+        PY
         else
           python -m arbm091.verify_transplant
         fi
