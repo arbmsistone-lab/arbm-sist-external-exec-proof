@@ -538,6 +538,40 @@ jobs:
           )
           git worktree remove -f "$tmp"
           echo 'AUTHORIZED_SEMANTIC_COVER_RECOVERY_SCOPE=PASS'
+        elif [[ "$current_parent" == 'bac1cdf9ed444536428cb2053adb942fcec647c8' && "$current_message" == 'fix(091): audit mapped System Check recovery' ]]; then
+          [[ "$(git rev-parse HEAD^^)" == '3ea3a43714912b0265d9976e00ffb518b2ec0b4a' ]]
+          [[ "$(git rev-parse HEAD^:scripts/arbm091/guest_probe.py)" == '07f4fe29bd85636d4af6bf33c86f356ea9d7a914' ]]
+          [[ "$(git rev-parse HEAD:scripts/arbm091/guest_probe.py)" == '07f4fe29bd85636d4af6bf33c86f356ea9d7a914' ]]
+          [[ "$(git rev-parse HEAD:scripts/arbm091/semantic_runtime.py)" == 'e8385b56b5e0a046e195a218f314420f9a831204' ]]
+          [[ "$(git rev-parse HEAD:tests/arbm091/test_semantic_runtime.py)" == '5227289e9cd5e1238a0047981d02fc5d686a7221' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^ HEAD)" == '.github/workflows/arbm-091-clean-proof.yml' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^^ HEAD^)" == 'scripts/arbm091/guest_probe.py' ]]
+          [[ -z "$(git rev-list --merges 6d80f63918c8ec788bdb2a7b55a8d48c025d9fb3..HEAD)" ]]
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        path='.github/workflows/arbm-091-clean-proof.yml'
+        current=Path(path).read_text()
+        parent=subprocess.check_output(['git','show','HEAD^:'+path],text=True)
+        token='    - name: Verify clean history and exact changed-file scope'
+        def gate(text):
+            start=text.index(token)
+            end=text.index('\n    - name:',start+len(token))
+            return text[start:end]
+        assert current.replace(gate(current),gate(parent),1)==parent
+        probe=Path('scripts/arbm091/guest_probe.py').read_text()
+        assert probe.count("title(candidate).strip().casefold() != 'system check'")==1
+        assert probe.count("owner is None or int(owner.id) != int(window.id)")==1
+        assert probe.count("TASK091_SYSTEM_CHECK_TRANSIENT_AMBIGUOUS")==1
+        print('AUTHORIZED_MAPPED_SYSTEM_CHECK_SCOPE=PASS')
+        PY
+          tmp="$(mktemp -d)"
+          git worktree add --detach "$tmp" 3b29fa943330937e4352c0c9cca5700cba261624
+          (
+            cd "$tmp"
+            python -m arbm091.verify_transplant
+          )
+          git worktree remove -f "$tmp"
         else
           python -m arbm091.verify_transplant
         fi
