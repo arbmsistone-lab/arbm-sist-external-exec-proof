@@ -853,7 +853,7 @@ def _task091_verify_pending(observation,pending,window_state):
         return False,'collateral-mutation',{'source':'target-pptx','slide':slide,
                                            'shape_id':expected_shape_id,
                                            'sha256_before':before_sha,'sha256_after':after_sha,
-                                           'actual_shape_text':str(expected_shape.get('text') or ''),
+                                           'actual_shape_text':str(expected_shape.get('text') or '') if isinstance(expected_shape,dict) else None,
                                            'expected_shape_text':str(pending.get('new') or ''),
                                            'sibling_signature_before':before_sibling_signature,
                                            'sibling_signature_after':current_sibling_signature}
