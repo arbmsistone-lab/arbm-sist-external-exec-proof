@@ -1165,6 +1165,79 @@ def _task091_other_shapes_signature(window_state, slide, target_shape_id):
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
+def _task091_deck_except_target_signature(window_state, slide, target_shape_id):
+    """OOXML snapshot of every observed shape except the exact edit target."""
+    table=window_state.get('deck_slide_shapes') if isinstance(window_state,dict) else None
+    if not isinstance(table,dict) or not table:
+        return ''
+    rows=[]
+    for slide_key, shapes in sorted(table.items(),key=lambda item:int(item[0])):
+        if not isinstance(shapes,list):
+            return ''
+        for shape in shapes:
+            if int(slide_key)==int(slide) and int(shape.get('id') or 0)==int(target_shape_id):
+                continue
+            rows.append([int(slide_key),int(shape.get('id') or 0),
+                         str(shape.get('name') or ''),str(shape.get('text') or ''),
+                         dict(shape.get('geometry') or {})])
+    return hashlib.sha256(json.dumps(rows,sort_keys=True,separators=(',',':'),
+                                     ensure_ascii=False).encode()).hexdigest()
+
+
+def _task091_cover_rewrite_proven(pending, window_state):
+    """Permit one full rewrite only for the original slide-1 CoverStat shape."""
+    if (int(pending.get('slide') or 0)!=1 or int(pending.get('shape_id') or 0)!=13
+            or pending.get('shape_name')!='CoverStatValue_0'
+            or pending.get('old')!='$42.8M' or pending.get('new')!='$40.9M'
+            or int(pending.get('cover_rewrite_attempts') or 0)!=0):
+        return None
+    shape=_task091_shape_by_id(window_state,1,13)
+    original=pending.get('shape_geometry') or {}
+    if (not isinstance(shape,dict) or shape.get('name')!='CoverStatValue_0'
+            or str(shape.get('kind') or 'shape')!='shape'
+            or original.get('h')!=219456
+            or dict(shape.get('geometry') or {})!=original
+            or str(shape.get('text') or '') in ('$42.8M','$40.9M')
+            or len(str(shape.get('text') or ''))>64):
+        return None
+    baseline=str(pending.get('before_deck_except_target_signature') or '')
+    if (len(baseline)!=64 or baseline!=
+            _task091_deck_except_target_signature(window_state,1,13)):
+        return None
+    return shape
+
+
+def _task091_prepare_cover_rewrite(pending, window_state, state):
+    shape=_task091_cover_rewrite_proven(pending,window_state)
+    if shape is None:
+        return _task091_terminal('TASK091_COVER_REWRITE_SCOPE_UNPROVEN',state)
+    point=_task091_drift_safe_text_point(window_state,shape,
+                                         pending.get('text_hit_x'),pending.get('text_hit_y'),
+                                         recovery_attempt=1)
+    if point is None:
+        return _task091_terminal('TASK091_COVER_REWRITE_GEOMETRY_UNPROVEN',state)
+    deck_sha=str((window_state.get('deck_file') or {}).get('sha256') or '')
+    if len(deck_sha)!=64 or deck_sha==str(pending.get('before_deck_sha256') or ''):
+        return _task091_terminal('TASK091_COVER_REWRITE_DIFF_UNPROVEN',state)
+    cx=int(point['cx']); cy=int(point['cy'])
+    target={'source':'task091-pptx-canonical','label':str(shape['text']),
+            'role':'task091-canonical-point','slide':1,
+            'x':cx-1,'y':cy-1,'w':2,'h':2,'cx':cx,'cy':cy,
+            'foreground_sha256':_task091_foreground_sha(window_state),
+            'deck_sha256':deck_sha}
+    target['proof_sha256']=task091_spatial_target_proof(target)
+    pending['cover_rewrite_attempts']=1
+    pending['cover_rewrite_before_sha256']=deck_sha
+    pending['cover_rewrite_before_text']=str(shape['text'])
+    pending['cover_rewrite_selected_before_shot']=str(window_state.get('screenshot_sha256') or '')
+    pending['cover_rewrite_foreground_sha256']=target['foreground_sha256']
+    pending['cover_rewrite_verify_attempts']=0
+    pending['stage']='cover-rewrite-select-issued'
+    return {'action':'exec','command':f'pyautogui.doubleClick({cx}, {cy}, interval=0.08)',
+            'target':target,'specialist_phase':'cover-rewrite-select',
+            'plan':'Reopen the one OOXML-proven CoverStat shape for one bounded rewrite.'}
+
+
 def _task091_restricted_repair_command(plan):
     if not isinstance(plan,list) or len(plan)!=1:
         raise ValueError('TASK091_REPAIR_ATOMIC_OPERATION_REQUIRED')
@@ -1251,16 +1324,22 @@ def _task091_verify_pending(observation,pending,window_state):
                       and str(expected_shape.get('text') or '')==str(pending.get('new') or ''))
     current_sibling_signature=_task091_other_shapes_signature(window_state,slide,expected_shape_id)
     before_sibling_signature=str(pending.get('before_sibling_signature') or '')
+    cover_scope=(slide==1 and expected_shape_id==13
+                 and pending.get('shape_name')=='CoverStatValue_0')
+    deck_siblings_changed=(cover_scope and
+        _task091_deck_except_target_signature(window_state,slide,expected_shape_id)!=
+        pending.get('before_deck_except_target_signature'))
     collateral_mutation=(disk_mutated
-                         and isinstance(expected_shape,dict)
-                         and str(expected_shape.get('text') or '')==str(pending.get('old') or '')
-                         and bool(before_sibling_signature)
-                         and current_sibling_signature != before_sibling_signature)
+                         and (deck_siblings_changed or
+                              (isinstance(expected_shape,dict)
+                               and str(expected_shape.get('text') or '')==str(pending.get('old') or '')
+                               and bool(before_sibling_signature)
+                               and current_sibling_signature != before_sibling_signature)))
     if collateral_mutation:
         return False,'collateral-mutation',{'source':'target-pptx','slide':slide,
                                            'shape_id':expected_shape_id,
                                            'sha256_before':before_sha,'sha256_after':after_sha,
-                                           'actual_shape_text':str(expected_shape.get('text') or ''),
+                                           'actual_shape_text':str(expected_shape.get('text') or '') if isinstance(expected_shape,dict) else None,
                                            'expected_shape_text':str(pending.get('new') or ''),
                                            'sibling_signature_before':before_sibling_signature,
                                            'sibling_signature_after':current_sibling_signature}
@@ -1457,6 +1536,8 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                     return _task091_terminal('TASK091_REPAIR_SELECTION_TRANSIENT_LOOP',state)
                 pending['stage']='repair-reselect-required'
             elif stage in ('edit-issued','commit-issued','save-issued','table-cell-rollback-issued',
+                           'cover-rewrite-select-issued','cover-rewrite-edit-issued',
+                           'cover-rewrite-commit-issued','cover-rewrite-save-issued',
                            'repair-edit-issued','repair-commit-issued','repair-save-issued'):
                 return _task091_terminal('TASK091_EDIT_INTERRUPTED_BY_TRANSIENT',state)
         current=state.get('transient_title')
@@ -1562,6 +1643,62 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                        'repair-select-issued':'TARGET_SELECTION_PENDING',
                        'repair-edit-issued':'TARGET_EDITING',
                        'repair-commit-issued':'TARGET_COMMITTED','repair-save-issued':'TARGET_VERIFYING'}.get(stage,'TARGET_VERIFYING')
+        if stage == 'cover-rewrite-select-issued':
+            shape=_task091_shape_by_id(window_state,1,13)
+            current_sha=str((window_state.get('deck_file') or {}).get('sha256') or '')
+            shot=str(window_state.get('screenshot_sha256') or '')
+            ack=(shape is not None
+                 and str(shape.get('text') or '')==pending.get('cover_rewrite_before_text')
+                 and current_sha==pending.get('cover_rewrite_before_sha256')
+                 and _task091_foreground_sha(window_state)==pending.get('cover_rewrite_foreground_sha256')
+                 and len(shot)==64 and len(str(pending.get('cover_rewrite_selected_before_shot') or ''))==64
+                 and shot!=pending.get('cover_rewrite_selected_before_shot')
+                 and int(window_state.get('active_slide') or 0)==1
+                 and _task091_deck_except_target_signature(window_state,1,13)==
+                     pending.get('before_deck_except_target_signature'))
+            if not ack:
+                return _task091_terminal('TASK091_COVER_REWRITE_SELECTION_UNPROVEN',state)
+            pending['stage']='cover-rewrite-edit-issued'
+            return {'action':'exec','command':_task091_write_command('$40.9M'),
+                    'specialist_phase':'cover-rewrite-text',
+                    'expected_change':'$40.9M',
+                    'plan':'Clear only the positively acknowledged text selection and rewrite $40.9M.'}
+        if stage == 'cover-rewrite-edit-issued':
+            pending['stage']='cover-rewrite-commit-issued'
+            return {'action':'exec','command':"pyautogui.press('esc')",
+                    'specialist_phase':'cover-rewrite-commit',
+                    'plan':'Commit the bounded CoverStat rewrite.'}
+        if stage == 'cover-rewrite-commit-issued':
+            pending['stage']='cover-rewrite-save-issued'
+            return {'action':'exec','command':"pyautogui.hotkey('ctrl', 's')\npyautogui.sleep(0.25)",
+                    'specialist_phase':'cover-rewrite-save',
+                    'plan':'Persist the CoverStat rewrite before OOXML verification.'}
+        if stage == 'cover-rewrite-save-issued':
+            sha=str((window_state.get('deck_file') or {}).get('sha256') or '')
+            if len(sha)!=64 or sha==pending.get('cover_rewrite_before_sha256'):
+                attempts=int(pending.get('cover_rewrite_verify_attempts') or 0)+1
+                pending['cover_rewrite_verify_attempts']=attempts
+                if attempts>=2:
+                    return _task091_terminal('TASK091_COVER_REWRITE_NOT_PERSISTED',state)
+                return {'action':'exec','command':'pyautogui.sleep(0.2)',
+                        'specialist_phase':'cover-rewrite-reobserve',
+                        'plan':'Reobserve the saved deck once without another mutation.'}
+            shape=_task091_shape_by_id(window_state,1,13)
+            if (not isinstance(shape,dict) or shape.get('name')!='CoverStatValue_0'
+                    or str(shape.get('text') or '')!='$40.9M'
+                    or dict(shape.get('geometry') or {})!=pending.get('shape_geometry')
+                    or int((shape.get('geometry') or {}).get('h') or 0)!=219456
+                    or _task091_deck_except_target_signature(window_state,1,13)!=
+                        pending.get('before_deck_except_target_signature')):
+                return _task091_terminal('TASK091_COVER_REWRITE_OOXML_MISMATCH',state)
+            state['mode']='TARGET_VERIFIED'
+            state['spatial_index']=int(state.get('spatial_index') or 0)+1
+            state['pending_edit']=None
+            state['target_retries']=0
+            return {'action':'checkpoint','checkpoint':'TASK091_STRUCTURAL_EDIT_VERIFIED',
+                    'slide':1,'old':'$42.8M','new':'$40.9M',
+                    'target':{'source':'target-pptx','shape_id':13,'sha256':sha},
+                    'specialist_phase':'cover-rewrite-ooxml-verified'}
         if stage == 'reselect-required':
             current_file=window_state.get('deck_file',{}) if isinstance(window_state,dict) else {}
             current_sha=str(current_file.get('sha256') or '') if isinstance(current_file,dict) else ''
@@ -2051,6 +2188,8 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 visual_edit_proven=(len(selected)==64 and len(edited)==64 and selected != edited)
                 if not visual_edit_proven:
                     return _task091_terminal('TASK091_EDIT_TEXT_MISMATCH_UNPROVEN',state)
+                if int(pending.get('slide') or 0)==1 and pending.get('shape_name')=='CoverStatValue_0':
+                    return _task091_prepare_cover_rewrite(pending,window_state,state)
                 return _task091_prepare_atomic_repair(pending,window_state,state)
             attempts=int(pending.get('verify_attempts') or 0)+1
             pending['verify_attempts']=attempts
@@ -2162,6 +2301,8 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             'before_deck_sha256':str((window_state.get('deck_file',{}) or {}).get('sha256','')),
             'before_screenshot_sha256':str(window_state.get('screenshot_sha256') or ''),
             'before_sibling_signature':_task091_other_shapes_signature(window_state,slide,int(shape.get('id') or 0)),
+            'before_deck_except_target_signature':_task091_deck_except_target_signature(
+                window_state,slide,int(shape.get('id') or 0)),
             'selection_before_screenshot_sha256':str(window_state.get('screenshot_sha256') or ''),
             'selection_foreground_sha256':_task091_foreground_sha(window_state),
             'selection_ack_attempts':0,
