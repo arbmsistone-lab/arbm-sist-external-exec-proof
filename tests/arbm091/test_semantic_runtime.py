@@ -4,7 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from arbm091.semantic_runtime import _current_autofit_group, next_text_action
+from arbm091.semantic_runtime import _current_autofit_group, next_text_action, _snapshot
+from arbm091.semantic_transaction import model_sha256, normalize_deck
 from arbm091.score_tracker import SEMANTIC_REQUIRED_STATUSES, verify_semantic_architecture
 
 
@@ -29,6 +30,64 @@ def base_state():
 
 
 class SemanticRuntimeTests(unittest.TestCase):
+    def _cover_recovery_fixture(self):
+        ws=base_state()
+        ws["active_slide"]=1
+        ws["screenshot_sha256"]="a"*64
+        ws["deck_file"]["slide_size"]={"w":12191365,"h":6858000}
+        ws["slide_canvas_bbox"]=[352,263,1135,638]
+        ws["deck_slide_shapes"]={"1":[
+            {"id":13,"name":"CoverStatValue_0","kind":"shape","text":"$42.8M",
+             "geometry":{"x":8339327,"y":2167128,"w":2560320,"h":219456},
+             "autofit_mode":"RESIZE_SHAPE_TO_FIT_TEXT","font_sizes":[2100],"fill_rgb":""},
+            {"id":16,"name":"CoverStatValue_1","kind":"shape","text":"$2.6M",
+             "geometry":{"x":1,"y":2,"w":3,"h":4}}]}
+        before=_snapshot(ws)
+        tx={"stage":"save-issued","index":0,"slide":1,"old":"$42.8M","new":"$40.9M",
+            "target_key":[1,"shape",13,"CoverStatValue_0"],
+            "before_state":before,"before_model_sha256":model_sha256(normalize_deck(before)),
+            "before_deck_sha256":"a"*64,"autofit_selection_confirmed":True,
+            "contract":{"status":"PASS","target_resolved":True,"target_unique":True,
+                        "precondition":True,"mutation_authorized":True}}
+        wrong=copy.deepcopy(ws)
+        wrong["deck_file"]["sha256"]="b"*64
+        wrong["deck_slide_shapes"]["1"][0]["text"]="$40.9MM"
+        wrong["deck_slide_shapes"]["1"][0]["autofit_mode"]="DO_NOT_AUTOFIT"
+        return ws,wrong,{"slide":1,"semantic_tx":tx},((1,1338,393,"$42.8M","$40.9M"),)
+
+    def test_cover_wrong_text_recovers_once_and_requires_roundtrip(self):
+        _,wrong,state,plan=self._cover_recovery_fixture()
+        select=next_text_action(state,wrong,plan)
+        self.assertEqual(select["specialist_phase"],"semantic-cover-recovery-select")
+        selected=copy.deepcopy(wrong)
+        selected["screenshot_sha256"]="b"*64
+        write=next_text_action(state,selected,plan)
+        self.assertEqual(write["specialist_phase"],"semantic-cover-recovery-write")
+        self.assertIn("pyautogui.press('delete')",write["command"])
+        self.assertEqual(next_text_action(state,selected,plan)["specialist_phase"],
+                         "semantic-cover-recovery-commit")
+        self.assertEqual(next_text_action(state,selected,plan)["specialist_phase"],
+                         "semantic-cover-recovery-save")
+        fixed=copy.deepcopy(selected)
+        fixed["deck_file"]["sha256"]="c"*64
+        fixed["deck_slide_shapes"]["1"][0]["text"]="$40.9M"
+        self.assertEqual(next_text_action(state,fixed,plan)["specialist_phase"],
+                         "semantic-cover-recovery-roundtrip")
+        done=next_text_action(state,fixed,plan)
+        self.assertEqual(done["checkpoint"],"TASK091_SEMANTIC_TRANSACTION_PASS")
+        self.assertEqual(state["semantic_index"],1)
+
+    def test_cover_recovery_vetoes_collateral_geometry_and_second_attempt(self):
+        _,wrong,state,plan=self._cover_recovery_fixture()
+        collateral=copy.deepcopy(wrong)
+        collateral["deck_slide_shapes"]["1"][1]["text"]="changed"
+        self.assertEqual(next_text_action(copy.deepcopy(state),collateral,plan)["action"],"terminal")
+        geometry=copy.deepcopy(wrong)
+        geometry["deck_slide_shapes"]["1"][0]["geometry"]["h"]=219457
+        self.assertEqual(next_text_action(copy.deepcopy(state),geometry,plan)["action"],"terminal")
+        state["semantic_tx"]["recovery_attempts"]=1
+        self.assertEqual(next_text_action(state,wrong,plan)["action"],"terminal")
+
     def test_artifact_calibrated_canvas_maps_cover_stat(self):
         ws=base_state()
         ws["active_slide"]=1
