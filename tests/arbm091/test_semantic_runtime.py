@@ -204,6 +204,35 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertEqual(state["semantic_tx"]["mutation_mode"],
                          "autofit-locked-single-native-replace")
 
+    def test_second_cover_stat_bypasses_panel_controls_and_stays_fail_closed(self):
+        ws=base_state()
+        ws["active_slide"]=1
+        ws["source"]="cover-stat-1-before"
+        ws["screenshot_sha256"]="a"*64
+        ws["deck_file"]["slide_size"]={"w":12191365,"h":6858000}
+        ws["slide_canvas_bbox"]=[352,263,1135,638]
+        ws["controls"]=[]
+        ws["deck_slide_shapes"]={"1":[{
+            "id":16,"name":"CoverStatValue_1","text":"$2.6M","kind":"shape",
+            "geometry":{"x":8339327,"y":3355848,"w":2560320,"h":219456},
+            "font_sizes":[2100,2100],"fill_rgb":"",
+            "autofit_mode":"RESIZE_SHAPE_TO_FIT_TEXT",
+        }]}
+        ws["deck_slide_relationships"]={"1":[]}
+        state={"slide":1}
+        plan=((1,1338,500,"$2.6M","$2.8M"),)
+
+        self.assertEqual(next_text_action(state,ws,plan)["specialist_phase"],"semantic-target-select")
+        action=next_text_action(state,ws,plan)
+        self.assertEqual(action["specialist_phase"],"semantic-coverstat1-direct-replace")
+        self.assertIn("pyautogui.hotkey('ctrl', 'h')",action["command"])
+        self.assertIn("pyautogui.write('$2.6M', interval=0.08)",action["command"])
+        self.assertIn("pyautogui.write('$2.8M', interval=0.08)",action["command"])
+        self.assertNotIn("TEXT OPTIONS",action["command"])
+        self.assertNotIn("PANEL DISCLOSURE",action["command"])
+        self.assertEqual(state["semantic_tx"]["mutation_mode"],
+                         "geometry-locked-single-native-replace")
+
     def test_cover_title_reuses_current_text_options_without_reopening_panel(self):
         ws=base_state()
         ws["active_slide"]=1
