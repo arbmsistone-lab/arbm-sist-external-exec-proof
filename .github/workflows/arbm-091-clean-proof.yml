@@ -964,6 +964,34 @@ jobs:
         assert 'def _coverstat_family_repair_decisions(payload):' in observer
         print('AUTHORIZED_FINAL_LEGACY_COVERSTAT_TEST_MIGRATION=PASS')
         PY
+        elif [[ "$current_parent" == 'a3df62ceaf9f4f51958ba49aadea1c1f3144c659' && "$current_message" == 'fix(091): audit CoverStat family anti-regression closure' ]]; then
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        assert subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip()=='a3df62ceaf9f4f51958ba49aadea1c1f3144c659'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^'],text=True).strip()=='c9caf5e42e2c47aec8288261d8d0b72eaee51252'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^^'],text=True).strip()=='aea82165f61eaf3ad587d1f38912ee5960867f6f'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^','HEAD'],
+            text=True).strip()=='.github/workflows/arbm-091-clean-proof.yml'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^^','HEAD^'],
+            text=True).strip()=='tests/arbm091/test_wps_observer_geometry.py'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^^^','HEAD^^'],
+            text=True).strip()=='scripts/arbm091/wps_observer.py'
+        assert subprocess.check_output(
+            ['git','rev-list','--merges','6d80f63918c8ec788bdb2a7b55a8d48c025d9fb3..HEAD'],
+            text=True).strip()==''
+        observer=Path('scripts/arbm091/wps_observer.py').read_text()
+        tests=Path('tests/arbm091/test_wps_observer_geometry.py').read_text()
+        assert "(1,13,'CoverStatValue_0'):{'geometry':(8339327,2167128,2560320,219456),'completed_text':'$40.9M'}" in observer
+        assert "decisions.append(((slide,shape_id,name),'FAIL_CLOSED'))" in observer
+        assert 'test_value0_completed_height_drift_requests_repair' in tests
+        assert 'test_completed_family_is_rechecked_together_after_each_save' in tests
+        assert 'test_missing_registered_member_fails_closed' in tests
+        print('AUTHORIZED_COVERSTAT_FAMILY_ANTI_REGRESSION_CLOSURE=PASS')
+        PY
         else
           python -m arbm091.verify_transplant
         fi
