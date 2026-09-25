@@ -168,6 +168,7 @@ class SemanticRuntimeTests(unittest.TestCase):
         ws["screenshot_sha256"]="a"*64
         ws["deck_file"]["slide_size"]={"w":12191365,"h":6858000}
         ws["slide_canvas_bbox"]=[352,263,1135,638]
+        ws["controls"]=[]
         ws["deck_slide_shapes"]={"1":[{
             "id":16,"name":"CoverStatValue_1","text":"$2.6M","kind":"shape",
             "geometry":{"x":8339327,"y":3355848,"w":2560320,"h":219456},
@@ -178,31 +179,22 @@ class SemanticRuntimeTests(unittest.TestCase):
         state={"slide":1}
         plan=((1,1338,500,"$2.6M","$2.8M"),)
 
-        self.assertEqual(next_text_action(state,ws,plan)["specialist_phase"],"semantic-target-select")
-        options=copy.deepcopy(ws)
-        options["source"]="cover-stat-1-options"
-        options["screenshot_sha256"]="b"*64
-        options["controls"]=self._current_group()
-        self.assertEqual(next_text_action(state,options,plan)["specialist_phase"],
-                         "semantic-cover-autofit-do-not-select")
+        select=next_text_action(state,ws,plan)
+        self.assertEqual(select["specialist_phase"],"semantic-target-select")
+        self.assertEqual(state["semantic_tx"]["target_key"],[1,"shape",16,"CoverStatValue_1"])
 
-        frozen=copy.deepcopy(options)
-        frozen["source"]="cover-stat-1-frozen"
-        frozen["screenshot_sha256"]="c"*64
-        for control in frozen["controls"]:
-            control["selected"]=control["label"]=="Do not Autofit"
-        self.assertEqual(next_text_action(state,frozen,plan)["specialist_phase"],
-                         "semantic-autofit-reselect")
-        mutation=next_text_action(state,frozen,plan)
+        mutation=next_text_action(state,ws,plan)
         command=mutation["command"]
-        self.assertEqual(mutation["specialist_phase"],"semantic-text-mutation")
+        self.assertEqual(mutation["specialist_phase"],"semantic-coverstat1-direct-replace")
         self.assertIn("pyautogui.hotkey('ctrl', 'h')",command)
         self.assertIn("pyautogui.write('$2.6M', interval=0.08)",command)
         self.assertIn("pyautogui.write('$2.8M', interval=0.08)",command)
         self.assertNotIn("pyautogui.hotkey('ctrl', 'a')",command)
         self.assertNotIn("f2",command.casefold())
+        self.assertNotIn("TEXT OPTIONS",command)
+        self.assertNotIn("PANEL DISCLOSURE",command)
         self.assertEqual(state["semantic_tx"]["mutation_mode"],
-                         "autofit-locked-single-native-replace")
+                         "geometry-locked-single-native-replace")
 
     def test_second_cover_stat_bypasses_panel_controls_and_stays_fail_closed(self):
         ws=base_state()
