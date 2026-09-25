@@ -572,6 +572,41 @@ jobs:
             python -m arbm091.verify_transplant
           )
           git worktree remove -f "$tmp"
+        elif [[ "$current_parent" == '0c6f82a0b9ac25f54079499d7486804dc6fd5a19' && "$current_message" == 'fix(091): audit single replace CoverStat repair' ]]; then
+          [[ "$(git rev-parse HEAD^^^)" == 'f06c158fb1c0ba40e287d2e4a9c2f60db96597aa' ]]
+          [[ "$(git rev-parse HEAD:scripts/arbm091/semantic_runtime.py)" == '4013d923b5af7c1db8900f280edf32bb018cc279' ]]
+          [[ "$(git rev-parse HEAD:tests/arbm091/test_semantic_runtime.py)" == '46527fe1d16983a983e4a2c3eb76b92babc62f48' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^ HEAD)" == '.github/workflows/arbm-091-clean-proof.yml' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^^ HEAD^)" == 'tests/arbm091/test_semantic_runtime.py' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^^^ HEAD^^)" == 'scripts/arbm091/semantic_runtime.py' ]]
+          [[ -z "$(git rev-list --merges 6d80f63918c8ec788bdb2a7b55a8d48c025d9fb3..HEAD)" ]]
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        path='.github/workflows/arbm-091-clean-proof.yml'
+        current=Path(path).read_text()
+        parent=subprocess.check_output(['git','show','HEAD^:'+path],text=True)
+        token='    - name: Verify clean history and exact changed-file scope'
+        def gate(text):
+            start=text.index(token)
+            end=text.index('\n    - name:',start+len(token))
+            return text[start:end]
+        assert current.replace(gate(current),gate(parent),1)==parent
+        runtime=Path('scripts/arbm091/semantic_runtime.py').read_text()
+        tests=Path('tests/arbm091/test_semantic_runtime.py').read_text()
+        assert runtime.count("autofit-locked-single-native-replace")==1
+        assert runtime.count("pyautogui.hotkey('alt', 'n')")==1
+        assert runtime.count("pyautogui.hotkey('alt', 'r')")==1
+        assert 'self.assertNotIn("pyautogui.press(\'delete\')",command)' in tests
+        print('AUTHORIZED_COVERSTAT_SINGLE_REPLACE_SCOPE=PASS')
+        PY
+          tmp="$(mktemp -d)"
+          git worktree add --detach "$tmp" 3b29fa943330937e4352c0c9cca5700cba261624
+          (
+            cd "$tmp"
+            python -m arbm091.verify_transplant
+          )
+          git worktree remove -f "$tmp"
         else
           python -m arbm091.verify_transplant
         fi
