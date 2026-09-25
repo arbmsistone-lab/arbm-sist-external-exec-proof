@@ -139,6 +139,20 @@ def _contained_replace_command(old, replacement):
     ))
 
 
+def _single_replace_command(old, replacement):
+    # Replace only the next match in WPS, never Replace All. The saved OOXML
+    # must still prove the exact target-only diff before this can pass.
+    return "\n".join((
+        "pyautogui.hotkey('ctrl', 'h')",
+        f"pyautogui.write({str(old)!r}, interval=0.08)",
+        "pyautogui.press('tab')",
+        f"pyautogui.write({str(replacement)!r}, interval=0.08)",
+        "pyautogui.hotkey('alt', 'n')",
+        "pyautogui.hotkey('alt', 'r')",
+        "pyautogui.press('esc')",
+    ))
+
+
 def _mutation_command(before_text, old, new):
     replacement=_contained_replacement(before_text,old,new)
     if replacement is not None:
@@ -660,19 +674,12 @@ def next_text_action(state,window_state,plan):
         if model_sha256(current_model)!=str(tx.get("before_model_sha256") or ""):
             return _terminal("TASK091_PRECONDITION_DRIFT")
         tx["stage"]="mutation-issued"
-        tx["mutation_mode"]="autofit-locked-select-all-clear-write"
-        command="\n".join((
-            "pyautogui.hotkey('ctrl', 'a')",
-            "pyautogui.sleep(0.2)",
-            "pyautogui.press('delete')",
-            "pyautogui.sleep(0.2)",
-            f"pyautogui.write({str(tx.get('new') or '')!r}, interval=0.04)",
-            "pyautogui.sleep(0.5)",
-        ))
+        tx["mutation_mode"]="autofit-locked-single-native-replace"
+        command=_single_replace_command(tx.get("old"),tx.get("new"))
         return {
             "action":"exec",
             "command":command,
-            "plan":"With AutoFit already proven locked and the exact short-text target re-entered by double-click, select all text in that active container, clear it, and write the replacement once. Final OOXML diff remains fail-closed.",
+            "plan":"Replace only the next matching CoverStat value in WPS. The final OOXML diff must prove that exactly this shape changed.",
             "specialist_phase":"semantic-text-mutation",
             "expected_change":tx["new"],
         }
@@ -707,16 +714,9 @@ def next_text_action(state,window_state,plan):
         if len(shot)!=64 or shot==tx.get("recovery_before_screenshot_sha256"):
             return _terminal("TASK091_COVER_RECOVERY_SELECTION_UNPROVEN")
         tx["stage"]="recovery-mutation-issued"
-        command="\n".join((
-            "pyautogui.hotkey('ctrl', 'a')",
-            "pyautogui.sleep(0.2)",
-            "pyautogui.press('delete')",
-            "pyautogui.sleep(0.2)",
-            "pyautogui.write('$40.9M', interval=0.04)",
-            "pyautogui.sleep(0.5)",
-        ))
+        command=_single_replace_command(tx.get("recovery_wrong_text"),"$40.9M")
         return {"action":"exec","command":command,
-                "plan":"Clear and rewrite only the reselected, signed CoverStat text once.",
+                "plan":"Replace only the next matching wrong CoverStat value; exact OOXML diff remains mandatory.",
                 "specialist_phase":"semantic-cover-recovery-write","expected_change":"$40.9M"}
 
     if stage=="recovery-mutation-issued":
