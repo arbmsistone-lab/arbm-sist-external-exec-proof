@@ -113,6 +113,7 @@ class SemanticRuntimeTests(unittest.TestCase):
         ws["screenshot_sha256"]="a"*64
         ws["deck_file"]["slide_size"]={"w":12191365,"h":6858000}
         ws["slide_canvas_bbox"]=[352,263,1135,638]
+        ws["controls"]=[]
         ws["deck_slide_shapes"]={"1":[{
             "id":13,"name":"CoverStatValue_0","text":"$42.8M","kind":"shape",
             "geometry":{"x":8339327,"y":2167128,"w":2560320,"h":219456},
@@ -127,39 +128,25 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertEqual(select["specialist_phase"],"semantic-target-select")
         self.assertEqual((select["target"]["cx"],select["target"]["cy"]),(1248,475))
 
-        options=copy.deepcopy(ws)
-        options["source"]="cover-stat-options"
-        options["screenshot_sha256"]="b"*64
-        options["controls"]=self._current_group()
-        freeze=next_text_action(state,options,plan)
-        self.assertEqual(freeze["specialist_phase"],"semantic-cover-autofit-do-not-select")
-        self.assertEqual((freeze["target"]["cx"],freeze["target"]["cy"]),(1560,674))
-
-        frozen=copy.deepcopy(options)
-        frozen["source"]="cover-stat-frozen"
-        frozen["screenshot_sha256"]="c"*64
-        for control in frozen["controls"]:
-            control["selected"]=control["label"]=="Do not Autofit"
-        reselect=next_text_action(state,frozen,plan)
-        self.assertEqual(reselect["specialist_phase"],"semantic-autofit-reselect")
-        self.assertIn("doubleClick(1248, 475",reselect["command"])
-        self.assertEqual(
-            tuple(state["semantic_tx"]["before_state"]["deck_slide_shapes"]["1"][0]["geometry"][k]
-                  for k in ("x","y","w","h")),
-            (8339327,2167128,2560320,219456),
-        )
-
-        mutation=next_text_action(state,frozen,plan)
-        self.assertEqual(mutation["specialist_phase"],"semantic-text-mutation")
+        mutation=next_text_action(state,ws,plan)
+        self.assertEqual(mutation["specialist_phase"],"semantic-coverstat-direct-replace")
         command=mutation["command"]
         self.assertIn("pyautogui.hotkey('ctrl', 'h')",command)
         self.assertIn("pyautogui.write('$42.8M', interval=0.08)",command)
         self.assertIn("pyautogui.write('$40.9M', interval=0.08)",command)
         self.assertLess(command.index("hotkey('alt', 'n')"),command.index("hotkey('alt', 'r')"))
+        self.assertNotIn("TEXT OPTIONS",command)
+        self.assertNotIn("PANEL DISCLOSURE",command)
         self.assertNotIn("pyautogui.hotkey('ctrl', 'a')",command)
         self.assertNotIn("pyautogui.press('delete')",command)
         self.assertNotIn("f2",command.casefold())
-        self.assertEqual(state["semantic_tx"]["mutation_mode"],"autofit-locked-single-native-replace")
+        self.assertTrue(state["semantic_tx"]["panel_independent"])
+        self.assertEqual(state["semantic_tx"]["mutation_mode"],"geometry-locked-single-native-replace")
+        self.assertEqual(
+            tuple(state["semantic_tx"]["before_state"]["deck_slide_shapes"]["1"][0]["geometry"][k]
+                  for k in ("x","y","w","h")),
+            (8339327,2167128,2560320,219456),
+        )
 
     def test_second_cover_stat_uses_locked_autofit_single_replace(self):
         ws=base_state()
