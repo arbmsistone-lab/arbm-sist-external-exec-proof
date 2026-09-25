@@ -459,6 +459,22 @@ def next_text_action(state,window_state,plan):
         if model_sha256(current_model)!=str(tx.get("before_model_sha256") or ""):
             return _terminal("TASK091_PRECONDITION_DRIFT")
         if _cover_title_lock_required(tx) and not tx.get("autofit_preflight_done"):
+            # CoverStatValue_1 is protected by an exact OOXML geometry lock and
+            # post-save semantic diff. Avoid the fragile WPS formatting pane:
+            # a native single Replace changes the exact value without entering
+            # text-edit mode, and any text/geometry collateral remains fail-closed.
+            if key==(1,"shape",16,"CoverStatValue_1"):
+                tx["autofit_preflight_done"]=True
+                tx["autofit_selection_confirmed"]=False
+                tx["stage"]="mutation-issued"
+                tx["mutation_mode"]="geometry-locked-single-native-replace"
+                return {
+                    "action":"exec",
+                    "command":_single_replace_command(tx.get("old"),tx.get("new")),
+                    "plan":"Replace the unique second CoverStat value without opening WPS formatting controls; exact OOXML text and geometry verification remains mandatory.",
+                    "specialist_phase":"semantic-coverstat1-direct-replace",
+                    "expected_change":tx["new"],
+                }
             controls=window_state.get("controls",[]) if isinstance(window_state,dict) else []
             labels={"do not autofit","shrink text on overflow","resize shape to fit text"}
             has_autofit_candidate=any(
