@@ -827,6 +827,45 @@ jobs:
             python -m arbm091.verify_transplant
           )
           git worktree remove -f "$tmp"
+        elif [[ "$current_parent" == 'b0d1c80d2edbc87c0810d8cad11f6ae90c88d3f2' && "$current_message" == 'fix(091): audit atomic CoverStat family contract' ]]; then
+          [[ "$(git rev-parse HEAD^^^^)" == '152828b95428014a9a09ba2adb0afc6bef6d9b26' ]]
+          [[ "$(git rev-parse HEAD^^^)" == '1590d698c2cb440c38b184c9bf464fcdc1e1ba06' ]]
+          [[ "$(git rev-parse HEAD^^)" == 'f6f996db38e87ee405fdf1fccd0ec8a8d3a937b1' ]]
+          [[ "$(git rev-parse HEAD^)" == 'b0d1c80d2edbc87c0810d8cad11f6ae90c88d3f2' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^ HEAD)" == '.github/workflows/arbm-091-clean-proof.yml' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^^^^ HEAD^^^)" == 'scripts/arbm091/semantic_runtime.py' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^^^ HEAD^^)" == 'scripts/arbm091/wps_observer.py' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^^ HEAD^)" == 'tests/arbm091/test_wps_observer_geometry.py' || "$(git diff-tree --no-commit-id --name-only -r HEAD^^ HEAD^)" == 'tests/arbm091/test_semantic_runtime.py' ]]
+          [[ "$(git rev-parse HEAD:scripts/arbm091/semantic_runtime.py)" == '7403e67a3e0f765ace11041f6c5b620c088a495c' ]]
+          [[ "$(git rev-parse HEAD:scripts/arbm091/wps_observer.py)" == '09dc4bc53671eff1dc561f1428f631003fc85c20' ]]
+          [[ "$(git rev-parse HEAD:tests/arbm091/test_wps_observer_geometry.py)" == 'd632dfb3f46608299f557735629c7ef502b9e2e1' ]]
+          [[ "$(git rev-parse HEAD:tests/arbm091/test_semantic_runtime.py)" == '03356b15886f1c18b67c8f7b2eaa7f1b6af2e60f' ]]
+          [[ -z "$(git rev-list --merges 6d80f63918c8ec788bdb2a7b55a8d48c025d9fb3..HEAD)" ]]
+          python - <<'PY'
+        from pathlib import Path
+        runtime=Path('scripts/arbm091/semantic_runtime.py').read_text()
+        observer=Path('scripts/arbm091/wps_observer.py').read_text()
+        tests=Path('tests/arbm091/test_semantic_runtime.py').read_text()+Path('tests/arbm091/test_wps_observer_geometry.py').read_text()
+        assert 'COVERSTAT_ATOMIC_REGISTRY' in runtime
+        assert 'def is_coverstat_atomic_contract(tx):' in runtime
+        assert 'is_coverstat1_atomic_contract' not in runtime
+        assert '(1,"shape",19,"CoverStatValue_2"):(8339327,4544568,2560320,219456)' in runtime
+        assert '_COVERSTAT_ATOMIC_REGISTRY' in observer
+        assert 'def _coverstat_family_repair_decisions(payload):' in observer
+        assert 'def _guest_coverstat_geometry_repair(controller,target):' in observer
+        assert '_coverstat1_repair_decision' not in observer
+        assert '414020' not in [line for line in observer.splitlines() if 'geometry' in line and 'expected' in line]
+        assert 'test_third_cover_stat_uses_registry_panel_independent_contract' in tests
+        assert 'test_value2_height_drift_requests_repair' in tests
+        print('AUTHORIZED_ATOMIC_COVERSTAT_FAMILY_SCOPE=PASS')
+        PY
+          tmp="$(mktemp -d)"
+          git worktree add --detach "$tmp" 3b29fa943330937e4352c0c9cca5700cba261624
+          (
+            cd "$tmp"
+            python -m arbm091.verify_transplant
+          )
+          git worktree remove -f "$tmp"
         else
           python -m arbm091.verify_transplant
         fi
