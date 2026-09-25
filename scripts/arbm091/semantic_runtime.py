@@ -96,7 +96,7 @@ def _nav(current,target):
 
 def _write_command(value):
     lines=str(value).split("\n")
-    commands=["pyautogui.hotkey('ctrl', 'a')"]
+    commands=["pyautogui.press('f2')","pyautogui.hotkey('ctrl', 'a')"]
     for index,line in enumerate(lines):
         if line:
             commands.append(f"pyautogui.write({line!r}, interval=0.02)")

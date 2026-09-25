@@ -322,6 +322,65 @@ jobs:
             python -m arbm091.verify_transplant
           )
           git worktree remove -f "$tmp"
+        elif [[ "$current_parent" == '30620daaab1975a4354b69853d034c5912cd7225' && "$current_message" == 'fix(091): enter text edit mode before shape mutation' ]]; then
+          [[ "$(git rev-parse HEAD^^)" == '14216243c9830255cb0c9754e9dcfa169bb5d8e4' ]]
+          [[ "$(git rev-parse HEAD^^^)" == 'cf6bc68728da26c7b8f781a05a759dde38b8881f' ]]
+          [[ "$(git rev-parse HEAD^^^^)" == '9c3b768c670025c60361e2a36fdb1cd153aa0bfa' ]]
+          [[ "$(git rev-parse HEAD^^^^^)" == '07791bdbc1b3af45a6f1a24f2aacf663c6eea0d0' ]]
+          [[ "$(git rev-parse HEAD^^^^^^)" == '3b29fa943330937e4352c0c9cca5700cba261624' ]]
+          mapfile -t changed < <(git diff-tree --no-commit-id --name-only -r HEAD^ HEAD | LC_ALL=C sort)
+          [[ "${#changed[@]}" -eq 4 ]]
+          [[ "${changed[0]}" == '.github/workflows/arbm-091-clean-proof.yml' ]]
+          [[ "${changed[1]}" == 'scripts/arbm091/semantic_runtime.py' ]]
+          [[ "${changed[2]}" == 'scripts/osworld_free_mesh_shim.py' ]]
+          [[ "${changed[3]}" == 'tests/arbm091/test_semantic_runtime.py' ]]
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        workflow='.github/workflows/arbm-091-clean-proof.yml'
+        runtime='scripts/arbm091/semantic_runtime.py'
+        shim='scripts/osworld_free_mesh_shim.py'
+        tests='tests/arbm091/test_semantic_runtime.py'
+        current_workflow=Path(workflow).read_text()
+        parent_workflow=subprocess.check_output(['git','show','HEAD^:'+workflow],text=True)
+        def step(text,name):
+            token='    - name: '+name
+            start=text.index(token)
+            end=text.find('\n    - name:',start+len(token))
+            return text[start:] if end < 0 else text[start:end]
+        gate='Verify clean history and exact changed-file scope'
+        assert current_workflow.replace(step(current_workflow,gate),step(parent_workflow,gate),1)==parent_workflow
+
+        current_runtime=Path(runtime).read_text()
+        parent_runtime=subprocess.check_output(['git','show','HEAD^:'+runtime],text=True)
+        old_runtime='    commands=["pyautogui.hotkey(\'ctrl\', \'a\')"]'
+        new_runtime='    commands=["pyautogui.press(\'f2\')","pyautogui.hotkey(\'ctrl\', \'a\')"]'
+        assert parent_runtime.count(old_runtime) >= 1
+        assert current_runtime == parent_runtime.replace(old_runtime,new_runtime,1)
+        assert current_runtime.count("pyautogui.press('f2')") >= 1
+
+        current_shim=Path(shim).read_text()
+        parent_shim=subprocess.check_output(['git','show','HEAD^:'+shim],text=True)
+        old_shim='        commands=["pyautogui.hotkey(\'ctrl\', \'a\')"]'
+        new_shim='        commands=["pyautogui.press(\'f2\')","pyautogui.hotkey(\'ctrl\', \'a\')"]'
+        assert parent_shim.count(old_shim) >= 1
+        assert current_shim == parent_shim.replace(old_shim,new_shim,1)
+        assert current_shim.count("pyautogui.press('f2')") >= parent_shim.count("pyautogui.press('f2')")+1
+
+        current_tests=Path(tests).read_text()
+        parent_tests=subprocess.check_output(['git','show','HEAD^:'+tests],text=True)
+        assert current_tests != parent_tests
+        assert 'self.assertIn("press(\'f2\')",mutation["command"])' in current_tests
+        assert 'self.assertLess(mutation["command"].index("press(\'f2\')"),mutation["command"].index("ctrl\', \'a"))' in current_tests
+        print('AUTHORIZED_TEXT_EDIT_MODE_GATE=PASS')
+        PY
+          tmp="$(mktemp -d)"
+          git worktree add --detach "$tmp" HEAD^^^^^^
+          (
+            cd "$tmp"
+            python -m arbm091.verify_transplant
+          )
+          git worktree remove -f "$tmp"
         else
           python -m arbm091.verify_transplant
         fi

@@ -991,7 +991,7 @@ def _task091_section_e_format_step(state, window_state):
         except Exception:
             return _task091_terminal('TASK091_SECTION_E_PRECONDITION_DRIFT',state)
         tx['stage']='font-issued'
-        commands=["pyautogui.hotkey('ctrl', 'a')"]
+        commands=["pyautogui.press('f2')","pyautogui.hotkey('ctrl', 'a')"]
         for _ in range(int(tx.get('font_decrements') or 1)):
             commands.append("pyautogui.hotkey('ctrl', '[')")
         return {'action':'exec','command':'\n'.join(commands),

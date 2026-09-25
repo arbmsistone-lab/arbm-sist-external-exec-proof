@@ -66,6 +66,8 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertNotIn("caret",select["specialist_phase"].casefold())
         mutation=next_text_action(state,ws,plan)
         self.assertEqual(mutation["specialist_phase"],"semantic-text-mutation")
+        self.assertIn("press('f2')",mutation["command"])
+        self.assertLess(mutation["command"].index("press('f2')"),mutation["command"].index("ctrl', 'a"))
         self.assertIn("ctrl', 'a",mutation["command"])
         self.assertIn("$40.9M",mutation["command"])
         forbidden=("press('left'","press('right'","press('home')","ink_left","caret_x")
