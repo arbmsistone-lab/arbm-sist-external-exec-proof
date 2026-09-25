@@ -937,6 +937,33 @@ jobs:
         assert 'test_value2_height_drift_requests_repair' in t2
         print('AUTHORIZED_DETERMINISTIC_COVERSTAT_FAMILY_AUDIT_CHAIN=PASS')
         PY
+        elif [[ "$current_parent" == '90d5faa0d2b6543c008fb69cfa340cf68cd07320' && "$current_message" == 'fix(091): audit final CoverStat legacy test migration' ]]; then
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        assert subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip()=='90d5faa0d2b6543c008fb69cfa340cf68cd07320'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^'],text=True).strip()=='f42406422a8de3f05a444a0f9c3c3558f6c775a5'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^','HEAD'],
+            text=True).strip()=='.github/workflows/arbm-091-clean-proof.yml'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^^','HEAD^'],
+            text=True).strip()=='tests/arbm091/test_semantic_runtime.py'
+        assert subprocess.check_output(
+            ['git','rev-list','--merges','6d80f63918c8ec788bdb2a7b55a8d48c025d9fb3..HEAD'],
+            text=True).strip()==''
+        test=Path('tests/arbm091/test_semantic_runtime.py').read_text()
+        runtime=Path('scripts/arbm091/semantic_runtime.py').read_text()
+        observer=Path('scripts/arbm091/wps_observer.py').read_text()
+        block=test[test.index('def test_cover_stat_freezes_autofit_then_reselects_and_direct_writes'):
+                   test.index('\n    def ',test.index('def test_cover_stat_freezes_autofit_then_reselects_and_direct_writes')+10)]
+        assert 'semantic-coverstat-direct-replace' in block
+        assert 'geometry-locked-single-native-replace' in block
+        assert 'semantic-cover-autofit-do-not-select' not in block
+        assert 'COVERSTAT_ATOMIC_REGISTRY' in runtime
+        assert 'def _coverstat_family_repair_decisions(payload):' in observer
+        print('AUTHORIZED_FINAL_LEGACY_COVERSTAT_TEST_MIGRATION=PASS')
+        PY
         else
           python -m arbm091.verify_transplant
         fi
