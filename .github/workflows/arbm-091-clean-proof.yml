@@ -646,6 +646,45 @@ jobs:
             python -m arbm091.verify_transplant
           )
           git worktree remove -f "$tmp"
+        elif [[ "$current_parent" == 'f3f901ecb75fa89d230e84ea8bbbef013319c3f0' && "$current_message" == 'fix(091): audit panel-independent second CoverStat' ]]; then
+          [[ "$(git rev-parse HEAD^^^)" == 'f24295d2dde2b074dfdb85372666620ff4f2edea' ]]
+          [[ "$(git rev-parse HEAD^)" == 'f3f901ecb75fa89d230e84ea8bbbef013319c3f0' ]]
+          [[ "$(git rev-parse HEAD^^)" == 'dbb7b835f6e6dd6be2b9e953aa41783e25bb4a8f' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^ HEAD)" == '.github/workflows/arbm-091-clean-proof.yml' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^^ HEAD^)" == 'tests/arbm091/test_semantic_runtime.py' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^^^ HEAD^^)" == 'scripts/arbm091/semantic_runtime.py' ]]
+          [[ "$(git rev-parse HEAD:scripts/arbm091/semantic_runtime.py)" == 'dcec8daeab5273014b6c7926a1d3d143dc2b1a78' ]]
+          [[ "$(git rev-parse HEAD:tests/arbm091/test_semantic_runtime.py)" == '93b0b31202ac159cb5e93f9d1d2da88e2de1ef0f' ]]
+          [[ -z "$(git rev-list --merges 6d80f63918c8ec788bdb2a7b55a8d48c025d9fb3..HEAD)" ]]
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        path='.github/workflows/arbm-091-clean-proof.yml'
+        current=Path(path).read_text()
+        parent=subprocess.check_output(['git','show','HEAD^:'+path],text=True)
+        token='    - name: Verify clean history and exact changed-file scope'
+        def gate(text):
+            start=text.index(token)
+            end=text.index('\n    - name:',start+len(token))
+            return text[start:end]
+        assert current.replace(gate(current),gate(parent),1)==parent
+        runtime=Path('scripts/arbm091/semantic_runtime.py').read_text()
+        tests=Path('tests/arbm091/test_semantic_runtime.py').read_text()
+        assert 'semantic-coverstat1-direct-replace' in runtime
+        assert 'geometry-locked-single-native-replace' in runtime
+        assert 'if key==(1,"shape",16,"CoverStatValue_1"):' in runtime
+        assert 'test_second_cover_stat_bypasses_panel_controls_and_stays_fail_closed' in tests
+        assert 'ws["controls"]=[]' in tests
+        assert 'self.assertNotIn("TEXT OPTIONS",action["command"])' in tests
+        print('AUTHORIZED_PANEL_INDEPENDENT_COVERSTAT1_SCOPE=PASS')
+        PY
+          tmp="$(mktemp -d)"
+          git worktree add --detach "$tmp" 3b29fa943330937e4352c0c9cca5700cba261624
+          (
+            cd "$tmp"
+            python -m arbm091.verify_transplant
+          )
+          git worktree remove -f "$tmp"
         else
           python -m arbm091.verify_transplant
         fi
