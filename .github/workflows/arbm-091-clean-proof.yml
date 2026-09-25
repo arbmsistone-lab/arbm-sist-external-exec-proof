@@ -992,6 +992,40 @@ jobs:
         assert 'test_missing_registered_member_fails_closed' in tests
         print('AUTHORIZED_COVERSTAT_FAMILY_ANTI_REGRESSION_CLOSURE=PASS')
         PY
+        elif [[ "$current_parent" == 'ee947de7e6dea519f0bfa2a63996ed6b6445981b' && "$current_message" == 'fix(091): audit final blocker closure' ]]; then
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        assert subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip()=='ee947de7e6dea519f0bfa2a63996ed6b6445981b'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^'],text=True).strip()=='a071e8cb2cec654f674260dc4a431c42191ebec9'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^^'],text=True).strip()=='d26013f6cae283db0c7e2609e108ba4168013a85'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^^^'],text=True).strip()=='588a3c3595701bca7cb0db17fa2f316f92fd702f'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^','HEAD'],
+            text=True).strip()=='.github/workflows/arbm-091-clean-proof.yml'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^^','HEAD^'],
+            text=True).strip()=='tests/arbm091/test_semantic_runtime.py'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^^^','HEAD^^'],
+            text=True).strip()=='scripts/osworld_free_mesh_shim.py'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^^^^','HEAD^^^'],
+            text=True).strip()=='scripts/arbm091/semantic_runtime.py'
+        assert subprocess.check_output(
+            ['git','rev-list','--merges','588a3c3595701bca7cb0db17fa2f316f92fd702f..HEAD'],
+            text=True).strip()==''
+        runtime=Path('scripts/arbm091/semantic_runtime.py').read_text()
+        shim=Path('scripts/osworld_free_mesh_shim.py').read_text()
+        tests=Path('tests/arbm091/test_semantic_runtime.py').read_text()
+        assert 'def _summary_arr_noop_retry_scope(tx,window_state):' in runtime
+        assert 'semantic-summaryarr-noop-retry-write' in runtime
+        assert "'font_decrements': 3" in shim
+        assert 'test_summary_arr_persisted_noop_retries_once_then_roundtrips' in tests
+        assert 'test_summary_arr_noop_retry_is_exactly_once_and_scope_locked' in tests
+        assert 'test_section_e_uses_three_step_bounded_font_reduction' in tests
+        print('AUTHORIZED_FINAL_BLOCKER_CLOSURE=PASS')
+        PY
         else
           python -m arbm091.verify_transplant
         fi
