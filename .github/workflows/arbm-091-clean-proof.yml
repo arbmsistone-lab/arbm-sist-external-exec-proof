@@ -473,6 +473,47 @@ jobs:
             python -m arbm091.verify_transplant
           )
           git worktree remove -f "$tmp"
+        elif [[ "$current_parent" == 'fe0d37bbfdb4b7116a371998f93f4299fa390ac2' && "$current_message" == 'fix(091): reuse observed Text Options panel' ]]; then
+          mapfile -t changed < <(git diff-tree --no-commit-id --name-only -r HEAD^ HEAD | LC_ALL=C sort)
+          [[ "${#changed[@]}" -eq 3 ]]
+          [[ "${changed[0]}" == '.github/workflows/arbm-091-clean-proof.yml' ]]
+          [[ "${changed[1]}" == 'scripts/arbm091/semantic_runtime.py' ]]
+          [[ "${changed[2]}" == 'tests/arbm091/test_semantic_runtime.py' ]]
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        workflow='.github/workflows/arbm-091-clean-proof.yml'
+        runtime='scripts/arbm091/semantic_runtime.py'
+        tests='tests/arbm091/test_semantic_runtime.py'
+        current_workflow=Path(workflow).read_text()
+        parent_workflow=subprocess.check_output(['git','show','HEAD^:'+workflow],text=True)
+        current_runtime=Path(runtime).read_text()
+        parent_runtime=subprocess.check_output(['git','show','HEAD^:'+runtime],text=True)
+        current_tests=Path(tests).read_text()
+        parent_tests=subprocess.check_output(['git','show','HEAD^:'+tests],text=True)
+        def step(text,name):
+            token='    - name: '+name
+            start=text.index(token)
+            end=text.find('\n    - name:',start+len(token))
+            return text[start:] if end < 0 else text[start:end]
+        gate='Verify clean history and exact changed-file scope'
+        assert current_workflow.replace(step(current_workflow,gate),step(parent_workflow,gate),1)==parent_workflow
+        assert current_runtime.count('has_text_options_candidate=any(')==parent_runtime.count('has_text_options_candidate=any(')+1
+        assert current_runtime.count('current-frame-text-options')==parent_runtime.count('current-frame-text-options')+1
+        assert current_runtime.count('already-observed current-frame TEXT OPTIONS control')==parent_runtime.count('already-observed current-frame TEXT OPTIONS control')+1
+        test_name='test_cover_title_reuses_current_text_options_without_reopening_panel'
+        assert current_tests.count(test_name)==parent_tests.count(test_name)+1
+        assert 'self.assertEqual(action["command"],"pyautogui.click(1715, 204)")' in current_tests
+        assert 'self.assertNotIn("f10",action["command"].casefold())' in current_tests
+        print('AUTHORIZED_REUSE_OBSERVED_TEXT_OPTIONS_GATE=PASS')
+        PY
+          tmp="$(mktemp -d)"
+          git worktree add --detach "$tmp" 3b29fa943330937e4352c0c9cca5700cba261624
+          (
+            cd "$tmp"
+            python -m arbm091.verify_transplant
+          )
+          git worktree remove -f "$tmp"
         else
           python -m arbm091.verify_transplant
         fi

@@ -442,6 +442,28 @@ def next_text_action(state,window_state,plan):
                     "plan":"Use the already-published, owner-consistent current-frame AutoFit group for the selected locked shape; do not reopen the proven Text Options/Text Box path.",
                     "specialist_phase":"semantic-cover-autofit-do-not-select",
                 }
+            has_text_options_candidate=any(
+                isinstance(item,dict)
+                and str(item.get("label") or "").strip().casefold()=="text options"
+                and item.get("showing") is True
+                and item.get("enabled") is True
+                for item in controls)
+            if has_text_options_candidate:
+                try:
+                    target=_panel_target(window_state,"TEXT OPTIONS")
+                except SemanticTransactionError as exc:
+                    return _terminal(str(exc))
+                tx["stage"]="autofit-text-options-issued"
+                tx["autofit_pane_screenshot_sha256"]=str(window_state.get("screenshot_sha256") or "")
+                tx["autofit_preflight_source"]="current-frame-text-options"
+                tx["autofit_panel_points"]={"text_options":[target["cx"],target["cy"]]}
+                return {
+                    "action":"exec",
+                    "command":f"pyautogui.click({target['cx']}, {target['cy']})",
+                    "target":target,
+                    "plan":"Use the already-observed current-frame TEXT OPTIONS control; do not toggle or reopen a panel that is already visible.",
+                    "specialist_phase":"semantic-cover-autofit-text-options-open",
+                }
             tx["stage"]="autofit-pane-open-issued"
             tx["pre_autofit_screenshot_sha256"]=str(window_state.get("screenshot_sha256") or "")
             return {

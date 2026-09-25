@@ -99,6 +99,42 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertNotIn("f2",command.casefold())
         self.assertEqual(state["semantic_tx"]["mutation_mode"],"autofit-locked-select-all-clear-write")
 
+    def test_cover_title_reuses_current_text_options_without_reopening_panel(self):
+        ws=base_state()
+        ws["active_slide"]=1
+        ws["deck_slide_shapes"]={"1":[{
+            "id":6,"name":"CoverTitle",
+            "text":"H2 Operating Committee Pack\nGrowth Plan Draft",
+            "kind":"shape","frame_id":0,"row":-1,"col":-1,
+            "geometry":{"x":749808,"y":1078992,"w":5852160,"h":1234440},
+            "font_sizes":[2400],"fill_rgb":"",
+            "autofit_mode":"RESIZE_SHAPE_TO_FIT_TEXT",
+        }]}
+        ws["deck_slide_relationships"]={"1":[]}
+        state={"slide":1}
+        plan=((1,745,335,"Growth Plan Draft",
+               "H2 Operating Committee Pack\nStabilize-and-Recover Rebaseline"),)
+
+        select=next_text_action(state,ws,plan)
+        self.assertEqual(select["specialist_phase"],"semantic-target-select")
+
+        current=copy.deepcopy(ws)
+        current["source"]="0003-01-after"
+        current["screenshot_sha256"]="c"*64
+        current["controls"]=[{
+            "label":"TEXT OPTIONS","role":"visual-tab","pid":2820,
+            "application":"wpsoffice wpsoffice","bbox":[1640,190,150,28],
+            "showing":True,"enabled":True,
+        }]
+        action=next_text_action(state,current,plan)
+        self.assertEqual(action["specialist_phase"],"semantic-cover-autofit-text-options-open")
+        self.assertEqual(action["command"],"pyautogui.click(1715, 204)")
+        self.assertEqual(action["target"]["label"],"TEXT OPTIONS")
+        self.assertNotIn("shift",action["command"].casefold())
+        self.assertNotIn("f10",action["command"].casefold())
+        self.assertEqual(state["semantic_tx"]["autofit_preflight_source"],"current-frame-text-options")
+        self.assertEqual(state["semantic_tx"]["autofit_panel_points"]["text_options"],[1715,204])
+
     def test_missing_canvas_is_rejected_fail_closed(self):
         ws=base_state(); ws.pop("slide_canvas_bbox")
         result=next_text_action({"slide":3},ws,((3,843,404,"$42.8M","$40.9M"),))
