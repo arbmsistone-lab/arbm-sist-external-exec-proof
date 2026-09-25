@@ -16,6 +16,8 @@ def state(*rows):
 
 class CoverStatFamilyGeometryDecisionTests(unittest.TestCase):
     def test_registry_has_proven_family_members(self):
+        self.assertEqual(_COVERSTAT_ATOMIC_REGISTRY[(1,13,"CoverStatValue_0")],
+                         {"geometry":(8339327,2167128,2560320,219456),"completed_text":"$40.9M"})
         self.assertEqual(_COVERSTAT_ATOMIC_REGISTRY[(1,16,"CoverStatValue_1")]["geometry"],
                          (8339327,3355848,2560320,219456))
         self.assertEqual(_COVERSTAT_ATOMIC_REGISTRY[(1,19,"CoverStatValue_2")]["geometry"],
@@ -73,10 +75,31 @@ class CoverStatFamilyGeometryDecisionTests(unittest.TestCase):
         )
         self.assertEqual(dict(_coverstat_family_repair_decisions(ws))[(1,19,"CoverStatValue_2")],"PASS")
 
-    def test_uncompleted_value0_is_never_repaired(self):
-        ws=state(row(13,"CoverStatValue_0","anything",{"x":8339327,"y":2167128,"w":2560320,"h":414020}))
+    def test_value0_completed_height_drift_requests_repair(self):
+        ws=state(row(13,"CoverStatValue_0","$40.9M",{"x":8339327,"y":2167128,"w":2560320,"h":414020}))
+        self.assertEqual(dict(_coverstat_family_repair_decisions(ws))[(1,13,"CoverStatValue_0")],"REPAIR_HEIGHT")
+
+    def test_unmutated_value0_wrong_text_is_not_repaired(self):
+        ws=state(row(13,"CoverStatValue_0","$42.8M",{"x":8339327,"y":2167128,"w":2560320,"h":414020}))
+        self.assertEqual(dict(_coverstat_family_repair_decisions(ws))[(1,13,"CoverStatValue_0")],"NOOP")
+
+    def test_completed_family_is_rechecked_together_after_each_save(self):
+        ws=state(
+            row(13,"CoverStatValue_0","$40.9M",{"x":8339327,"y":2167128,"w":2560320,"h":414020}),
+            row(16,"CoverStatValue_1","$2.8M",{"x":8339327,"y":3355848,"w":2560320,"h":219456}),
+            row(19,"CoverStatValue_2","206",{"x":8339327,"y":4544568,"w":2560320,"h":219456}),
+        )
         decisions=dict(_coverstat_family_repair_decisions(ws))
-        self.assertNotIn((1,13,"CoverStatValue_0"),decisions)
+        self.assertEqual(decisions[(1,13,"CoverStatValue_0")],"REPAIR_HEIGHT")
+        self.assertEqual(decisions[(1,16,"CoverStatValue_1")],"PASS")
+        self.assertEqual(decisions[(1,19,"CoverStatValue_2")],"PASS")
+
+    def test_missing_registered_member_fails_closed(self):
+        ws=state(
+            row(13,"CoverStatValue_0","$40.9M",{"x":8339327,"y":2167128,"w":2560320,"h":219456}),
+            row(16,"CoverStatValue_1","$2.8M",{"x":8339327,"y":3355848,"w":2560320,"h":219456}),
+        )
+        self.assertEqual(dict(_coverstat_family_repair_decisions(ws))[(1,19,"CoverStatValue_2")],"FAIL_CLOSED")
 
 
 if __name__=="__main__":
