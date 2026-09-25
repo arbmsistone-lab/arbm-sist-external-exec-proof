@@ -676,7 +676,10 @@ class SemanticRuntimeTests(unittest.TestCase):
         other["deck_slide_shapes"]["2"][0]["name"]="OtherShape"
         fresh={"slide":2}
         selected=next_text_action(fresh,other,plan)
-        self.assertEqual(selected["action"],"terminal")
+        self.assertEqual(selected["action"],"exec")
+        other_tx=fresh["semantic_tx"]
+        self.assertNotEqual(tuple(other_tx.get("target_key") or ()),
+                            (2,"shape",15,"SummaryArr_Value"))
 
     def test_section_e_uses_three_step_bounded_font_reduction(self):
         shim=Path("scripts/osworld_free_mesh_shim.py").read_text(encoding="utf-8")
