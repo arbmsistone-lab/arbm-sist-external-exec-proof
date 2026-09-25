@@ -780,6 +780,53 @@ jobs:
             python -m arbm091.verify_transplant
           )
           git worktree remove -f "$tmp"
+        elif [[ "$current_parent" == 'b130cc0d4a29ec7fb0c1a4ef0c00ac245e269365' && "$current_message" == 'fix(091): audit atomic CoverStat1 persisted contract' ]]; then
+          [[ "$(git rev-parse HEAD^^)" == 'b092ad30db37f26f1a5aef69edd698cade79970a' ]]
+          [[ "$(git rev-parse HEAD^)" == 'b130cc0d4a29ec7fb0c1a4ef0c00ac245e269365' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^ HEAD)" == '.github/workflows/arbm-091-clean-proof.yml' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^^ HEAD^)" == 'scripts/arbm091/semantic_runtime.py' ]]
+          [[ "$(git rev-parse HEAD:scripts/arbm091/semantic_runtime.py)" == 'd6a39c978ed60530ac2990acd623ea93ff742222' ]]
+          [[ -z "$(git rev-list --merges 6d80f63918c8ec788bdb2a7b55a8d48c025d9fb3..HEAD)" ]]
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        wf='.github/workflows/arbm-091-clean-proof.yml'
+        runtime='scripts/arbm091/semantic_runtime.py'
+        current=Path(wf).read_text()
+        parent=subprocess.check_output(['git','show','HEAD^:'+wf],text=True)
+        token='    - name: Verify clean history and exact changed-file scope'
+        def gate(text):
+            start=text.index(token)
+            end=text.index('\n    - name:',start+len(token))
+            return text[start:end]
+        assert current.replace(gate(current),gate(parent),1)==parent
+        text=Path(runtime).read_text()
+        required=(
+            'def is_coverstat1_atomic_contract(tx):',
+            'and tx.get("panel_independent") is True',
+            'def _assert_coverstat1_atomic_state(window_state,tx):',
+            'TASK091_COVERSTAT1_ATOMIC_CONTRACT_UNPROVEN',
+            'TASK091_COVERSTAT1_ATOMIC_TEXT_DRIFT',
+            'TASK091_COVERSTAT1_ATOMIC_GEOMETRY_DRIFT',
+            'tx["panel_independent"]=True',
+            'if is_coverstat1_atomic_contract(tx):',
+            'tx["atomic_save_verified"]=True',
+            'tx["atomic_roundtrip_verified"]=True',
+        )
+        for item in required:
+            assert item in text, item
+        assert text.count('TASK091_AUTOFIT_SELECTION_EVIDENCE_MISSING') >= 1
+        assert text.count('TASK091_AUTOFIT_NOT_PERSISTED') >= 1
+        assert text.count('TASK091_AUTOFIT_ROUNDTRIP_NOT_PERSISTED') >= 1
+        print('AUTHORIZED_ATOMIC_COVERSTAT1_PERSISTED_CONTRACT_SCOPE=PASS')
+        PY
+          tmp="$(mktemp -d)"
+          git worktree add --detach "$tmp" 3b29fa943330937e4352c0c9cca5700cba261624
+          (
+            cd "$tmp"
+            python -m arbm091.verify_transplant
+          )
+          git worktree remove -f "$tmp"
         else
           python -m arbm091.verify_transplant
         fi
