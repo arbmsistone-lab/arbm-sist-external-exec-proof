@@ -161,6 +161,49 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertNotIn("f2",command.casefold())
         self.assertEqual(state["semantic_tx"]["mutation_mode"],"autofit-locked-single-native-replace")
 
+    def test_second_cover_stat_uses_locked_autofit_single_replace(self):
+        ws=base_state()
+        ws["active_slide"]=1
+        ws["source"]="cover-stat-1-before"
+        ws["screenshot_sha256"]="a"*64
+        ws["deck_file"]["slide_size"]={"w":12191365,"h":6858000}
+        ws["slide_canvas_bbox"]=[352,263,1135,638]
+        ws["deck_slide_shapes"]={"1":[{
+            "id":16,"name":"CoverStatValue_1","text":"$2.6M","kind":"shape",
+            "geometry":{"x":8339327,"y":3355848,"w":2560320,"h":219456},
+            "font_sizes":[2100,2100],"fill_rgb":"",
+            "autofit_mode":"RESIZE_SHAPE_TO_FIT_TEXT",
+        }]}
+        ws["deck_slide_relationships"]={"1":[]}
+        state={"slide":1}
+        plan=((1,1338,500,"$2.6M","$2.8M"),)
+
+        self.assertEqual(next_text_action(state,ws,plan)["specialist_phase"],"semantic-target-select")
+        options=copy.deepcopy(ws)
+        options["source"]="cover-stat-1-options"
+        options["screenshot_sha256"]="b"*64
+        options["controls"]=self._current_group()
+        self.assertEqual(next_text_action(state,options,plan)["specialist_phase"],
+                         "semantic-cover-autofit-do-not-select")
+
+        frozen=copy.deepcopy(options)
+        frozen["source"]="cover-stat-1-frozen"
+        frozen["screenshot_sha256"]="c"*64
+        for control in frozen["controls"]:
+            control["selected"]=control["label"]=="Do not Autofit"
+        self.assertEqual(next_text_action(state,frozen,plan)["specialist_phase"],
+                         "semantic-autofit-reselect")
+        mutation=next_text_action(state,frozen,plan)
+        command=mutation["command"]
+        self.assertEqual(mutation["specialist_phase"],"semantic-text-mutation")
+        self.assertIn("pyautogui.hotkey('ctrl', 'h')",command)
+        self.assertIn("pyautogui.write('$2.6M', interval=0.08)",command)
+        self.assertIn("pyautogui.write('$2.8M', interval=0.08)",command)
+        self.assertNotIn("pyautogui.hotkey('ctrl', 'a')",command)
+        self.assertNotIn("f2",command.casefold())
+        self.assertEqual(state["semantic_tx"]["mutation_mode"],
+                         "autofit-locked-single-native-replace")
+
     def test_cover_title_reuses_current_text_options_without_reopening_panel(self):
         ws=base_state()
         ws["active_slide"]=1
