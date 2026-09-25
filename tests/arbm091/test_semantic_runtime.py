@@ -615,5 +615,78 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertIn("TASK091_SECTION_E_SEMANTIC_INTERRUPTED_BY_TRANSIENT",transient)
 
 
+    def test_summary_arr_persisted_noop_retries_once_then_roundtrips(self):
+        ws=base_state()
+        ws["active_slide"]=2
+        ws["deck_slide_shapes"]={"2":[{
+            "id":15,"name":"SummaryArr_Value","text":"$42.8M","kind":"shape",
+            "geometry":{"x":1000,"y":2000,"w":3000,"h":4000},
+            "font_sizes":[1600],"fill_rgb":"",
+        }]}
+        ws["deck_slide_relationships"]={"2":[]}
+        state={"slide":2}
+        plan=((2,558,364,"$42.8M","$40.9M"),)
+        self.assertEqual(next_text_action(state,ws,plan)["specialist_phase"],"semantic-target-select")
+        self.assertEqual(next_text_action(state,ws,plan)["specialist_phase"],"semantic-text-mutation")
+        self.assertEqual(next_text_action(state,ws,plan)["specialist_phase"],"semantic-edit-finalize")
+        self.assertEqual(next_text_action(state,ws,plan)["specialist_phase"],"semantic-save")
+        noop=copy.deepcopy(ws)
+        noop["deck_file"]["sha256"]="b"*64
+        retry=next_text_action(state,noop,plan)
+        self.assertEqual(retry["specialist_phase"],"semantic-summaryarr-noop-retry-select")
+        self.assertEqual(state["semantic_tx"]["noop_retry_attempts"],1)
+        write=next_text_action(state,noop,plan)
+        self.assertEqual(write["specialist_phase"],"semantic-summaryarr-noop-retry-write")
+        self.assertIn("press('f2')",write["command"])
+        self.assertIn("hotkey('ctrl', 'a')",write["command"])
+        self.assertIn("$40.9M",write["command"])
+        self.assertEqual(next_text_action(state,noop,plan)["specialist_phase"],
+                         "semantic-summaryarr-noop-retry-commit")
+        self.assertEqual(next_text_action(state,noop,plan)["specialist_phase"],
+                         "semantic-summaryarr-noop-retry-save")
+        fixed=copy.deepcopy(noop)
+        fixed["deck_file"]["sha256"]="c"*64
+        fixed["deck_slide_shapes"]["2"][0]["text"]="$40.9M"
+        reread=next_text_action(state,fixed,plan)
+        self.assertEqual(reread["specialist_phase"],
+                         "semantic-summaryarr-noop-retry-roundtrip")
+        passed=next_text_action(state,fixed,plan)
+        self.assertEqual(passed["checkpoint"],"TASK091_SEMANTIC_TRANSACTION_PASS")
+        self.assertEqual(state["semantic_index"],1)
+
+    def test_summary_arr_noop_retry_is_exactly_once_and_scope_locked(self):
+        ws=base_state()
+        ws["active_slide"]=2
+        ws["deck_slide_shapes"]={"2":[{
+            "id":15,"name":"SummaryArr_Value","text":"$42.8M","kind":"shape",
+            "geometry":{"x":1000,"y":2000,"w":3000,"h":4000},
+            "font_sizes":[1600],"fill_rgb":"",
+        }]}
+        ws["deck_slide_relationships"]={"2":[]}
+        state={"slide":2}
+        plan=((2,558,364,"$42.8M","$40.9M"),)
+        for _ in range(4):
+            next_text_action(state,ws,plan)
+        noop=copy.deepcopy(ws); noop["deck_file"]["sha256"]="b"*64
+        next_text_action(state,noop,plan)
+        state["semantic_tx"]["stage"]="save-issued"
+        result=next_text_action(state,noop,plan)
+        self.assertEqual(result["action"],"terminal")
+        other=copy.deepcopy(ws)
+        other["deck_slide_shapes"]["2"][0]["name"]="OtherShape"
+        fresh={"slide":2}
+        selected=next_text_action(fresh,other,plan)
+        self.assertEqual(selected["action"],"terminal")
+
+    def test_section_e_uses_three_step_bounded_font_reduction(self):
+        shim=Path("scripts/osworld_free_mesh_shim.py").read_text(encoding="utf-8")
+        block=shim.split("TASK091_SECTION_E_FORMAT = {",1)[1].split("}",1)[0]
+        self.assertIn("'font_decrements': 3",block)
+        body=shim.split("def _task091_section_e_format_step",1)[1].split(
+            "def _task091_system_check_close",1)[0]
+        self.assertIn("task091_verify_font_transaction",body)
+        self.assertIn("TASK091_SECTION_E_ROUNDTRIP_DRIFT",body)
+
+
 if __name__=="__main__":
     unittest.main()
