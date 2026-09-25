@@ -1026,6 +1026,39 @@ jobs:
         assert 'test_section_e_uses_three_step_bounded_font_reduction' in tests
         print('AUTHORIZED_FINAL_BLOCKER_CLOSURE=PASS')
         PY
+        elif [[ "$current_parent" == '074f34e26540f2ec2a398480b20189f99c70da01' && "$current_message" == 'fix(091): authorize final test-contract migration' ]]; then
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        assert subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip()=='074f34e26540f2ec2a398480b20189f99c70da01'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^'],text=True).strip()=='cdd818cfcfe70e64067deeb69a1703bef07108cc'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^^'],text=True).strip()=='332d12b55cbcf1da3b4b0bfd93f3d96d5a483d86'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^^^'],text=True).strip()=='90d45b0f208b6932f0a8381bc1e6336185ec9f01'
+        expected=[
+          ('HEAD^','tests/arbm091/test_semantic_runtime.py'),
+          ('HEAD^^','tests/arbm091/test_score_and_trace.py'),
+          ('HEAD^^^','scripts/test_osworld_mesh.py'),
+        ]
+        for ref,path in expected:
+            parent=ref+'^'
+            changed=subprocess.check_output(
+                ['git','diff-tree','--no-commit-id','--name-only','-r',parent,ref],
+                text=True).strip()
+            assert changed==path,(ref,changed)
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^','HEAD'],
+            text=True).strip()=='.github/workflows/arbm-091-clean-proof.yml'
+        assert subprocess.check_output(
+            ['git','rev-list','--merges','90d45b0f208b6932f0a8381bc1e6336185ec9f01..HEAD'],
+            text=True).strip()==''
+        mesh=Path('scripts/test_osworld_mesh.py').read_text()
+        score=Path('tests/arbm091/test_score_and_trace.py').read_text()
+        sem=Path('tests/arbm091/test_semantic_runtime.py').read_text()
+        assert "self.assertEqual(spec['font_decrements'],3)" in mesh
+        assert "('48_section_e_three_point',\"'font_decrements': 3\" in source)" in score
+        assert 'self.assertNotEqual(tuple(other_tx.get("target_key") or ()),' in sem
+        print('AUTHORIZED_FINAL_TEST_CONTRACT_MIGRATION=PASS')
+        PY
         else
           python -m arbm091.verify_transplant
         fi
