@@ -165,6 +165,13 @@ _AUTOFIT_GEOMETRY_LOCKS={
     (1,"shape",7,"CoverSub"):(768096,2743200,5669280,1280160),
     (1,"shape",13,"CoverStatValue_0"):(8339327,2167128,2560320,219456),
     (1,"shape",16,"CoverStatValue_1"):(8339327,3355848,2560320,219456),
+    (1,"shape",19,"CoverStatValue_2"):(8339327,4544568,2560320,219456),
+}
+
+COVERSTAT_ATOMIC_REGISTRY={
+    (1,"shape",13,"CoverStatValue_0"):_AUTOFIT_GEOMETRY_LOCKS[(1,"shape",13,"CoverStatValue_0")],
+    (1,"shape",16,"CoverStatValue_1"):_AUTOFIT_GEOMETRY_LOCKS[(1,"shape",16,"CoverStatValue_1")],
+    (1,"shape",19,"CoverStatValue_2"):_AUTOFIT_GEOMETRY_LOCKS[(1,"shape",19,"CoverStatValue_2")],
 }
 
 
@@ -174,26 +181,29 @@ def _locked_autofit_geometry(tx):
     return _AUTOFIT_GEOMETRY_LOCKS.get(tuple(tx.get("target_key") or ()))
 
 
-def is_coverstat1_atomic_contract(tx):
-    """Exact, narrow contract for the panel-independent second CoverStat."""
+def is_coverstat_atomic_contract(tx):
+    """Exact registry-backed contract for panel-independent CoverStat values."""
     if not isinstance(tx,dict):
         return False
+    key=tuple(tx.get("target_key") or ())
     return (
-        tuple(tx.get("target_key") or ())==(1,"shape",16,"CoverStatValue_1")
+        key in COVERSTAT_ATOMIC_REGISTRY
+        and str(key[3]).startswith("CoverStatValue_")
         and str(tx.get("mutation_mode") or "")=="geometry-locked-single-native-replace"
         and tx.get("panel_independent") is True
     )
 
 
-def _assert_coverstat1_atomic_state(window_state,tx):
-    if not is_coverstat1_atomic_contract(tx):
-        raise SemanticTransactionError("TASK091_COVERSTAT1_ATOMIC_CONTRACT_UNPROVEN")
+def _assert_coverstat_atomic_state(window_state,tx):
+    if not is_coverstat_atomic_contract(tx):
+        raise SemanticTransactionError("TASK091_COVERSTAT_ATOMIC_CONTRACT_UNPROVEN")
+    key=tuple(tx.get("target_key") or ())
     raw=_raw_locked_shape(window_state,tx)
     if str(raw.get("text") or "")!=str(tx.get("new") or ""):
-        raise SemanticTransactionError("TASK091_COVERSTAT1_ATOMIC_TEXT_DRIFT")
+        raise SemanticTransactionError("TASK091_COVERSTAT_ATOMIC_TEXT_DRIFT")
     geometry=tuple(int((raw.get("geometry") or {}).get(k) or 0) for k in ("x","y","w","h"))
-    if geometry!=tuple(_AUTOFIT_GEOMETRY_LOCKS[(1,"shape",16,"CoverStatValue_1")]):
-        raise SemanticTransactionError("TASK091_COVERSTAT1_ATOMIC_GEOMETRY_DRIFT")
+    if geometry!=tuple(COVERSTAT_ATOMIC_REGISTRY[key]):
+        raise SemanticTransactionError("TASK091_COVERSTAT_ATOMIC_GEOMETRY_DRIFT")
     return raw
 
 
@@ -482,11 +492,9 @@ def next_text_action(state,window_state,plan):
         if model_sha256(current_model)!=str(tx.get("before_model_sha256") or ""):
             return _terminal("TASK091_PRECONDITION_DRIFT")
         if _cover_title_lock_required(tx) and not tx.get("autofit_preflight_done"):
-            # CoverStatValue_1 is protected by an exact OOXML geometry lock and
-            # post-save semantic diff. Avoid the fragile WPS formatting pane:
-            # a native single Replace changes the exact value without entering
-            # text-edit mode, and any text/geometry collateral remains fail-closed.
-            if key==(1,"shape",16,"CoverStatValue_1"):
+            # Registry-backed CoverStats use persisted OOXML, never the WPS
+            # formatting pane, as their geometry authority.
+            if key in COVERSTAT_ATOMIC_REGISTRY:
                 tx["autofit_preflight_done"]=True
                 tx["autofit_selection_confirmed"]=False
                 tx["panel_independent"]=True
@@ -495,8 +503,8 @@ def next_text_action(state,window_state,plan):
                 return {
                     "action":"exec",
                     "command":_single_replace_command(tx.get("old"),tx.get("new")),
-                    "plan":"Replace the unique second CoverStat value without opening WPS formatting controls; exact OOXML text and geometry verification remains mandatory.",
-                    "specialist_phase":"semantic-coverstat1-direct-replace",
+                    "plan":"Replace the unique registered CoverStat value without opening WPS formatting controls; exact OOXML text and canonical geometry remain mandatory.",
+                    "specialist_phase":"semantic-coverstat-direct-replace",
                     "expected_change":tx["new"],
                 }
             controls=window_state.get("controls",[]) if isinstance(window_state,dict) else []
@@ -832,9 +840,9 @@ def next_text_action(state,window_state,plan):
         if len(current_sha)!=64 or current_sha==str(tx.get("before_deck_sha256") or ""):
             return _terminal("TASK091_SAVE_NOT_PERSISTED")
         if _cover_title_lock_required(tx):
-            if is_coverstat1_atomic_contract(tx):
+            if is_coverstat_atomic_contract(tx):
                 try:
-                    _assert_coverstat1_atomic_state(window_state,tx)
+                    _assert_coverstat_atomic_state(window_state,tx)
                 except SemanticTransactionError as exc:
                     return _terminal(str(exc))
                 tx["atomic_save_verified"]=True
@@ -868,11 +876,11 @@ def next_text_action(state,window_state,plan):
         if roundtrip["model_sha256"]!=str(tx.get("after_model_sha256") or ""):
             return _terminal("TASK091_ROUNDTRIP_MODEL_DRIFT")
         if _cover_title_lock_required(tx):
-            if is_coverstat1_atomic_contract(tx):
+            if is_coverstat_atomic_contract(tx):
                 if tx.get("atomic_save_verified") is not True:
-                    return _terminal("TASK091_COVERSTAT1_ATOMIC_SAVE_UNPROVEN")
+                    return _terminal("TASK091_COVERSTAT_ATOMIC_SAVE_UNPROVEN")
                 try:
-                    _assert_coverstat1_atomic_state(window_state,tx)
+                    _assert_coverstat_atomic_state(window_state,tx)
                 except SemanticTransactionError as exc:
                     return _terminal(str(exc))
                 tx["atomic_roundtrip_verified"]=True
