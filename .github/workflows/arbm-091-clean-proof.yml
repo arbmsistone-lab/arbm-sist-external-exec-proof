@@ -426,6 +426,53 @@ jobs:
             python -m arbm091.verify_transplant
           )
           git worktree remove -f "$tmp"
+        elif [[ "$current_parent" == '9a4e65818a607c746e7303ff4effabd5c527c441' && "$current_message" == 'fix(091): clear CoverStat text before locked rewrite' ]]; then
+          mapfile -t changed < <(git diff-tree --no-commit-id --name-only -r HEAD^ HEAD | LC_ALL=C sort)
+          [[ "${#changed[@]}" -eq 3 ]]
+          [[ "${changed[0]}" == '.github/workflows/arbm-091-clean-proof.yml' ]]
+          [[ "${changed[1]}" == 'scripts/arbm091/semantic_runtime.py' ]]
+          [[ "${changed[2]}" == 'tests/arbm091/test_semantic_runtime.py' ]]
+          python - <<'PY'
+        from pathlib import Path
+        import hashlib,subprocess
+        workflow='.github/workflows/arbm-091-clean-proof.yml'
+        runtime='scripts/arbm091/semantic_runtime.py'
+        tests='tests/arbm091/test_semantic_runtime.py'
+        current_workflow=Path(workflow).read_text()
+        parent_workflow=subprocess.check_output(['git','show','HEAD^:'+workflow],text=True)
+        def step(text,name):
+            token='    - name: '+name
+            start=text.index(token)
+            end=text.find('\n    - name:',start+len(token))
+            return text[start:] if end < 0 else text[start:end]
+        gate='Verify clean history and exact changed-file scope'
+        assert current_workflow.replace(step(current_workflow,gate),step(parent_workflow,gate),1)==parent_workflow
+        def normalized_sha(path):
+            b=Path(path).read_bytes()
+            if not b.endswith(b'\n'):
+                b+=b'\n'
+            return hashlib.sha256(b).hexdigest()
+        assert normalized_sha(runtime)=='b93d8afcf2ba7e04e4e2dbe0befff00d5c3f9033d6226f64d4f97ef131d61d39'
+        assert normalized_sha(tests)=='7e6317c272822169d20844c12913b0183f4ff7abcf974084fc4435e0e5aefe48'
+        rt=Path(runtime).read_text()
+        assert '"mutation_mode"]="autofit-locked-select-all-clear-write"' in rt
+        assert "pyautogui.hotkey('ctrl', 'a')" in rt
+        assert "pyautogui.press('delete')" in rt
+        assert "interval=0.04" in rt
+        assert "pyautogui.press('f2')" in rt
+        tt=Path(tests).read_text()
+        assert 'test_cover_stat_freezes_autofit_then_reselects_and_direct_writes' in tt
+        assert "pyautogui.press('delete')" in tt
+        assert "pyautogui.write('$40.9M', interval=0.04)" in tt
+        print('AUTHORIZED_COVERSTAT_CLEAR_REWRITE_GATE=PASS')
+        PY
+          tmp="$(mktemp -d)"
+          git worktree add --detach "$tmp" HEAD^^^^^^^^
+          (
+            cd "$tmp"
+            python -m arbm091.verify_transplant
+          )
+          git worktree remove -f "$tmp"
         else
           python -m arbm091.verify_transplant
         fi

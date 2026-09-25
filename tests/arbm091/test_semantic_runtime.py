@@ -90,10 +90,14 @@ class SemanticRuntimeTests(unittest.TestCase):
 
         mutation=next_text_action(state,frozen,plan)
         self.assertEqual(mutation["specialist_phase"],"semantic-text-mutation")
-        self.assertEqual(mutation["command"],"pyautogui.write('$40.9M', interval=0.02)")
-        self.assertNotIn("f2",mutation["command"].casefold())
-        self.assertNotIn("ctrl",mutation["command"].casefold())
-        self.assertEqual(state["semantic_tx"]["mutation_mode"],"artifact-proven-direct-whole-text")
+        command=mutation["command"]
+        self.assertIn("pyautogui.hotkey('ctrl', 'a')",command)
+        self.assertIn("pyautogui.press('delete')",command)
+        self.assertIn("pyautogui.write('$40.9M', interval=0.04)",command)
+        self.assertLess(command.index("hotkey('ctrl', 'a')"),command.index("press('delete')"))
+        self.assertLess(command.index("press('delete')"),command.index("write('$40.9M'"))
+        self.assertNotIn("f2",command.casefold())
+        self.assertEqual(state["semantic_tx"]["mutation_mode"],"autofit-locked-select-all-clear-write")
 
     def test_missing_canvas_is_rejected_fail_closed(self):
         ws=base_state(); ws.pop("slide_canvas_bbox")

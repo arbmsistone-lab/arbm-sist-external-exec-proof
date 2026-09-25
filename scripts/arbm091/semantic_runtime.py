@@ -610,11 +610,19 @@ def next_text_action(state,window_state,plan):
         if model_sha256(current_model)!=str(tx.get("before_model_sha256") or ""):
             return _terminal("TASK091_PRECONDITION_DRIFT")
         tx["stage"]="mutation-issued"
-        tx["mutation_mode"]="artifact-proven-direct-whole-text"
+        tx["mutation_mode"]="autofit-locked-select-all-clear-write"
+        command="\n".join((
+            "pyautogui.hotkey('ctrl', 'a')",
+            "pyautogui.sleep(0.2)",
+            "pyautogui.press('delete')",
+            "pyautogui.sleep(0.2)",
+            f"pyautogui.write({str(tx.get('new') or '')!r}, interval=0.04)",
+            "pyautogui.sleep(0.5)",
+        ))
         return {
             "action":"exec",
-            "command":f"pyautogui.write({str(tx.get('new') or '')!r}, interval=0.02)",
-            "plan":"Overwrite the artifact-proven fully selected short value directly; do not issue F2, Ctrl+A, caret navigation, or native Replace.",
+            "command":command,
+            "plan":"With AutoFit already proven locked and the exact short-text target re-entered by double-click, select all text in that active container, clear it, and write the replacement once. Final OOXML diff remains fail-closed.",
             "specialist_phase":"semantic-text-mutation",
             "expected_change":tx["new"],
         }
