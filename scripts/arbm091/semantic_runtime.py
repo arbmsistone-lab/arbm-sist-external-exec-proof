@@ -174,6 +174,29 @@ def _locked_autofit_geometry(tx):
     return _AUTOFIT_GEOMETRY_LOCKS.get(tuple(tx.get("target_key") or ()))
 
 
+def is_coverstat1_atomic_contract(tx):
+    """Exact, narrow contract for the panel-independent second CoverStat."""
+    if not isinstance(tx,dict):
+        return False
+    return (
+        tuple(tx.get("target_key") or ())==(1,"shape",16,"CoverStatValue_1")
+        and str(tx.get("mutation_mode") or "")=="geometry-locked-single-native-replace"
+        and tx.get("panel_independent") is True
+    )
+
+
+def _assert_coverstat1_atomic_state(window_state,tx):
+    if not is_coverstat1_atomic_contract(tx):
+        raise SemanticTransactionError("TASK091_COVERSTAT1_ATOMIC_CONTRACT_UNPROVEN")
+    raw=_raw_locked_shape(window_state,tx)
+    if str(raw.get("text") or "")!=str(tx.get("new") or ""):
+        raise SemanticTransactionError("TASK091_COVERSTAT1_ATOMIC_TEXT_DRIFT")
+    geometry=tuple(int((raw.get("geometry") or {}).get(k) or 0) for k in ("x","y","w","h"))
+    if geometry!=tuple(_AUTOFIT_GEOMETRY_LOCKS[(1,"shape",16,"CoverStatValue_1")]):
+        raise SemanticTransactionError("TASK091_COVERSTAT1_ATOMIC_GEOMETRY_DRIFT")
+    return raw
+
+
 def _cover_title_lock_required(tx):
     expected=_locked_autofit_geometry(tx)
     if expected is None:
@@ -466,6 +489,7 @@ def next_text_action(state,window_state,plan):
             if key==(1,"shape",16,"CoverStatValue_1"):
                 tx["autofit_preflight_done"]=True
                 tx["autofit_selection_confirmed"]=False
+                tx["panel_independent"]=True
                 tx["stage"]="mutation-issued"
                 tx["mutation_mode"]="geometry-locked-single-native-replace"
                 return {
@@ -808,17 +832,24 @@ def next_text_action(state,window_state,plan):
         if len(current_sha)!=64 or current_sha==str(tx.get("before_deck_sha256") or ""):
             return _terminal("TASK091_SAVE_NOT_PERSISTED")
         if _cover_title_lock_required(tx):
-            try:
-                raw=_raw_locked_shape(window_state,tx)
-            except SemanticTransactionError as exc:
-                return _terminal(str(exc))
-            if tx.get("autofit_selection_confirmed") is not True:
-                return _terminal("TASK091_AUTOFIT_SELECTION_EVIDENCE_MISSING")
-            if str(raw.get("autofit_mode") or "")!="DO_NOT_AUTOFIT":
-                return _terminal("TASK091_AUTOFIT_NOT_PERSISTED")
-            if tuple(int((raw.get("geometry") or {}).get(k) or 0) for k in ("x","y","w","h"))!=tuple(_locked_autofit_geometry(tx) or ()):
-                return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_AFTER_SAVE")
-            tx["autofit_persisted"]=True
+            if is_coverstat1_atomic_contract(tx):
+                try:
+                    _assert_coverstat1_atomic_state(window_state,tx)
+                except SemanticTransactionError as exc:
+                    return _terminal(str(exc))
+                tx["atomic_save_verified"]=True
+            else:
+                try:
+                    raw=_raw_locked_shape(window_state,tx)
+                except SemanticTransactionError as exc:
+                    return _terminal(str(exc))
+                if tx.get("autofit_selection_confirmed") is not True:
+                    return _terminal("TASK091_AUTOFIT_SELECTION_EVIDENCE_MISSING")
+                if str(raw.get("autofit_mode") or "")!="DO_NOT_AUTOFIT":
+                    return _terminal("TASK091_AUTOFIT_NOT_PERSISTED")
+                if tuple(int((raw.get("geometry") or {}).get(k) or 0) for k in ("x","y","w","h"))!=tuple(_locked_autofit_geometry(tx) or ()):
+                    return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_AFTER_SAVE")
+                tx["autofit_persisted"]=True
         tx["after_model_sha256"]=verdict["after_model_sha256"]
         tx["after_deck_sha256"]=current_sha
         tx["semantic_verdict"]=verdict
@@ -837,14 +868,23 @@ def next_text_action(state,window_state,plan):
         if roundtrip["model_sha256"]!=str(tx.get("after_model_sha256") or ""):
             return _terminal("TASK091_ROUNDTRIP_MODEL_DRIFT")
         if _cover_title_lock_required(tx):
-            try:
-                raw=_raw_locked_shape(window_state,tx)
-            except SemanticTransactionError as exc:
-                return _terminal(str(exc))
-            if tx.get("autofit_persisted") is not True or str(raw.get("autofit_mode") or "")!="DO_NOT_AUTOFIT":
-                return _terminal("TASK091_AUTOFIT_ROUNDTRIP_NOT_PERSISTED")
-            if tuple(int((raw.get("geometry") or {}).get(k) or 0) for k in ("x","y","w","h"))!=tuple(_locked_autofit_geometry(tx) or ()):
-                return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_AFTER_REOPEN")
+            if is_coverstat1_atomic_contract(tx):
+                if tx.get("atomic_save_verified") is not True:
+                    return _terminal("TASK091_COVERSTAT1_ATOMIC_SAVE_UNPROVEN")
+                try:
+                    _assert_coverstat1_atomic_state(window_state,tx)
+                except SemanticTransactionError as exc:
+                    return _terminal(str(exc))
+                tx["atomic_roundtrip_verified"]=True
+            else:
+                try:
+                    raw=_raw_locked_shape(window_state,tx)
+                except SemanticTransactionError as exc:
+                    return _terminal(str(exc))
+                if tx.get("autofit_persisted") is not True or str(raw.get("autofit_mode") or "")!="DO_NOT_AUTOFIT":
+                    return _terminal("TASK091_AUTOFIT_ROUNDTRIP_NOT_PERSISTED")
+                if tuple(int((raw.get("geometry") or {}).get(k) or 0) for k in ("x","y","w","h"))!=tuple(_locked_autofit_geometry(tx) or ()):
+                    return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_AFTER_REOPEN")
         contract=tx.get("contract") if isinstance(tx.get("contract"),dict) else {}
         verdict=tx.get("semantic_verdict") if isinstance(tx.get("semantic_verdict"),dict) else {}
         evidence={
