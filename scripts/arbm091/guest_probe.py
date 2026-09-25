@@ -427,6 +427,31 @@ def capture(point):
         if not window_id:
             raise RuntimeError('X11_ACTIVE_WINDOW_MISSING')
         window = connection.create_resource_object('window', window_id)
+        # WPS can leave _NET_ACTIVE_WINDOW pointing at the deck while its
+        # System Check dialog is mapped above it. Resolve that exact blocking
+        # transient from the live X11 tree before reporting the foreground.
+        blockers = []
+        for candidate in root.query_tree().children:
+            try:
+                if candidate.get_attributes().map_state != X.IsViewable:
+                    continue
+                if title(candidate).strip().casefold() != 'system check':
+                    continue
+                owner = candidate.get_wm_transient_for()
+                if owner is None or int(owner.id) != int(window.id):
+                    continue
+                candidate_pid = integer(candidate, '_NET_WM_PID')
+                candidate_class = ' '.join(candidate.get_wm_class() or ()).casefold()
+                if candidate_pid <= 0 or not any(token in candidate_class for token in ('wps', 'wpp', 'kingsoft')):
+                    continue
+                blockers.append(candidate)
+            except Exception:
+                continue
+        if len(blockers) > 1:
+            raise RuntimeError('TASK091_SYSTEM_CHECK_TRANSIENT_AMBIGUOUS')
+        if blockers:
+            window = blockers[0]
+            window_id = int(window.id)
         owner = window.get_wm_transient_for()
         return {'id': window_id, 'pid': integer(window, '_NET_WM_PID'),
                 'title': title(window), 'wm_class': ' '.join(window.get_wm_class() or ()),
