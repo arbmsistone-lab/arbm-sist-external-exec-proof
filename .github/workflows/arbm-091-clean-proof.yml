@@ -828,14 +828,16 @@ jobs:
           )
           git worktree remove -f "$tmp"
         elif [[ "$current_parent" == 'b0d1c80d2edbc87c0810d8cad11f6ae90c88d3f2' && "$current_message" == 'fix(091): audit atomic CoverStat family contract' ]]; then
-          [[ "$(git rev-parse HEAD^^^^)" == '152828b95428014a9a09ba2adb0afc6bef6d9b26' ]]
-          [[ "$(git rev-parse HEAD^^^)" == '1590d698c2cb440c38b184c9bf464fcdc1e1ba06' ]]
-          [[ "$(git rev-parse HEAD^^)" == 'f6f996db38e87ee405fdf1fccd0ec8a8d3a937b1' ]]
+          [[ "$(git rev-parse HEAD^^^^^)" == '152828b95428014a9a09ba2adb0afc6bef6d9b26' ]]
+          [[ "$(git rev-parse HEAD^^^^)" == '1590d698c2cb440c38b184c9bf464fcdc1e1ba06' ]]
+          [[ "$(git rev-parse HEAD^^^)" == 'f6f996db38e87ee405fdf1fccd0ec8a8d3a937b1' ]]
+          [[ "$(git rev-parse HEAD^^)" == 'e27a4b20db985e248692728d2670b34c8223490b' ]]
           [[ "$(git rev-parse HEAD^)" == 'b0d1c80d2edbc87c0810d8cad11f6ae90c88d3f2' ]]
           [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^ HEAD)" == '.github/workflows/arbm-091-clean-proof.yml' ]]
-          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^^^^ HEAD^^^)" == 'scripts/arbm091/semantic_runtime.py' ]]
-          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^^^ HEAD^^)" == 'scripts/arbm091/wps_observer.py' ]]
-          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^^ HEAD^)" == 'tests/arbm091/test_wps_observer_geometry.py' || "$(git diff-tree --no-commit-id --name-only -r HEAD^^ HEAD^)" == 'tests/arbm091/test_semantic_runtime.py' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^^^^^ HEAD^^^^)" == 'scripts/arbm091/semantic_runtime.py' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^^^^ HEAD^^^)" == 'scripts/arbm091/wps_observer.py' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^^^ HEAD^^)" == 'tests/arbm091/test_wps_observer_geometry.py' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^^ HEAD^)" == 'tests/arbm091/test_semantic_runtime.py' ]]
           [[ "$(git rev-parse HEAD:scripts/arbm091/semantic_runtime.py)" == '7403e67a3e0f765ace11041f6c5b620c088a495c' ]]
           [[ "$(git rev-parse HEAD:scripts/arbm091/wps_observer.py)" == '09dc4bc53671eff1dc561f1428f631003fc85c20' ]]
           [[ "$(git rev-parse HEAD:tests/arbm091/test_wps_observer_geometry.py)" == 'd632dfb3f46608299f557735629c7ef502b9e2e1' ]]
