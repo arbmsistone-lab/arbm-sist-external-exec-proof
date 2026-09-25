@@ -1542,7 +1542,7 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
             ('45_mismatch_preserves_failure_text',"failure_text" in mismatch),
             ('46_mismatch_records_reason',"failure_reason" in mismatch),
             ('47_mismatch_fail_closed_mode',"TARGET_FAIL_CLOSED" in mismatch),
-            ('48_section_e_two_point',"'font_decrements': 2" in source),
+            ('48_section_e_three_point',"'font_decrements': 3" in source),
             ('49_zero_spend_contract',"NON_ZERO_SPEND_MODE_FORBIDDEN" in source),
             ('50_no_generic_evaluator_change',"official evaluator" not in writer.casefold()),
         ]
