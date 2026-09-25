@@ -41,12 +41,18 @@ class CoverRewriteTests(unittest.TestCase):
                                                '2':[{'id':1,'name':'Other','text':'untouched','geometry':{}}]},
                           'deck_slide_text':{'1':'$40.9MM $2.6M'},
                           'deck_file':{'sha256':'b'*64,
+                                       'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
                                        'slide_size':{'w':12191365,'h':6858000}}})
         self.deck['window']['bbox']=[70,27,1850,1053]
+        target=shim._task091_shape_point(
+            {**self.deck,'deck_slide_shapes':{'1':[
+                {**self.deck['deck_slide_shapes']['1'][0],'text':'$42.8M'},
+                self.deck['deck_slide_shapes']['1'][1]]}},1,'$42.8M',1338,393)
         self.pending={'slide':1,'old':'$42.8M','new':'$40.9M',
                       'shape_id':13,'shape_name':'CoverStatValue_0',
                       'shape_geometry':dict(self.deck['deck_slide_shapes']['1'][0]['geometry']),
-                      'before_deck_sha256':'a'*64,'text_hit_x':1338,'text_hit_y':393}
+                      'before_deck_sha256':'a'*64,
+                      'text_hit_x':target['cx'],'text_hit_y':target['cy']}
         self.pending['before_deck_except_target_signature']=shim._task091_deck_except_target_signature(
             self.deck,1,13)
         self.state={'anchored':True,'slide':1,'spatial_index':2,'pending_edit':self.pending}
@@ -1083,4 +1089,3 @@ class Task091CompactEditTests(unittest.TestCase):
         self.assertFalse(detail['exact_shape_text'])
         plan=shim._task091_restricted_repair_plan(actual,pending['new'])
         self.assertEqual(plan,[{'op':'delete','index':61,'char':'\n'}], plan)
-
