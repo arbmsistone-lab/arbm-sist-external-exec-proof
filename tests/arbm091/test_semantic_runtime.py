@@ -45,6 +45,56 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertEqual((action["target"]["cx"],action["target"]["cy"]),(1248,475))
         self.assertIn("doubleClick(1248, 475",action["command"])
 
+    def test_cover_stat_freezes_autofit_then_reselects_and_direct_writes(self):
+        ws=base_state()
+        ws["active_slide"]=1
+        ws["source"]="cover-stat-before"
+        ws["screenshot_sha256"]="a"*64
+        ws["deck_file"]["slide_size"]={"w":12191365,"h":6858000}
+        ws["slide_canvas_bbox"]=[352,263,1135,638]
+        ws["deck_slide_shapes"]={"1":[{
+            "id":13,"name":"CoverStatValue_0","text":"$42.8M","kind":"shape",
+            "geometry":{"x":8339327,"y":2167128,"w":2560320,"h":219456},
+            "font_sizes":[2100,2100],"fill_rgb":"",
+            "autofit_mode":"RESIZE_SHAPE_TO_FIT_TEXT",
+        }]}
+        ws["deck_slide_relationships"]={"1":[]}
+        state={"slide":1}
+        plan=((1,1338,393,"$42.8M","$40.9M"),)
+
+        select=next_text_action(state,ws,plan)
+        self.assertEqual(select["specialist_phase"],"semantic-target-select")
+        self.assertEqual((select["target"]["cx"],select["target"]["cy"]),(1248,475))
+
+        options=copy.deepcopy(ws)
+        options["source"]="cover-stat-options"
+        options["screenshot_sha256"]="b"*64
+        options["controls"]=self._current_group()
+        freeze=next_text_action(state,options,plan)
+        self.assertEqual(freeze["specialist_phase"],"semantic-cover-autofit-do-not-select")
+        self.assertEqual((freeze["target"]["cx"],freeze["target"]["cy"]),(1560,674))
+
+        frozen=copy.deepcopy(options)
+        frozen["source"]="cover-stat-frozen"
+        frozen["screenshot_sha256"]="c"*64
+        for control in frozen["controls"]:
+            control["selected"]=control["label"]=="Do not Autofit"
+        reselect=next_text_action(state,frozen,plan)
+        self.assertEqual(reselect["specialist_phase"],"semantic-autofit-reselect")
+        self.assertIn("doubleClick(1248, 475",reselect["command"])
+        self.assertEqual(
+            tuple(state["semantic_tx"]["before_state"]["deck_slide_shapes"]["1"][0]["geometry"][k]
+                  for k in ("x","y","w","h")),
+            (8339327,2167128,2560320,219456),
+        )
+
+        mutation=next_text_action(state,frozen,plan)
+        self.assertEqual(mutation["specialist_phase"],"semantic-text-mutation")
+        self.assertEqual(mutation["command"],"pyautogui.write('$40.9M', interval=0.02)")
+        self.assertNotIn("f2",mutation["command"].casefold())
+        self.assertNotIn("ctrl",mutation["command"].casefold())
+        self.assertEqual(state["semantic_tx"]["mutation_mode"],"artifact-proven-direct-whole-text")
+
     def test_missing_canvas_is_rejected_fail_closed(self):
         ws=base_state(); ws.pop("slide_canvas_bbox")
         result=next_text_action({"slide":3},ws,((3,843,404,"$42.8M","$40.9M"),))

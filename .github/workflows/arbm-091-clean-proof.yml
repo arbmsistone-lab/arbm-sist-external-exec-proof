@@ -381,6 +381,51 @@ jobs:
             python -m arbm091.verify_transplant
           )
           git worktree remove -f "$tmp"
+        elif [[ "$current_parent" == '5fff625b8828688b1fb68536e432fa50d2429aa6' && "$current_message" == 'fix(091): freeze CoverStat autofit before direct edit' ]]; then
+          mapfile -t changed < <(git diff-tree --no-commit-id --name-only -r HEAD^ HEAD | LC_ALL=C sort)
+          [[ "${#changed[@]}" -eq 3 ]]
+          [[ "${changed[0]}" == '.github/workflows/arbm-091-clean-proof.yml' ]]
+          [[ "${changed[1]}" == 'scripts/arbm091/semantic_runtime.py' ]]
+          [[ "${changed[2]}" == 'tests/arbm091/test_semantic_runtime.py' ]]
+          python - <<'PY'
+        from pathlib import Path
+        import hashlib,subprocess
+        workflow='.github/workflows/arbm-091-clean-proof.yml'
+        runtime='scripts/arbm091/semantic_runtime.py'
+        tests='tests/arbm091/test_semantic_runtime.py'
+        current_workflow=Path(workflow).read_text()
+        parent_workflow=subprocess.check_output(['git','show','HEAD^:'+workflow],text=True)
+        def step(text,name):
+            token='    - name: '+name
+            start=text.index(token)
+            end=text.find('\n    - name:',start+len(token))
+            return text[start:] if end < 0 else text[start:end]
+        gate='Verify clean history and exact changed-file scope'
+        assert current_workflow.replace(step(current_workflow,gate),step(parent_workflow,gate),1)==parent_workflow
+        def normalized_sha(path):
+            b=Path(path).read_bytes()
+            if not b.endswith(b'\n'):
+                b+=b'\n'
+            return hashlib.sha256(b).hexdigest()
+        assert normalized_sha(runtime)=='19a1a670dc24ad750bc1775720b2969ab41dcab6337648c4eed7c93469cd5d58'
+        assert normalized_sha(tests)=='657d3cd2b2c6178f6f3d0d8f0b1c2198e392d78e9e6015bdd401b14da11d7a65'
+        rt=Path(runtime).read_text()
+        assert '(1,"shape",13,"CoverStatValue_0"):(8339327,2167128,2560320,219456)' in rt
+        assert '"specialist_phase":"semantic-autofit-reselect"' in rt
+        assert '"mutation_mode"]="artifact-proven-direct-whole-text"' in rt
+        assert 'pyautogui.write({str(tx.get(\'new\') or \'\')!r}, interval=0.02)' in rt
+        tt=Path(tests).read_text()
+        assert 'test_cover_stat_freezes_autofit_then_reselects_and_direct_writes' in tt
+        assert 'pyautogui.write(\'$40.9M\', interval=0.02)' in tt
+        print('AUTHORIZED_COVERSTAT_AUTOFIT_DIRECT_EDIT_GATE=PASS')
+        PY
+          tmp="$(mktemp -d)"
+          git worktree add --detach "$tmp" HEAD^^^^^^^
+          (
+            cd "$tmp"
+            python -m arbm091.verify_transplant
+          )
+          git worktree remove -f "$tmp"
         else
           python -m arbm091.verify_transplant
         fi

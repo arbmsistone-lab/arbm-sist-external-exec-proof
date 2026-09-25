@@ -148,6 +148,7 @@ def _mutation_command(before_text, old, new):
 _AUTOFIT_GEOMETRY_LOCKS={
     (1,"shape",6,"CoverTitle"):(749808,1078992,5852160,1234440),
     (1,"shape",7,"CoverSub"):(768096,2743200,5669280,1280160),
+    (1,"shape",13,"CoverStatValue_0"):(8339327,2167128,2560320,219456),
 }
 
 
@@ -166,6 +167,8 @@ def _cover_title_lock_required(tx):
     row=next((x for x in before
               if int(x.get("id") or 0)==int(key[2])
               and str(x.get("name") or "")==str(key[3])),None)
+    if key==(1,"shape",13,"CoverStatValue_0") and not str((row or {}).get("autofit_mode") or ""):
+        return False
     geom=(row or {}).get("geometry") or {}
     actual=tuple(int(geom.get(k) or 0) for k in ("x","y","w","h"))
     return actual==expected
@@ -581,11 +584,39 @@ def next_text_action(state,window_state,plan):
             return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_AFTER_AUTOFIT_SELECTION")
         tx["autofit_selection_confirmed"]=True
         tx["autofit_preflight_done"]=True
+        if str(tx.get("before_target_text") or "")==str(tx.get("old") or ""):
+            try:
+                target=_signed_target(window_state,int(tx.get("slide") or 1),row)
+            except SemanticTransactionError as exc:
+                return _terminal(str(exc))
+            tx["stage"]="autofit-reselect-issued"
+            return {
+                "action":"exec",
+                "command":f"pyautogui.doubleClick({target['cx']}, {target['cy']}, interval=0.08)",
+                "target":target,
+                "plan":"Re-select the exact whole-text target after freezing AutoFit; the preserved focal artifact proves WPS double-click selects the full short value.",
+                "specialist_phase":"semantic-autofit-reselect",
+            }
         tx["stage"]="select-issued"
         return {
             "action":"checkpoint",
             "checkpoint":"TASK091_COVERTITLE_AUTOFIT_SELECTION_CONFIRMED",
             "autofit_selected_mode":"DO_NOT_AUTOFIT",
+        }
+
+    if stage=="autofit-reselect-issued":
+        if row is None or str(row.get("text") or "")!=str(tx.get("before_target_text") or ""):
+            return _terminal("TASK091_PRECONDITION_DRIFT")
+        if model_sha256(current_model)!=str(tx.get("before_model_sha256") or ""):
+            return _terminal("TASK091_PRECONDITION_DRIFT")
+        tx["stage"]="mutation-issued"
+        tx["mutation_mode"]="artifact-proven-direct-whole-text"
+        return {
+            "action":"exec",
+            "command":f"pyautogui.write({str(tx.get('new') or '')!r}, interval=0.02)",
+            "plan":"Overwrite the artifact-proven fully selected short value directly; do not issue F2, Ctrl+A, caret navigation, or native Replace.",
+            "specialist_phase":"semantic-text-mutation",
+            "expected_change":tx["new"],
         }
 
     if stage=="mutation-issued":
