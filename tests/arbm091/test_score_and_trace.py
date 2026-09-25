@@ -28,6 +28,66 @@ def snapshot(title=DECK + ' - WPS Presentation', klass='wpp WPS', pid=40):
                        'application': 'wps'}}
 
 
+class CoverRewriteTests(unittest.TestCase):
+    def setUp(self):
+        self.deck=snapshot(DECK + ' - WPS Office','wpsoffice wpsoffice',pid=2594)
+        self.deck.update({'screen':[0,0,1920,1080],'active_slide':1,
+                          'screenshot_sha256':'1'*64,
+                          'deck_slide_shapes':{'1':[
+                              {'id':13,'kind':'shape','name':'CoverStatValue_0','text':'$40.9MM',
+                               'geometry':{'x':8339327,'y':2167128,'w':2560320,'h':219456}},
+                              {'id':16,'kind':'shape','name':'CoverStatValue_1','text':'$2.6M',
+                               'geometry':{'x':1,'y':2,'w':3,'h':4}}],
+                                               '2':[{'id':1,'name':'Other','text':'untouched','geometry':{}}]},
+                          'deck_slide_text':{'1':'$40.9MM $2.6M'},
+                          'deck_file':{'sha256':'b'*64,
+                                       'slide_size':{'w':12191365,'h':6858000}}})
+        self.deck['window']['bbox']=[70,27,1850,1053]
+        self.pending={'slide':1,'old':'$42.8M','new':'$40.9M',
+                      'shape_id':13,'shape_name':'CoverStatValue_0',
+                      'shape_geometry':dict(self.deck['deck_slide_shapes']['1'][0]['geometry']),
+                      'before_deck_sha256':'a'*64,'text_hit_x':1338,'text_hit_y':393}
+        self.pending['before_deck_except_target_signature']=shim._task091_deck_except_target_signature(
+            self.deck,1,13)
+        self.state={'anchored':True,'slide':1,'spatial_index':2,'pending_edit':self.pending}
+        self.task=('You are Maya Lin. Rebaseline the Operating Committee pack using '
+                   'Reforecast_Model_H2.xlsx.')
+        task_patch=patch.dict(os.environ,{'TASK_ID':'091'},clear=False)
+        task_patch.start()
+        self.addCleanup(task_patch.stop)
+
+    def test_cover_rewrite_reopens_once_then_requires_saved_ooxml(self):
+        first=shim._task091_prepare_cover_rewrite(self.pending,self.deck,self.state)
+        self.assertEqual(first['specialist_phase'],'cover-rewrite-select')
+        selected=copy.deepcopy(self.deck)
+        selected['screenshot_sha256']='2'*64
+        rewrite=shim.next_091_specialist_action(self.task,'WPS Presentation','',self.state,selected)
+        self.assertEqual(rewrite['specialist_phase'],'cover-rewrite-text')
+        self.assertIn("pyautogui.hotkey('ctrl', 'a')",rewrite['command'])
+        self.assertIn("pyautogui.write('$40.9M'",rewrite['command'])
+        shim.next_091_specialist_action(self.task,'WPS Presentation','',self.state,selected)
+        shim.next_091_specialist_action(self.task,'WPS Presentation','',self.state,selected)
+        saved=copy.deepcopy(selected)
+        saved['deck_file']['sha256']='c'*64
+        saved['deck_slide_shapes']['1'][0]['text']='$40.9M'
+        checkpoint=shim.next_091_specialist_action(self.task,'WPS Presentation','',self.state,saved)
+        self.assertEqual(checkpoint['action'],'checkpoint')
+        self.assertEqual(checkpoint['specialist_phase'],'cover-rewrite-ooxml-verified')
+        self.assertEqual(self.state['spatial_index'],3)
+        self.assertIsNone(self.state['pending_edit'])
+
+    def test_cover_rewrite_rejects_geometry_or_other_shape_mutation(self):
+        wrong=copy.deepcopy(self.deck)
+        wrong['deck_slide_shapes']['1'][0]['geometry']['h']=219457
+        self.assertIsNone(shim._task091_cover_rewrite_proven(self.pending,wrong))
+        collateral=copy.deepcopy(self.deck)
+        collateral['deck_slide_shapes']['2'][0]['text']='changed'
+        self.assertIsNone(shim._task091_cover_rewrite_proven(self.pending,collateral))
+        self.assertIsNotNone(shim._task091_cover_rewrite_proven(self.pending,self.deck))
+        self.pending['cover_rewrite_attempts']=1
+        self.assertIsNone(shim._task091_cover_rewrite_proven(self.pending,self.deck))
+
+
 class ScoreTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -1023,6 +1083,4 @@ class Task091CompactEditTests(unittest.TestCase):
         self.assertFalse(detail['exact_shape_text'])
         plan=shim._task091_restricted_repair_plan(actual,pending['new'])
         self.assertEqual(plan,[{'op':'delete','index':61,'char':'\n'}], plan)
-
-
 
