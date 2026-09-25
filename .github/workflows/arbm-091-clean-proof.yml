@@ -868,6 +868,40 @@ jobs:
             python -m arbm091.verify_transplant
           )
           git worktree remove -f "$tmp"
+        elif [[ "$current_parent" == '2623ea216fd667b48a750b243ad76c33e703403e' && "$current_message" == 'fix(091): finalize CoverStat family audit chain' ]]; then
+          [[ "$(git rev-parse HEAD^^)" == '3328518958789c4b86278f8c605c64d4b1f705cc' ]]
+          [[ "$(git rev-parse HEAD^)" == '2623ea216fd667b48a750b243ad76c33e703403e' ]]
+          [[ "$(git rev-parse HEAD^^^^^^)" == '152828b95428014a9a09ba2adb0afc6bef6d9b26' ]]
+          [[ "$(git rev-parse HEAD^^^^^)" == '1590d698c2cb440c38b184c9bf464fcdc1e1ba06' ]]
+          [[ "$(git rev-parse HEAD^^^^)" == 'f6f996db38e87ee405fdf1fccd0ec8a8d3a937b1' ]]
+          [[ "$(git rev-parse HEAD^^^)" == 'e27a4b20db985e248692728d2670b34c8223490b' ]]
+          [[ "$(git rev-parse HEAD^^)" == '3328518958789c4b86278f8c605c64d4b1f705cc' || "$(git rev-parse HEAD^^)" == 'b0d1c80d2edbc87c0810d8cad11f6ae90c88d3f2' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^ HEAD)" == '.github/workflows/arbm-091-clean-proof.yml' ]]
+          [[ -z "$(git rev-list --merges 6d80f63918c8ec788bdb2a7b55a8d48c025d9fb3..HEAD)" ]]
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        wf='.github/workflows/arbm-091-clean-proof.yml'
+        current=Path(wf).read_text()
+        parent=subprocess.check_output(['git','show','HEAD^:'+wf],text=True)
+        token='    - name: Verify clean history and exact changed-file scope'
+        def gate(text):
+            start=text.index(token)
+            end=text.index('\n    - name:',start+len(token))
+            return text[start:end]
+        assert current.replace(gate(current),gate(parent),1)==parent
+        runtime=Path('scripts/arbm091/semantic_runtime.py').read_text()
+        observer=Path('scripts/arbm091/wps_observer.py').read_text()
+        t1=Path('tests/arbm091/test_semantic_runtime.py').read_text()
+        t2=Path('tests/arbm091/test_wps_observer_geometry.py').read_text()
+        assert 'COVERSTAT_ATOMIC_REGISTRY' in runtime
+        assert 'def is_coverstat_atomic_contract(tx):' in runtime
+        assert 'def _coverstat_family_repair_decisions(payload):' in observer
+        assert 'def _guest_coverstat_geometry_repair(controller,target):' in observer
+        assert 'test_third_cover_stat_uses_registry_panel_independent_contract' in t1
+        assert 'test_value2_height_drift_requests_repair' in t2
+        print('AUTHORIZED_FINAL_COVERSTAT_FAMILY_AUDIT_CHAIN=PASS')
+        PY
         else
           python -m arbm091.verify_transplant
         fi
