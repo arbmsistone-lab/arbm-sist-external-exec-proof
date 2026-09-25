@@ -164,6 +164,7 @@ _AUTOFIT_GEOMETRY_LOCKS={
     (1,"shape",6,"CoverTitle"):(749808,1078992,5852160,1234440),
     (1,"shape",7,"CoverSub"):(768096,2743200,5669280,1280160),
     (1,"shape",13,"CoverStatValue_0"):(8339327,2167128,2560320,219456),
+    (1,"shape",16,"CoverStatValue_1"):(8339327,3355848,2560320,219456),
 }
 
 
@@ -249,15 +250,15 @@ def _raw_locked_shape(window_state,tx):
 
 
 def _cover_recovery_scope(tx,window_state):
-    """Admit one retry only when CoverStat text is the sole semantic diff."""
-    key=(1,"shape",13,"CoverStatValue_0")
-    if (tuple(tx.get("target_key") or ())!=key or tx.get("new")!="$40.9M"
+    """Admit one retry only when a geometry-locked CoverStat has text-only drift."""
+    key=tuple(tx.get("target_key") or ())
+    geometry=_locked_autofit_geometry(tx)
+    if (geometry is None or not str(key[3] if len(key)==4 else "").startswith("CoverStatValue_")
             or int(tx.get("recovery_attempts") or 0)!=0):
         return False
     before=normalize_deck(tx["before_state"])
     after=normalize_deck(window_state)
     original=before.get(key); current=after.get(key)
-    geometry=(8339327,2167128,2560320,219456)
     if (not original or not current or original["geometry"]!=geometry
             or current["geometry"]!=geometry):
         return False
@@ -272,7 +273,8 @@ def _cover_recovery_scope(tx,window_state):
     if len(observed)!=1 or observed[0]["key"]!=key or observed[0]["field"]!="text":
         return False
     wrong=str(current["text"])
-    return bool(wrong and wrong not in (str(tx.get("old")),"$40.9M") and len(wrong)<=64)
+    expected=str(tx.get("new") or "")
+    return bool(wrong and expected and wrong not in (str(tx.get("old")),expected) and len(wrong)<=64)
 
 
 def _autofit_controls(window_state):
@@ -714,10 +716,10 @@ def next_text_action(state,window_state,plan):
         if len(shot)!=64 or shot==tx.get("recovery_before_screenshot_sha256"):
             return _terminal("TASK091_COVER_RECOVERY_SELECTION_UNPROVEN")
         tx["stage"]="recovery-mutation-issued"
-        command=_single_replace_command(tx.get("recovery_wrong_text"),"$40.9M")
+        command=_single_replace_command(tx.get("recovery_wrong_text"),tx.get("new"))
         return {"action":"exec","command":command,
                 "plan":"Replace only the next matching wrong CoverStat value; exact OOXML diff remains mandatory.",
-                "specialist_phase":"semantic-cover-recovery-write","expected_change":"$40.9M"}
+                "specialist_phase":"semantic-cover-recovery-write","expected_change":tx.get("new")}
 
     if stage=="recovery-mutation-issued":
         tx["stage"]="recovery-commit-issued"
@@ -736,10 +738,10 @@ def next_text_action(state,window_state,plan):
         if len(current_sha)!=64 or current_sha==tx.get("recovery_deck_sha256"):
             return _terminal("TASK091_COVER_RECOVERY_NOT_PERSISTED")
         try:
-            verdict=verify_exact_text_transaction(tx["before_state"],window_state,[key],"$40.9M")
+            verdict=verify_exact_text_transaction(tx["before_state"],window_state,[key],tx.get("new"))
         except SemanticTransactionError as exc:
             return _terminal(str(exc))
-        if tuple(current_model[key]["geometry"])!=(8339327,2167128,2560320,219456):
+        if tuple(current_model[key]["geometry"])!=tuple(_locked_autofit_geometry(tx) or ()):
             return _terminal("TASK091_COVER_RECOVERY_GEOMETRY_DRIFT")
         if _cover_title_lock_required(tx):
             try:
