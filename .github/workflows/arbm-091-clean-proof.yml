@@ -514,20 +514,24 @@ jobs:
             python -m arbm091.verify_transplant
           )
           git worktree remove -f "$tmp"
-        elif [[ "$current_parent" == '7c2af29d2007182c11d1c3444c24e0571824f175' && "$current_message" == 'fix(091): admit audited semantic CoverStat recovery' ]]; then
+        elif [[ "$current_parent" == 'd59e999eaab88feeb9596d522ee4a5f4ac9c294c' && "$current_message" == 'fix(091): audit semantic recovery against historical baseline' ]]; then
+          [[ "$(git rev-parse HEAD^^)" == '7c2af29d2007182c11d1c3444c24e0571824f175' ]]
           mapfile -t changed < <(git diff-tree --no-commit-id --name-only -r HEAD^ HEAD | LC_ALL=C sort)
           [[ "${#changed[@]}" -eq 1 ]]
           [[ "${changed[0]}" == '.github/workflows/arbm-091-clean-proof.yml' ]]
+          mapfile -t parent_scope < <(git diff-tree --no-commit-id --name-only -r HEAD^^ HEAD^ | LC_ALL=C sort)
+          [[ "${#parent_scope[@]}" -eq 1 ]]
+          [[ "${parent_scope[0]}" == '.github/workflows/arbm-091-clean-proof.yml' ]]
           [[ -z "$(git rev-list --merges 6d80f63918c8ec788bdb2a7b55a8d48c025d9fb3..HEAD)" ]]
-          mapfile -t recovery_scope < <(git diff --name-only 6d80f63918c8ec788bdb2a7b55a8d48c025d9fb3 HEAD^ | LC_ALL=C sort)
+          mapfile -t recovery_scope < <(git diff --name-only 6d80f63918c8ec788bdb2a7b55a8d48c025d9fb3 HEAD^^ | LC_ALL=C sort)
           [[ "${#recovery_scope[@]}" -eq 3 ]]
           [[ "${recovery_scope[0]}" == '.github/workflows/arbm-091-semantic-recovery.yml' ]]
           [[ "${recovery_scope[1]}" == 'scripts/arbm091/semantic_runtime.py' ]]
           [[ "${recovery_scope[2]}" == 'tests/arbm091/test_semantic_runtime.py' ]]
-          [[ "$(git rev-parse HEAD^:scripts/arbm091/semantic_runtime.py)" == 'e8385b56b5e0a046e195a218f314420f9a831204' ]]
-          [[ "$(git rev-parse HEAD^:tests/arbm091/test_semantic_runtime.py)" == '5227289e9cd5e1238a0047981d02fc5d686a7221' ]]
+          [[ "$(git rev-parse HEAD:scripts/arbm091/semantic_runtime.py)" == 'e8385b56b5e0a046e195a218f314420f9a831204' ]]
+          [[ "$(git rev-parse HEAD:tests/arbm091/test_semantic_runtime.py)" == '5227289e9cd5e1238a0047981d02fc5d686a7221' ]]
           tmp="$(mktemp -d)"
-          git worktree add --detach "$tmp" 6d80f63918c8ec788bdb2a7b55a8d48c025d9fb3
+          git worktree add --detach "$tmp" 3b29fa943330937e4352c0c9cca5700cba261624
           (
             cd "$tmp"
             python -m arbm091.verify_transplant
