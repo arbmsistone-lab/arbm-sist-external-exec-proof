@@ -12,6 +12,7 @@ from arbm091.semantic_transaction import (
     model_sha256,
     normalize_deck,
     resolve_target,
+    semantic_diff,
     verify_exact_text_transaction,
     validate_transaction_contract,
 )
@@ -231,6 +232,33 @@ def _raw_locked_shape(window_state,tx):
     if len(matches)!=1:
         raise SemanticTransactionError("TASK091_AUTOFIT_LOCK_RAW_STATE_UNPROVEN")
     return matches[0]
+
+
+def _cover_recovery_scope(tx,window_state):
+    """Admit one retry only when CoverStat text is the sole semantic diff."""
+    key=(1,"shape",13,"CoverStatValue_0")
+    if (tuple(tx.get("target_key") or ())!=key or tx.get("new")!="$40.9M"
+            or int(tx.get("recovery_attempts") or 0)!=0):
+        return False
+    before=normalize_deck(tx["before_state"])
+    after=normalize_deck(window_state)
+    original=before.get(key); current=after.get(key)
+    geometry=(8339327,2167128,2560320,219456)
+    if (not original or not current or original["geometry"]!=geometry
+            or current["geometry"]!=geometry):
+        return False
+    try:
+        raw=_raw_locked_shape(window_state,tx)
+    except SemanticTransactionError:
+        return False
+    if (str(raw.get("autofit_mode") or "")!="DO_NOT_AUTOFIT"
+            or tx.get("autofit_selection_confirmed") is not True):
+        return False
+    observed=semantic_diff(before,after)
+    if len(observed)!=1 or observed[0]["key"]!=key or observed[0]["field"]!="text":
+        return False
+    wrong=str(current["text"])
+    return bool(wrong and wrong not in (str(tx.get("old")),"$40.9M") and len(wrong)<=64)
 
 
 def _autofit_controls(window_state):
@@ -668,11 +696,95 @@ def next_text_action(state,window_state,plan):
             "expected_change":tx["new"],
         }
 
+    if stage=="recovery-select-issued":
+        if (row is None or str(row.get("text") or "")!=tx.get("recovery_wrong_text")
+                or model_sha256(current_model)!=tx.get("recovery_model_sha256")
+                or str((window_state.get("deck_file") or {}).get("sha256") or "")!=tx.get("recovery_deck_sha256")
+                or _foreground_sha(window_state)!=tx.get("recovery_foreground_sha256")
+                or int(window_state.get("active_slide") or 0)!=1):
+            return _terminal("TASK091_COVER_RECOVERY_SELECTION_DRIFT")
+        shot=str(window_state.get("screenshot_sha256") or "")
+        if len(shot)!=64 or shot==tx.get("recovery_before_screenshot_sha256"):
+            return _terminal("TASK091_COVER_RECOVERY_SELECTION_UNPROVEN")
+        tx["stage"]="recovery-mutation-issued"
+        command="\n".join((
+            "pyautogui.hotkey('ctrl', 'a')",
+            "pyautogui.sleep(0.2)",
+            "pyautogui.press('delete')",
+            "pyautogui.sleep(0.2)",
+            "pyautogui.write('$40.9M', interval=0.04)",
+            "pyautogui.sleep(0.5)",
+        ))
+        return {"action":"exec","command":command,
+                "plan":"Clear and rewrite only the reselected, signed CoverStat text once.",
+                "specialist_phase":"semantic-cover-recovery-write","expected_change":"$40.9M"}
+
+    if stage=="recovery-mutation-issued":
+        tx["stage"]="recovery-commit-issued"
+        return {"action":"exec","command":"pyautogui.press('esc')",
+                "specialist_phase":"semantic-cover-recovery-commit",
+                "plan":"Commit the one permitted CoverStat rewrite."}
+
+    if stage=="recovery-commit-issued":
+        tx["stage"]="recovery-save-issued"
+        return {"action":"exec","command":"pyautogui.hotkey('ctrl', 's')",
+                "specialist_phase":"semantic-cover-recovery-save",
+                "plan":"Persist the CoverStat rewrite before an independent OOXML diff."}
+
+    if stage=="recovery-save-issued":
+        current_sha=str((window_state.get("deck_file") or {}).get("sha256") or "")
+        if len(current_sha)!=64 or current_sha==tx.get("recovery_deck_sha256"):
+            return _terminal("TASK091_COVER_RECOVERY_NOT_PERSISTED")
+        try:
+            verdict=verify_exact_text_transaction(tx["before_state"],window_state,[key],"$40.9M")
+        except SemanticTransactionError as exc:
+            return _terminal(str(exc))
+        if tuple(current_model[key]["geometry"])!=(8339327,2167128,2560320,219456):
+            return _terminal("TASK091_COVER_RECOVERY_GEOMETRY_DRIFT")
+        if _cover_title_lock_required(tx):
+            try:
+                raw=_raw_locked_shape(window_state,tx)
+            except SemanticTransactionError as exc:
+                return _terminal(str(exc))
+            if (tx.get("autofit_selection_confirmed") is not True
+                    or str(raw.get("autofit_mode") or "")!="DO_NOT_AUTOFIT"):
+                return _terminal("TASK091_COVER_RECOVERY_AUTOFIT_UNPROVEN")
+            tx["autofit_persisted"]=True
+        tx["after_model_sha256"]=verdict["after_model_sha256"]
+        tx["after_deck_sha256"]=current_sha
+        tx["semantic_verdict"]=verdict
+        tx["stage"]="roundtrip-issued"
+        return {"action":"exec","command":"pyautogui.press('esc')",
+                "specialist_phase":"semantic-cover-recovery-roundtrip",
+                "plan":"Reobserve the saved OOXML before emitting the existing semantic checkpoint."}
+
     if stage=="save-issued":
         try:
             verdict=verify_exact_text_transaction(
                 tx["before_state"],window_state,[key],tx["new"])
         except SemanticTransactionError as exc:
+            current_sha=str((window_state.get("deck_file") or {}).get("sha256") or "")
+            try:
+                scoped=_cover_recovery_scope(tx,window_state)
+            except SemanticTransactionError:
+                scoped=False
+            if (scoped and len(current_sha)==64
+                    and current_sha!=str(tx.get("before_deck_sha256") or "")):
+                try:
+                    target=_signed_target(window_state,1,current_model[key])
+                except SemanticTransactionError as target_exc:
+                    return _terminal(str(target_exc))
+                tx["recovery_attempts"]=1
+                tx["recovery_wrong_text"]=str(current_model[key]["text"])
+                tx["recovery_model_sha256"]=model_sha256(current_model)
+                tx["recovery_deck_sha256"]=current_sha
+                tx["recovery_foreground_sha256"]=_foreground_sha(window_state)
+                tx["recovery_before_screenshot_sha256"]=str(window_state.get("screenshot_sha256") or "")
+                tx["stage"]="recovery-select-issued"
+                return {"action":"exec",
+                        "command":f"pyautogui.doubleClick({target['cx']}, {target['cy']}, interval=0.08)",
+                        "target":target,"specialist_phase":"semantic-cover-recovery-select",
+                        "plan":"Reopen only the exact CoverStat shape after proving unchanged geometry and no collateral OOXML diff."}
             return _terminal(str(exc))
         current_sha=str((window_state.get("deck_file") or {}).get("sha256") or "")
         if len(current_sha)!=64 or current_sha==str(tx.get("before_deck_sha256") or ""):
