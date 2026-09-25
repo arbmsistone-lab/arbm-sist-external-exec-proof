@@ -607,6 +607,45 @@ jobs:
             python -m arbm091.verify_transplant
           )
           git worktree remove -f "$tmp"
+        elif [[ "$current_parent" == '0f43da3e0272bb789e963528445f8d15acf99093' && "$current_message" == 'fix(091): audit second CoverStat lock repair' ]]; then
+          [[ "$(git rev-parse HEAD^^^)" == '46fda7e9af3f4b3803fa72e8b7052dacd03eec06' ]]
+          [[ "$(git rev-parse HEAD^)" == '0f43da3e0272bb789e963528445f8d15acf99093' ]]
+          [[ "$(git rev-parse HEAD^^)" == '2b1600b84c9bfe9dbd2a804ea10b9e2863f9289d' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^ HEAD)" == '.github/workflows/arbm-091-clean-proof.yml' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^^ HEAD^)" == 'tests/arbm091/test_semantic_runtime.py' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^^^ HEAD^^)" == 'scripts/arbm091/semantic_runtime.py' ]]
+          [[ "$(git rev-parse HEAD:scripts/arbm091/semantic_runtime.py)" == '9fbe3aa46e170ca505da9fd6d1f8a3d355699d39' ]]
+          [[ "$(git rev-parse HEAD:tests/arbm091/test_semantic_runtime.py)" == '89b772aa92d44d11d0880d81286a3a63bcac92d0' ]]
+          [[ -z "$(git rev-list --merges 6d80f63918c8ec788bdb2a7b55a8d48c025d9fb3..HEAD)" ]]
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        path='.github/workflows/arbm-091-clean-proof.yml'
+        current=Path(path).read_text()
+        parent=subprocess.check_output(['git','show','HEAD^:'+path],text=True)
+        token='    - name: Verify clean history and exact changed-file scope'
+        def gate(text):
+            start=text.index(token)
+            end=text.index('\n    - name:',start+len(token))
+            return text[start:end]
+        assert current.replace(gate(current),gate(parent),1)==parent
+        runtime=Path('scripts/arbm091/semantic_runtime.py').read_text()
+        tests=Path('tests/arbm091/test_semantic_runtime.py').read_text()
+        assert '(1,"shape",16,"CoverStatValue_1"):(8339327,3355848,2560320,219456)' in runtime
+        assert 'command=_single_replace_command(tx.get("recovery_wrong_text"),tx.get("new"))' in runtime
+        assert 'verdict=verify_exact_text_transaction(tx["before_state"],window_state,[key],tx.get("new"))' in runtime
+        assert 'test_second_cover_stat_uses_locked_autofit_single_replace' in tests
+        assert "pyautogui.write('$2.8M', interval=0.08)" in tests
+        assert 'self.assertNotIn("pyautogui.hotkey(\'ctrl\', \'a\')",command)' in tests
+        print('AUTHORIZED_SECOND_COVERSTAT_LOCK_SCOPE=PASS')
+        PY
+          tmp="$(mktemp -d)"
+          git worktree add --detach "$tmp" 3b29fa943330937e4352c0c9cca5700cba261624
+          (
+            cd "$tmp"
+            python -m arbm091.verify_transplant
+          )
+          git worktree remove -f "$tmp"
         else
           python -m arbm091.verify_transplant
         fi
