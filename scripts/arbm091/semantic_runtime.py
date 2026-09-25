@@ -282,6 +282,25 @@ def _raw_locked_shape(window_state,tx):
     return matches[0]
 
 
+def _summary_arr_noop_retry_scope(tx,window_state):
+    """Admit one exact retry when SummaryArr_Value persisted no semantic change at all."""
+    if not isinstance(tx,dict) or int(tx.get("noop_retry_attempts") or 0)!=0:
+        return False
+    key=tuple(tx.get("target_key") or ())
+    if key!=(2,"shape",15,"SummaryArr_Value"):
+        return False
+    before=normalize_deck(tx.get("before_state") or {})
+    after=normalize_deck(window_state)
+    original=before.get(key); current=after.get(key)
+    if not original or not current:
+        return False
+    if str(current.get("text") or "")!=str(tx.get("old") or ""):
+        return False
+    if tuple(current.get("geometry") or ())!=tuple(original.get("geometry") or ()):
+        return False
+    return semantic_diff(before,after)==[]
+
+
 def _cover_recovery_scope(tx,window_state):
     """Admit one retry only when a geometry-locked CoverStat has text-only drift."""
     key=tuple(tx.get("target_key") or ())
@@ -753,6 +772,44 @@ def next_text_action(state,window_state,plan):
             "expected_change":tx["new"],
         }
 
+    if stage=="summary-noop-retry-select-issued":
+        if (row is None or str(row.get("text") or "")!=str(tx.get("old") or "")
+                or model_sha256(current_model)!=str(tx.get("noop_retry_model_sha256") or "")):
+            return _terminal("TASK091_SUMMARYARR_RETRY_SELECTION_DRIFT")
+        tx["stage"]="summary-noop-retry-mutation-issued"
+        return {"action":"exec","command":_write_command(tx.get("new")),
+                "plan":"Retry the exact SummaryArr_Value mutation once using whole-target text edit after proving the first persisted attempt was a true no-op.",
+                "specialist_phase":"semantic-summaryarr-noop-retry-write",
+                "expected_change":tx.get("new")}
+
+    if stage=="summary-noop-retry-mutation-issued":
+        tx["stage"]="summary-noop-retry-commit-issued"
+        return {"action":"exec","command":"pyautogui.press('esc')",
+                "specialist_phase":"semantic-summaryarr-noop-retry-commit",
+                "plan":"Finalize the one permitted SummaryArr_Value no-op recovery."}
+
+    if stage=="summary-noop-retry-commit-issued":
+        tx["stage"]="summary-noop-retry-save-issued"
+        return {"action":"exec","command":"pyautogui.hotkey('ctrl', 's')",
+                "specialist_phase":"semantic-summaryarr-noop-retry-save",
+                "plan":"Persist the one permitted SummaryArr_Value retry."}
+
+    if stage=="summary-noop-retry-save-issued":
+        current_sha=str((window_state.get("deck_file") or {}).get("sha256") or "")
+        if len(current_sha)!=64 or current_sha==str(tx.get("noop_retry_deck_sha256") or ""):
+            return _terminal("TASK091_SUMMARYARR_RETRY_NOT_PERSISTED")
+        try:
+            verdict=verify_exact_text_transaction(tx["before_state"],window_state,[key],tx.get("new"))
+        except SemanticTransactionError as exc:
+            return _terminal(str(exc))
+        tx["after_model_sha256"]=verdict["after_model_sha256"]
+        tx["after_deck_sha256"]=current_sha
+        tx["semantic_verdict"]=verdict
+        tx["stage"]="roundtrip-issued"
+        return {"action":"exec","command":"pyautogui.press('esc')",
+                "specialist_phase":"semantic-summaryarr-noop-retry-roundtrip",
+                "plan":"Independently re-read the persisted SummaryArr_Value retry before success."}
+
     if stage=="recovery-select-issued":
         if (row is None or str(row.get("text") or "")!=tx.get("recovery_wrong_text")
                 or model_sha256(current_model)!=tx.get("recovery_model_sha256")
@@ -814,6 +871,24 @@ def next_text_action(state,window_state,plan):
                 tx["before_state"],window_state,[key],tx["new"])
         except SemanticTransactionError as exc:
             current_sha=str((window_state.get("deck_file") or {}).get("sha256") or "")
+            try:
+                noop_scoped=_summary_arr_noop_retry_scope(tx,window_state)
+            except SemanticTransactionError:
+                noop_scoped=False
+            if (noop_scoped and len(current_sha)==64
+                    and current_sha!=str(tx.get("before_deck_sha256") or "")):
+                try:
+                    target=_signed_target(window_state,int(key[0]),current_model[key])
+                except SemanticTransactionError as target_exc:
+                    return _terminal(str(target_exc))
+                tx["noop_retry_attempts"]=1
+                tx["noop_retry_model_sha256"]=model_sha256(current_model)
+                tx["noop_retry_deck_sha256"]=current_sha
+                tx["stage"]="summary-noop-retry-select-issued"
+                return {"action":"exec",
+                        "command":f"pyautogui.doubleClick({target['cx']}, {target['cy']}, interval=0.08)",
+                        "target":target,"specialist_phase":"semantic-summaryarr-noop-retry-select",
+                        "plan":"Retry only SummaryArr_Value after proving the first save produced zero semantic diff and zero geometry drift."}
             try:
                 scoped=_cover_recovery_scope(tx,window_state)
             except SemanticTransactionError:
