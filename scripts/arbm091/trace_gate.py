@@ -20,59 +20,153 @@ TASK091_CANONICAL_WINDOW = [70, 27, 1850, 1053]
 TASK091_CANONICAL_SLIDE_VIEWPORT = [443, 194, 1413, 795]
 
 
-def _task091_shape_boxes(snapshot: dict) -> list[tuple[int,int,int,int]]:
-    deck_file=snapshot.get('deck_file', {}) if isinstance(snapshot, dict) else {}
-    slide_size=deck_file.get('slide_size', {}) if isinstance(deck_file, dict) else {}
-    sw=int(slide_size.get('w') or 0) if isinstance(slide_size, dict) else 0
-    sh=int(slide_size.get('h') or 0) if isinstance(slide_size, dict) else 0
-    if sw <= 0 or sh <= 0:
+def _task091_canvas(snapshot: dict):
+    if not isinstance(snapshot,dict):
+        return None
+    canvas=snapshot.get('slide_canvas_bbox')
+    if not (isinstance(canvas,list) and len(canvas)==4 and all(type(v) is int for v in canvas)):
+        return None
+    vx,vy,vw,vh=canvas
+    if vx<0 or vy<0 or vw<=0 or vh<=0:
+        return None
+    deck_file=snapshot.get('deck_file',{})
+    slide_size=deck_file.get('slide_size',{}) if isinstance(deck_file,dict) else {}
+    sw=int(slide_size.get('w') or 0) if isinstance(slide_size,dict) else 0
+    sh=int(slide_size.get('h') or 0) if isinstance(slide_size,dict) else 0
+    if sw<=0 or sh<=0 or abs((vw/vh)-(sw/sh))>0.02:
+        return None
+    return [vx,vy,vw,vh],sw,sh
+
+def _task091_shape_records(snapshot: dict):
+    resolved=_task091_canvas(snapshot)
+    if resolved is None:
         return []
-    table=snapshot.get('deck_slide_shapes', {}) if isinstance(snapshot, dict) else {}
-    if not isinstance(table, dict):
-        return []
+    (vx,vy,vw,vh),sw,sh=resolved
+    table=snapshot.get('deck_slide_shapes',{})
     active_slide=snapshot.get('active_slide')
-    if type(active_slide) is not int or active_slide <= 0:
+    if not isinstance(table,dict) or type(active_slide) is not int or active_slide<=0:
         return []
-    rows=table.get(str(active_slide), [])
-    if not isinstance(rows, list):
+    rows=table.get(str(active_slide),[])
+    if not isinstance(rows,list):
         return []
-    vx,vy,vw,vh=TASK091_CANONICAL_SLIDE_VIEWPORT
-    boxes=[]
+    records=[]
     for row in rows:
-            if not isinstance(row, dict) or not str(row.get('text') or '').strip():
+        if not isinstance(row,dict):
+            continue
+        geometry=row.get('geometry',{})
+        if not isinstance(geometry,dict):
+            continue
+        gx=int(geometry.get('x') or 0); gy=int(geometry.get('y') or 0)
+        gw=int(geometry.get('w') or 0); gh=int(geometry.get('h') or 0)
+        if gx<0 or gy<0 or gw<=0 or gh<=0:
+            continue
+        left=round(vx+(gx/sw)*vw); top=round(vy+(gy/sh)*vh)
+        right=round(vx+((gx+gw)/sw)*vw); bottom=round(vy+((gy+gh)/sh)*vh)
+        left=max(vx,int(left)); top=max(vy,int(top))
+        right=min(vx+vw,int(right)); bottom=min(vy+vh,int(bottom))
+        if right-left<2 or bottom-top<2:
+            continue
+        text=str(row.get('text') or '').strip()
+        records.append({
+            'shape_id':int(row.get('id') or 0),'shape_name':str(row.get('name') or ''),
+            'shape_text':text,'shape_bbox':[left,top,right-left,bottom-top],
+            'text_bbox':[left,top,right-left,bottom-top] if text else None,
+            'geometry':dict(geometry),
+        })
+    return records
+
+def _task091_shape_boxes(snapshot: dict) -> list[tuple[int,int,int,int]]:
+    return [tuple(r['shape_bbox']) for r in _task091_shape_records(snapshot) if r.get('shape_text')]
+
+def _task091_shape_points(snapshot: dict) -> set[tuple[int,int]]:
+    return {(x+w//2,y+h//2) for x,y,w,h in _task091_shape_boxes(snapshot)}
+
+def _task091_point_proof(snapshot: dict, point: tuple[int,int]) -> dict:
+    window=snapshot.get('window',{}) if isinstance(snapshot,dict) else {}
+    base={
+        'slide':snapshot.get('active_slide') if isinstance(snapshot,dict) else None,
+        'candidate_point':[int(point[0]),int(point[1])],
+        'slide_canvas_bbox':snapshot.get('slide_canvas_bbox') if isinstance(snapshot,dict) else None,
+        'window_bbox':window.get('bbox') if isinstance(window,dict) else None,
+        'screen':snapshot.get('screen') if isinstance(snapshot,dict) else None,
+        'frame_identity':{
+            'active_slide':snapshot.get('active_slide') if isinstance(snapshot,dict) else None,
+            'captured_monotonic_ns':snapshot.get('captured_monotonic_ns') if isinstance(snapshot,dict) else None,
+            'stable':snapshot.get('stable') if isinstance(snapshot,dict) else None,
+        },
+        'owner_identity':{
+            'window_id':window.get('id') if isinstance(window,dict) else None,
+            'pid':window.get('pid') if isinstance(window,dict) else None,
+            'wm_class':window.get('wm_class') if isinstance(window,dict) else None,
+            'hit_owner_id':snapshot.get('hit_owner_id') if isinstance(snapshot,dict) else None,
+            'hit_owner_pid':snapshot.get('hit_owner_pid') if isinstance(snapshot,dict) else None,
+        },
+        'foreground_sha':digest(window) if isinstance(window,dict) and window else '',
+        'deck_sha':str((snapshot.get('deck_file') or {}).get('sha256') or '') if isinstance(snapshot,dict) else '',
+    }
+    if (not isinstance(snapshot,dict) or snapshot.get('stable') is not True
+            or snapshot.get('screen')!=TASK091_CANONICAL_SCREEN
+            or window.get('bbox')!=TASK091_CANONICAL_WINDOW
+            or type(snapshot.get('active_slide')) is not int or snapshot.get('active_slide')<=0):
+        return {**base,'proof_pass':False,'failure_class':'FRAME_DRIFT'}
+    if (type(window.get('id')) is not int or int(window.get('id') or 0)<=0
+            or type(window.get('pid')) is not int or int(window.get('pid') or 0)<=0
+            or not _is_wps_class(window.get('wm_class',''))):
+        return {**base,'proof_pass':False,'failure_class':'OWNER_DRIFT'}
+    if _task091_canvas(snapshot) is None:
+        return {**base,'proof_pass':False,'failure_class':'CANVAS_MAPPING_DRIFT'}
+    table=snapshot.get('deck_slide_shapes',{})
+    rows=table.get(str(snapshot.get('active_slide')),[]) if isinstance(table,dict) else []
+    invalid_text_geometry=0
+    if isinstance(rows,list):
+        for row in rows:
+            if not isinstance(row,dict) or not str(row.get('text') or '').strip():
                 continue
-            geometry=row.get('geometry', {})
-            if not isinstance(geometry, dict):
+            geometry=row.get('geometry')
+            if not isinstance(geometry,dict):
+                invalid_text_geometry+=1
                 continue
             gx=int(geometry.get('x') or 0); gy=int(geometry.get('y') or 0)
             gw=int(geometry.get('w') or 0); gh=int(geometry.get('h') or 0)
-            if gx < 0 or gy < 0 or gw <= 0 or gh <= 0:
-                continue
-            left=round(vx + (gx/sw)*vw)
-            top=round(vy + (gy/sh)*vh)
-            right=round(vx + ((gx+gw)/sw)*vw)
-            bottom=round(vy + ((gy+gh)/sh)*vh)
-            left=max(vx,int(left)); top=max(vy,int(top))
-            right=min(vx+vw,int(right)); bottom=min(vy+vh,int(bottom))
-            if right-left >= 2 and bottom-top >= 2:
-                boxes.append((left,top,right-left,bottom-top))
-    return boxes
-
-def _task091_shape_points(snapshot: dict) -> set[tuple[int, int]]:
-    points=set()
-    for x,y,w,h in _task091_shape_boxes(snapshot):
-        points.add((x+w//2,y+h//2))
-    return points
+            if gx<0 or gy<0 or gw<=0 or gh<=0:
+                invalid_text_geometry+=1
+    records=_task091_shape_records(snapshot)
+    ids=[r['shape_id'] for r in records if r['shape_id']>0]
+    if len(ids)!=len(set(ids)):
+        return {**base,'proof_pass':False,'failure_class':'SHAPE_IDENTITY_DRIFT',
+                'candidate_shapes_count':len(records),'matching_text_shapes_count':0}
+    x,y=int(point[0]),int(point[1])
+    geometry_hits=[]
+    text_hits=[]
+    for record in records:
+        bx,by,bw,bh=record['shape_bbox']
+        if bx<=x<bx+bw and by<=y<by+bh:
+            geometry_hits.append(record)
+            if record.get('shape_text') and record.get('text_bbox') is not None:
+                tx,ty,tw,th=record['text_bbox']
+                if tx<=x<tx+tw and ty<=y<ty+th:
+                    text_hits.append(record)
+    common={**base,'candidate_shapes_count':len(records),
+            'matching_text_shapes_count':len(text_hits),
+            'point_inside_shape':bool(geometry_hits),
+            'point_inside_text_region':bool(text_hits)}
+    if not geometry_hits and invalid_text_geometry:
+        return {**common,'proof_pass':False,'failure_class':'GEOMETRY_STALE',
+                'invalid_text_geometry_count':int(invalid_text_geometry)}
+    if not geometry_hits:
+        return {**common,'proof_pass':False,'failure_class':'POINT_OUTSIDE_SHAPE'}
+    if not text_hits:
+        return {**common,'proof_pass':False,'failure_class':'TEXT_REGION_UNPROVEN'}
+    if len(text_hits)>1:
+        return {**common,'proof_pass':False,'failure_class':'MULTIPLE_MATCHING_SHAPES'}
+    hit=text_hits[0]
+    return {**common,'proof_pass':True,'failure_class':None,
+            'shape_id':hit['shape_id'],'shape_name':hit['shape_name'],
+            'shape_text':hit['shape_text'],'shape_bbox':hit['shape_bbox'],
+            'text_bbox':hit['text_bbox']}
 
 def _task091_point_inside_unique_text_shape(snapshot: dict, point: tuple[int,int]) -> bool:
-    x,y=point
-    hits=0
-    for bx,by,bw,bh in _task091_shape_boxes(snapshot):
-        if bx <= x < bx+bw and by <= y < by+bh:
-            hits += 1
-            if hits > 1:
-                return False
-    return hits == 1
+    return _task091_point_proof(snapshot,point).get('proof_pass') is True
 
 
 def digest(value: object) -> str:
@@ -215,8 +309,11 @@ def preflight(command: str, snapshot: dict) -> str:
                     'TASK091_ACTIVE_SLIDE_UNPROVEN')
             require(str(snapshot.get('active_slide')) in snapshot.get('deck_slide_shapes', {}),
                     'TASK091_ACTIVE_SLIDE_SHAPES_UNPROVEN')
-            require(_task091_point_inside_unique_text_shape(snapshot, point),
-                    'TASK091_SHAPE_POINT_UNPROVEN')
+            point_proof=_task091_point_proof(snapshot,point)
+            if point_proof.get('proof_pass') is not True:
+                failure_class=point_proof['failure_class']
+                require(False,'TASK091_SHAPE_POINT_' + failure_class
+                        + ':' + json.dumps(point_proof,sort_keys=True,separators=(',',':')))
             require(inside(point, snapshot.get('screen')), 'POINTER_OUTSIDE_SCREEN')
             require(inside(point, window.get('bbox')), 'POINTER_OUTSIDE_FOREGROUND')
             return 'wps-content'

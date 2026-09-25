@@ -229,6 +229,48 @@ jobs:
             python -m arbm091.verify_transplant
           )
           git worktree remove -f "$tmp"
+        elif [[ "$current_parent" == 'cf6bc68728da26c7b8f781a05a759dde38b8881f' && "$current_message" == 'fix(091): map shape proof to observed canvas' ]]; then
+          [[ "$(git rev-parse HEAD^^)" == '9c3b768c670025c60361e2a36fdb1cd153aa0bfa' ]]
+          [[ "$(git rev-parse HEAD^^^)" == '07791bdbc1b3af45a6f1a24f2aacf663c6eea0d0' ]]
+          [[ "$(git rev-parse HEAD^^^^)" == '3b29fa943330937e4352c0c9cca5700cba261624' ]]
+          mapfile -t changed < <(git diff-tree --no-commit-id --name-only -r HEAD^ HEAD | LC_ALL=C sort)
+          [[ "${#changed[@]}" -eq 3 ]]
+          [[ "${changed[0]}" == '.github/workflows/arbm-091-clean-proof.yml' ]]
+          [[ "${changed[1]}" == 'scripts/arbm091/trace_gate.py' ]]
+          [[ "${changed[2]}" == 'tests/arbm091/test_score_and_trace.py' ]]
+          python - <<'PY'
+        from pathlib import Path
+        import hashlib,subprocess
+        workflow='.github/workflows/arbm-091-clean-proof.yml'
+        trace='scripts/arbm091/trace_gate.py'
+        tests='tests/arbm091/test_score_and_trace.py'
+        current=Path(workflow).read_text()
+        parent=subprocess.check_output(['git','show','HEAD^:'+workflow],text=True)
+        def step(text,name):
+            token='    - name: '+name
+            start=text.index(token)
+            end=text.find('\n    - name:',start+len(token))
+            return text[start:] if end < 0 else text[start:end]
+        name='Verify clean history and exact changed-file scope'
+        assert current.replace(step(current,name),step(parent,name),1)==parent
+        def sha(path):
+            return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+        assert sha(trace)=='91b1e127e82a5cc219dd30f419d74c70a1846734ef606a5c4e93a01eb289780c'
+        assert sha(tests)=='20b9f5768414ff57dc85a2d736d2085ad2373019a84eddbf475fd048781b995e'
+        trace_text=Path(trace).read_text()
+        assert "canvas=snapshot.get('slide_canvas_bbox')" in trace_text
+        assert 'vx,vy,vw,vh=TASK091_CANONICAL_SLIDE_VIEWPORT' not in trace_text
+        assert 'TASK091_SHAPE_POINT_UNPROVEN' not in trace_text
+        assert 'GENERIC_FAILURE' not in trace_text
+        print('AUTHORIZED_CURRENT_CANVAS_SHAPE_PROOF_GATE=PASS')
+        PY
+          tmp="$(mktemp -d)"
+          git worktree add --detach "$tmp" HEAD^^^^
+          (
+            cd "$tmp"
+            python -m arbm091.verify_transplant
+          )
+          git worktree remove -f "$tmp"
         else
           python -m arbm091.verify_transplant
         fi

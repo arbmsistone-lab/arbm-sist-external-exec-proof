@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from arbm091.score_tracker import exact_result, scan_fatal
-from arbm091.trace_gate import DECK, WORKBOOK, classify, digest, preflight, postflight, verify_trace
+from arbm091.trace_gate import DECK, WORKBOOK, classify, digest, preflight, postflight, verify_trace, _task091_point_proof
 from arbm091 import wps_observer
 from arbm091.test_fixture_state import observed_task091_state
 import osworld_free_mesh_shim as shim
@@ -259,6 +259,8 @@ class ForegroundTests(unittest.TestCase):
         body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2594)
         body['window']['bbox'] = [70, 27, 1850, 1053]
         body['screen'] = [0, 0, 1920, 1080]
+        body['hit_owner_pid'] = 2594
+        body['slide_canvas_bbox'] = [443, 194, 1413, 795]
         body['target'] = None
         body['active_slide'] = 1
         body['deck_slide_text'] = {'1':'Growth Plan Draft'}
@@ -277,7 +279,7 @@ class ForegroundTests(unittest.TestCase):
             preflight('pyautogui.doubleClick(869, 391, interval=0.08)', no_proof)
 
         off_shape = copy.deepcopy(body)
-        with self.assertRaisesRegex(ValueError, 'SHAPE_POINT_UNPROVEN'):
+        with self.assertRaisesRegex(ValueError, 'TASK091_SHAPE_POINT_POINT_OUTSIDE_SHAPE'):
             preflight('pyautogui.doubleClick(1215, 470, interval=0.08)', off_shape)
 
         missing_shape = copy.deepcopy(body)
@@ -302,13 +304,15 @@ class ForegroundTests(unittest.TestCase):
 
         missing_slide_size = copy.deepcopy(body)
         missing_slide_size['deck_file'].pop('slide_size', None)
-        with self.assertRaisesRegex(ValueError, 'SHAPE_POINT_UNPROVEN'):
+        with self.assertRaisesRegex(ValueError, 'TASK091_SHAPE_POINT_CANVAS_MAPPING_DRIFT'):
             preflight('pyautogui.doubleClick(869, 391, interval=0.08)', missing_slide_size)
 
     def test_task091_spatial_proof_is_scoped_to_observed_active_slide(self):
         body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2594)
         body['window']['bbox'] = [70, 27, 1850, 1053]
         body['screen'] = [0, 0, 1920, 1080]
+        body['hit_owner_pid'] = 2594
+        body['slide_canvas_bbox'] = [443, 194, 1413, 795]
         body['target'] = None
         body['active_slide'] = 1
         body['deck_slide_text'] = {'1':'Planning posture','2':'Other slide'}
@@ -739,6 +743,8 @@ class ForegroundTests(unittest.TestCase):
         body = snapshot(DECK + ' - WPS Office', 'wpsoffice wpsoffice', pid=2594)
         body['window']['bbox'] = [70, 27, 1850, 1053]
         body['screen'] = [0, 0, 1920, 1080]
+        body['hit_owner_pid'] = 2594
+        body['slide_canvas_bbox'] = [443, 194, 1413, 795]
         body['target'] = None
         body['active_slide'] = 1
         body['deck_slide_text'] = {'1':'A B'}
@@ -748,7 +754,7 @@ class ForegroundTests(unittest.TestCase):
         ]}
         body['deck_file'] = {'path':'/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx',
                              'sha256':'a'*64,'slide_size':{'w':12192000,'h':6858000}}
-        with self.assertRaisesRegex(ValueError, 'SHAPE_POINT_UNPROVEN'):
+        with self.assertRaisesRegex(ValueError, 'TASK091_SHAPE_POINT_MULTIPLE_MATCHING_SHAPES'):
             preflight('pyautogui.doubleClick(745, 335, interval=0.08)', body)
 
     def test_application_switch_is_not_edit(self):
@@ -856,6 +862,51 @@ class ForegroundTests(unittest.TestCase):
         body = snapshot(DECK + ' - WPS Presentation', 'wpp WPS', pid=2689)
         self.assertEqual(classify(body['window']), 'wps-presentation')
         self.assertEqual(preflight("pyautogui.press('enter')", body), 'wps-content')
+
+
+class Task091PointProofTests(unittest.TestCase):
+    def _current_focal(self):
+        row={'id':13,'name':'CoverStatValue_0','text':'$42.8M',
+             'geometry':{'x':8339327,'y':2167128,'w':2560320,'h':219456}}
+        return {'stable':True,'captured_monotonic_ns':406097760941,'active_slide':1,
+                'screen':[0,0,1920,1080],
+                'window':{'id':12582930,'pid':2709,'wm_class':'wpsoffice wpsoffice',
+                          'bbox':[70,27,1850,1053]},
+                'hit_owner_id':54525957,'hit_owner_pid':2847,
+                'slide_canvas_bbox':[352,263,1135,638],
+                'deck_file':{'sha256':'019e6f86d09b1d628e3f52dac27e6cb09ba988bb56ea8e0ba24af407f106f030',
+                             'slide_size':{'w':12191365,'h':6858000}},
+                'deck_slide_shapes':{'1':[row]}}
+
+    def test_run36130878164_current_frame_shape_point_passes(self):
+        result=_task091_point_proof(self._current_focal(),(1248,475))
+        self.assertTrue(result['proof_pass'],result)
+        self.assertEqual(result['shape_id'],13)
+        self.assertEqual(result['shape_name'],'CoverStatValue_0')
+        self.assertEqual(result['shape_bbox'],[1128,465,239,20])
+        self.assertTrue(result['point_inside_text_region'])
+
+    def test_shape_point_structural_negatives_fail_closed(self):
+        base=self._current_focal()
+        cases=[]
+        cases.append(('POINT_OUTSIDE_SHAPE',copy.deepcopy(base),(900,700),'POINT_OUTSIDE_SHAPE'))
+        x=copy.deepcopy(base); x['deck_slide_shapes']['1'][0]['text']=''
+        cases.append(('OUTSIDE_TEXT_REGION',x,(1248,475),'TEXT_REGION_UNPROVEN'))
+        x=copy.deepcopy(base); dup=copy.deepcopy(base['deck_slide_shapes']['1'][0]); dup['id']=99; dup['name']='Duplicate'; x['deck_slide_shapes']['1'].append(dup)
+        cases.append(('MULTIPLE_SHAPES',x,(1248,475),'MULTIPLE_MATCHING_SHAPES'))
+        x=copy.deepcopy(base); x['window']['id']=0
+        cases.append(('WRONG_OWNER',x,(1248,475),'OWNER_DRIFT'))
+        x=copy.deepcopy(base); x['stable']=False
+        cases.append(('STALE_FRAME',x,(1248,475),'FRAME_DRIFT'))
+        x=copy.deepcopy(base); x['slide_canvas_bbox']=[352,263,1135,400]
+        cases.append(('WRONG_CANVAS',x,(1248,475),'CANVAS_MAPPING_DRIFT'))
+        x=copy.deepcopy(base); x['deck_slide_shapes']['1'][0]['geometry']['w']=0
+        cases.append(('GEOMETRY_DRIFT',x,(1248,475),'GEOMETRY_STALE'))
+        for name,snapshot_value,point,expected in cases:
+            with self.subTest(name=name):
+                result=_task091_point_proof(snapshot_value,point)
+                self.assertFalse(result['proof_pass'],result)
+                self.assertEqual(result['failure_class'],expected,result)
 
 
 class ObserverStabilityTests(unittest.TestCase):
