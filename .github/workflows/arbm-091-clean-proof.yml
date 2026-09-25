@@ -719,6 +719,67 @@ jobs:
             python -m arbm091.verify_transplant
           )
           git worktree remove -f "$tmp"
+        elif [[ "$current_parent" == '94a526047763b1e5ccfaa160d010892b1e9c89aa' && "$current_message" == 'fix(091): audit atomic CoverStat1 geometry repair' ]]; then
+          [[ "$(git rev-parse HEAD^^^)" == '752578ccbae62a9b36c05795b8a2272e1e676642' ]]
+          [[ "$(git rev-parse HEAD^^)" == '697e950da20d801591458c7d80fc4f07bb169c51' ]]
+          [[ "$(git rev-parse HEAD^)" == '94a526047763b1e5ccfaa160d010892b1e9c89aa' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^ HEAD)" == '.github/workflows/arbm-091-clean-proof.yml' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^^ HEAD^)" == 'tests/arbm091/test_wps_observer_geometry.py' ]]
+          [[ "$(git diff-tree --no-commit-id --name-only -r HEAD^^^ HEAD^^)" == 'scripts/arbm091/wps_observer.py' ]]
+          [[ "$(git rev-parse HEAD:scripts/arbm091/wps_observer.py)" == '1a0610fb961f413a2fcf0d26ace77ba75d50e121' ]]
+          [[ "$(git rev-parse HEAD:tests/arbm091/test_wps_observer_geometry.py)" == 'b8ae9b482d977440787b6e972de0d3d2bcd71a7d' ]]
+          [[ -z "$(git rev-list --merges 6d80f63918c8ec788bdb2a7b55a8d48c025d9fb3..HEAD)" ]]
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        wf='.github/workflows/arbm-091-clean-proof.yml'
+        observer='scripts/arbm091/wps_observer.py'
+        tests='tests/arbm091/test_wps_observer_geometry.py'
+        current=Path(wf).read_text()
+        parent=subprocess.check_output(['git','show','HEAD^:'+wf],text=True)
+        token='    - name: Verify clean history and exact changed-file scope'
+        def gate(text):
+            start=text.index(token)
+            end=text.index('\n    - name:',start+len(token))
+            return text[start:end]
+        assert current.replace(gate(current),gate(parent),1)==parent
+        obs=Path(observer).read_text()
+        tst=Path(tests).read_text()
+        required_obs=(
+            '_COVERSTAT1_GEOMETRY=(8339327,3355848,2560320,219456)',
+            'def _coverstat1_repair_decision(payload):',
+            'def _guest_coverstat1_geometry_repair(controller):',
+            "'REPAIR_HEIGHT'",
+            'OOXML_SURGICAL_REPAIR',
+            "if _is_ctrl_s(atom):",
+            "decision=_coverstat1_repair_decision(persisted)",
+            "if decision=='FAIL_CLOSED':",
+            "if decision=='REPAIR_HEIGHT':",
+        )
+        for item in required_obs:
+            assert item in obs, item
+        required_tests=(
+            'test_exact_text_and_geometry_pass',
+            'test_height_drift_requests_surgical_repair',
+            'test_x_drift_fails_closed',
+            'test_y_drift_fails_closed',
+            'test_width_drift_fails_closed',
+            'test_nonpositive_height_fails_closed',
+            'test_wrong_text_does_not_authorize_geometry_mutation',
+            'test_duplicate_target_fails_to_authorize_repair',
+        )
+        for item in required_tests:
+            assert item in tst, item
+        assert '414020' not in [line for line in obs.splitlines() if 'expected=' in line]
+        print('AUTHORIZED_ATOMIC_COVERSTAT1_GEOMETRY_SCOPE=PASS')
+        PY
+          tmp="$(mktemp -d)"
+          git worktree add --detach "$tmp" 3b29fa943330937e4352c0c9cca5700cba261624
+          (
+            cd "$tmp"
+            python -m arbm091.verify_transplant
+          )
+          git worktree remove -f "$tmp"
         else
           python -m arbm091.verify_transplant
         fi
