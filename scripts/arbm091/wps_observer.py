@@ -22,7 +22,7 @@ _PROBE = Path(__file__).with_name('guest_probe.py').read_text()
 
 
 _COVERSTAT_ATOMIC_REGISTRY={
-    (1,13,'CoverStatValue_0'):{'geometry':(8339327,2167128,2560320,219456),'completed_text':None},
+    (1,13,'CoverStatValue_0'):{'geometry':(8339327,2167128,2560320,219456),'completed_text':'$40.9M'},
     (1,16,'CoverStatValue_1'):{'geometry':(8339327,3355848,2560320,219456),'completed_text':'$2.8M'},
     (1,19,'CoverStatValue_2'):{'geometry':(8339327,4544568,2560320,219456),'completed_text':'206'},
 }
@@ -43,7 +43,7 @@ def _coverstat_family_repair_decisions(payload):
                  and int(row.get('id') or 0)==shape_id
                  and str(row.get('name') or '')==name]
         if len(matches)!=1:
-            decisions.append(((slide,shape_id,name),'FAIL_CLOSED' if len(matches)>1 else 'NOOP'))
+            decisions.append(((slide,shape_id,name),'FAIL_CLOSED'))
             continue
         row=matches[0]
         if str(row.get('text') or '')!=expected_text:
