@@ -764,8 +764,9 @@ def _task091_prepare_cover_rewrite(pending, window_state, state):
     shape=_task091_cover_rewrite_proven(pending,window_state)
     if shape is None:
         return _task091_terminal('TASK091_COVER_REWRITE_SCOPE_UNPROVEN',state)
-    point=_task091_shape_text_point(window_state,shape,
-                                    pending.get('text_hit_x'),pending.get('text_hit_y'))
+    point=_task091_drift_safe_text_point(window_state,shape,
+                                         pending.get('text_hit_x'),pending.get('text_hit_y'),
+                                         recovery_attempt=1)
     if point is None:
         return _task091_terminal('TASK091_COVER_REWRITE_GEOMETRY_UNPROVEN',state)
     deck_sha=str((window_state.get('deck_file') or {}).get('sha256') or '')
