@@ -63,7 +63,9 @@ class SemanticRuntimeTests(unittest.TestCase):
         selected["screenshot_sha256"]="b"*64
         write=next_text_action(state,selected,plan)
         self.assertEqual(write["specialist_phase"],"semantic-cover-recovery-write")
-        self.assertIn("pyautogui.press('delete')",write["command"])
+        self.assertIn("pyautogui.hotkey('alt', 'n')",write["command"])
+        self.assertIn("pyautogui.hotkey('alt', 'r')",write["command"])
+        self.assertNotIn("pyautogui.press('delete')",write["command"])
         self.assertEqual(next_text_action(state,selected,plan)["specialist_phase"],
                          "semantic-cover-recovery-commit")
         self.assertEqual(next_text_action(state,selected,plan)["specialist_phase"],
@@ -150,13 +152,14 @@ class SemanticRuntimeTests(unittest.TestCase):
         mutation=next_text_action(state,frozen,plan)
         self.assertEqual(mutation["specialist_phase"],"semantic-text-mutation")
         command=mutation["command"]
-        self.assertIn("pyautogui.hotkey('ctrl', 'a')",command)
-        self.assertIn("pyautogui.press('delete')",command)
-        self.assertIn("pyautogui.write('$40.9M', interval=0.04)",command)
-        self.assertLess(command.index("hotkey('ctrl', 'a')"),command.index("press('delete')"))
-        self.assertLess(command.index("press('delete')"),command.index("write('$40.9M'"))
+        self.assertIn("pyautogui.hotkey('ctrl', 'h')",command)
+        self.assertIn("pyautogui.write('$42.8M', interval=0.08)",command)
+        self.assertIn("pyautogui.write('$40.9M', interval=0.08)",command)
+        self.assertLess(command.index("hotkey('alt', 'n')"),command.index("hotkey('alt', 'r')"))
+        self.assertNotIn("pyautogui.hotkey('ctrl', 'a')",command)
+        self.assertNotIn("pyautogui.press('delete')",command)
         self.assertNotIn("f2",command.casefold())
-        self.assertEqual(state["semantic_tx"]["mutation_mode"],"autofit-locked-select-all-clear-write")
+        self.assertEqual(state["semantic_tx"]["mutation_mode"],"autofit-locked-single-native-replace")
 
     def test_cover_title_reuses_current_text_options_without_reopening_panel(self):
         ws=base_state()
