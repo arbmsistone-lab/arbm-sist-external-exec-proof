@@ -1026,6 +1026,36 @@ jobs:
         assert 'test_section_e_uses_three_step_bounded_font_reduction' in tests
         print('AUTHORIZED_FINAL_BLOCKER_CLOSURE=PASS')
         PY
+        elif [[ "$current_parent" == 'b7ecf29ab9fc43e69e5b100e32f3a50f423d7fd8' && "$current_message" == 'fix(091): correct SummaryNrr metagate evidence paths' ]]; then
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        assert subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip()=='b7ecf29ab9fc43e69e5b100e32f3a50f423d7fd8'
+        changed=subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^','HEAD'],
+            text=True).strip()
+        assert changed=='.github/workflows/arbm-091-clean-proof.yml', changed
+        observer=Path('scripts/arbm091/wps_observer.py').read_text()
+        tests=Path('tests/arbm091/test_wps_observer_geometry.py').read_text()
+        shim=Path('scripts/osworld_free_mesh_shim.py').read_text()
+        semantic=Path('scripts/arbm091/semantic_transaction.py').read_text()
+        score_tests=Path('tests/arbm091/test_score_and_trace.py').read_text()
+        assert "(2,20,'SummaryNrr_Value'):{'geometry':(3227832,1810512,1837944,347472),'completed_text':'104%'}" in observer
+        assert 'test_summary_nrr_completed_height_drift_requests_repair' in tests
+        assert 'test_summary_nrr_exact_geometry_passes' in tests
+        assert 'test_summary_nrr_wrong_text_never_authorizes_repair' in tests
+        assert 'test_summary_nrr_nonheight_drift_fails_closed' in tests
+        assert "'shape_id': 16" in shim
+        assert "'shape_name': 'KpiReadout_Body'" in shim
+        assert "'text_fingerprint': '• Burn improvement relies on expansion payback from Q4.'" in shim
+        assert "'font_decrements': 7" in shim
+        assert 'TASK091_SECTION_E_SCORE' in score_tests
+        assert 'TASK091_SEMANTIC_DIFF_MISMATCH' in semantic
+        assert subprocess.check_output(
+            ['git','rev-list','--merges','b7ecf29ab9fc43e69e5b100e32f3a50f423d7fd8..HEAD'],
+            text=True).strip()==''
+        print('AUTHORIZED_SUMMARY_NRR_METAGATE_PATH_CORRECTION=PASS')
+        PY
         elif [[ "$current_parent" == 'ecbd64cb82d88c752e3079c603c9a782aa55a891' && "$current_message" == 'fix(091): lock SummaryNrr geometry after save' ]]; then
           python - <<'PY'
         from pathlib import Path
