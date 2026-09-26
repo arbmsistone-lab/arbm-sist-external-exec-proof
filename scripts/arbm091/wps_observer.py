@@ -260,7 +260,7 @@ def _guest_summaryrunway_geometry_repair(controller, before_shape, persisted_sha
         "path=cfg['path']; slide_no=2; shape_id=30; expected_text='17 mo'; expected_geom=tuple(cfg['expected'])",
         "raw=open(path,'rb').read(); before_sha=hashlib.sha256(raw).hexdigest(); slide_name='ppt/slides/slide%d.xml'%slide_no",
         "with zipfile.ZipFile(io.BytesIO(raw),'r') as zin: slide=zin.read(slide_name)",
-        "marker=re.compile(br'<p:cNvPr\\b[^>]*\\bid="30"[^>]*\\bname="SummaryRunway_Value"[^>]*/>')",
+        "marker=re.compile(br'<p:cNvPr\\b[^>]*\\bid=\"30\"[^>]*\\bname=\"SummaryRunway_Value\"[^>]*/>')",
         "matches=list(marker.finditer(slide))",
         "if len(matches)!=1: raise RuntimeError('TASK091_SUMMARYRUNWAY_IDENTITY_NOT_UNIQUE:'+str(len(matches)))",
         "m=matches[0]; start=slide.rfind(b'<p:sp',0,m.start()); end=slide.find(b'</p:sp>',m.end())",
