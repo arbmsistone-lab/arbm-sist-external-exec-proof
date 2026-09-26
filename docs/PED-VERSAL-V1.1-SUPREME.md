@@ -78,6 +78,6 @@ All new ZEVANORY surfaces start at Phase C.
 
 ## 6. ARBM SIST canonical split
 The ARBM SIST product is HYBRID_UI_PROOF.
-- Canonical UI: arbmsistone-lab/zevanory-public-mirror @ gh-pages · arbm-sist/index.html + product.css · https://zevanory.api.br/arbm-sist
+- Canonical UI: arbmsistone-lab/zevanory-public-mirror @ gh-pages · arbm-sist/index.html + arbm-sist/arbm-sist.css · https://zevanory.api.br/arbm-sist
 - Engineering/proof core: arbmsistone-lab/arbm-sist-external-exec-proof @ master
 - Product certification requires both UI_ENTERPRISE and ENGINEERING_PROOF evidence. Neither side alone represents complete ARBM SIST certification.
