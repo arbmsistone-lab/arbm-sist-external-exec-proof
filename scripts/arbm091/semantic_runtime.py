@@ -988,7 +988,7 @@ def next_text_action(state,window_state,plan):
                 tx["noop_retry_deck_sha256"]=current_sha
                 tx["noop_retry_evidence"]={
                     "classification":("SUMMARYRUNWAY_TEXT_MUTATION_NOOP"
-                                      if key==(2,"shape",30,"SummaryRunway_Value)
+                                      if key==(2,"shape",30,"SummaryRunway_Value")
                                       else ("SUMMARYBURN_TEXT_MUTATION_NOOP"
                                             if key==(2,"shape",25,"SummaryBurn_Value")
                                             else "SUMMARYARR_TEXT_MUTATION_NOOP")),
@@ -1007,7 +1007,7 @@ def next_text_action(state,window_state,plan):
                         "command":f"pyautogui.doubleClick({target['cx']}, {target['cy']}, interval=0.08)",
                         "target":target,
                         "specialist_phase":("semantic-summaryrunway-noop-retry-select"
-                                            if key==(2,"shape",30,"SummaryRunway_Value)
+                                            if key==(2,"shape",30,"SummaryRunway_Value")
                                             else ("semantic-summaryburn-noop-retry-select"
                                                   if key==(2,"shape",25,"SummaryBurn_Value")
                                                   else "semantic-summaryarr-noop-retry-select")),
