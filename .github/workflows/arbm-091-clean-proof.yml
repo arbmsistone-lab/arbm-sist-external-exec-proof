@@ -1026,6 +1026,30 @@ jobs:
         assert 'test_section_e_uses_three_step_bounded_font_reduction' in tests
         print('AUTHORIZED_FINAL_BLOCKER_CLOSURE=PASS')
         PY
+        elif [[ "$current_parent" == 'd15b9bc09b75d52ffeac7c80a9b04724e24640f9' && "$current_message" == 'test(091): authorize persisted autofit fixture evidence' ]]; then
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        assert subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip()=='d15b9bc09b75d52ffeac7c80a9b04724e24640f9'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^'],text=True).strip()=='9cb7e15308e2ddf19613d3599dae0f8743e2b5ac'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^','HEAD'],
+            text=True).strip()=='.github/workflows/arbm-091-clean-proof.yml'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^^','HEAD^'],
+            text=True).strip()=='tests/arbm091/test_semantic_runtime.py'
+        test=Path('tests/arbm091/test_semantic_runtime.py').read_text()
+        runtime=Path('scripts/arbm091/semantic_runtime.py').read_text()
+        shim=Path('scripts/osworld_free_mesh_shim.py').read_text()
+        assert 'autofit_mode"]="DO_NOT_AUTOFIT"' in test
+        assert '"semantic-roundtrip-reread"' in test
+        assert 'summaryarr-autofit-locked-selected-shape-overwrite' in runtime
+        assert "'font_decrements': 7" in shim
+        assert subprocess.check_output(
+            ['git','rev-list','--merges','9cb7e15308e2ddf19613d3599dae0f8743e2b5ac..HEAD'],
+            text=True).strip()==''
+        print('AUTHORIZED_PERSISTED_AUTOFIT_FIXTURE_EVIDENCE=PASS')
+        PY
         elif [[ "$current_parent" == '81c76bc00080e578832fb4a83fde298308d14206' && "$current_message" == 'test(091): authorize autofit state-machine contract alignment' ]]; then
           python - <<'PY'
         from pathlib import Path
