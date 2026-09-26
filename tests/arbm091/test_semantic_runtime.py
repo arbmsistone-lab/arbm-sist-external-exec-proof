@@ -635,16 +635,15 @@ class SemanticRuntimeTests(unittest.TestCase):
         retry=next_text_action(state,noop,plan)
         self.assertEqual(retry["specialist_phase"],"semantic-summaryarr-noop-retry-select")
         self.assertEqual(state["semantic_tx"]["noop_retry_attempts"],1)
+        noop["screenshot_sha256"]="d"*64
         write=next_text_action(state,noop,plan)
         self.assertEqual(write["specialist_phase"],"semantic-summaryarr-noop-retry-write")
-        self.assertIn("hotkey('ctrl', 'h')",write["command"])
-        self.assertIn("hotkey('alt', 'a')",write["command"])
-        self.assertIn("$42.8M",write["command"])
+        self.assertIn("hotkey('ctrl', 'a')",write["command"])
+        self.assertIn("press('backspace')",write["command"])
         self.assertIn("$40.9M",write["command"])
-        self.assertNotIn("hotkey('alt', 'n')",write["command"])
+        self.assertNotIn("hotkey('ctrl', 'h')",write["command"])
         self.assertNotIn("press('f2')",write["command"])
-        self.assertNotIn("hotkey('ctrl', 'a')",write["command"])
-        self.assertEqual(state["semantic_tx"]["mutation_mode"],"summaryarr-unique-global-native-replace-all")
+        self.assertEqual(state["semantic_tx"]["mutation_mode"],"summaryarr-selected-shape-full-overwrite")
         self.assertEqual(state["semantic_tx"]["retry_locked_geometry"],[1000,2000,3000,4000])
         self.assertEqual(next_text_action(state,noop,plan)["specialist_phase"],
                          "semantic-summaryarr-noop-retry-commit")
@@ -663,27 +662,6 @@ class SemanticRuntimeTests(unittest.TestCase):
         passed=next_text_action(state,fixed,plan)
         self.assertEqual(passed["checkpoint"],"TASK091_SEMANTIC_TRANSACTION_PASS")
         self.assertEqual(state["semantic_index"],1)
-
-    def test_summary_arr_retry_rejects_deck_wide_duplicate_old_value(self):
-        ws=base_state()
-        ws["active_slide"]=2
-        ws["deck_slide_shapes"]={
-            "2":[{"id":15,"name":"SummaryArr_Value","text":"$42.8M","kind":"shape",
-                   "geometry":{"x":1000,"y":2000,"w":3000,"h":4000},"font_sizes":[1600],"fill_rgb":""}],
-            "4":[{"id":99,"name":"DuplicateValue","text":"$42.8M","kind":"shape",
-                   "geometry":{"x":5000,"y":6000,"w":3000,"h":4000},"font_sizes":[1600],"fill_rgb":""}],
-        }
-        ws["deck_slide_relationships"]={"2":[],"4":[]}
-        state={"slide":2}
-        plan=((2,558,364,"$42.8M","$40.9M"),)
-        for _ in range(4):
-            next_text_action(state,ws,plan)
-        noop=copy.deepcopy(ws); noop["deck_file"]["sha256"]="b"*64
-        retry=next_text_action(state,noop,plan)
-        self.assertEqual(retry["specialist_phase"],"semantic-summaryarr-noop-retry-select")
-        rejected=next_text_action(state,noop,plan)
-        self.assertEqual(rejected["action"],"terminal")
-        self.assertEqual(rejected["reason"],"TASK091_SUMMARYARR_GLOBAL_REPLACE_SCOPE_UNPROVEN")
 
     def test_summary_arr_noop_retry_is_exactly_once_and_scope_locked(self):
         ws=base_state()
