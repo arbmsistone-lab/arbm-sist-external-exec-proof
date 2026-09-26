@@ -162,96 +162,6 @@ finally:
     require(payload.get('status')=='PASS','COVERSTAT_GEOMETRY_REPAIR_UNPROVEN')
     return payload
 
-def _guest_summaryrunway_geometry_repair(controller, before_shape, persisted_shape):
-    """Restore only the exact SummaryRunway height after WPS AutoFit expands it."""
-    require(isinstance(before_shape,dict) and isinstance(persisted_shape,dict),
-            'TASK091_SUMMARYRUNWAY_GEOMETRY_TARGET_MISSING')
-    require(int(before_shape.get('id') or 0)==30
-            and str(before_shape.get('name') or '')=='SummaryRunway_Value',
-            'TASK091_SUMMARYRUNWAY_GEOMETRY_IDENTITY')
-    require(str(persisted_shape.get('text') or '')=='17 mo',
-            'TASK091_SUMMARYRUNWAY_GEOMETRY_TEXT')
-    bg=before_shape.get('geometry') or {}
-    ag=persisted_shape.get('geometry') or {}
-    expected=(int(bg.get('x') or 0),int(bg.get('y') or 0),
-              int(bg.get('w') or 0),int(bg.get('h') or 0))
-    actual=(int(ag.get('x') or 0),int(ag.get('y') or 0),
-            int(ag.get('w') or 0),int(ag.get('h') or 0))
-    require(expected==(7927848,1810512,1517904,347472),
-            'TASK091_SUMMARYRUNWAY_BASELINE_GEOMETRY_CHANGED:'+repr(expected))
-    if actual==expected:
-        return {'status':'PASS','action':'NOOP','target':[2,30,'SummaryRunway_Value'],
-                'geometry_before':list(actual),'geometry_after':list(expected)}
-    require(actual[:3]==expected[:3] and actual[3]>0,
-            'TASK091_SUMMARYRUNWAY_NONHEIGHT_DRIFT:'+repr(actual))
-    path=str((before_shape.get('_deck_file_path') or '') or '/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx')
-    server=controller.http_server
-    parsed=urlparse(server)
-    require(parsed.scheme=='http' and parsed.hostname in ('localhost','127.0.0.1'),
-            'TASK091_SUMMARYRUNWAY_REPAIR_ISOLATED_GUEST_ONLY')
-    config=json.dumps({'path':path,'slide':2,'shape_id':30,'name':'SummaryRunway_Value',
-                       'expected':list(expected),'expected_text':'17 mo'},separators=(',',':'))
-    code=r'''import hashlib,io,json,os,re,tempfile,zipfile
-cfg=json.loads(CFG)
-path=cfg["path"]; slide_no=int(cfg["slide"]); shape_id=int(cfg["shape_id"])
-name=str(cfg["name"]); expected=tuple(int(v) for v in cfg["expected"])
-expected_text=str(cfg["expected_text"])
-raw=open(path,"rb").read(); before_sha=hashlib.sha256(raw).hexdigest()
-slide_name="ppt/slides/slide%d.xml"%slide_no
-with zipfile.ZipFile(io.BytesIO(raw),"r") as zin:
-    if slide_name not in zin.namelist(): raise RuntimeError("TASK091_SUMMARYRUNWAY_SLIDE_MISSING")
-    slide=zin.read(slide_name)
-marker=re.compile(br'<p:cNvPr[^>]*id="'+str(shape_id).encode()+br'"[^>]*name="'+re.escape(name.encode())+br'"[^>]*/>')
-matches=list(marker.finditer(slide))
-if len(matches)!=1: raise RuntimeError("TASK091_SUMMARYRUNWAY_IDENTITY_NOT_UNIQUE:"+str(len(matches)))
-m=matches[0]; start=slide.rfind(b"<p:sp",0,m.start()); end=slide.find(b"</p:sp>",m.end())
-if start<0 or end<0: raise RuntimeError("TASK091_SUMMARYRUNWAY_SHAPE_BOUNDARY")
-end+=len(b"</p:sp>"); shape=slide[start:end]
-if shape.count(expected_text.encode())!=1: raise RuntimeError("TASK091_SUMMARYRUNWAY_TEXT_NOT_EXACT")
-xfrm=re.search(br'<a:xfrm[^>]*>(.*?)</a:xfrm>',shape,re.S)
-if not xfrm: raise RuntimeError("TASK091_SUMMARYRUNWAY_XFRM_MISSING")
-body=xfrm.group(1)
-off=re.search(br'<a:off[^>]*x="([0-9]+)"[^>]*y="([0-9]+)"[^>]*/>',body)
-ext=re.search(br'<a:ext[^>]*cx="([0-9]+)"[^>]*cy="([0-9]+)"[^>]*/>',body)
-if not off or not ext: raise RuntimeError("TASK091_SUMMARYRUNWAY_GEOMETRY_MISSING")
-actual=(int(off.group(1)),int(off.group(2)),int(ext.group(1)),int(ext.group(2)))
-if actual[:3]!=expected[:3] or actual[3]<=0: raise RuntimeError("TASK091_SUMMARYRUNWAY_GEOMETRY_DRIFT:"+repr(actual))
-patched_shape=re.sub(br'(<a:ext[^>]*cx=")[0-9]+("[^>]*cy=")[0-9]+("[^>]*/>)',
-    lambda mm:mm.group(1)+str(expected[2]).encode()+mm.group(2)+str(expected[3]).encode()+mm.group(3),
-    shape,count=1)
-if patched_shape==shape: raise RuntimeError("TASK091_SUMMARYRUNWAY_PATCH_NO_EFFECT")
-patched=slide[:start]+patched_shape+slide[end:]
-fd,tmp=tempfile.mkstemp(prefix=".task091-summaryrunway-",suffix=".pptx",dir=os.path.dirname(path)); os.close(fd)
-try:
-    with zipfile.ZipFile(io.BytesIO(raw),"r") as zin, zipfile.ZipFile(tmp,"w") as zout:
-        for info in zin.infolist():
-            data=patched if info.filename==slide_name else zin.read(info.filename)
-            zout.writestr(info,data)
-    with zipfile.ZipFile(tmp,"r") as check, zipfile.ZipFile(io.BytesIO(raw),"r") as original:
-        out=check.read(slide_name)
-        mm=list(marker.finditer(out))
-        if len(mm)!=1: raise RuntimeError("TASK091_SUMMARYRUNWAY_VERIFY_IDENTITY")
-        ss=out.rfind(b"<p:sp",0,mm[0].start()); ee=out.find(b"</p:sp>",mm[0].end())+len(b"</p:sp>")
-        seg=out[ss:ee]
-        if seg.count(expected_text.encode())!=1: raise RuntimeError("TASK091_SUMMARYRUNWAY_VERIFY_TEXT")
-        xx=re.search(br'<a:ext[^>]*cx="([0-9]+)"[^>]*cy="([0-9]+)"[^>]*/>',seg)
-        if not xx: raise RuntimeError("TASK091_SUMMARYRUNWAY_VERIFY_GEOMETRY")
-        verified=(expected[0],expected[1],int(xx.group(1)),int(xx.group(2)))
-        if verified!=expected: raise RuntimeError("TASK091_SUMMARYRUNWAY_VERIFY_GEOMETRY_DRIFT:"+repr(verified))
-        for info in check.infolist():
-            if info.filename!=slide_name and check.read(info.filename)!=original.read(info.filename):
-                raise RuntimeError("TASK091_SUMMARYRUNWAY_COLLATERAL:"+info.filename)
-    os.replace(tmp,path)
-    after=open(path,"rb").read()
-    print(json.dumps({'status':'PASS','action':'OOXML_SUMMARYRUNWAY_GEOMETRY_REPAIR',
-        'target':[2,30,'SummaryRunway_Value'],'before_sha256':before_sha,
-        'after_sha256':hashlib.sha256(after).hexdigest(),
-        'geometry_before':list(actual),'geometry_after':list(expected)}))
-finally:
-    try: os.unlink(tmp)
-    except FileNotFoundError: pass
-
-
 def _guest_section_e_font_repair(controller, before_state, persisted_state):
     """Repair only Slide 3 KpiReadout_Body font sizes when WPS ignored the 7x decrement.
 
@@ -265,9 +175,7 @@ def _guest_section_e_font_repair(controller, before_state, persisted_state):
         "shape_id": 16,
         "name": "KpiReadout_Body",
         "text_fingerprint": "• Burn improvement relies on expansion payback from Q4.",
-        "font_delta": 100,
-        "width_budget": 350000,
-        "parent_shape_id": 14,
+        "font_delta": 700,
     }
     def shape(payload):
         rows=((payload.get("deck_slide_shapes") or {}).get(str(spec["slide"])) or [])
@@ -281,20 +189,6 @@ def _guest_section_e_font_repair(controller, before_state, persisted_state):
     before_geom=dict(before_shape.get("geometry") or {})
     after_geom=dict(after_shape.get("geometry") or {})
     require(before_geom==after_geom,"TASK091_SECTION_E_FONT_GEOMETRY_DRIFT_PRE_REPAIR")
-    parent_rows=((before_state.get("deck_slide_shapes") or {}).get("3") or [])
-    parent_matches=[r for r in parent_rows if isinstance(r,dict)
-                    and int(r.get("id") or 0)==spec["parent_shape_id"]
-                    and str(r.get("name") or "")=="KpiReadout"]
-    require(len(parent_matches)==1,"TASK091_SECTION_E_PARENT_NOT_UNIQUE")
-    parent_geom=dict(parent_matches[0].get("geometry") or {})
-    bx=int(before_geom.get("x") or 0); by=int(before_geom.get("y") or 0)
-    bw=int(before_geom.get("w") or 0); bh=int(before_geom.get("h") or 0)
-    px=int(parent_geom.get("x") or 0); pw=int(parent_geom.get("w") or 0)
-    parent_right=px+pw
-    safe_width=min(bw+int(spec["width_budget"]),parent_right-bx)
-    require(safe_width==2350008 and safe_width>bw,
-            "TASK091_SECTION_E_SAFE_WIDTH_UNEXPECTED:"+str(safe_width))
-    expected_geom=(bx,by,safe_width,bh)
     before_sizes=[int(v) for v in (before_shape.get("font_sizes") or [])]
     after_sizes=[int(v) for v in (after_shape.get("font_sizes") or [])]
     require(before_sizes and after_sizes and before_sizes==after_sizes,
@@ -309,7 +203,7 @@ def _guest_section_e_font_repair(controller, before_state, persisted_state):
         "path":"/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx",
         "slide":spec["slide"],"shape_id":spec["shape_id"],"name":spec["name"],
         "fingerprint":spec["text_fingerprint"],"expected_fonts":expected,
-        "expected_geometry":list(expected_geom),
+        "expected_geometry":[int(before_geom[k]) for k in ("x","y","w","h")],
     },separators=(",",":"))
     code=r'''import hashlib,io,json,os,re,tempfile,time,zipfile
 cfg=json.loads(CFG)
@@ -317,7 +211,6 @@ path=cfg["path"]; slide_no=int(cfg["slide"]); shape_id=int(cfg["shape_id"])
 name=str(cfg["name"]); fp=str(cfg["fingerprint"])
 expected=[int(v) for v in cfg["expected_fonts"]]
 expected_geom=tuple(int(v) for v in cfg["expected_geometry"])
-expected_before_geom=(expected_geom[0],expected_geom[1],2148840,expected_geom[3])
 raw=open(path,"rb").read(); before_sha=hashlib.sha256(raw).hexdigest()
 slide_name="ppt/slides/slide%d.xml"%slide_no
 with zipfile.ZipFile(io.BytesIO(raw),"r") as z:
@@ -337,7 +230,7 @@ off=re.search(br'<a:off\b[^>]*\bx="([0-9]+)"[^>]*\by="([0-9]+)"[^>]*/>',body)
 ext=re.search(br'<a:ext\b[^>]*\bcx="([0-9]+)"[^>]*\bcy="([0-9]+)"[^>]*/>',body)
 if not off or not ext: raise RuntimeError("TASK091_SECTION_E_GEOMETRY_MISSING")
 geom=(int(off.group(1)),int(off.group(2)),int(ext.group(1)),int(ext.group(2)))
-if geom!=(expected_geom[0],expected_geom[1],before_geom_w,expected_geom_h): raise RuntimeError("TASK091_SECTION_E_GEOMETRY_DRIFT:"+repr(geom))
+if geom!=expected_geom: raise RuntimeError("TASK091_SECTION_E_GEOMETRY_DRIFT:"+repr(geom))
 for tag in (b"rPr",b"defRPr",b"endParaRPr"):
     pass
 sizes=[int(x) for x in re.findall(br'<a:(?:rPr|defRPr|endParaRPr)\b[^>]*\bsz="([0-9]+)"',shape_xml)]
@@ -624,22 +517,6 @@ def install(environment_class):
                                 repairs.append(_guest_coverstat_geometry_repair(controller,target))
                         if repairs:
                             row['coverstat_geometry_repairs']=repairs
-                        if active_slide == 2:
-                            try:
-                                rr_before=next((x for x in (before.get('deck_slide_shapes',{}).get('2') or [])
-                                                if int(x.get('id') or 0)==30 and str(x.get('name') or '')=='SummaryRunway_Value'),None)
-                                rr_after=next((x for x in (persisted.get('deck_slide_shapes',{}).get('2') or [])
-                                               if int(x.get('id') or 0)==30 and str(x.get('name') or '')=='SummaryRunway_Value'),None)
-                                if (isinstance(rr_before,dict) and isinstance(rr_after,dict)
-                                    and str(rr_after.get('text') or '')=='17 mo'
-                                    and tuple(rr_before.get('geometry',{}).get(k) or 0 for k in ('x','y','w','h'))
-                                       != tuple(rr_after.get('geometry',{}).get(k) or 0 for k in ('x','y','w','h'))):
-                                    rr_before['_deck_file_path']=str((before.get('deck_file') or {}).get('path') or '')
-                                    repair=_guest_summaryrunway_geometry_repair(controller,rr_before,rr_after)
-                                    row['summaryrunway_geometry_repair']=repair
-                                    persisted,_=_settled_probe(controller,None)
-                            except Exception as exc:
-                                raise RuntimeError('TASK091_SUMMARYRUNWAY_GEOMETRY_REPAIR_BLOCKED:'+str(exc)[:240])
                         if active_slide == 3:
                             try:
                                 sec_shape_before=next((x for x in (before.get('deck_slide_shapes',{}).get('3') or [])

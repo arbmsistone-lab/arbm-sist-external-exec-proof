@@ -324,12 +324,7 @@ def verify_font_transaction(before_state, after_state, target_key_value, decreme
     if len(bg)!=4 or len(ag)!=4:
         raise SemanticTransactionError("TASK091_FONT_GEOMETRY_MISSING")
     bx,by,bw,bh=bg; ax,ay,aw,ah=ag
-    if min(bw,bh,aw,ah)<=0:
-        raise SemanticTransactionError("TASK091_FONT_GEOMETRY_OUTSIDE_BUDGET")
-    if key==(3,"shape",16,"KpiReadout_Body"):
-        if (ax,ay,aw,ah)!=(9034272,1883664,2350008,1353312):
-            raise SemanticTransactionError("TASK091_SECTION_E_GEOMETRY_NOT_EXACT")
-    elif (ax,ay,aw)!=(bx,by,bw) or not int(bh*0.60)<=ah<=bh:
+    if min(bw,bh,aw,ah)<=0 or (ax,ay,aw)!=(bx,by,bw) or not int(bh*0.60)<=ah<=bh:
         raise SemanticTransactionError("TASK091_FONT_GEOMETRY_OUTSIDE_BUDGET")
     before_sizes=tuple(b.get("font_sizes") or ())
     after_sizes=tuple(a.get("font_sizes") or ())
