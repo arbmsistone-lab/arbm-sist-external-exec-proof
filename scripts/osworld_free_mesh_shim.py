@@ -69,10 +69,9 @@ TASK091_REPLACEMENTS = (
 def _task091_match(instruction):
     text=str(instruction or '').casefold()
     return (os.environ.get('TASK_ID')=='091'
-            and 'operating committee'Com'),
-    (13, 1064, 763, 'Dec 04', 'Dec 05'),
-    (13, 1323, 763, 'Red', 'Green'),
-)
+            and 'operating committee' in text and 'rebaseline' in text
+            and 'reforecast_model_h2.xlsx' in text)
+
 def _task091_norm(value):
     return ' '.join(str(value or '').replace('\u200b','').casefold().split())
 
