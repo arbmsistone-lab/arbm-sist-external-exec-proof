@@ -1483,6 +1483,7 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
 
     def test_fifty_adversarial_table_transaction_audits(self):
         source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+        matrix_source=Path('scripts/arbm091/closed_matrix.py').read_text(encoding='utf-8')
         writer_start=source.index("def _task091_table_cell_bounded_write_command")
         writer_end=source.index("def _task091_table_cell_rollback_command",writer_start)
         writer=source[writer_start:writer_end]
