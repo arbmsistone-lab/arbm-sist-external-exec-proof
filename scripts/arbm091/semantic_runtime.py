@@ -776,10 +776,17 @@ def next_text_action(state,window_state,plan):
         if (row is None or str(row.get("text") or "")!=str(tx.get("old") or "")
                 or model_sha256(current_model)!=str(tx.get("noop_retry_model_sha256") or "")):
             return _terminal("TASK091_SUMMARYARR_RETRY_SELECTION_DRIFT")
+        exact_occurrences=[
+            candidate_key for candidate_key,candidate_row in current_model.items()
+            if str(candidate_row.get("text") or "")==str(tx.get("old") or "")
+        ]
+        if exact_occurrences!=[key]:
+            return _terminal("TASK091_SUMMARYARR_GLOBAL_REPLACE_SCOPE_UNPROVEN")
         tx["stage"]="summary-noop-retry-mutation-issued"
-        tx["mutation_mode"]="summaryarr-single-native-replace"
-        return {"action":"exec","command":_single_replace_command(tx.get("old"),tx.get("new")),
-                "plan":"Retry the exact SummaryArr_Value mutation once with WPS Replace Next, using a different persisted-write primitive after proving the first whole-target edit was a true no-op. Exact target-only OOXML diff remains mandatory.",
+        tx["mutation_mode"]="summaryarr-unique-global-native-replace-all"
+        tx["retry_locked_geometry"]=list(row.get("geometry") or ())
+        return {"action":"exec","command":_contained_replace_command(tx.get("old"),tx.get("new")),
+                "plan":"Retry SummaryArr_Value with WPS Replace All only after proving the old value has exactly one deck-wide occurrence. This replaces the complete value without caret dependence; exact target-only text and unchanged geometry remain mandatory in OOXML.",
                 "specialist_phase":"semantic-summaryarr-noop-retry-write",
                 "expected_change":tx.get("new")}
 
@@ -808,6 +815,8 @@ def next_text_action(state,window_state,plan):
                     "specialist_phase":"semantic-summaryarr-noop-retry-save-reobserve",
                     "plan":"The retry save is not visible on disk yet; re-observe the exact OOXML target without issuing any additional mutation."}
         tx["noop_retry_save_observations"]=0
+        if row is None or tuple(row.get("geometry") or ())!=tuple(tx.get("retry_locked_geometry") or ()):
+            return _terminal("TASK091_SUMMARYARR_RETRY_GEOMETRY_DRIFT")
         try:
             verdict=verify_exact_text_transaction(tx["before_state"],window_state,[key],tx.get("new"))
         except SemanticTransactionError as exc:
