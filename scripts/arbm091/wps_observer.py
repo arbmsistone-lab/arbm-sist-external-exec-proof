@@ -276,8 +276,7 @@ finally:
     try: os.unlink(tmp)
     except FileNotFoundError: pass
 '''
-    code="CFG="+repr(config)+"
-"+code
+    code="CFG="+repr(config)+"\\n"+code
     session=requests.Session(); session.trust_env=False
     try:
         response=session.post(server.rstrip('/')+"/execute",
