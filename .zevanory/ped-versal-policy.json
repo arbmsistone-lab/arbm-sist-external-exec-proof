@@ -52,7 +52,7 @@
     "repository": "arbmsistone-lab/zevanory-public-mirror",
     "branch": "gh-pages",
     "path": "arbm-sist/index.html",
-    "stylePath": "product.css",
+    "stylePath": "arbm-sist/arbm-sist.css",
     "publicUrl": "https://zevanory.api.br/arbm-sist"
   },
   "uiEnforcement": "UI_ENTERPRISE",
