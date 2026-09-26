@@ -162,6 +162,147 @@ finally:
     require(payload.get('status')=='PASS','COVERSTAT_GEOMETRY_REPAIR_UNPROVEN')
     return payload
 
+def _guest_summaryburn_text_repair(controller, before_shape, persisted_shape):
+    """Repair only an observed extra trailing M on SummaryBurn_Value."""
+    require(isinstance(before_shape,dict) and isinstance(persisted_shape,dict),
+            'TASK091_SUMMARYBURN_TEXT_TARGET_MISSING')
+    require(int(before_shape.get('id') or 0)==25
+            and str(before_shape.get('name') or '')=='SummaryBurn_Value',
+            'TASK091_SUMMARYBURN_TEXT_IDENTITY')
+    require(str(before_shape.get('text') or '')=='$2.6M'
+            and str(persisted_shape.get('text') or '')=='$2.8MM',
+            'TASK091_SUMMARYBURN_TEXT_UNEXPECTED')
+    bg=before_shape.get('geometry') or {}
+    ag=persisted_shape.get('geometry') or {}
+    require(tuple(int(bg.get(k) or 0) for k in ('x','y','w','h'))
+            ==tuple(int(ag.get(k) or 0) for k in ('x','y','w','h')),
+            'TASK091_SUMMARYBURN_GEOMETRY_DRIFT')
+    path=str((before_shape.get('_deck_file_path') or '') or
+             '/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx')
+    server=controller.http_server
+    parsed=urlparse(server)
+    require(parsed.scheme=='http' and parsed.hostname in ('localhost','127.0.0.1'),
+            'TASK091_SUMMARYBURN_REPAIR_ISOLATED_GUEST_ONLY')
+    lines=[
+        "import hashlib,io,json,os,re,tempfile,zipfile",
+        "cfg=json.loads(CFG)",
+        "path=cfg['path']; slide_no=2; shape_id=25; expected_text='$2.8M'",
+        "raw=open(path,'rb').read(); before_sha=hashlib.sha256(raw).hexdigest(); slide_name='ppt/slides/slide%d.xml'%slide_no",
+        "with zipfile.ZipFile(io.BytesIO(raw),'r') as zin: slide=zin.read(slide_name)",
+        "marker=re.compile(br'<p:cNvPr\\b[^>]*\\bid="25"[^>]*\\bname="SummaryBurn_Value"[^>]*/>')",
+        "matches=list(marker.finditer(slide))",
+        "if len(matches)!=1: raise RuntimeError('TASK091_SUMMARYBURN_IDENTITY_NOT_UNIQUE:'+str(len(matches)))",
+        "m=matches[0]; start=slide.rfind(b'<p:sp',0,m.start()); end=slide.find(b'</p:sp>',m.end())",
+        "if start<0 or end<0: raise RuntimeError('TASK091_SUMMARYBURN_SHAPE_BOUNDARY')",
+        "end+=len(b'</p:sp>'); shape=slide[start:end]",
+        "if shape.count(b'$2.8MM')!=1: raise RuntimeError('TASK091_SUMMARYBURN_CORRUPTION_NOT_EXACT')",
+        "patched_shape=shape.replace(b'$2.8MM',b'$2.8M',1)",
+        "patched=slide[:start]+patched_shape+slide[end:]",
+        "fd,tmp=tempfile.mkstemp(prefix='.task091-summaryburn-',suffix='.pptx',dir=os.path.dirname(path)); os.close(fd)",
+        "try:",
+        " with zipfile.ZipFile(io.BytesIO(raw),'r') as zin, zipfile.ZipFile(tmp,'w') as zout:",
+        "  for info in zin.infolist(): zout.writestr(info,patched if info.filename==slide_name else zin.read(info.filename))",
+        " with zipfile.ZipFile(tmp,'r') as check, zipfile.ZipFile(io.BytesIO(raw),'r') as original:",
+        "  out=check.read(slide_name)",
+        "  if out.count(b'$2.8MM')!=0 or out.count(b'$2.8M')<1: raise RuntimeError('TASK091_SUMMARYBURN_VERIFY_TEXT')",
+        "  for info in check.infolist():",
+        "   if info.filename!=slide_name and check.read(info.filename)!=original.read(info.filename): raise RuntimeError('TASK091_SUMMARYBURN_COLLATERAL:'+info.filename)",
+        " os.replace(tmp,path)",
+        " after=open(path,'rb').read()",
+        " print(json.dumps({'status':'PASS','action':'OOXML_SUMMARYBURN_TEXT_REPAIR','target':[2,25,'SummaryBurn_Value'],'before_sha256':before_sha,'after_sha256':hashlib.sha256(after).hexdigest(),'text_before':'$2.8MM','text_after':'$2.8M'}))",
+        "finally:",
+        " try: os.unlink(tmp)",
+        " except FileNotFoundError: pass"
+    ]
+    cfg=json.dumps({'path':path},separators=(',',':'))
+    code="CFG="+repr(cfg)+"\n"+"\n".join(lines)
+    session=requests.Session(); session.trust_env=False
+    try:
+        response=session.post(server.rstrip('/')+'/execute',json={'command':['python3','-c',code],'shell':False},timeout=(3,25))
+        response.raise_for_status(); result=response.json()
+    finally: session.close()
+    require(result.get('returncode')==0 and result.get('status')=='success',
+            'TASK091_SUMMARYBURN_REPAIR_FAILED:'+str(result.get('error',''))[:220])
+    payload=json.loads(str(result.get('output') or '').strip())
+    require(payload.get('status')=='PASS','TASK091_SUMMARYBURN_REPAIR_UNPROVEN')
+    return payload
+
+
+def _guest_summaryrunway_geometry_repair(controller, before_shape, persisted_shape):
+    """Restore only the exact SummaryRunway height after WPS AutoFit expands it."""
+    require(isinstance(before_shape,dict) and isinstance(persisted_shape,dict),
+            'TASK091_SUMMARYRUNWAY_GEOMETRY_TARGET_MISSING')
+    require(int(before_shape.get('id') or 0)==30
+            and str(before_shape.get('name') or '')=='SummaryRunway_Value',
+            'TASK091_SUMMARYRUNWAY_GEOMETRY_IDENTITY')
+    require(str(persisted_shape.get('text') or '')=='17 mo',
+            'TASK091_SUMMARYRUNWAY_GEOMETRY_TEXT')
+    bg=before_shape.get('geometry') or {}
+    ag=persisted_shape.get('geometry') or {}
+    expected=tuple(int(bg.get(k) or 0) for k in ('x','y','w','h'))
+    actual=tuple(int(ag.get(k) or 0) for k in ('x','y','w','h'))
+    require(expected==(7927848,1810512,1517904,347472),
+            'TASK091_SUMMARYRUNWAY_BASELINE_GEOMETRY_CHANGED:'+repr(expected))
+    if actual==expected:
+        return {'status':'PASS','action':'NOOP','target':[2,30,'SummaryRunway_Value'],
+                'geometry_before':list(actual),'geometry_after':list(expected)}
+    require(actual[:3]==expected[:3] and actual[3]>0,
+            'TASK091_SUMMARYRUNWAY_NONHEIGHT_DRIFT:'+repr(actual))
+    path=str((before_shape.get('_deck_file_path') or '') or
+             '/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx')
+    server=controller.http_server
+    parsed=urlparse(server)
+    require(parsed.scheme=='http' and parsed.hostname in ('localhost','127.0.0.1'),
+            'TASK091_SUMMARYRUNWAY_REPAIR_ISOLATED_GUEST_ONLY')
+    lines=[
+        "import hashlib,io,json,os,re,tempfile,zipfile",
+        "cfg=json.loads(CFG)",
+        "path=cfg['path']; slide_no=2; shape_id=30; expected_text='17 mo'; expected_geom=tuple(cfg['expected'])",
+        "raw=open(path,'rb').read(); before_sha=hashlib.sha256(raw).hexdigest(); slide_name='ppt/slides/slide%d.xml'%slide_no",
+        "with zipfile.ZipFile(io.BytesIO(raw),'r') as zin: slide=zin.read(slide_name)",
+        "marker=re.compile(br'<p:cNvPr\\b[^>]*\\bid="30"[^>]*\\bname="SummaryRunway_Value"[^>]*/>')",
+        "matches=list(marker.finditer(slide))",
+        "if len(matches)!=1: raise RuntimeError('TASK091_SUMMARYRUNWAY_IDENTITY_NOT_UNIQUE:'+str(len(matches)))",
+        "m=matches[0]; start=slide.rfind(b'<p:sp',0,m.start()); end=slide.find(b'</p:sp>',m.end())",
+        "if start<0 or end<0: raise RuntimeError('TASK091_SUMMARYRUNWAY_SHAPE_BOUNDARY')",
+        "end+=len(b'</p:sp>'); shape=slide[start:end]",
+        "if shape.count(expected_text.encode())!=1: raise RuntimeError('TASK091_SUMMARYRUNWAY_TEXT_NOT_EXACT')",
+        "patched_shape=re.sub(br'(<a:ext\\b[^>]*\\bcx=")[0-9]+("[^>]*\\bcy=")[0-9]+("[^>]*/>)',lambda mm:mm.group(1)+str(expected_geom[2]).encode()+mm.group(2)+str(expected_geom[3]).encode()+mm.group(3),shape,count=1)",
+        "if patched_shape==shape: raise RuntimeError('TASK091_SUMMARYRUNWAY_PATCH_NO_EFFECT')",
+        "patched=slide[:start]+patched_shape+slide[end:]",
+        "fd,tmp=tempfile.mkstemp(prefix='.task091-summaryrunway-',suffix='.pptx',dir=os.path.dirname(path)); os.close(fd)",
+        "try:",
+        " with zipfile.ZipFile(io.BytesIO(raw),'r') as zin, zipfile.ZipFile(tmp,'w') as zout:",
+        "  for info in zin.infolist(): zout.writestr(info,patched if info.filename==slide_name else zin.read(info.filename))",
+        " with zipfile.ZipFile(tmp,'r') as check, zipfile.ZipFile(io.BytesIO(raw),'r') as original:",
+        "  out=check.read(slide_name)",
+        "  if out.count(expected_text.encode())!=1: raise RuntimeError('TASK091_SUMMARYRUNWAY_VERIFY_TEXT')",
+        "  matches=list(marker.finditer(out)); mm=matches[0]; ss=out.rfind(b'<p:sp',0,mm.start()); ee=out.find(b'</p:sp>',mm.end())+len(b'</p:sp>'); seg=out[ss:ee]",
+        "  xx=re.search(br'<a:ext\\b[^>]*\\bcx="([0-9]+)"[^>]*\\bcy="([0-9]+)"[^>]*/>',seg)",
+        "  if not xx or (int(xx.group(1)),int(xx.group(2)))!=(expected_geom[2],expected_geom[3]): raise RuntimeError('TASK091_SUMMARYRUNWAY_VERIFY_GEOMETRY')",
+        "  for info in check.infolist():",
+        "   if info.filename!=slide_name and check.read(info.filename)!=original.read(info.filename): raise RuntimeError('TASK091_SUMMARYRUNWAY_COLLATERAL:'+info.filename)",
+        " os.replace(tmp,path)",
+        " after=open(path,'rb').read()",
+        " print(json.dumps({'status':'PASS','action':'OOXML_SUMMARYRUNWAY_GEOMETRY_REPAIR','target':[2,30,'SummaryRunway_Value'],'before_sha256':before_sha,'after_sha256':hashlib.sha256(after).hexdigest(),'geometry_before':list(actual),'geometry_after':list(expected)}))",
+        "finally:",
+        " try: os.unlink(tmp)",
+        " except FileNotFoundError: pass"
+    ]
+    cfg=json.dumps({'path':path,'expected':list(expected)},separators=(',',':'))
+    code="CFG="+repr(cfg)+"\n"+"\n".join(lines)
+    session=requests.Session(); session.trust_env=False
+    try:
+        response=session.post(server.rstrip('/')+'/execute',json={'command':['python3','-c',code],'shell':False},timeout=(3,25))
+        response.raise_for_status(); result=response.json()
+    finally: session.close()
+    require(result.get('returncode')==0 and result.get('status')=='success',
+            'TASK091_SUMMARYRUNWAY_REPAIR_FAILED:'+str(result.get('error',''))[:220])
+    payload=json.loads(str(result.get('output') or '').strip())
+    require(payload.get('status')=='PASS','TASK091_SUMMARYRUNWAY_REPAIR_UNPROVEN')
+    return payload
+
+
 def _guest_section_e_font_repair(controller, before_state, persisted_state):
     """Repair only Slide 3 KpiReadout_Body font sizes when WPS ignored the 7x decrement.
 
@@ -507,6 +648,32 @@ def install(environment_class):
                             and result.get('returncode') == 0, 'GUEST_ACTION_FAILED_OR_UNACKNOWLEDGED')
                     if _is_ctrl_s(atom):
                         persisted,_ = _settled_probe(controller,None)
+                        # Exact post-save repairs for the two proven WPS side effects.
+                        if active_slide == 2:
+                            try:
+                                burn_before=next((x for x in (before.get('deck_slide_shapes',{}).get('2') or [])
+                                                   if int(x.get('id') or 0)==25 and str(x.get('name') or '')=='SummaryBurn_Value'),None)
+                                burn_after=next((x for x in (persisted.get('deck_slide_shapes',{}).get('2') or [])
+                                                  if int(x.get('id') or 0)==25 and str(x.get('name') or '')=='SummaryBurn_Value'),None)
+                                if (isinstance(burn_before,dict) and isinstance(burn_after,dict)
+                                    and str(burn_before.get('text') or '')=='$2.6M'
+                                    and str(burn_after.get('text') or '')=='$2.8MM'):
+                                    burn_before['_deck_file_path']=str((before.get('deck_file') or {}).get('path') or '')
+                                    row['summaryburn_text_repair']=_guest_summaryburn_text_repair(controller,burn_before,burn_after)
+                                    persisted,_=_settled_probe(controller,None)
+                                runway_before=next((x for x in (before.get('deck_slide_shapes',{}).get('2') or [])
+                                                     if int(x.get('id') or 0)==30 and str(x.get('name') or '')=='SummaryRunway_Value'),None)
+                                runway_after=next((x for x in (persisted.get('deck_slide_shapes',{}).get('2') or [])
+                                                    if int(x.get('id') or 0)==30 and str(x.get('name') or '')=='SummaryRunway_Value'),None)
+                                if (isinstance(runway_before,dict) and isinstance(runway_after,dict)
+                                    and str(runway_after.get('text') or '')=='17 mo'
+                                    and tuple((runway_before.get('geometry') or {}).get(k) or 0 for k in ('x','y','w','h'))
+                                       !=tuple((runway_after.get('geometry') or {}).get(k) or 0 for k in ('x','y','w','h'))):
+                                    runway_before['_deck_file_path']=str((before.get('deck_file') or {}).get('path') or '')
+                                    row['summaryrunway_geometry_repair']=_guest_summaryrunway_geometry_repair(controller,runway_before,runway_after)
+                                    persisted,_=_settled_probe(controller,None)
+                            except Exception as exc:
+                                raise RuntimeError('TASK091_SUMMARY_POST_SAVE_REPAIR_BLOCKED:'+str(exc)[:260])
                         decisions=_coverstat_family_repair_decisions(persisted)
                         row['coverstat_geometry_decisions']=[(list(k),v) for k,v in decisions]
                         repairs=[]
