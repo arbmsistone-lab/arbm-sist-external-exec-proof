@@ -484,6 +484,95 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertNotIn("Text Box",action["plan"])
         self.assertEqual(state["semantic_tx"]["stage"],"autofit-do-not-issued")
 
+    def test_disclosure_accepts_ui_do_not_autofit_already_staged(self):
+        ws=self._coversub_state_with_current_autofit_group()
+        state={"slide":1}
+        plan=((1,900,520,
+               "Planning posture: accelerate growth through H2 scale-up",
+               "Northstar Cloud\nPrepared for July Operating Committee review\nPlanning posture: stabilize and recover with disciplined sequencing"),)
+        self.assertEqual(next_text_action(state,ws,plan)["specialist_phase"],
+                         "semantic-target-select")
+        tx=state["semantic_tx"]
+        tx["stage"]="autofit-disclosure-issued"
+        tx["textbox_pane_screenshot_sha256"]="e"*64
+
+        staged=copy.deepcopy(ws)
+        staged["source"]="0010-01-after"
+        staged["screenshot_sha256"]="f"*64
+        staged["controls"]=self._current_group()
+        for control in staged["controls"]:
+            control["selected"]=control["label"]=="Do not Autofit"
+        staged["deck_slide_shapes"]["1"][0]["autofit_mode"]="RESIZE_SHAPE_TO_FIT_TEXT"
+
+        result=next_text_action(state,staged,plan)
+        self.assertEqual(result["checkpoint"],
+                         "TASK091_COVERTITLE_AUTOFIT_SELECTION_ALREADY_STAGED")
+        self.assertTrue(result["persistence_required"])
+        self.assertTrue(tx["autofit_selection_confirmed"])
+        self.assertTrue(tx["autofit_preflight_done"])
+        self.assertTrue(tx["autofit_ui_ooxml_staged"])
+        self.assertEqual(tx["autofit_preflight_source"],
+                         "disclosure-ui-do-not-already-staged")
+        self.assertEqual(tx["stage"],"select-issued")
+
+        mutation=next_text_action(state,staged,plan)
+        self.assertEqual(mutation["specialist_phase"],"semantic-text-mutation")
+        self.assertNotEqual(mutation.get("action"),"terminal")
+
+    def test_disclosure_staged_ui_still_requires_ooxml_persistence(self):
+        ws=self._coversub_state_with_current_autofit_group()
+        state={"slide":1}
+        plan=((1,900,520,
+               "Planning posture: accelerate growth through H2 scale-up",
+               "Northstar Cloud\nPrepared for July Operating Committee review\nPlanning posture: stabilize and recover with disciplined sequencing"),)
+        next_text_action(state,ws,plan)
+        tx=state["semantic_tx"]
+        tx["stage"]="autofit-disclosure-issued"
+        tx["textbox_pane_screenshot_sha256"]="e"*64
+
+        staged=copy.deepcopy(ws)
+        staged["source"]="0010-01-after"
+        staged["screenshot_sha256"]="f"*64
+        staged["controls"]=self._current_group()
+        for control in staged["controls"]:
+            control["selected"]=control["label"]=="Do not Autofit"
+        staged["deck_slide_shapes"]["1"][0]["autofit_mode"]="RESIZE_SHAPE_TO_FIT_TEXT"
+
+        next_text_action(state,staged,plan)
+        next_text_action(state,staged,plan)
+        self.assertEqual(next_text_action(state,staged,plan)["specialist_phase"],
+                         "semantic-edit-finalize")
+        self.assertEqual(next_text_action(state,staged,plan)["specialist_phase"],
+                         "semantic-save")
+
+        unpersisted=copy.deepcopy(staged)
+        unpersisted["deck_file"]["sha256"]="b"*64
+        unpersisted["deck_slide_shapes"]["1"][0]["text"]=plan[0][4]
+        result=next_text_action(state,unpersisted,plan)
+        self.assertEqual(result["action"],"terminal")
+        self.assertEqual(result["reason"],"TASK091_AUTOFIT_NOT_PERSISTED")
+
+    def test_disclosure_shrink_vs_resize_ooxml_remains_fail_closed(self):
+        ws=self._coversub_state_with_current_autofit_group()
+        state={"slide":1}
+        plan=((1,900,520,
+               "Planning posture: accelerate growth through H2 scale-up",
+               "Northstar Cloud\nPrepared for July Operating Committee review\nPlanning posture: stabilize and recover with disciplined sequencing"),)
+        next_text_action(state,ws,plan)
+        tx=state["semantic_tx"]
+        tx["stage"]="autofit-disclosure-issued"
+        tx["textbox_pane_screenshot_sha256"]="e"*64
+        bad=copy.deepcopy(ws)
+        bad["source"]="0010-01-after"
+        bad["screenshot_sha256"]="f"*64
+        bad["controls"]=self._current_group()
+        for control in bad["controls"]:
+            control["selected"]=control["label"]=="Shrink text on overflow"
+        bad["deck_slide_shapes"]["1"][0]["autofit_mode"]="RESIZE_SHAPE_TO_FIT_TEXT"
+        result=next_text_action(state,bad,plan)
+        self.assertEqual(result["action"],"terminal")
+        self.assertEqual(result["reason"],"TASK091_AUTOFIT_UI_OOXML_MODE_MISMATCH")
+
     def test_current_autofit_group_absent_rejected(self):
         ws=self._coversub_state_with_current_autofit_group()
         tx={"selection_before_screenshot_sha256":"a"*64}

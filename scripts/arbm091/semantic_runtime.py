@@ -726,6 +726,37 @@ def next_text_action(state,window_state,plan):
         if str(raw.get("autofit_mode") or "")!="RESIZE_SHAPE_TO_FIT_TEXT":
             return _terminal("TASK091_AUTOFIT_CURRENT_MODE_UNEXPECTED")
         if radios["Resize shape to fit text"].get("selected") is not True:
+            # Run 407 proved a WPS state where the exact current-frame radio
+            # group already reports Do not Autofit selected while the persisted
+            # OOXML still reports RESIZE_SHAPE_TO_FIT_TEXT. Treat only that
+            # exact combination as an in-memory/staged selection: skip the
+            # redundant click, but keep final save + OOXML + geometry proof
+            # mandatory. Any other UI/OOXML disagreement remains fail-closed.
+            if radios["Do not Autofit"].get("selected") is True:
+                tx["autofit_selection_confirmed"]=True
+                tx["autofit_preflight_done"]=True
+                tx["autofit_preflight_source"]="disclosure-ui-do-not-already-staged"
+                tx["autofit_ui_ooxml_staged"]=True
+                if str(tx.get("before_target_text") or "")==str(tx.get("old") or ""):
+                    try:
+                        target=_signed_target(window_state,int(tx.get("slide") or 1),row)
+                    except SemanticTransactionError as exc:
+                        return _terminal(str(exc))
+                    tx["stage"]="autofit-reselect-issued"
+                    return {
+                        "action":"exec",
+                        "command":f"pyautogui.doubleClick({target['cx']}, {target['cy']}, interval=0.08)",
+                        "target":target,
+                        "plan":"Do not Autofit is already selected in the exact WPS radio group while OOXML is still unpersisted. Re-select only the signed target; final save must prove DO_NOT_AUTOFIT and unchanged geometry.",
+                        "specialist_phase":"semantic-autofit-reselect",
+                    }
+                tx["stage"]="select-issued"
+                return {
+                    "action":"checkpoint",
+                    "checkpoint":"TASK091_COVERTITLE_AUTOFIT_SELECTION_ALREADY_STAGED",
+                    "autofit_selected_mode":"DO_NOT_AUTOFIT",
+                    "persistence_required":True,
+                }
             return _terminal("TASK091_AUTOFIT_UI_OOXML_MODE_MISMATCH")
         try:
             target=_panel_target(window_state,"Do not Autofit")

@@ -1026,6 +1026,33 @@ jobs:
         assert 'test_section_e_uses_three_step_bounded_font_reduction' in tests
         print('AUTHORIZED_FINAL_BLOCKER_CLOSURE=PASS')
         PY
+        elif [[ "$current_parent" == 'e6968af36df1d8337fb08ae63a813c462308fa1a' && "$current_message" == 'fix(091): accept already-staged Do not Autofit UI state' ]]; then
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        assert subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip()=='e6968af36df1d8337fb08ae63a813c462308fa1a'
+        changed=set(subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^','HEAD'],
+            text=True).split())
+        assert changed=={
+            '.github/workflows/arbm-091-clean-proof.yml',
+            'scripts/arbm091/semantic_runtime.py',
+            'tests/arbm091/test_semantic_runtime.py',
+        },changed
+        runtime=Path('scripts/arbm091/semantic_runtime.py').read_text()
+        tests=Path('tests/arbm091/test_semantic_runtime.py').read_text()
+        shim=Path('scripts/osworld_free_mesh_shim.py').read_text()
+        assert 'disclosure-ui-do-not-already-staged' in runtime
+        assert 'TASK091_COVERTITLE_AUTOFIT_SELECTION_ALREADY_STAGED' in runtime
+        assert 'test_disclosure_accepts_ui_do_not_autofit_already_staged' in tests
+        assert 'test_disclosure_staged_ui_still_requires_ooxml_persistence' in tests
+        assert 'test_disclosure_shrink_vs_resize_ooxml_remains_fail_closed' in tests
+        assert "'font_decrements': 7" in shim
+        assert subprocess.check_output(
+            ['git','rev-list','--merges','e6968af36df1d8337fb08ae63a813c462308fa1a..HEAD'],
+            text=True).strip()==''
+        print('AUTHORIZED_STAGED_AUTOFIT_UI_STATE_CLOSURE=PASS')
+        PY
         elif [[ "$current_parent" == '6f0d71da58c70cdd618772f0fab2803bb20582b0' && "$current_message" == 'fix(091): bind metagate scope to immutable commit identities' ]]; then
           python - <<'PY'
         from pathlib import Path
