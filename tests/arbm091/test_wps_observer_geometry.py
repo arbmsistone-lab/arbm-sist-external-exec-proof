@@ -94,6 +94,46 @@ class CoverStatFamilyGeometryDecisionTests(unittest.TestCase):
         self.assertEqual(decisions[(1,16,"CoverStatValue_1")],"PASS")
         self.assertEqual(decisions[(1,19,"CoverStatValue_2")],"PASS")
 
+    def test_summary_nrr_completed_height_drift_requests_repair(self):
+        ws={"deck_slide_shapes":{
+            "2":[row(20,"SummaryNrr_Value","104%",
+                     {"x":3227832,"y":1810512,"w":1837944,"h":460375})]
+        }}
+        self.assertEqual(
+            dict(_coverstat_family_repair_decisions(ws))[(2,20,"SummaryNrr_Value")],
+            "REPAIR_HEIGHT",
+        )
+
+    def test_summary_nrr_exact_geometry_passes(self):
+        ws={"deck_slide_shapes":{
+            "2":[row(20,"SummaryNrr_Value","104%",
+                     {"x":3227832,"y":1810512,"w":1837944,"h":347472})]
+        }}
+        self.assertEqual(
+            dict(_coverstat_family_repair_decisions(ws))[(2,20,"SummaryNrr_Value")],
+            "PASS",
+        )
+
+    def test_summary_nrr_wrong_text_never_authorizes_repair(self):
+        ws={"deck_slide_shapes":{
+            "2":[row(20,"SummaryNrr_Value","112%",
+                     {"x":3227832,"y":1810512,"w":1837944,"h":460375})]
+        }}
+        self.assertEqual(
+            dict(_coverstat_family_repair_decisions(ws))[(2,20,"SummaryNrr_Value")],
+            "NOOP",
+        )
+
+    def test_summary_nrr_nonheight_drift_fails_closed(self):
+        ws={"deck_slide_shapes":{
+            "2":[row(20,"SummaryNrr_Value","104%",
+                     {"x":3227833,"y":1810512,"w":1837944,"h":460375})]
+        }}
+        self.assertEqual(
+            dict(_coverstat_family_repair_decisions(ws))[(2,20,"SummaryNrr_Value")],
+            "FAIL_CLOSED",
+        )
+
     def test_missing_registered_member_fails_closed(self):
         ws=state(
             row(13,"CoverStatValue_0","$40.9M",{"x":8339327,"y":2167128,"w":2560320,"h":219456}),

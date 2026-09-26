@@ -1026,6 +1026,39 @@ jobs:
         assert 'test_section_e_uses_three_step_bounded_font_reduction' in tests
         print('AUTHORIZED_FINAL_BLOCKER_CLOSURE=PASS')
         PY
+        elif [[ "$current_parent" == 'ecbd64cb82d88c752e3079c603c9a782aa55a891' && "$current_message" == 'fix(091): lock SummaryNrr geometry after save' ]]; then
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        assert subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip()=='ecbd64cb82d88c752e3079c603c9a782aa55a891'
+        changed=set(subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^','HEAD'],
+            text=True).split())
+        assert changed=={
+            '.github/workflows/arbm-091-clean-proof.yml',
+            'scripts/arbm091/wps_observer.py',
+            'tests/arbm091/test_wps_observer_geometry.py',
+        },changed
+        observer=Path('scripts/arbm091/wps_observer.py').read_text()
+        tests=Path('tests/arbm091/test_wps_observer_geometry.py').read_text()
+        shim=Path('scripts/osworld_free_mesh_shim.py').read_text()
+        runtime=Path('scripts/arbm091/semantic_runtime.py').read_text()
+        assert "(2,20,'SummaryNrr_Value'):{'geometry':(3227832,1810512,1837944,347472),'completed_text':'104%'}" in observer
+        assert 'test_summary_nrr_completed_height_drift_requests_repair' in tests
+        assert 'test_summary_nrr_exact_geometry_passes' in tests
+        assert 'test_summary_nrr_wrong_text_never_authorizes_repair' in tests
+        assert 'test_summary_nrr_nonheight_drift_fails_closed' in tests
+        assert "'shape_id': 16" in shim
+        assert "'shape_name': 'KpiReadout_Body'" in shim
+        assert "'text_fingerprint': '• Burn improvement relies on expansion payback from Q4.'" in shim
+        assert "'font_decrements': 7" in shim
+        assert 'TASK091_SECTION_E_SCORE' in shim
+        assert 'TASK091_SEMANTIC_DIFF_MISMATCH' in runtime
+        assert subprocess.check_output(
+            ['git','rev-list','--merges','ecbd64cb82d88c752e3079c603c9a782aa55a891..HEAD'],
+            text=True).strip()==''
+        print('AUTHORIZED_SUMMARY_NRR_GEOMETRY_LOCK_AND_SECTION_E_PRESERVATION=PASS')
+        PY
         elif [[ "$current_parent" == 'e6968af36df1d8337fb08ae63a813c462308fa1a' && "$current_message" == 'fix(091): accept already-staged Do not Autofit UI state' ]]; then
           python - <<'PY'
         from pathlib import Path

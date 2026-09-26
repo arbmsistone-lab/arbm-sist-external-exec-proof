@@ -25,11 +25,12 @@ _COVERSTAT_ATOMIC_REGISTRY={
     (1,13,'CoverStatValue_0'):{'geometry':(8339327,2167128,2560320,219456),'completed_text':'$40.9M'},
     (1,16,'CoverStatValue_1'):{'geometry':(8339327,3355848,2560320,219456),'completed_text':'$2.8M'},
     (1,19,'CoverStatValue_2'):{'geometry':(8339327,4544568,2560320,219456),'completed_text':'206'},
+    (2,20,'SummaryNrr_Value'):{'geometry':(3227832,1810512,1837944,347472),'completed_text':'104%'},
 }
 _COVERSTAT_PATH='/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx'
 
 def _coverstat_family_repair_decisions(payload):
-    """Classify only registry members already at their completed semantic text."""
+    """Classify only registered shapes already at their completed semantic text."""
     decisions=[]
     if not isinstance(payload,dict):
         return decisions
@@ -62,7 +63,7 @@ def _coverstat_family_repair_decisions(payload):
     return decisions
 
 def _guest_coverstat_geometry_repair(controller,target):
-    """Atomically restore one exact registered CoverStat geometry."""
+    """Atomically restore one exact registered post-save geometry."""
     target=tuple(target)
     require(target in _COVERSTAT_ATOMIC_REGISTRY,'COVERSTAT_REPAIR_TARGET_UNREGISTERED')
     slide,shape_id,name=target
