@@ -1039,7 +1039,7 @@ jobs:
             ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^','HEAD'],
             text=True).strip()=='.github/workflows/arbm-091-clean-proof.yml'
         assert subprocess.check_output(
-            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^^^^^','HEAD^^^^'],
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^^^^^^','HEAD^^^^^'],
             text=True).strip()=='scripts/arbm091/semantic_runtime.py'
         assert subprocess.check_output(
             ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^^^^','HEAD^^^'],
