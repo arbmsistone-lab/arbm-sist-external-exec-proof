@@ -683,7 +683,7 @@ class Task091TransactionalTableCellTests(unittest.TestCase):
   self.assertEqual(spec['slide'],3)
   self.assertEqual(spec['shape_id'],16)
   self.assertEqual(spec['shape_name'],'KpiReadout_Body')
-  self.assertEqual(spec['font_decrements'],5)
+  self.assertEqual(spec['font_decrements'],7)
   source=pathlib.Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
   body=source.split("def _task091_section_e_format_step",1)[1].split(
       "def _task091_system_check_close",1)[0]

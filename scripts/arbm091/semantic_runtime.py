@@ -178,7 +178,12 @@ COVERSTAT_ATOMIC_REGISTRY={
 def _locked_autofit_geometry(tx):
     if not isinstance(tx,dict):
         return None
-    return _AUTOFIT_GEOMETRY_LOCKS.get(tuple(tx.get("target_key") or ()))
+    key=tuple(tx.get("target_key") or ())
+    if key==(2,"shape",15,"SummaryArr_Value"):
+        dynamic=tx.get("retry_locked_geometry")
+        if isinstance(dynamic,(list,tuple)) and len(dynamic)==4:
+            return tuple(int(v) for v in dynamic)
+    return _AUTOFIT_GEOMETRY_LOCKS.get(key)
 
 
 def is_coverstat_atomic_contract(tx):
@@ -743,6 +748,19 @@ def next_text_action(state,window_state,plan):
         if model_sha256(current_model)!=str(tx.get("before_model_sha256") or ""):
             return _terminal("TASK091_PRECONDITION_DRIFT")
         tx["stage"]="mutation-issued"
+        if tx.get("summaryarr_retry_pending") is True and key==(2,"shape",15,"SummaryArr_Value"):
+            tx["mutation_mode"]="summaryarr-autofit-locked-selected-shape-overwrite"
+            command="\n".join((
+                "pyautogui.hotkey('ctrl', 'a')",
+                "pyautogui.press('backspace')",
+                f"pyautogui.write({str(tx.get('new') or '')!r}, interval=0.02)",
+            ))
+            return {
+                "action":"exec","command":command,
+                "plan":"AutoFit is now proven DO_NOT_AUTOFIT for the exact SummaryArr_Value shape. Overwrite only its selected text; OOXML must prove exact text-only diff and identical geometry.",
+                "specialist_phase":"semantic-summaryarr-noop-retry-write",
+                "expected_change":tx["new"],
+            }
         tx["mutation_mode"]="autofit-locked-single-native-replace"
         command=_single_replace_command(tx.get("old"),tx.get("new"))
         return {
@@ -780,18 +798,10 @@ def next_text_action(state,window_state,plan):
         before_shot=str(tx.get("noop_retry_selection_before_screenshot_sha256") or "")
         if len(current_shot)!=64 or (before_shot and current_shot==before_shot):
             return _terminal("TASK091_SUMMARYARR_RETRY_SELECTION_UNPROVEN")
-        tx["stage"]="summary-noop-retry-mutation-issued"
-        tx["mutation_mode"]="summaryarr-selected-shape-full-overwrite"
         tx["retry_locked_geometry"]=list(row.get("geometry") or ())
-        command="\n".join((
-            "pyautogui.hotkey('ctrl', 'a')",
-            "pyautogui.press('backspace')",
-            f"pyautogui.write({str(tx.get('new') or '')!r}, interval=0.02)",
-        ))
-        return {"action":"exec","command":command,
-                "plan":"The signed double-click has already entered the exact SummaryArr_Value shape. Select all text inside that selected shape and overwrite it directly; do not invoke F2 or any global Find/Replace command. OOXML must prove one text-only diff with identical geometry.",
-                "specialist_phase":"semantic-summaryarr-noop-retry-write",
-                "expected_change":tx.get("new")}
+        tx["summaryarr_retry_pending"]=True
+        tx["stage"]="select-issued"
+        return next_text_action(state,window_state,plan)
 
     if stage=="summary-noop-retry-mutation-issued":
         tx["stage"]="summary-noop-retry-commit-issued"

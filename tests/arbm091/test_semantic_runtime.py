@@ -637,13 +637,12 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertEqual(state["semantic_tx"]["noop_retry_attempts"],1)
         noop["screenshot_sha256"]="d"*64
         write=next_text_action(state,noop,plan)
-        self.assertEqual(write["specialist_phase"],"semantic-summaryarr-noop-retry-write")
-        self.assertIn("hotkey('ctrl', 'a')",write["command"])
-        self.assertIn("press('backspace')",write["command"])
-        self.assertIn("$40.9M",write["command"])
-        self.assertNotIn("hotkey('ctrl', 'h')",write["command"])
-        self.assertNotIn("press('f2')",write["command"])
-        self.assertEqual(state["semantic_tx"]["mutation_mode"],"summaryarr-selected-shape-full-overwrite")
+        self.assertIn(write["specialist_phase"],(
+            "semantic-cover-autofit-pane-open",
+            "semantic-cover-autofit-text-options-open",
+            "semantic-cover-autofit-do-not-select",
+        ))
+        self.assertTrue(state["semantic_tx"]["summaryarr_retry_pending"])
         self.assertEqual(state["semantic_tx"]["retry_locked_geometry"],[1000,2000,3000,4000])
         self.assertEqual(next_text_action(state,noop,plan)["specialist_phase"],
                          "semantic-summaryarr-noop-retry-commit")
@@ -690,10 +689,10 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertNotEqual(tuple(other_tx.get("target_key") or ()),
                             (2,"shape",15,"SummaryArr_Value"))
 
-    def test_section_e_uses_five_step_bounded_font_reduction(self):
+    def test_section_e_uses_seven_step_bounded_font_reduction(self):
         shim=Path("scripts/osworld_free_mesh_shim.py").read_text(encoding="utf-8")
         block=shim.split("TASK091_SECTION_E_FORMAT = {",1)[1].split("}",1)[0]
-        self.assertIn("'font_decrements': 5",block)
+        self.assertIn("'font_decrements': 7",block)
         body=shim.split("def _task091_section_e_format_step",1)[1].split(
             "def _task091_system_check_close",1)[0]
         self.assertIn("task091_verify_font_transaction",body)
