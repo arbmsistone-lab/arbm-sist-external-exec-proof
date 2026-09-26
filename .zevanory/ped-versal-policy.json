@@ -47,5 +47,14 @@
     "boundedRetries": true,
     "providerTruth": true
   },
-  "profile": "ENGINEERING_PROOF"
+  "profile": "HYBRID_UI_PROOF",
+  "uiCanonicalSurface": {
+    "repository": "arbmsistone-lab/zevanory-public-mirror",
+    "branch": "gh-pages",
+    "path": "arbm-sist/index.html",
+    "stylePath": "product.css",
+    "publicUrl": "https://zevanory.api.br/arbm-sist"
+  },
+  "uiEnforcement": "UI_ENTERPRISE",
+  "proofEnforcement": "ENGINEERING_PROOF"
 }

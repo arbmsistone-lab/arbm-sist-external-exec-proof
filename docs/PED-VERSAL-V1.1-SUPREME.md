@@ -8,6 +8,7 @@ Policy: FALSE_GREEN=0 · FAIL_CLOSED=true · REGRESSION_BUDGET=0
 ## 1. Scope profiles
 - UI_ENTERPRISE: web/app/control-center surfaces.
 - ENGINEERING_PROOF: CI, verifier, benchmark and infrastructure repositories with no user UI.
+- HYBRID_UI_PROOF: products whose operational/proof core and canonical user interface live in separate repositories; both contracts are mandatory.
 
 ## 2. Non-negotiable engineering rules
 - No regression may be merged.
@@ -74,3 +75,9 @@ Phase C — STRICT: zero violations for touched/new surfaces.
 Phase D — CERTIFIED: exact-release visual/accessibility/performance evidence.
 
 All new ZEVANORY surfaces start at Phase C.
+
+## 6. ARBM SIST canonical split
+The ARBM SIST product is HYBRID_UI_PROOF.
+- Canonical UI: arbmsistone-lab/zevanory-public-mirror @ gh-pages · arbm-sist/index.html + product.css · https://zevanory.api.br/arbm-sist
+- Engineering/proof core: arbmsistone-lab/arbm-sist-external-exec-proof @ master
+- Product certification requires both UI_ENTERPRISE and ENGINEERING_PROOF evidence. Neither side alone represents complete ARBM SIST certification.
