@@ -72,7 +72,7 @@ def _verify_visual(root: Path) -> dict:
 
 
 def certify_final(root: Path, sha: str, run_id: str, run_attempt: str, jobs: dict) -> dict:
-    expected_jobs = ("proof-tests", "policy", "replay", "focal-091")
+    expected_jobs = ("proof-tests", "policy", "replay", "matrix-preflight", "focal-091")
     for name in expected_jobs:
         require(jobs.get(name) == "success", "FINAL_JOB_NOT_SUCCESS:" + name + "=" + str(jobs.get(name)))
     require(read_text(root, "candidate-sha.txt") == sha, "FINAL_SHA_MISMATCH")
