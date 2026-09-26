@@ -643,6 +643,39 @@ def next_text_action(state,window_state,plan):
             return _terminal("TASK091_COVERTITLE_TEXT_OPTIONS_NOT_OBSERVED")
         if row is None or tuple(row.get("geometry") or ())!=tuple(_locked_autofit_geometry(tx) or ()):
             return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_DURING_AUTOFIT_NAV")
+
+        # WPS may publish the complete AutoFit radio group immediately after
+        # TEXT OPTIONS, without exposing a separate Text Box tab. Accept that
+        # observed shortcut only when the current-frame structural radio-group
+        # contract and OOXML mode both prove it is the same locked shape.
+        controls=window_state.get("controls",[]) if isinstance(window_state,dict) else []
+        labels={"do not autofit","shrink text on overflow","resize shape to fit text"}
+        has_autofit_candidate=any(
+            isinstance(item,dict)
+            and str(item.get("label") or "").strip().casefold() in labels
+            for item in controls)
+        if has_autofit_candidate:
+            try:
+                radios=_current_autofit_group(window_state,tx)
+                raw=_raw_locked_shape(window_state,tx)
+                target=_panel_target(window_state,"Do not Autofit")
+            except SemanticTransactionError as exc:
+                return _terminal(str(exc))
+            if str(raw.get("autofit_mode") or "")!="RESIZE_SHAPE_TO_FIT_TEXT":
+                return _terminal("TASK091_AUTOFIT_CURRENT_MODE_UNEXPECTED")
+            if radios["Resize shape to fit text"].get("selected") is not True:
+                return _terminal("TASK091_AUTOFIT_UI_OOXML_MODE_MISMATCH")
+            tx["stage"]="autofit-do-not-issued"
+            tx["autofit_options_screenshot_sha256"]=current_shot
+            tx["autofit_preflight_source"]="post-text-options-published-group"
+            return {
+                "action":"exec",
+                "command":f"pyautogui.click({target['cx']}, {target['cy']})",
+                "target":target,
+                "plan":"TEXT OPTIONS published the complete current-frame AutoFit group directly; select only the structurally proven Do not Autofit radio.",
+                "specialist_phase":"semantic-cover-autofit-do-not-select",
+            }
+
         tx["stage"]="autofit-textbox-pane-issued"
         tx["text_options_screenshot_sha256"]=current_shot
         try:
