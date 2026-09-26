@@ -1026,6 +1026,42 @@ jobs:
         assert 'test_section_e_uses_three_step_bounded_font_reduction' in tests
         print('AUTHORIZED_FINAL_BLOCKER_CLOSURE=PASS')
         PY
+        elif [[ "$current_parent" == '35a2448edd0138c0901704ba9f0ae03e00f2473b' && "$current_message" == 'fix(091): authorize SummaryArr autofit lock and section E hardening' ]]; then
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        assert subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip()=='35a2448edd0138c0901704ba9f0ae03e00f2473b'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^'],text=True).strip()=='6824b9469e1d6a2efef6b7d212023412edf45d69'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^','HEAD'],
+            text=True).strip()=='.github/workflows/arbm-091-clean-proof.yml'
+        changed=set(subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^^','HEAD^'],
+            text=True).split())
+        assert changed=={
+            'scripts/arbm091/semantic_runtime.py',
+            'tests/arbm091/test_semantic_runtime.py',
+            'scripts/osworld_free_mesh_shim.py',
+            'scripts/test_osworld_mesh.py',
+            'tests/arbm091/test_score_and_trace.py',
+        },changed
+        runtime=Path('scripts/arbm091/semantic_runtime.py').read_text()
+        tests=Path('tests/arbm091/test_semantic_runtime.py').read_text()
+        shim=Path('scripts/osworld_free_mesh_shim.py').read_text()
+        mesh=Path('scripts/test_osworld_mesh.py').read_text()
+        score=Path('tests/arbm091/test_score_and_trace.py').read_text()
+        assert 'summaryarr-autofit-locked-selected-shape-overwrite' in runtime
+        assert 'summaryarr_retry_pending' in runtime
+        assert 'TASK091_SUMMARYARR_RETRY_GEOMETRY_DRIFT' in runtime
+        assert "'font_decrements': 7" in shim
+        assert "self.assertEqual(spec['font_decrements'],7)" in mesh
+        assert '48_section_e_seven_point' in score
+        assert 'test_section_e_uses_seven_step_bounded_font_reduction' in tests
+        assert subprocess.check_output(
+            ['git','rev-list','--merges','6824b9469e1d6a2efef6b7d212023412edf45d69..HEAD'],
+            text=True).strip()==''
+        print('AUTHORIZED_SUMMARYARR_AUTOFIT_AND_SECTION_E_HARDENING=PASS')
+        PY
         elif [[ "$current_parent" == '7dec1aa04a983706aa1b8c1622fd62c02277cc1f' && "$current_message" == 'fix(091): authorize selected-shape SummaryArr overwrite' ]]; then
           python - <<'PY'
         from pathlib import Path
