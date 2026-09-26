@@ -828,12 +828,9 @@ def next_text_action(state,window_state,plan):
             return {
                 "action":"exec","command":command,
                 "plan":f"AutoFit is now proven DO_NOT_AUTOFIT for the exact {key[3]} shape. Overwrite only its selected text; OOXML must prove exact text-only diff and identical geometry.",
-                "specialist_phase":("semantic-summaryrunway-noop-retry-write"
-                                    if key==(2,"shape",30,"SummaryRunway_Value)
-                                    else ("semantic-summaryburn-noop-retry-write"
-                                          if key==(2,"shape",25,"SummaryBurn_Value")
-                                          else "semantic-summaryarr-noop-retry-write")),
-                "expected_change":tx["new"],
+                "specialist_phase": (
+                    "semantic-summaryrunway-noop-retry-write"
+                ),
             }
         tx["mutation_mode"]="autofit-locked-single-native-replace"
         command=_single_replace_command(tx.get("old"),tx.get("new"))
