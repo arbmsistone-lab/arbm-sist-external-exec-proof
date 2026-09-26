@@ -1026,6 +1026,40 @@ jobs:
         assert 'test_section_e_uses_three_step_bounded_font_reduction' in tests
         print('AUTHORIZED_FINAL_BLOCKER_CLOSURE=PASS')
         PY
+        elif [[ "$current_parent" == '6f0d71da58c70cdd618772f0fab2803bb20582b0' && "$current_message" == 'fix(091): bind metagate scope to immutable commit identities' ]]; then
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        
+        def git(*args):
+            return subprocess.check_output(['git', *args], text=True).strip()
+        
+        workflow='.github/workflows/arbm-091-clean-proof.yml'
+        base='6f0d71da58c70cdd618772f0fab2803bb20582b0'
+        assert git('rev-parse','HEAD^') == base, 'METAGATE_PARENT_MISMATCH'
+        assert git('diff-tree','--no-commit-id','--name-only','-r',base,'HEAD') == workflow, 'METAGATE_SCOPE_MISMATCH'
+        chain=[["1e903616e8103444101744f790e69e1ab5a1cd0a","a44392da9ea12889ad9bcc8ecdd44abd9edb64a0","scripts/arbm091/semantic_runtime.py"],["c7e5b39f04764e131cee1e1d51c0240a2f780cd9","1e903616e8103444101744f790e69e1ab5a1cd0a","tests/arbm091/test_semantic_runtime.py"],["c13eb99c0033571340eb8b05de76345b4c77e26b","c7e5b39f04764e131cee1e1d51c0240a2f780cd9",".github/workflows/arbm-091-clean-proof.yml"],["a29f0cdd1b31fdc837b11a2d9be2358765bad712","c13eb99c0033571340eb8b05de76345b4c77e26b",".github/workflows/arbm-091-clean-proof.yml"],["0f6b0ae44df0051dcc97718dfc8768ce24b870a7","a29f0cdd1b31fdc837b11a2d9be2358765bad712",".github/workflows/arbm-091-clean-proof.yml"],["2c29dc70944a18410ce3f863614c1c86e9f0b5d7","0f6b0ae44df0051dcc97718dfc8768ce24b870a7",".github/workflows/arbm-091-clean-proof.yml"],["8ec881c3e384dc75c3fe1b783d4c8177e761ae58","2c29dc70944a18410ce3f863614c1c86e9f0b5d7",".github/workflows/arbm-091-clean-proof.yml"],["6f0d71da58c70cdd618772f0fab2803bb20582b0","8ec881c3e384dc75c3fe1b783d4c8177e761ae58",".github/workflows/arbm-091-clean-proof.yml"]]
+        for commit,parent,path in chain:
+            assert git('rev-list','--parents','-n','1',commit).split() == [commit,parent], ('METAGATE_ANCESTRY_MISMATCH',commit)
+            actual=git('diff-tree','--no-commit-id','--name-only','-r',parent,commit)
+            assert actual == path, ('METAGATE_FILE_SCOPE_MISMATCH',commit,path,actual)
+        assert not git('rev-list','--merges','a44392da9ea12889ad9bcc8ecdd44abd9edb64a0..HEAD'), 'METAGATE_UNEXPECTED_MERGE'
+        
+        current=Path(workflow).read_text()
+        previous=subprocess.check_output(['git','show',base+':'+workflow],text=True)
+        def without_metagate(text):
+            start=text.index('    - name: Verify clean history and exact changed-file scope\n')
+            end=text.index('    - name: Test score and WPS guards, including negative cases\n',start)
+            return text[:start]+text[end:]
+        assert without_metagate(current) == without_metagate(previous), 'METAGATE_OTHER_JOBS_CHANGED'
+        runtime=Path('scripts/arbm091/semantic_runtime.py').read_text()
+        tests=Path('tests/arbm091/test_semantic_runtime.py').read_text()
+        shim=Path('scripts/osworld_free_mesh_shim.py').read_text()
+        assert 'post-text-options-published-group' in runtime
+        assert 'test_text_options_may_publish_complete_autofit_group_directly' in tests
+        assert "'font_decrements': 7" in shim
+        print('AUTHORIZED_IMMUTABLE_DIRECT_AUTOFIT_METAGATE=PASS')
+        PY
         elif [[ "$current_parent" == '8ec881c3e384dc75c3fe1b783d4c8177e761ae58' && "$current_message" == 'fix(091): authorize stable direct AutoFit gate' ]]; then
           python - <<'PY'
         from pathlib import Path
