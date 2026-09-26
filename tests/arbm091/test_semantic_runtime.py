@@ -898,7 +898,8 @@ class SemanticRuntimeTests(unittest.TestCase):
 
     def test_section_e_uses_seven_step_bounded_font_reduction(self):
         shim=Path("scripts/osworld_free_mesh_shim.py").read_text(encoding="utf-8")
-        block=shim.split("TASK091_SECTION_E_FORMAT = {",1)[1].split("}",1)[0]
+        matrix=Path("scripts/arbm091/closed_matrix.py").read_text(encoding="utf-8")
+        block=matrix.split("TASK091_SECTION_E_FORMAT = {",1)[1].split("}",1)[0]
         self.assertIn("'font_decrements': 7",block)
         body=shim.split("def _task091_section_e_format_step",1)[1].split(
             "def _task091_system_check_close",1)[0]

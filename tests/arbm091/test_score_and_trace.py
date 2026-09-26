@@ -1354,6 +1354,7 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
 
     def test_section_e_precondition_is_semantic_not_index_magic(self):
         source=Path('scripts/osworld_free_mesh_shim.py').read_text(encoding='utf-8')
+        matrix_source=Path('scripts/arbm091/closed_matrix.py').read_text(encoding='utf-8')
         self.assertIn("int(next_edit[0])==3",source)
         self.assertNotIn("if index >= 10 and not state.get('section_e_format_done')",source)
         self.assertNotIn("if index >= 16 and not state.get('section_e_format_done')",source)
@@ -1542,7 +1543,7 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
             ('45_mismatch_preserves_failure_text',"failure_text" in mismatch),
             ('46_mismatch_records_reason',"failure_reason" in mismatch),
             ('47_mismatch_fail_closed_mode',"TARGET_FAIL_CLOSED" in mismatch),
-            ('48_section_e_seven_point',"'font_decrements': 7" in source),
+            ('48_section_e_seven_point',"'font_decrements': 7" in matrix_source),
             ('49_zero_spend_contract',"NON_ZERO_SPEND_MODE_FORBIDDEN" in source),
             ('50_no_generic_evaluator_change',"official evaluator" not in writer.casefold()),
         ]

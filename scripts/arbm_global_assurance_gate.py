@@ -59,6 +59,7 @@ def inspect_repo(root="."):
     score_tests=_read(root,"tests/arbm091/test_score_and_trace.py")
     semantic_oracle=_read(root,"scripts/arbm091/semantic_transaction.py")
     semantic_runtime=_read(root,"scripts/arbm091/semantic_runtime.py")
+    closed_matrix=_read(root,"scripts/arbm091/closed_matrix.py")
     evaluator_fixture_contract_exists=(root/"scripts/arbm091/structural_contract.py").exists()
     semantic_tests=_read(root,"tests/arbm091/test_semantic_transaction.py")
     semantic_runtime_tests=_read(root,"tests/arbm091/test_semantic_runtime.py")
@@ -141,9 +142,10 @@ def inspect_repo(root="."):
         and "test_semantic_certifier_rejects_any_legacy_phase" in semantic_runtime_tests
     )
     section_e_containment=(
-        "TASK091_SECTION_E_FORMAT" in shim
-        and "'shape_id': 16" in shim
-        and "'shape_name': 'KpiReadout_Body'" in shim
+        "TASK091_SECTION_E_FORMAT" in closed_matrix
+        and "'shape_id': 16" in closed_matrix
+        and "'shape_name': 'KpiReadout_Body'" in closed_matrix
+        and "'font_decrements': 7" in closed_matrix
         and "task091_verify_font_transaction" in shim
         and "section-e-semantic-roundtrip" in shim
         and "TASK091_SECTION_E_ROUNDTRIP_DRIFT" in shim
