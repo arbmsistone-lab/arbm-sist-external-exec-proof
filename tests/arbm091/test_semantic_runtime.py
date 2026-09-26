@@ -797,6 +797,78 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertEqual(passed["checkpoint"],"TASK091_SEMANTIC_TRANSACTION_PASS")
         self.assertEqual(state["semantic_index"],1)
 
+    def test_summary_burn_persisted_noop_retries_once_then_roundtrips(self):
+        ws=base_state()
+        ws["active_slide"]=2
+        ws["deck_slide_shapes"]={"2":[{
+            "id":25,"name":"SummaryBurn_Value","text":"$2.6M","kind":"shape",
+            "geometry":{"x":1000,"y":2000,"w":3000,"h":4000},
+            "font_sizes":[1600],"fill_rgb":"",
+        }]}
+        ws["deck_slide_relationships"]={"2":[]}
+        state={"slide":2}
+        plan=((2,900,364,"$2.6M","$2.8M"),)
+        self.assertEqual(next_text_action(state,ws,plan)["specialist_phase"],"semantic-target-select")
+        self.assertEqual(next_text_action(state,ws,plan)["specialist_phase"],"semantic-text-mutation")
+        self.assertEqual(next_text_action(state,ws,plan)["specialist_phase"],"semantic-edit-finalize")
+        self.assertEqual(next_text_action(state,ws,plan)["specialist_phase"],"semantic-save")
+
+        noop=copy.deepcopy(ws)
+        noop["deck_file"]["sha256"]="b"*64
+        retry=next_text_action(state,noop,plan)
+        self.assertEqual(retry["specialist_phase"],"semantic-summaryburn-noop-retry-select")
+        self.assertEqual(state["semantic_tx"]["noop_retry_attempts"],1)
+
+        noop["screenshot_sha256"]="d"*64
+        autofit=next_text_action(state,noop,plan)
+        self.assertEqual(autofit["specialist_phase"],"semantic-cover-autofit-pane-open")
+        self.assertTrue(state["semantic_tx"]["summaryarr_retry_pending"])
+        self.assertEqual(state["semantic_tx"]["retry_locked_geometry"],[1000,2000,3000,4000])
+
+        tx=state["semantic_tx"]
+        tx["autofit_selection_confirmed"]=True
+        tx["autofit_preflight_done"]=True
+        tx["stage"]="autofit-reselect-issued"
+        write=next_text_action(state,noop,plan)
+        self.assertEqual(write["specialist_phase"],"semantic-summaryburn-noop-retry-write")
+        self.assertIn("hotkey('ctrl', 'a')",write["command"])
+        self.assertIn("press('backspace')",write["command"])
+        self.assertIn("$2.8M",write["command"])
+        self.assertNotIn("hotkey('ctrl', 'h')",write["command"])
+
+        self.assertEqual(next_text_action(state,noop,plan)["specialist_phase"],
+                         "semantic-edit-finalize")
+        self.assertEqual(next_text_action(state,noop,plan)["specialist_phase"],
+                         "semantic-save")
+        fixed=copy.deepcopy(noop)
+        fixed["deck_file"]["sha256"]="c"*64
+        fixed["deck_slide_shapes"]["2"][0]["text"]="$2.8M"
+        fixed["deck_slide_shapes"]["2"][0]["autofit_mode"]="DO_NOT_AUTOFIT"
+        reread=next_text_action(state,fixed,plan)
+        self.assertEqual(reread["specialist_phase"],"semantic-roundtrip-reread")
+        passed=next_text_action(state,fixed,plan)
+        self.assertEqual(passed["checkpoint"],"TASK091_SEMANTIC_TRANSACTION_PASS")
+        self.assertEqual(state["semantic_index"],1)
+
+    def test_summary_burn_retry_scope_rejects_other_shape_identity(self):
+        ws=base_state()
+        ws["active_slide"]=2
+        ws["deck_slide_shapes"]={"2":[{
+            "id":26,"name":"SummaryBurn_Value","text":"$2.6M","kind":"shape",
+            "geometry":{"x":1000,"y":2000,"w":3000,"h":4000},
+            "font_sizes":[1600],"fill_rgb":"",
+        }]}
+        ws["deck_slide_relationships"]={"2":[]}
+        state={"slide":2}
+        plan=((2,900,364,"$2.6M","$2.8M"),)
+        for _ in range(4):
+            next_text_action(state,ws,plan)
+        noop=copy.deepcopy(ws)
+        noop["deck_file"]["sha256"]="b"*64
+        result=next_text_action(state,noop,plan)
+        self.assertEqual(result["action"],"terminal")
+        self.assertIn("TASK091_SEMANTIC_DIFF_MISMATCH",result["reason"])
+
     def test_summary_arr_noop_retry_is_exactly_once_and_scope_locked(self):
         ws=base_state()
         ws["active_slide"]=2

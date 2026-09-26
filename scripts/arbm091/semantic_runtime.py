@@ -174,12 +174,17 @@ COVERSTAT_ATOMIC_REGISTRY={
     (1,"shape",19,"CoverStatValue_2"):_AUTOFIT_GEOMETRY_LOCKS[(1,"shape",19,"CoverStatValue_2")],
 }
 
+_SUMMARY_NOOP_RETRY_KEYS={
+    (2,"shape",15,"SummaryArr_Value"),
+    (2,"shape",25,"SummaryBurn_Value"),
+}
+
 
 def _locked_autofit_geometry(tx):
     if not isinstance(tx,dict):
         return None
     key=tuple(tx.get("target_key") or ())
-    if key==(2,"shape",15,"SummaryArr_Value"):
+    if key in _SUMMARY_NOOP_RETRY_KEYS:
         dynamic=tx.get("retry_locked_geometry")
         if isinstance(dynamic,(list,tuple)) and len(dynamic)==4:
             return tuple(int(v) for v in dynamic)
@@ -288,11 +293,11 @@ def _raw_locked_shape(window_state,tx):
 
 
 def _summary_arr_noop_retry_scope(tx,window_state):
-    """Admit one exact retry when SummaryArr_Value persisted no semantic change at all."""
+    """Admit one exact retry for the two proven summary-value persisted no-op targets."""
     if not isinstance(tx,dict) or int(tx.get("noop_retry_attempts") or 0)!=0:
         return False
     key=tuple(tx.get("target_key") or ())
-    if key!=(2,"shape",15,"SummaryArr_Value"):
+    if key not in _SUMMARY_NOOP_RETRY_KEYS:
         return False
     before=normalize_deck(tx.get("before_state") or {})
     after=normalize_deck(window_state)
@@ -812,7 +817,7 @@ def next_text_action(state,window_state,plan):
         if model_sha256(current_model)!=str(tx.get("before_model_sha256") or ""):
             return _terminal("TASK091_PRECONDITION_DRIFT")
         tx["stage"]="mutation-issued"
-        if tx.get("summaryarr_retry_pending") is True and key==(2,"shape",15,"SummaryArr_Value"):
+        if tx.get("summaryarr_retry_pending") is True and key in _SUMMARY_NOOP_RETRY_KEYS:
             tx["mutation_mode"]="summaryarr-autofit-locked-selected-shape-overwrite"
             command="\n".join((
                 "pyautogui.hotkey('ctrl', 'a')",
@@ -821,8 +826,10 @@ def next_text_action(state,window_state,plan):
             ))
             return {
                 "action":"exec","command":command,
-                "plan":"AutoFit is now proven DO_NOT_AUTOFIT for the exact SummaryArr_Value shape. Overwrite only its selected text; OOXML must prove exact text-only diff and identical geometry.",
-                "specialist_phase":"semantic-summaryarr-noop-retry-write",
+                "plan":f"AutoFit is now proven DO_NOT_AUTOFIT for the exact {key[3]} shape. Overwrite only its selected text; OOXML must prove exact text-only diff and identical geometry.",
+                "specialist_phase":("semantic-summaryburn-noop-retry-write"
+                                    if key==(2,"shape",25,"SummaryBurn_Value")
+                                    else "semantic-summaryarr-noop-retry-write"),
                 "expected_change":tx["new"],
             }
         tx["mutation_mode"]="autofit-locked-single-native-replace"
@@ -980,7 +987,9 @@ def next_text_action(state,window_state,plan):
                 tx["noop_retry_model_sha256"]=model_sha256(current_model)
                 tx["noop_retry_deck_sha256"]=current_sha
                 tx["noop_retry_evidence"]={
-                    "classification":"SUMMARYARR_TEXT_MUTATION_NOOP",
+                    "classification":("SUMMARYBURN_TEXT_MUTATION_NOOP"
+                                      if key==(2,"shape",25,"SummaryBurn_Value")
+                                      else "SUMMARYARR_TEXT_MUTATION_NOOP"),
                     "target_key":list(key),
                     "before_text":str(tx.get("old") or ""),
                     "after_text":str(current_model[key].get("text") or ""),
@@ -994,9 +1003,12 @@ def next_text_action(state,window_state,plan):
                 tx["noop_retry_selection_before_screenshot_sha256"]=str(window_state.get("screenshot_sha256") or "")
                 return {"action":"exec",
                         "command":f"pyautogui.doubleClick({target['cx']}, {target['cy']}, interval=0.08)",
-                        "target":target,"specialist_phase":"semantic-summaryarr-noop-retry-select",
+                        "target":target,
+                        "specialist_phase":("semantic-summaryburn-noop-retry-select"
+                                            if key==(2,"shape",25,"SummaryBurn_Value")
+                                            else "semantic-summaryarr-noop-retry-select"),
                         "diagnostic":tx["noop_retry_evidence"],
-                        "plan":"Retry only SummaryArr_Value after proving the first save produced zero semantic diff and zero geometry drift; an unchanged deck SHA is expected for a true persisted no-op."}
+                        "plan":f"Retry only {key[3]} after proving the first save produced zero semantic diff and zero geometry drift; an unchanged deck SHA is expected for a true persisted no-op."}
             try:
                 scoped=_cover_recovery_scope(tx,window_state)
             except SemanticTransactionError:

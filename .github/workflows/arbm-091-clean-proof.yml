@@ -1026,6 +1026,37 @@ jobs:
         assert 'test_section_e_uses_three_step_bounded_font_reduction' in tests
         print('AUTHORIZED_FINAL_BLOCKER_CLOSURE=PASS')
         PY
+        elif [[ "$current_parent" == 'd353164e6f74fafbfcd78f58e9cc4a572e883e04' && "$current_message" == 'fix(091): bound SummaryBurn no-op retry' ]]; then
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        assert subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip()=='d353164e6f74fafbfcd78f58e9cc4a572e883e04'
+        changed=set(subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^','HEAD'],
+            text=True).split())
+        assert changed=={
+            '.github/workflows/arbm-091-clean-proof.yml',
+            'scripts/arbm091/semantic_runtime.py',
+            'tests/arbm091/test_semantic_runtime.py',
+        },changed
+        runtime=Path('scripts/arbm091/semantic_runtime.py').read_text()
+        tests=Path('tests/arbm091/test_semantic_runtime.py').read_text()
+        shim=Path('scripts/osworld_free_mesh_shim.py').read_text()
+        observer=Path('scripts/arbm091/wps_observer.py').read_text()
+        assert '(2,"shape",15,"SummaryArr_Value")' in runtime
+        assert '(2,"shape",25,"SummaryBurn_Value")' in runtime
+        assert 'if key not in _SUMMARY_NOOP_RETRY_KEYS' in runtime
+        assert 'semantic-summaryburn-noop-retry-select' in runtime
+        assert 'semantic-summaryburn-noop-retry-write' in runtime
+        assert 'test_summary_burn_persisted_noop_retries_once_then_roundtrips' in tests
+        assert 'test_summary_burn_retry_scope_rejects_other_shape_identity' in tests
+        assert "'font_decrements': 7" in shim
+        assert "(2,20,'SummaryNrr_Value'):{'geometry':(3227832,1810512,1837944,347472),'completed_text':'104%'}" in observer
+        assert subprocess.check_output(
+            ['git','rev-list','--merges','d353164e6f74fafbfcd78f58e9cc4a572e883e04..HEAD'],
+            text=True).strip()==''
+        print('AUTHORIZED_SUMMARYBURN_BOUNDED_NOOP_RETRY=PASS')
+        PY
         elif [[ "$current_parent" == 'b7ecf29ab9fc43e69e5b100e32f3a50f423d7fd8' && "$current_message" == 'fix(091): correct SummaryNrr metagate evidence paths' ]]; then
           python - <<'PY'
         from pathlib import Path
