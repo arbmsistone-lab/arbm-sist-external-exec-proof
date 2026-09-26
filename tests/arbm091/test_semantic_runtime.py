@@ -636,28 +636,39 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertEqual(retry["specialist_phase"],"semantic-summaryarr-noop-retry-select")
         self.assertEqual(state["semantic_tx"]["noop_retry_attempts"],1)
         noop["screenshot_sha256"]="d"*64
-        write=next_text_action(state,noop,plan)
-        self.assertIn(write["specialist_phase"],(
-            "semantic-cover-autofit-pane-open",
-            "semantic-cover-autofit-text-options-open",
-            "semantic-cover-autofit-do-not-select",
-        ))
+        autofit=next_text_action(state,noop,plan)
+        self.assertEqual(autofit["specialist_phase"],"semantic-cover-autofit-pane-open")
         self.assertTrue(state["semantic_tx"]["summaryarr_retry_pending"])
         self.assertEqual(state["semantic_tx"]["retry_locked_geometry"],[1000,2000,3000,4000])
+
+        # Contract-level handoff: the real WPS panel path owns proving
+        # DO_NOT_AUTOFIT. This unit test resumes only after that proof and
+        # validates the SummaryArr-specific reselect/write/save semantics.
+        tx=state["semantic_tx"]
+        tx["autofit_selection_confirmed"]=True
+        tx["autofit_preflight_done"]=True
+        tx["stage"]="autofit-reselect-issued"
+        write=next_text_action(state,noop,plan)
+        self.assertEqual(write["specialist_phase"],"semantic-summaryarr-noop-retry-write")
+        self.assertIn("hotkey('ctrl', 'a')",write["command"])
+        self.assertIn("press('backspace')",write["command"])
+        self.assertIn("$40.9M",write["command"])
+        self.assertNotIn("hotkey('ctrl', 'h')",write["command"])
+        self.assertNotIn("press('f2')",write["command"])
+        self.assertEqual(
+            state["semantic_tx"]["mutation_mode"],
+            "summaryarr-autofit-locked-selected-shape-overwrite",
+        )
+
         self.assertEqual(next_text_action(state,noop,plan)["specialist_phase"],
-                         "semantic-summaryarr-noop-retry-commit")
+                         "semantic-edit-finalize")
         self.assertEqual(next_text_action(state,noop,plan)["specialist_phase"],
-                         "semantic-summaryarr-noop-retry-save")
-        wait1=next_text_action(state,noop,plan)
-        self.assertEqual(wait1["specialist_phase"],"semantic-summaryarr-noop-retry-save-reobserve")
-        wait2=next_text_action(state,noop,plan)
-        self.assertEqual(wait2["specialist_phase"],"semantic-summaryarr-noop-retry-save-reobserve")
+                         "semantic-save")
         fixed=copy.deepcopy(noop)
         fixed["deck_file"]["sha256"]="c"*64
         fixed["deck_slide_shapes"]["2"][0]["text"]="$40.9M"
         reread=next_text_action(state,fixed,plan)
-        self.assertEqual(reread["specialist_phase"],
-                         "semantic-summaryarr-noop-retry-roundtrip")
+        self.assertEqual(reread["specialist_phase"],"semantic-roundtrip")
         passed=next_text_action(state,fixed,plan)
         self.assertEqual(passed["checkpoint"],"TASK091_SEMANTIC_TRANSACTION_PASS")
         self.assertEqual(state["semantic_index"],1)
