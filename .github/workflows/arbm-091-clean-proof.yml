@@ -1026,6 +1026,31 @@ jobs:
         assert 'test_section_e_uses_three_step_bounded_font_reduction' in tests
         print('AUTHORIZED_FINAL_BLOCKER_CLOSURE=PASS')
         PY
+        elif [[ "$current_parent" == '81c76bc00080e578832fb4a83fde298308d14206' && "$current_message" == 'test(091): authorize autofit state-machine contract alignment' ]]; then
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        assert subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip()=='81c76bc00080e578832fb4a83fde298308d14206'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^'],text=True).strip()=='8b1a7794b23b4e9d73577cdadb3c284334227db1'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^','HEAD'],
+            text=True).strip()=='.github/workflows/arbm-091-clean-proof.yml'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^^','HEAD^'],
+            text=True).strip()=='tests/arbm091/test_semantic_runtime.py'
+        test=Path('tests/arbm091/test_semantic_runtime.py').read_text()
+        runtime=Path('scripts/arbm091/semantic_runtime.py').read_text()
+        shim=Path('scripts/osworld_free_mesh_shim.py').read_text()
+        assert 'summaryarr-autofit-locked-selected-shape-overwrite' in runtime
+        assert "'font_decrements': 7" in shim
+        assert 'Contract-level handoff' in test
+        assert 'semantic-summaryarr-noop-retry-write' in test
+        assert 'semantic-roundtrip' in test
+        assert subprocess.check_output(
+            ['git','rev-list','--merges','8b1a7794b23b4e9d73577cdadb3c284334227db1..HEAD'],
+            text=True).strip()==''
+        print('AUTHORIZED_AUTOFIT_STATE_MACHINE_CONTRACT_ALIGNMENT=PASS')
+        PY
         elif [[ "$current_parent" == '35a2448edd0138c0901704ba9f0ae03e00f2473b' && "$current_message" == 'fix(091): authorize SummaryArr autofit lock and section E hardening' ]]; then
           python - <<'PY'
         from pathlib import Path
