@@ -267,7 +267,7 @@ def _guest_summaryrunway_geometry_repair(controller, before_shape, persisted_sha
         "if start<0 or end<0: raise RuntimeError('TASK091_SUMMARYRUNWAY_SHAPE_BOUNDARY')",
         "end+=len(b'</p:sp>'); shape=slide[start:end]",
         "if shape.count(expected_text.encode())!=1: raise RuntimeError('TASK091_SUMMARYRUNWAY_TEXT_NOT_EXACT')",
-        "patched_shape=re.sub(br'(<a:ext\\b[^>]*\\bcx=\\")[0-9]+(\"[^>]*\\bcy=\\")[0-9]+(\"[^>]*/>)',lambda mm:mm.group(1)+str(expected_geom[2]).encode()+mm.group(2)+str(expected_geom[3]).encode()+mm.group(3),shape,count=1)",
+        """patched_shape=re.sub(br'(<a:ext\\b[^>]*\\bcx=")[0-9]+("[^>]*\\bcy=")[0-9]+("[^>]*/>)',lambda mm:mm.group(1)+str(expected_geom[2]).encode()+mm.group(2)+str(expected_geom[3]).encode()+mm.group(3),shape,count=1)""",
         "if patched_shape==shape: raise RuntimeError('TASK091_SUMMARYRUNWAY_PATCH_NO_EFFECT')",
         "patched=slide[:start]+patched_shape+slide[end:]",
         "fd,tmp=tempfile.mkstemp(prefix='.task091-summaryrunway-',suffix='.pptx',dir=os.path.dirname(path)); os.close(fd)",
