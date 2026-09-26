@@ -524,6 +524,30 @@ def next_text_action(state,window_state,plan):
             return _terminal("TASK091_PRECONDITION_DRIFT")
         if model_sha256(current_model)!=str(tx.get("before_model_sha256") or ""):
             return _terminal("TASK091_PRECONDITION_DRIFT")
+        if (
+            tx.get("summaryarr_retry_pending") is True
+            and key == (2, "shape", 30, "SummaryRunway_Value")
+        ):
+            tx["mutation_mode"]="summaryarr-autofit-locked-selected-shape-overwrite"
+            tx["stage"]="mutation-issued"
+            command="\n".join((
+                "pyautogui.hotkey('ctrl', 'a')",
+                "pyautogui.press('backspace')",
+                f"pyautogui.write({str(tx.get('new') or '')!r}, interval=0.02)",
+            ))
+            return {
+                "action":"exec",
+                "command":command,
+                "plan":(
+                    "AutoFit is intentionally bypassed only for the exact "
+                    "SummaryRunway retry target after the persisted no-op "
+                    "was proven; overwrite only the selected target and "
+                    "require exact OOXML text-only persistence."
+                ),
+                "specialist_phase":"semantic-summaryrunway-noop-retry-write",
+                "expected_change":tx["new"],
+            }
+
         if _cover_title_lock_required(tx) and not tx.get("autofit_preflight_done"):
             # Registry-backed CoverStats use persisted OOXML, never the WPS
             # formatting pane, as their geometry authority.
