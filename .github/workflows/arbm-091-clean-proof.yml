@@ -1026,6 +1026,42 @@ jobs:
         assert 'test_section_e_uses_three_step_bounded_font_reduction' in tests
         print('AUTHORIZED_FINAL_BLOCKER_CLOSURE=PASS')
         PY
+        elif [[ "$current_parent" == '3822e3cb12672da12fb2a59e942c04d92c5086f7' && "$current_message" == 'fix(091): authorize SummaryArr persistence and slide3 overflow closure' ]]; then
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        assert subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip()=='3822e3cb12672da12fb2a59e942c04d92c5086f7'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^'],text=True).strip()=='be570eccef6030bc0feebc7e450057113beb2731'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^','HEAD'],
+            text=True).strip()=='.github/workflows/arbm-091-clean-proof.yml'
+        changed=set(subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^^','HEAD^'],
+            text=True).split())
+        assert changed=={
+            'scripts/arbm091/semantic_runtime.py',
+            'tests/arbm091/test_semantic_runtime.py',
+            'scripts/osworld_free_mesh_shim.py',
+            'scripts/test_osworld_mesh.py',
+            'tests/arbm091/test_score_and_trace.py',
+        },changed
+        runtime=Path('scripts/arbm091/semantic_runtime.py').read_text()
+        sem=Path('tests/arbm091/test_semantic_runtime.py').read_text()
+        shim=Path('scripts/osworld_free_mesh_shim.py').read_text()
+        mesh=Path('scripts/test_osworld_mesh.py').read_text()
+        score=Path('tests/arbm091/test_score_and_trace.py').read_text()
+        assert 'summaryarr-single-native-replace' in runtime
+        assert 'semantic-summaryarr-noop-retry-save-reobserve' in runtime
+        assert 'hotkey(\'alt\', \'n\')' in runtime
+        assert 'test_summary_arr_persisted_noop_retries_once_then_roundtrips' in sem
+        assert "'font_decrements': 5" in shim
+        assert "self.assertEqual(spec['font_decrements'],5)" in mesh
+        assert '48_section_e_five_point' in score
+        assert subprocess.check_output(
+            ['git','rev-list','--merges','be570eccef6030bc0feebc7e450057113beb2731..HEAD'],
+            text=True).strip()==''
+        print('AUTHORIZED_SUMMARYARR_PERSISTENCE_AND_SLIDE3_OVERFLOW_CLOSURE=PASS')
+        PY
         elif [[ "$current_parent" == 'da90e76f4bacf1e5dad00cf5d5cb9eb29d2ca2bb' && "$current_message" == 'fix(091): authorize byte-identical SummaryArr no-op recovery' ]]; then
           python - <<'PY'
         from pathlib import Path
