@@ -1026,6 +1026,34 @@ jobs:
         assert 'test_section_e_uses_three_step_bounded_font_reduction' in tests
         print('AUTHORIZED_FINAL_BLOCKER_CLOSURE=PASS')
         PY
+        elif [[ "$current_parent" == 'c7e5b39f04764e131cee1e1d51c0240a2f780cd9' && "$current_message" == 'fix(091): authorize direct AutoFit group observation' ]]; then
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        assert subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip()=='c7e5b39f04764e131cee1e1d51c0240a2f780cd9'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^'],text=True).strip()=='1e903616e8103444101744f790e69e1ab5a1cd0a'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^^'],text=True).strip()=='a44392da9ea12889ad9bcc8ecdd44abd9edb64a0'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^','HEAD'],
+            text=True).strip()=='.github/workflows/arbm-091-clean-proof.yml'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^^^','HEAD^^'],
+            text=True).strip()=='scripts/arbm091/semantic_runtime.py'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^^','HEAD^'],
+            text=True).strip()=='tests/arbm091/test_semantic_runtime.py'
+        runtime=Path('scripts/arbm091/semantic_runtime.py').read_text()
+        tests=Path('tests/arbm091/test_semantic_runtime.py').read_text()
+        shim=Path('scripts/osworld_free_mesh_shim.py').read_text()
+        assert 'post-text-options-published-group' in runtime
+        assert 'test_text_options_may_publish_complete_autofit_group_directly' in tests
+        assert "'font_decrements': 7" in shim
+        assert 'TASK091_SECTION_E_SCORE' in shim
+        assert subprocess.check_output(
+            ['git','rev-list','--merges','a44392da9ea12889ad9bcc8ecdd44abd9edb64a0..HEAD'],
+            text=True).strip()==''
+        print('AUTHORIZED_DIRECT_AUTOFIT_GROUP_OBSERVATION=PASS')
+        PY
         elif [[ "$current_parent" == 'd15b9bc09b75d52ffeac7c80a9b04724e24640f9' && "$current_message" == 'test(091): authorize persisted autofit fixture evidence' ]]; then
           python - <<'PY'
         from pathlib import Path
