@@ -667,8 +667,9 @@ class SemanticRuntimeTests(unittest.TestCase):
         fixed=copy.deepcopy(noop)
         fixed["deck_file"]["sha256"]="c"*64
         fixed["deck_slide_shapes"]["2"][0]["text"]="$40.9M"
+        fixed["deck_slide_shapes"]["2"][0]["autofit_mode"]="DO_NOT_AUTOFIT"
         reread=next_text_action(state,fixed,plan)
-        self.assertEqual(reread["specialist_phase"],"semantic-roundtrip")
+        self.assertEqual(reread["specialist_phase"],"semantic-roundtrip-reread")
         passed=next_text_action(state,fixed,plan)
         self.assertEqual(passed["checkpoint"],"TASK091_SEMANTIC_TRANSACTION_PASS")
         self.assertEqual(state["semantic_index"],1)
