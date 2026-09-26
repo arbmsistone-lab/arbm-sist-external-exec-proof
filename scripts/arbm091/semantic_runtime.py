@@ -875,8 +875,7 @@ def next_text_action(state,window_state,plan):
                 noop_scoped=_summary_arr_noop_retry_scope(tx,window_state)
             except SemanticTransactionError:
                 noop_scoped=False
-            if (noop_scoped and len(current_sha)==64
-                    and current_sha!=str(tx.get("before_deck_sha256") or "")):
+            if noop_scoped and len(current_sha)==64:
                 try:
                     target=_signed_target(window_state,int(key[0]),current_model[key])
                 except SemanticTransactionError as target_exc:
@@ -884,11 +883,23 @@ def next_text_action(state,window_state,plan):
                 tx["noop_retry_attempts"]=1
                 tx["noop_retry_model_sha256"]=model_sha256(current_model)
                 tx["noop_retry_deck_sha256"]=current_sha
+                tx["noop_retry_evidence"]={
+                    "classification":"SUMMARYARR_TEXT_MUTATION_NOOP",
+                    "target_key":list(key),
+                    "before_text":str(tx.get("old") or ""),
+                    "after_text":str(current_model[key].get("text") or ""),
+                    "before_deck_sha256":str(tx.get("before_deck_sha256") or ""),
+                    "observed_deck_sha256":current_sha,
+                    "semantic_diff":[],
+                    "geometry":list(current_model[key].get("geometry") or ()),
+                    "retry_attempts":1,
+                }
                 tx["stage"]="summary-noop-retry-select-issued"
                 return {"action":"exec",
                         "command":f"pyautogui.doubleClick({target['cx']}, {target['cy']}, interval=0.08)",
                         "target":target,"specialist_phase":"semantic-summaryarr-noop-retry-select",
-                        "plan":"Retry only SummaryArr_Value after proving the first save produced zero semantic diff and zero geometry drift."}
+                        "diagnostic":tx["noop_retry_evidence"],
+                        "plan":"Retry only SummaryArr_Value after proving the first save produced zero semantic diff and zero geometry drift; an unchanged deck SHA is expected for a true persisted no-op."}
             try:
                 scoped=_cover_recovery_scope(tx,window_state)
             except SemanticTransactionError:
