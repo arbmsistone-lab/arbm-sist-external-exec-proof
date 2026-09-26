@@ -88,13 +88,22 @@ def main():
     if policy.get("falseGreen") != 0 or not policy.get("failClosed") or policy.get("regressionBudget") != 0:
         print("PED_SUPREME=FAIL invalid_governance_invariants")
         return 2
-    if profile == "ENGINEERING_PROOF":
+    if profile in {"ENGINEERING_PROOF","HYBRID_UI_PROOF"}:
         required=["exactSha","reproducibleEvidence","boundedRetries","providerTruth"]
         proof=policy.get("proof",{})
         missing=[x for x in required if proof.get(x) is not True]
         if missing:
             print("PED_SUPREME=FAIL proof_contract", ",".join(missing))
             return 2
+        if profile == "HYBRID_UI_PROOF":
+            ui_surface=policy.get("uiCanonicalSurface",{})
+            required_ui=["repository","branch","path","stylePath","publicUrl"]
+            missing_ui=[x for x in required_ui if not str(ui_surface.get(x,"")).strip()]
+            if missing_ui:
+                print("PED_SUPREME=FAIL hybrid_ui_surface_contract", ",".join(missing_ui))
+                return 2
+            print("PED_SUPREME=PASS profile=HYBRID_UI_PROOF proof=PASS ui_surface=BOUND false_green=0 regression_budget=0")
+            return 0
         print("PED_SUPREME=PASS profile=ENGINEERING_PROOF exact_sha=1 false_green=0 regression_budget=0")
         return 0
 
