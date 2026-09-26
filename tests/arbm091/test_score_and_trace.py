@@ -1588,6 +1588,15 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         self.assertNotIn("ctrl', 'z",first+second)
 
 
+    def test_final_section_e_repair_is_exactly_scoped(self):
+        source=Path('scripts/arbm091/wps_observer.py').read_text(encoding='utf-8')
+        self.assertIn('def _guest_section_e_font_repair',source)
+        self.assertIn('"shape_id": 16',source)
+        self.assertIn('"name": "KpiReadout_Body"',source)
+        self.assertIn('"font_delta": 700',source)
+        self.assertIn('TASK091_SECTION_E_FONT_REPAIR_ISOLATED_GUEST_ONLY',source)
+        self.assertIn('TASK091_SECTION_E_COLLATERAL',source)
+
 class Task091FinalCertificationBoardTests(unittest.TestCase):
     def _root(self):
         root=Path(self.tmp.name)/'final-board'

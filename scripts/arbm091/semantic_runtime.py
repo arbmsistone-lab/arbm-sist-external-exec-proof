@@ -177,6 +177,7 @@ COVERSTAT_ATOMIC_REGISTRY={
 _SUMMARY_NOOP_RETRY_KEYS={
     (2,"shape",15,"SummaryArr_Value"),
     (2,"shape",25,"SummaryBurn_Value"),
+    (2,"shape",30,"SummaryRunway_Value"),
 }
 
 
@@ -827,9 +828,11 @@ def next_text_action(state,window_state,plan):
             return {
                 "action":"exec","command":command,
                 "plan":f"AutoFit is now proven DO_NOT_AUTOFIT for the exact {key[3]} shape. Overwrite only its selected text; OOXML must prove exact text-only diff and identical geometry.",
-                "specialist_phase":("semantic-summaryburn-noop-retry-write"
-                                    if key==(2,"shape",25,"SummaryBurn_Value")
-                                    else "semantic-summaryarr-noop-retry-write"),
+                "specialist_phase":("semantic-summaryrunway-noop-retry-write"
+                                    if key==(2,"shape",30,"SummaryRunway_Value)
+                                    else ("semantic-summaryburn-noop-retry-write"
+                                          if key==(2,"shape",25,"SummaryBurn_Value")
+                                          else "semantic-summaryarr-noop-retry-write")),
                 "expected_change":tx["new"],
             }
         tx["mutation_mode"]="autofit-locked-single-native-replace"
@@ -987,9 +990,11 @@ def next_text_action(state,window_state,plan):
                 tx["noop_retry_model_sha256"]=model_sha256(current_model)
                 tx["noop_retry_deck_sha256"]=current_sha
                 tx["noop_retry_evidence"]={
-                    "classification":("SUMMARYBURN_TEXT_MUTATION_NOOP"
-                                      if key==(2,"shape",25,"SummaryBurn_Value")
-                                      else "SUMMARYARR_TEXT_MUTATION_NOOP"),
+                    "classification":("SUMMARYRUNWAY_TEXT_MUTATION_NOOP"
+                                      if key==(2,"shape",30,"SummaryRunway_Value)
+                                      else ("SUMMARYBURN_TEXT_MUTATION_NOOP"
+                                            if key==(2,"shape",25,"SummaryBurn_Value")
+                                            else "SUMMARYARR_TEXT_MUTATION_NOOP")),
                     "target_key":list(key),
                     "before_text":str(tx.get("old") or ""),
                     "after_text":str(current_model[key].get("text") or ""),
@@ -1004,9 +1009,11 @@ def next_text_action(state,window_state,plan):
                 return {"action":"exec",
                         "command":f"pyautogui.doubleClick({target['cx']}, {target['cy']}, interval=0.08)",
                         "target":target,
-                        "specialist_phase":("semantic-summaryburn-noop-retry-select"
-                                            if key==(2,"shape",25,"SummaryBurn_Value")
-                                            else "semantic-summaryarr-noop-retry-select"),
+                        "specialist_phase":("semantic-summaryrunway-noop-retry-select"
+                                            if key==(2,"shape",30,"SummaryRunway_Value)
+                                            else ("semantic-summaryburn-noop-retry-select"
+                                                  if key==(2,"shape",25,"SummaryBurn_Value")
+                                                  else "semantic-summaryarr-noop-retry-select")),
                         "diagnostic":tx["noop_retry_evidence"],
                         "plan":f"Retry only {key[3]} after proving the first save produced zero semantic diff and zero geometry drift; an unchanged deck SHA is expected for a true persisted no-op."}
             try:

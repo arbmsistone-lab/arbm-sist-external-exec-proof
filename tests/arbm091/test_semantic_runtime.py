@@ -797,6 +797,26 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertEqual(passed["checkpoint"],"TASK091_SEMANTIC_TRANSACTION_PASS")
         self.assertEqual(state["semantic_index"],1)
 
+    def test_summary_runway_persisted_noop_retries_once_then_roundtrips(self):
+        ws=base_state(); ws["active_slide"]=2
+        ws["deck_slide_shapes"]={"2":[{
+            "id":30,"name":"SummaryRunway_Value","text":"19 mo","kind":"shape",
+            "geometry":{"x":7927848,"y":1810512,"w":1517904,"h":347472},
+            "font_sizes":[2400,2400],"fill_rgb":"",
+        }]}
+        ws["deck_slide_relationships"]={"2":[]}
+        state={"slide":2}; plan=((2,900,364,"19 mo","17 mo"),)
+        for _ in range(4): next_text_action(state,ws,plan)
+        noop=copy.deepcopy(ws); noop["deck_file"]["sha256"]="b"*64
+        out=next_text_action(state,noop,plan)
+        self.assertEqual(out["specialist_phase"],"semantic-summaryrunway-noop-retry-select")
+        self.assertEqual(state["semantic_tx"]["noop_retry_attempts"],1)
+        retry=copy.deepcopy(noop); retry["screenshot_sha256"]="c"*64
+        out=next_text_action(state,retry,plan)
+        self.assertEqual(out["specialist_phase"],"semantic-summaryrunway-noop-retry-write")
+        self.assertIn("17 mo",out["command"])
+        self.assertNotIn("hotkey('ctrl', 'h')",out["command"])
+
     def test_summary_burn_persisted_noop_retries_once_then_roundtrips(self):
         ws=base_state()
         ws["active_slide"]=2
