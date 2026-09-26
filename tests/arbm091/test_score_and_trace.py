@@ -117,7 +117,7 @@ class ForegroundTests(unittest.TestCase):
         body = snapshot(WORKBOOK + ' - LibreOffice Calc', 'soffice.Soffice')
         self.assertEqual(preflight("pyautogui.press('down')", body), 'reference')
 
-    def test_exact_wps_bootstrap_root_allows_only_nondestructive_wait_or_escape(self):
+    def test_exact_wps_bootstrap_root_opens_only_canonical_recent_deck(self):
         body = snapshot('WPS Office', 'wpsoffice wpsoffice', pid=3019)
         body['window']['owner_title'] = ''
         body['window']['bbox'] = [70, 27, 1850, 1053]
@@ -125,11 +125,28 @@ class ForegroundTests(unittest.TestCase):
         body['deck_file'] = {}
         body['deck_slide_text'] = {}
         body['deck_slide_shapes'] = {}
-        self.assertEqual(classify(body['window']), 'wps-transient')
-        self.assertEqual(preflight('pyautogui.sleep(0.2)', body), 'wps-transient')
-        self.assertEqual(preflight("pyautogui.press('esc')", body), 'wps-transient')
-        with self.assertRaisesRegex(ValueError, 'DEFAULT_OFFICE_ACTION_FORBIDDEN'):
-            preflight("pyautogui.press('enter')", body)
+        self.assertEqual(classify(body['window']), 'wps-start-center')
+        self.assertEqual(preflight('pyautogui.sleep(0.2)', body), 'wps-start-center')
+        self.assertEqual(
+            preflight("pyautogui.doubleClick(550, 216, interval=0.08)", body),
+            'wps-start-center')
+        with self.assertRaisesRegex(ValueError, 'WPS_START_CENTER_DECK_TARGET_UNPROVEN'):
+            preflight("pyautogui.doubleClick(900, 216, interval=0.08)", body)
+        with self.assertRaisesRegex(ValueError, 'WPS_START_CENTER_DECK_TARGET_UNPROVEN'):
+            preflight("pyautogui.press('esc')", body)
+
+    def test_wps_start_center_postflight_requires_exact_deck_handoff(self):
+        before = snapshot('WPS Office', 'wpsoffice wpsoffice', pid=3019)
+        before['window']['owner_title'] = ''
+        before['window']['bbox'] = [70, 27, 1850, 1053]
+        after = snapshot(DECK + ' - WPS Office', 'wpp wpp', pid=3019)
+        after['window']['bbox'] = [70, 27, 1850, 1053]
+        self.assertEqual(
+            postflight("pyautogui.doubleClick(550, 216, interval=0.08)", before, after),
+            'wps-presentation')
+        stale = copy.deepcopy(before)
+        with self.assertRaisesRegex(ValueError, 'WPS_START_CENTER_DECK_OPEN_UNPROVEN'):
+            postflight("pyautogui.doubleClick(550, 216, interval=0.08)", before, stale)
 
     def test_wps_bootstrap_root_requires_exact_class_and_geometry(self):
         body = snapshot('WPS Office', 'wpsoffice wpsoffice', pid=3019)

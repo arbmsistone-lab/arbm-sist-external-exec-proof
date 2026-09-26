@@ -18,6 +18,8 @@ WPS_TRANSIENT_TITLES = {'system check', 'wps office', 'set wps office as your de
 TASK091_CANONICAL_SCREEN = [0, 0, 1920, 1080]
 TASK091_CANONICAL_WINDOW = [70, 27, 1850, 1053]
 TASK091_CANONICAL_SLIDE_VIEWPORT = [443, 194, 1413, 795]
+TASK091_WPS_START_CENTER_DECK_POINT = (550, 216)
+TASK091_WPS_START_CENTER_DECK_BBOX = [384, 188, 960, 60]
 
 
 def _task091_canvas(snapshot: dict):
@@ -184,20 +186,26 @@ def _is_wps_class(klass: str) -> bool:
     return any(x in value for x in ('wps', 'wpp', 'kingsoft'))
 
 
+def is_authorized_wps_start_center(window: dict) -> bool:
+    if not isinstance(window, dict):
+        return False
+    return (
+        str(window.get('title', '')).strip().casefold() == 'wps office'
+        and str(window.get('owner_title', '')).strip() == ''
+        and str(window.get('wm_class', '')).strip().casefold() == 'wpsoffice wpsoffice'
+        and window.get('bbox') == TASK091_CANONICAL_WINDOW
+    )
+
+
 def is_authorized_wps_transient(window: dict) -> bool:
     if not isinstance(window, dict):
         return False
     title=str(window.get('title', '')).strip().casefold()
     owner=str(window.get('owner_title', '')).strip().casefold()
     klass=str(window.get('wm_class', '')).strip().casefold()
-    deck_owned=(_is_wps_class(klass)
-                and DECK.casefold() in owner
-                and title in {'system check','wps office','set wps office as your default office software'})
-    bootstrap_root=(title == 'wps office'
-                    and owner == ''
-                    and klass == 'wpsoffice wpsoffice'
-                    and window.get('bbox') == TASK091_CANONICAL_WINDOW)
-    return deck_owned or bootstrap_root
+    return (_is_wps_class(klass)
+            and DECK.casefold() in owner
+            and title in {'system check','wps office','set wps office as your default office software'})
 
 
 def _is_legacy_wps_modal(window: dict) -> bool:
@@ -218,6 +226,8 @@ def classify(window: dict) -> str:
     owner = str(window.get('owner_title', ''))
     klass = str(window.get('wm_class', '')).casefold()
     titles = (title + ' ' + owner).casefold()
+    if is_authorized_wps_start_center(window):
+        return 'wps-start-center'
     if is_authorized_wps_transient(window):
         return 'wps-transient'
     if DECK.casefold() in title.casefold() and _is_wps_class(klass):
@@ -275,6 +285,22 @@ def preflight(command: str, snapshot: dict) -> str:
     app = classify(window)
     name, args, _ = parse_atom(command)
     point = pointer(command)
+
+    if app == 'wps-start-center':
+        require(snapshot.get('screen') == TASK091_CANONICAL_SCREEN,
+                'WPS_START_CENTER_SCREEN_UNPROVEN')
+        require(window.get('bbox') == TASK091_CANONICAL_WINDOW,
+                'WPS_START_CENTER_WINDOW_UNPROVEN')
+        if name == 'sleep':
+            require(len(args) == 1 and type(args[0]) in (int, float)
+                    and 0 <= float(args[0]) <= 2.0,
+                    'WPS_START_CENTER_WAIT_UNBOUNDED')
+            return 'wps-start-center'
+        require(name == 'doubleClick' and point == TASK091_WPS_START_CENTER_DECK_POINT,
+                'WPS_START_CENTER_DECK_TARGET_UNPROVEN')
+        require(inside(point, TASK091_WPS_START_CENTER_DECK_BBOX),
+                'WPS_START_CENTER_DECK_TARGET_UNPROVEN')
+        return 'wps-start-center'
 
     if app == 'wps-transient':
         title=str(window.get('title', '')).strip().casefold()
@@ -374,6 +400,18 @@ def postflight(command: str, before: dict, after: dict) -> str:
     before_app=classify(before_window)
     after_app=classify(after_window)
     name,args,_=parse_atom(command)
+    if before_app == 'wps-start-center':
+        if name == 'sleep':
+            require(after_app == 'wps-start-center',
+                    'WPS_START_CENTER_STATE_DRIFT')
+            return after_app
+        require(name == 'doubleClick' and pointer(command) == TASK091_WPS_START_CENTER_DECK_POINT,
+                'WPS_START_CENTER_DECK_TARGET_UNPROVEN')
+        require(after_app == 'wps-presentation'
+                and DECK.casefold() in str(after_window.get('title','')).casefold()
+                and _is_wps_class(after_window.get('wm_class','')),
+                'WPS_START_CENTER_DECK_OPEN_UNPROVEN')
+        return after_app
     if before_app == 'wps-transient':
         require(after_app in ('wps-transient','wps-presentation'),
                 'WPS_TRANSIENT_CLOSE_UNPROVEN')

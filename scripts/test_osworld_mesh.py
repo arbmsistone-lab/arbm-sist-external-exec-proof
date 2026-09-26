@@ -390,6 +390,25 @@ class MeshTests(unittest.TestCase):
    self.assertEqual(done.get('handoff_reason'),
                     'SEMANTIC_TEXT_AND_SECTION_E_VERIFIED_CHART_FILL_REMAINS')
 
+ def test_task091_wps_start_center_opens_only_canonical_recent_deck(self):
+  task='rebaseline H2 Operating Committee pack using Reforecast_Model_H2.xlsx'
+  start={
+   'schema':1,'stable':True,'screen':[0,0,1920,1080],
+   'window':{'id':50331663,'pid':3159,'title':'WPS Office','owner_title':'',
+             'wm_class':'wpsoffice wpsoffice','bbox':[70,27,1850,1053]},
+   'active_slide':None,'screenshot_sha256':'5'*64,
+   'deck_slide_text':{},'deck_slide_shapes':{},'deck_slide_relationships':{},
+   'deck_file':{},'controls':[]
+  }
+  state={}
+  with patch.dict(os.environ,{'TASK_ID':'091','ZERO_SPEND_MODE':'HARD'},clear=False):
+   action=shim.next_091_specialist_action(task,'WPS Office','',state,start)
+  self.assertEqual(action['specialist_phase'],'bootstrap-open-canonical-deck')
+  self.assertEqual(action['command'],"pyautogui.doubleClick(550, 216, interval=0.08)")
+  self.assertEqual(action['target']['source'],'task091-wps-start-center-canonical')
+  self.assertEqual([action['target']['cx'],action['target']['cy']],[550,216])
+  self.assertTrue(state['bootstrap_deck_open_issued'])
+
  def test_task091_specialist_does_not_capture_other_tasks(self):
   with patch.dict(os.environ,{'TASK_ID':'061'},clear=False):
    self.assertIsNone(shim.next_091_specialist_action(

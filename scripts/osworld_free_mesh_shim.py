@@ -1327,6 +1327,30 @@ def next_091_specialist_action(instruction, active_application, observation, sta
     window=window_state.get('window',{})
     title=str(window.get('title','')).strip().casefold()
 
+    if app == 'wps-start-center':
+        state['mode']='WPS_START_CENTER'
+        if isinstance(state.get('semantic_tx'),dict):
+            return _task091_terminal('TASK091_START_CENTER_DURING_SEMANTIC_TRANSACTION',state)
+        if isinstance(state.get('section_e_format'),dict):
+            return _task091_terminal('TASK091_START_CENTER_DURING_SECTION_E',state)
+        if state.get('bootstrap_deck_open_issued') is True:
+            return _task091_terminal('TASK091_START_CENTER_DECK_OPEN_UNPROVEN',state)
+        state['bootstrap_deck_open_issued']=True
+        target={
+            'source':'task091-wps-start-center-canonical',
+            'label':'Operating_Committee_Rebaseline_Draft.pptx',
+            'role':'recent-document',
+            'bbox':[384,188,960,60],
+            'cx':550,'cy':216,
+        }
+        return {
+            'action':'exec',
+            'command':"pyautogui.doubleClick(550, 216, interval=0.08)",
+            'target':target,
+            'plan':'Open only the canonical Task 091 deck from the exact WPS start-center recent-document row; postflight must prove the deck title in WPS Presentation.',
+            'specialist_phase':'bootstrap-open-canonical-deck',
+        }
+
     if app == 'wps-transient':
         state['mode']='TRANSIENT_WPS'
         semantic_tx=state.get('semantic_tx')
@@ -1404,6 +1428,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
         return _task091_terminal('WPS_DECK_FOREGROUND_UNPROVEN',state)
 
     state['mode']='DECK_ACTIVE'
+    state.pop('bootstrap_deck_open_issued',None)
     state.pop('transient_phase',None)
     state.pop('transient_title',None)
     if not _task091_canvas_ready(observation,window_state):
