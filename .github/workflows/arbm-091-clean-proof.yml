@@ -1026,6 +1026,34 @@ jobs:
         assert 'test_section_e_uses_three_step_bounded_font_reduction' in tests
         print('AUTHORIZED_FINAL_BLOCKER_CLOSURE=PASS')
         PY
+        elif [[ "$current_parent" == '7dec1aa04a983706aa1b8c1622fd62c02277cc1f' && "$current_message" == 'fix(091): authorize selected-shape SummaryArr overwrite' ]]; then
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        assert subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip()=='7dec1aa04a983706aa1b8c1622fd62c02277cc1f'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^'],text=True).strip()=='33b024f3cc79c3b86b72efee29e91aaaf5f69b2c'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^','HEAD'],
+            text=True).strip()=='.github/workflows/arbm-091-clean-proof.yml'
+        changed=set(subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^^','HEAD^'],
+            text=True).split())
+        assert changed=={
+            'scripts/arbm091/semantic_runtime.py',
+            'tests/arbm091/test_semantic_runtime.py',
+        },changed
+        runtime=Path('scripts/arbm091/semantic_runtime.py').read_text()
+        tests=Path('tests/arbm091/test_semantic_runtime.py').read_text()
+        assert 'summaryarr-selected-shape-full-overwrite' in runtime
+        assert 'TASK091_SUMMARYARR_RETRY_SELECTION_UNPROVEN' in runtime
+        assert 'pyautogui.press(\'backspace\')' in runtime
+        assert 'TASK091_SUMMARYARR_GLOBAL_REPLACE_SCOPE_UNPROVEN' not in runtime
+        assert 'summaryarr-selected-shape-full-overwrite' in tests
+        assert subprocess.check_output(
+            ['git','rev-list','--merges','33b024f3cc79c3b86b72efee29e91aaaf5f69b2c..HEAD'],
+            text=True).strip()==''
+        print('AUTHORIZED_SELECTED_SHAPE_SUMMARYARR_OVERWRITE=PASS')
+        PY
         elif [[ "$current_parent" == 'bfc9a74c44a6ee74f564e7561aa9c85c5f5e2ebd' && "$current_message" == 'fix(091): authorize atomic SummaryArr replacement' ]]; then
           python - <<'PY'
         from pathlib import Path
