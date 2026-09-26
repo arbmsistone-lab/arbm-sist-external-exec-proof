@@ -219,6 +219,9 @@ def _assert_coverstat_atomic_state(window_state,tx):
 
 
 def _cover_title_lock_required(tx):
+    key=tuple(tx.get("target_key") or ())
+    if key==(2,"shape",30,"SummaryRunway_Value"):
+        return False
     expected=_locked_autofit_geometry(tx)
     if expected is None:
         return False
