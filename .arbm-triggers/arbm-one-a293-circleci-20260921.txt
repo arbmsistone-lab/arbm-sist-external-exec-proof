@@ -1,0 +1,5 @@
+ARBM ONE exact-SHA CircleCI continuity trigger
+target_sha=a293c83e5280c2812a519f0fccabf5a6dc02f0bf
+mode=ZERO_SPEND
+heavy_local=0
+purpose=claim-and-execute-ready-remote-mission
