@@ -1026,6 +1026,30 @@ jobs:
         assert 'test_section_e_uses_three_step_bounded_font_reduction' in tests
         print('AUTHORIZED_FINAL_BLOCKER_CLOSURE=PASS')
         PY
+        elif [[ "$current_parent" == 'da90e76f4bacf1e5dad00cf5d5cb9eb29d2ca2bb' && "$current_message" == 'fix(091): authorize byte-identical SummaryArr no-op recovery' ]]; then
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        assert subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip()=='da90e76f4bacf1e5dad00cf5d5cb9eb29d2ca2bb'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^'],text=True).strip()=='f840d0e27d2b81f19c0555cf35517572811a8da6'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^','HEAD'],
+            text=True).strip()=='.github/workflows/arbm-091-clean-proof.yml'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^^','HEAD^'],
+            text=True).strip()=='scripts/arbm091/semantic_runtime.py'
+        runtime=Path('scripts/arbm091/semantic_runtime.py').read_text()
+        tests=Path('tests/arbm091/test_semantic_runtime.py').read_text()
+        assert 'def _summary_arr_noop_retry_scope(tx,window_state):' in runtime
+        assert 'semantic-summaryarr-noop-retry-write' in runtime
+        assert 'current_sha!=str(tx.get("before_deck_sha256") or "")' not in runtime[runtime.index('def _summary_arr_noop_retry_scope'):runtime.index('def _cover_recovery_scope')]
+        assert 'test_summary_arr_persisted_noop_retries_once_then_roundtrips' in tests
+        assert 'test_summary_arr_noop_retry_is_exactly_once_and_scope_locked' in tests
+        assert subprocess.check_output(
+            ['git','rev-list','--merges','f840d0e27d2b81f19c0555cf35517572811a8da6..HEAD'],
+            text=True).strip()==''
+        print('AUTHORIZED_BYTE_IDENTICAL_SUMMARYARR_NOOP_RECOVERY=PASS')
+        PY
         elif [[ "$current_parent" == '074f34e26540f2ec2a398480b20189f99c70da01' && "$current_message" == 'fix(091): authorize final test-contract migration' ]]; then
           python - <<'PY'
         from pathlib import Path
