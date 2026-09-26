@@ -189,7 +189,7 @@ def _guest_summaryburn_text_repair(controller, before_shape, persisted_shape):
         "path=cfg['path']; slide_no=2; shape_id=25; expected_text='$2.8M'",
         "raw=open(path,'rb').read(); before_sha=hashlib.sha256(raw).hexdigest(); slide_name='ppt/slides/slide%d.xml'%slide_no",
         "with zipfile.ZipFile(io.BytesIO(raw),'r') as zin: slide=zin.read(slide_name)",
-        "marker=re.compile(br'<p:cNvPr\\b[^>]*\\bid="25"[^>]*\\bname="SummaryBurn_Value"[^>]*/>')",
+        "marker=re.compile(br'<p:cNvPr\\b[^>]*\\bid=\\"25\\"[^>]*\\bname=\\"SummaryBurn_Value\\"[^>]*/>')",
         "matches=list(marker.finditer(slide))",
         "if len(matches)!=1: raise RuntimeError('TASK091_SUMMARYBURN_IDENTITY_NOT_UNIQUE:'+str(len(matches)))",
         "m=matches[0]; start=slide.rfind(b'<p:sp',0,m.start()); end=slide.find(b'</p:sp>',m.end())",
