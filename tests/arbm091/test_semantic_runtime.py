@@ -637,13 +637,21 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertEqual(state["semantic_tx"]["noop_retry_attempts"],1)
         write=next_text_action(state,noop,plan)
         self.assertEqual(write["specialist_phase"],"semantic-summaryarr-noop-retry-write")
-        self.assertIn("press('f2')",write["command"])
-        self.assertIn("hotkey('ctrl', 'a')",write["command"])
+        self.assertIn("hotkey('ctrl', 'h')",write["command"])
+        self.assertIn("hotkey('alt', 'n')",write["command"])
+        self.assertIn("$42.8M",write["command"])
         self.assertIn("$40.9M",write["command"])
+        self.assertNotIn("press('f2')",write["command"])
+        self.assertNotIn("hotkey('ctrl', 'a')",write["command"])
+        self.assertEqual(state["semantic_tx"]["mutation_mode"],"summaryarr-single-native-replace")
         self.assertEqual(next_text_action(state,noop,plan)["specialist_phase"],
                          "semantic-summaryarr-noop-retry-commit")
         self.assertEqual(next_text_action(state,noop,plan)["specialist_phase"],
                          "semantic-summaryarr-noop-retry-save")
+        wait1=next_text_action(state,noop,plan)
+        self.assertEqual(wait1["specialist_phase"],"semantic-summaryarr-noop-retry-save-reobserve")
+        wait2=next_text_action(state,noop,plan)
+        self.assertEqual(wait2["specialist_phase"],"semantic-summaryarr-noop-retry-save-reobserve")
         fixed=copy.deepcopy(noop)
         fixed["deck_file"]["sha256"]="c"*64
         fixed["deck_slide_shapes"]["2"][0]["text"]="$40.9M"
@@ -681,10 +689,10 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertNotEqual(tuple(other_tx.get("target_key") or ()),
                             (2,"shape",15,"SummaryArr_Value"))
 
-    def test_section_e_uses_three_step_bounded_font_reduction(self):
+    def test_section_e_uses_five_step_bounded_font_reduction(self):
         shim=Path("scripts/osworld_free_mesh_shim.py").read_text(encoding="utf-8")
         block=shim.split("TASK091_SECTION_E_FORMAT = {",1)[1].split("}",1)[0]
-        self.assertIn("'font_decrements': 3",block)
+        self.assertIn("'font_decrements': 5",block)
         body=shim.split("def _task091_section_e_format_step",1)[1].split(
             "def _task091_system_check_close",1)[0]
         self.assertIn("task091_verify_font_transaction",body)

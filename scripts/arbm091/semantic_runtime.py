@@ -777,8 +777,9 @@ def next_text_action(state,window_state,plan):
                 or model_sha256(current_model)!=str(tx.get("noop_retry_model_sha256") or "")):
             return _terminal("TASK091_SUMMARYARR_RETRY_SELECTION_DRIFT")
         tx["stage"]="summary-noop-retry-mutation-issued"
-        return {"action":"exec","command":_write_command(tx.get("new")),
-                "plan":"Retry the exact SummaryArr_Value mutation once using whole-target text edit after proving the first persisted attempt was a true no-op.",
+        tx["mutation_mode"]="summaryarr-single-native-replace"
+        return {"action":"exec","command":_single_replace_command(tx.get("old"),tx.get("new")),
+                "plan":"Retry the exact SummaryArr_Value mutation once with WPS Replace Next, using a different persisted-write primitive after proving the first whole-target edit was a true no-op. Exact target-only OOXML diff remains mandatory.",
                 "specialist_phase":"semantic-summaryarr-noop-retry-write",
                 "expected_change":tx.get("new")}
 
@@ -796,8 +797,17 @@ def next_text_action(state,window_state,plan):
 
     if stage=="summary-noop-retry-save-issued":
         current_sha=str((window_state.get("deck_file") or {}).get("sha256") or "")
-        if len(current_sha)!=64 or current_sha==str(tx.get("noop_retry_deck_sha256") or ""):
-            return _terminal("TASK091_SUMMARYARR_RETRY_NOT_PERSISTED")
+        if len(current_sha)!=64:
+            return _terminal("TASK091_SUMMARYARR_RETRY_PERSISTENCE_UNPROVEN")
+        if current_sha==str(tx.get("noop_retry_deck_sha256") or ""):
+            observations=int(tx.get("noop_retry_save_observations") or 0)+1
+            tx["noop_retry_save_observations"]=observations
+            if observations>=3:
+                return _terminal("TASK091_SUMMARYARR_RETRY_NOT_PERSISTED")
+            return {"action":"exec","command":"pyautogui.sleep(0.25)",
+                    "specialist_phase":"semantic-summaryarr-noop-retry-save-reobserve",
+                    "plan":"The retry save is not visible on disk yet; re-observe the exact OOXML target without issuing any additional mutation."}
+        tx["noop_retry_save_observations"]=0
         try:
             verdict=verify_exact_text_transaction(tx["before_state"],window_state,[key],tx.get("new"))
         except SemanticTransactionError as exc:
