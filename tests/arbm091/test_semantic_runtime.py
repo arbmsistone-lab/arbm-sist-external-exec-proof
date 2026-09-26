@@ -450,6 +450,40 @@ class SemanticRuntimeTests(unittest.TestCase):
             (768096,2743200,5669280,1280160),
         )
 
+    def test_text_options_may_publish_complete_autofit_group_directly(self):
+        ws=self._coversub_state_with_current_autofit_group()
+        state={"slide":1}
+        plan=((1,900,520,
+               "Planning posture: accelerate growth through H2 scale-up",
+               "Northstar Cloud\nPrepared for July Operating Committee review\nPlanning posture: stabilize and recover with disciplined sequencing"),)
+        self.assertEqual(next_text_action(state,ws,plan)["specialist_phase"],
+                         "semantic-target-select")
+
+        text_options=copy.deepcopy(ws)
+        text_options["source"]="0042-01-after"
+        text_options["screenshot_sha256"]="b"*64
+        text_options["controls"]=[{
+            "label":"TEXT OPTIONS","role":"visual-tab","pid":2701,
+            "owner_id":50331653,"application":"wpsoffice wpsoffice",
+            "bbox":[1640,190,150,28],"showing":True,"enabled":True,
+        }]
+        opened=next_text_action(state,text_options,plan)
+        self.assertEqual(opened["specialist_phase"],
+                         "semantic-cover-autofit-text-options-open")
+
+        direct=copy.deepcopy(ws)
+        direct["source"]="0043-01-after"
+        direct["screenshot_sha256"]="c"*64
+        direct["controls"]=self._current_group()
+        action=next_text_action(state,direct,plan)
+        self.assertEqual(action["specialist_phase"],
+                         "semantic-cover-autofit-do-not-select")
+        self.assertEqual(action["target"]["label"],"Do not Autofit")
+        self.assertEqual(state["semantic_tx"]["autofit_preflight_source"],
+                         "post-text-options-published-group")
+        self.assertNotIn("Text Box",action["plan"])
+        self.assertEqual(state["semantic_tx"]["stage"],"autofit-do-not-issued")
+
     def test_current_autofit_group_absent_rejected(self):
         ws=self._coversub_state_with_current_autofit_group()
         tx={"selection_before_screenshot_sha256":"a"*64}
