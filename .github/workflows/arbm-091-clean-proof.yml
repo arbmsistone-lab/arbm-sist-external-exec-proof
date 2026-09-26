@@ -1026,6 +1026,37 @@ jobs:
         assert 'test_section_e_uses_three_step_bounded_font_reduction' in tests
         print('AUTHORIZED_FINAL_BLOCKER_CLOSURE=PASS')
         PY
+        elif [[ "$current_parent" == '8ec881c3e384dc75c3fe1b783d4c8177e761ae58' && "$current_message" == 'fix(091): authorize stable direct AutoFit gate' ]]; then
+          python - <<'PY'
+        from pathlib import Path
+        import subprocess
+        assert subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip()=='8ec881c3e384dc75c3fe1b783d4c8177e761ae58'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^'],text=True).strip()=='2c29dc70944a18410ce3f863614c1c86e9f0b5d7'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^^'],text=True).strip()=='0f6b0ae44df0051dcc97718dfc8768ce24b870a7'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^^^'],text=True).strip()=='a29f0cdd1b31fdc837b11a2d9be2358765bad712'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^^^^'],text=True).strip()=='c13eb99c0033571340eb8b05de76345b4c77e26b'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^^^^^'],text=True).strip()=='c7e5b39f04764e131cee1e1d51c0240a2f780cd9'
+        assert subprocess.check_output(['git','rev-parse','HEAD^^^^^^^'],text=True).strip()=='1e903616e8103444101744f790e69e1ab5a1cd0a'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^','HEAD'],
+            text=True).strip()=='.github/workflows/arbm-091-clean-proof.yml'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^^^^^^^','HEAD^^^^^^'],
+            text=True).strip()=='scripts/arbm091/semantic_runtime.py'
+        assert subprocess.check_output(
+            ['git','diff-tree','--no-commit-id','--name-only','-r','HEAD^^^^^^','HEAD^^^^^'],
+            text=True).strip()=='tests/arbm091/test_semantic_runtime.py'
+        runtime=Path('scripts/arbm091/semantic_runtime.py').read_text()
+        tests=Path('tests/arbm091/test_semantic_runtime.py').read_text()
+        shim=Path('scripts/osworld_free_mesh_shim.py').read_text()
+        assert 'post-text-options-published-group' in runtime
+        assert 'test_text_options_may_publish_complete_autofit_group_directly' in tests
+        assert "'font_decrements': 7" in shim
+        assert subprocess.check_output(
+            ['git','rev-list','--merges','a44392da9ea12889ad9bcc8ecdd44abd9edb64a0..HEAD'],
+            text=True).strip()==''
+        print('AUTHORIZED_STABLE_DIRECT_AUTOFIT_GATE=PASS')
+        PY
         elif [[ "$current_parent" == '0f6b0ae44df0051dcc97718dfc8768ce24b870a7' && "$current_message" == 'fix(091): authorize final direct AutoFit metagate' ]]; then
           python - <<'PY'
         from pathlib import Path
