@@ -1,0 +1,33 @@
+name: ARBM SIST Constitutional Real Witnesses
+on:
+  push:
+    paths:
+      - "scripts/policy/**"
+      - "policy/**"
+      - ".github/workflows/arbm-sist-constitutional-real-witnesses.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-witnesses:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Establish exact candidate and baseline
+        run: |
+          echo "CANDIDATE=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "BASELINE=$(git rev-parse HEAD^)" >> "$GITHUB_ENV"
+      - name: Execute real regression rollback and independent witnesses
+        run: |
+          mkdir -p evidence/constitutional/runtime
+          python3 scripts/policy/real_constitutional_witnesses.py --candidate "$CANDIDATE" --baseline "$BASELINE" --out evidence/constitutional/runtime/real-witnesses.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: constitutional-real-witnesses-${{ github.sha }}
+          path: evidence/constitutional/runtime/real-witnesses.json
+          if-no-files-found: error
+          retention-days: 30
