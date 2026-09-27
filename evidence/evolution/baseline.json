@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "baseline_id": "constitutional-green-2026-09-27",
+  "constitutional_pass": true,
+  "real_evidence": true,
+  "zero_spend": true,
+  "task_completion": 1.0,
+  "correctness": 1.0,
+  "autonomy": 1.0,
+  "tool_use": 1.0,
+  "coding": 1.0,
+  "computer_use": 1.0,
+  "recovery": 1.0,
+  "multi_provider_failover": 1.0,
+  "latency": 1.0,
+  "resource_efficiency": 1.0,
+  "evidence_integrity": 1.0,
+  "scope": "constitutional enforcement reference only; normalized protected floor, not a claim of general-agent perfection"
+}
