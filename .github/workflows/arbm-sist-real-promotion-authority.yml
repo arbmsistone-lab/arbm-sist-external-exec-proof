@@ -27,11 +27,11 @@ jobs:
           INPUT_ADVERSARIAL: ${{ inputs.adversarial_run_id }}
           INPUT_WITNESS: ${{ inputs.witness_run_id }}
         run: |
-          echo "candidate=${INPUT_CANDIDATE:-22117ebc75f3496edb1b5b8f64676b6a9ec76205}" >> "$GITHUB_OUTPUT"
-          echo "baseline=${INPUT_BASELINE:-3ae5552859db162c2503af7ba37d4e5898e68241}" >> "$GITHUB_OUTPUT"
-          echo "constitutional=${INPUT_CONSTITUTIONAL:-36354631056}" >> "$GITHUB_OUTPUT"
-          echo "adversarial=${INPUT_ADVERSARIAL:-36354631118}" >> "$GITHUB_OUTPUT"
-          echo "witness=${INPUT_WITNESS:-36354631163}" >> "$GITHUB_OUTPUT"
+          echo "candidate=${INPUT_CANDIDATE:-671daa1999f765bfb577a6d1f3bd036a1044da41}" >> "$GITHUB_OUTPUT"
+          echo "baseline=${INPUT_BASELINE:-16aac066ab78bcffa163bace0700dfc7a4066c22}" >> "$GITHUB_OUTPUT"
+          echo "constitutional=${INPUT_CONSTITUTIONAL:-36356485760}" >> "$GITHUB_OUTPUT"
+          echo "adversarial=${INPUT_ADVERSARIAL:-36356485768}" >> "$GITHUB_OUTPUT"
+          echo "witness=${INPUT_WITNESS:-36356485773}" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
