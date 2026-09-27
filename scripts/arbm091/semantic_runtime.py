@@ -725,7 +725,7 @@ def next_text_action(state,window_state,plan):
             # The next independent OOXML observation remains the authority.
             tx["mutation_mode"]="critical-deterministic-summaryarr-atomic"
             tx["stage"]="save-issued"
-            command="\\n".join((
+            command="\n".join((
                 "pyautogui.press('f2')",
                 "pyautogui.hotkey('ctrl', 'a')",
                 "pyautogui.press('backspace')",
