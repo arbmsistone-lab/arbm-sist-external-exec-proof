@@ -1469,6 +1469,10 @@ def next_091_specialist_action(instruction, active_application, observation, sta
     # remains only for historical replay compatibility.
     if state.get('pending_edit') is not None:
         return _task091_terminal('TASK091_LEGACY_TEXT_STATE_FORBIDDEN',state)
+    if os.environ.get('TASK091_CRITICAL_ERROR_ONLY') == '1':
+        # Surgical real-WPS proof ends immediately after the one SummaryArr
+        # transaction and Section E have both survived persisted readback.
+        return _task091_terminal('TASK091_CRITICAL_ERROR_PATH_PROVEN',state)
     if int(state.get('spatial_index') or 0) != len(TASK091_SPATIAL_TEXT_EDITS):
         return _task091_terminal('TASK091_SEMANTIC_PLAN_INCOMPLETE',state)
     if not state.get('saved'):
