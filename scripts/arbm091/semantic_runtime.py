@@ -62,7 +62,26 @@ def _verify_text_transaction_for_mode(before_state, after_state, key, new):
     candidates=[(candidate_key,row) for candidate_key,row in structural
                 if str(row.get("text") or "")==str(new)]
     if len(candidates)!=1:
-        raise SemanticTransactionError("TASK091_CRITICAL_TARGET_FINGERPRINT_AMBIGUOUS_OR_MISSING")
+        diagnostic={
+            "structural_count":len(structural),
+            "value_count":len(candidates),
+            "structural":[
+                {
+                    "key":list(candidate_key),
+                    "text":str(row.get("text") or ""),
+                    "id":int(row.get("id") or 0),
+                    "name":str(row.get("name") or ""),
+                    "geometry":list(row.get("geometry") or ()),
+                    "font_sizes":list(row.get("font_sizes") or ()),
+                    "fill_rgb":str(row.get("fill_rgb") or ""),
+                }
+                for candidate_key,row in structural[:8]
+            ],
+            "new":str(new),
+        }
+        raise SemanticTransactionError(
+            "TASK091_CRITICAL_TARGET_FINGERPRINT_AMBIGUOUS_OR_MISSING:"+
+            json.dumps(diagnostic,sort_keys=True,separators=(",",":")))
     persisted_key,a=candidates[0]
     return {
         "status":"PASS",
