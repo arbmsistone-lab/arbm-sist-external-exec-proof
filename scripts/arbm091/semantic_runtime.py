@@ -457,6 +457,35 @@ def next_text_action(state,window_state,plan):
                     "plan":f"Navigate to structural target slide {slide}.",
                     "specialist_phase":"semantic-navigate-slide"}
 
+        # Deterministic Section E surgery: execute immediately after the
+        # semantic navigator enters Slide 3, before any ordinary Slide 3 edit.
+        # This guarantees the required GUI mutation occurs before the
+        # specialist can terminate the remaining trajectory.
+        if current==3 and state.get("section_e_gui_font_done") is not True:
+            rows=((window_state.get("deck_slide_shapes") or {}).get("3") or [])
+            matches=[r for r in rows if isinstance(r,dict)
+                     and int(r.get("id") or 0)==16
+                     and str(r.get("name") or "")=="KpiReadout_Body"
+                     and "Burn improvement relies on expansion payback from Q4."
+                         in str(r.get("text") or "")]
+            if len(matches)!=1:
+                return _terminal("TASK091_SECTION_E_GUI_FONT_TARGET_NOT_UNIQUE")
+            target=_signed_target(window_state,3,matches[0])
+            state["semantic_tx"]={
+                "stage":"section-e-font-select-issued","index":index,
+                "target_key":[3,"shape",16,"KpiReadout_Body"],
+                "before_geometry":dict(matches[0].get("geometry") or {}),
+                "before_font_sizes":[int(v) for v in (matches[0].get("font_sizes") or [])],
+                "before_deck_sha256":str((window_state.get("deck_file") or {}).get("sha256") or ""),
+            }
+            return {
+                "action":"exec",
+                "command":f"pyautogui.doubleClick({target['cx']}, {target['cy']}, interval=0.08)",
+                "target":target,
+                "plan":"Execute the mandatory signed Slide 3 containment repair before any ordinary Slide 3 semantic edit.",
+                "specialist_phase":"semantic-section-e-font-select",
+            }
+
         if str(old)==str(new):
             try:
                 resolved=resolve_target(window_state,slide=slide,old=old,
@@ -523,7 +552,7 @@ def next_text_action(state,window_state,plan):
 
     if stage=="section-e-font-select-issued":
         tx["stage"]="section-e-font-mutation-issued"
-        return {"action":"exec","command":"pyautogui.hotkey('ctrl', 'a')\\nfor _ in range(7): pyautogui.hotkey('ctrl', '[')","plan":"Reduce only selected KpiReadout_Body by exactly seven WPS font steps.","specialist_phase":"semantic-section-e-font-mutate"}
+        return {"action":"exec","command":"pyautogui.hotkey('ctrl', 'a')\nfor _ in range(7): pyautogui.hotkey('ctrl', '[')","plan":"Reduce only selected KpiReadout_Body by exactly seven WPS font steps.","specialist_phase":"semantic-section-e-font-mutate"}
     if stage=="section-e-font-mutation-issued":
         tx["stage"]="section-e-font-commit-issued"
         return {"action":"exec","command":"pyautogui.press('esc')","plan":"Finalize exact Slide 3 GUI font mutation.","specialist_phase":"semantic-section-e-font-commit"}
