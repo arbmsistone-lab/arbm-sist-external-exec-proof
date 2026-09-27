@@ -1,0 +1,49 @@
+name: ARBM SIST Real Promotion Evidence
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        required: true
+      baseline_sha:
+        required: true
+      constitutional_run_id:
+        required: true
+      adversarial_run_id:
+        required: true
+permissions:
+  actions: read
+  contents: read
+jobs:
+  real-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Fetch exact real run records
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          mkdir -p evidence/constitutional/runtime
+          for ID in "${{ inputs.constitutional_run_id }}" "${{ inputs.adversarial_run_id }}"; do
+            curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json"               "https://api.github.com/repos/$REPO/actions/runs/$ID" > "evidence/constitutional/runtime/run-$ID.json"
+          done
+      - name: Build manifest only from real run records
+        run: |
+          python3 scripts/policy/build_real_promotion_manifest.py             --candidate-sha "${{ inputs.candidate_sha }}" --baseline-sha "${{ inputs.baseline_sha }}"             --run "evidence/constitutional/runtime/run-${{ inputs.constitutional_run_id }}.json"             --run "evidence/constitutional/runtime/run-${{ inputs.adversarial_run_id }}.json"             --out evidence/constitutional/promotion-evidence.json
+      - name: Prove incomplete real chain stays fail-closed
+        run: |
+          if python3 scripts/policy/full_constitutional_gate.py --evidence evidence/constitutional/promotion-evidence.json; then
+            echo "ERROR: incomplete real evidence was promoted"; exit 1
+          fi
+          echo "REAL_EVIDENCE_CHAIN=CAPTURED"
+          echo "PROMOTION_AUTHORITY=DENY_PENDING_REAL_REGRESSION_ROLLBACK_VERIFIER"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: real-promotion-evidence-${{ inputs.candidate_sha }}
+          path: evidence/constitutional/
+          retention-days: 30
