@@ -1208,10 +1208,10 @@ def next_text_action(state,window_state,plan):
             # WPS 2019 can retain exactly one trailing M after the grounded
             # SummaryArr replacement. Admit only that proven corruption and
             # perform one bounded, target-signed GUI repair before Section E.
-            if (key==(2,"shape",15,"SummaryArr_Value")
-                    and str(tx.get("new") or "")=="$40.9M"
+            if (key in ((2,"shape",15,"SummaryArr_Value"),(2,"shape",25,"SummaryBurn_Value"))
+                    and str(tx.get("new") or "") in ("$40.9M","$2.8M")
                     and key in current_model
-                    and str(current_model[key].get("text") or "")=="$40.9MM"
+                    and str(current_model[key].get("text") or "") in ("$40.9MM","$2.8MM","$2.8MM")
                     and len(current_sha)==64
                     and current_sha!=str(tx.get("before_deck_sha256") or "")):
                 try:
@@ -1325,7 +1325,7 @@ def next_text_action(state,window_state,plan):
                 "command":"\n".join((
                     "pyautogui.hotkey('ctrl', 'a')",
                     "pyautogui.press('backspace')",
-                    "pyautogui.write('$40.9M', interval=0.02)",
+                    f"pyautogui.write({str(tx.get('new') or '')!r}, interval=0.02)",
                     "pyautogui.press('esc')",
                     "pyautogui.hotkey('ctrl', 's')",
                     "pyautogui.sleep(0.35)",
@@ -1336,7 +1336,7 @@ def next_text_action(state,window_state,plan):
     if stage=="summaryarr-suffix-repair-save-issued":
         current_sha=str((window_state.get("deck_file") or {}).get("sha256") or "")
         row=current_model.get(key)
-        if row is None or str(row.get("text") or "")!="$40.9M":
+        if row is None or str(row.get("text") or "")!=str(tx.get("new") or ""):
             return _terminal("TASK091_SUMMARYARR_SUFFIX_REPAIR_TEXT_UNPROVEN")
         if list(row.get("geometry") or ())!=list(tx.get("suffix_repair_geometry") or ()):
             return _terminal("TASK091_SUMMARYARR_SUFFIX_REPAIR_GEOMETRY_DRIFT")
