@@ -1,0 +1,36 @@
+name: ARBM SIST Constitutional Gate
+
+on:
+  push:
+    branches:
+      - chatgpt/arbm-091-clean-rebuild-20260922
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arbm-sist-constitution-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  constitution-policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Constitutional policy lint
+        run: python3 scripts/policy/constitution_gate.py
+      - name: Fail-closed assertions
+        run: |
+          python3 - <<'PY'
+          import json
+          p=json.load(open("policy/arbm_sist_constitution.json",encoding="utf-8"))
+          assert p["fail_closed"] is True
+          assert p["zero_spend"] is True
+          assert all(v["minimum_independent_routes"] >= 2 for v in p["critical_capabilities"].values())
+          print("FAIL_CLOSED_ASSERTIONS=PASS")
+          PY
