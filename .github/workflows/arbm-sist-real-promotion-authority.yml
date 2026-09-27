@@ -2,11 +2,14 @@ name: ARBM SIST Real Promotion Authority
 on:
   workflow_dispatch:
     inputs:
-      candidate_sha: {required: true}
-      baseline_sha: {required: true}
-      constitutional_run_id: {required: true}
-      adversarial_run_id: {required: true}
-      witness_run_id: {required: true}
+      candidate_sha: {required: false}
+      baseline_sha: {required: false}
+      constitutional_run_id: {required: false}
+      adversarial_run_id: {required: false}
+      witness_run_id: {required: false}
+  push:
+    paths:
+      - ".github/workflows/arbm-sist-real-promotion-authority.yml"
 permissions:
   actions: read
   contents: read
@@ -15,30 +18,55 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Resolve pinned proof set
+        id: proof
+        env:
+          INPUT_CANDIDATE: ${{ inputs.candidate_sha }}
+          INPUT_BASELINE: ${{ inputs.baseline_sha }}
+          INPUT_CONSTITUTIONAL: ${{ inputs.constitutional_run_id }}
+          INPUT_ADVERSARIAL: ${{ inputs.adversarial_run_id }}
+          INPUT_WITNESS: ${{ inputs.witness_run_id }}
+        run: |
+          echo "candidate=${INPUT_CANDIDATE:-22117ebc75f3496edb1b5b8f64676b6a9ec76205}" >> "$GITHUB_OUTPUT"
+          echo "baseline=${INPUT_BASELINE:-3ae5552859db162c2503af7ba37d4e5898e68241}" >> "$GITHUB_OUTPUT"
+          echo "constitutional=${INPUT_CONSTITUTIONAL:-36354631056}" >> "$GITHUB_OUTPUT"
+          echo "adversarial=${INPUT_ADVERSARIAL:-36354631118}" >> "$GITHUB_OUTPUT"
+          echo "witness=${INPUT_WITNESS:-36354631163}" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.candidate_sha }}
+          ref: ${{ steps.proof.outputs.candidate }}
           fetch-depth: 2
           persist-credentials: false
       - name: Fetch exact run records and witness artifact
-        env: {GH_TOKEN: "${{ github.token }}", REPO: "${{ github.repository }}"}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          C: ${{ steps.proof.outputs.constitutional }}
+          A: ${{ steps.proof.outputs.adversarial }}
+          W: ${{ steps.proof.outputs.witness }}
         run: |
           mkdir -p evidence/constitutional/runtime/witness
-          for ID in "${{ inputs.constitutional_run_id }}" "${{ inputs.adversarial_run_id }}" "${{ inputs.witness_run_id }}"; do
+          for ID in "$C" "$A" "$W"; do
             curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/actions/runs/$ID" > "evidence/constitutional/runtime/run-$ID.json"
           done
-          ART_URL=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/actions/runs/${{ inputs.witness_run_id }}/artifacts" | python3 -c 'import json,sys; a=json.load(sys.stdin)["artifacts"]; print(a[0]["archive_download_url"] if len(a)==1 else "")')
+          ART_URL=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/actions/runs/$W/artifacts" | python3 -c 'import json,sys; a=json.load(sys.stdin)["artifacts"]; print(a[0]["archive_download_url"] if len(a)==1 else "")')
           test -n "$ART_URL"
           curl -fsSL -H "Authorization: Bearer $GH_TOKEN" "$ART_URL" -o /tmp/witness.zip
           python3 -m zipfile -e /tmp/witness.zip evidence/constitutional/runtime/witness
       - name: Build real-only manifest and decide
+        env:
+          CANDIDATE: ${{ steps.proof.outputs.candidate }}
+          BASELINE: ${{ steps.proof.outputs.baseline }}
+          C: ${{ steps.proof.outputs.constitutional }}
+          A: ${{ steps.proof.outputs.adversarial }}
+          W: ${{ steps.proof.outputs.witness }}
         run: |
           WITNESS=$(find evidence/constitutional/runtime/witness -name real-witnesses.json -print -quit)
           test -n "$WITNESS"
-          python3 scripts/policy/build_final_real_manifest.py --candidate "${{ inputs.candidate_sha }}" --baseline "${{ inputs.baseline_sha }}" --constitutional-run "evidence/constitutional/runtime/run-${{ inputs.constitutional_run_id }}.json" --adversarial-run "evidence/constitutional/runtime/run-${{ inputs.adversarial_run_id }}.json" --witness-run "evidence/constitutional/runtime/run-${{ inputs.witness_run_id }}.json" --witness-json "$WITNESS" --out evidence/constitutional/promotion-evidence.json
+          python3 scripts/policy/build_final_real_manifest.py --candidate "$CANDIDATE" --baseline "$BASELINE" --constitutional-run "evidence/constitutional/runtime/run-$C.json" --adversarial-run "evidence/constitutional/runtime/run-$A.json" --witness-run "evidence/constitutional/runtime/run-$W.json" --witness-json "$WITNESS" --out evidence/constitutional/promotion-evidence.json
           python3 scripts/policy/full_constitutional_gate.py --evidence evidence/constitutional/promotion-evidence.json
       - uses: actions/upload-artifact@v4
         with:
-          name: constitutional-real-promotion-${{ inputs.candidate_sha }}
+          name: constitutional-real-promotion-${{ steps.proof.outputs.candidate }}
           path: evidence/constitutional/
           retention-days: 30
