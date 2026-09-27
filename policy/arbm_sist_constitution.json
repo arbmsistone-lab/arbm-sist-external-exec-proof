@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "constitution": "docs/ARBM_SIST_TECHNICAL_CONSTITUTION.md",
+  "fail_closed": true,
+  "zero_spend": true,
+  "protected_invariants": [
+    "NO_SPOF",
+    "MULTI_PROVIDER_BY_CAPABILITY",
+    "ZERO_SPEND",
+    "CONTINUOUS_EVOLUTION",
+    "ZERO_UNDETECTED_REGRESSION",
+    "EVIDENCE_BEFORE_GREEN",
+    "INDEPENDENT_VERIFICATION",
+    "DURABLE_PORTABLE_STATE",
+    "TRANSACTIONAL_EFFECTS",
+    "VERSIONED_ROLLBACK",
+    "QUALITY_IS_MEASURED",
+    "FAIL_CLOSED_RELEASE"
+  ],
+  "critical_capabilities": {
+    "source_control": {"minimum_independent_routes": 2},
+    "compute_execute": {"minimum_independent_routes": 3},
+    "artifact_evidence": {"minimum_independent_routes": 2},
+    "state_recovery": {"minimum_independent_routes": 2}
+  },
+  "promotion_required_evidence": [
+    "candidate_sha",
+    "baseline_sha",
+    "contract_tests",
+    "regression_tests",
+    "adversarial_eval",
+    "provider_independence",
+    "zero_spend",
+    "rollback_target"
+  ],
+  "forbidden_success_signals_as_sole_evidence": [
+    "exit_code_0",
+    "http_2xx",
+    "tool_success",
+    "model_assertion",
+    "ui_click",
+    "save_command"
+  ]
+}
