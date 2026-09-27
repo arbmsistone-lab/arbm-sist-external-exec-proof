@@ -157,5 +157,26 @@ class CoverStatFamilyGeometryDecisionTests(unittest.TestCase):
 
 
 
+    def test_summaryrunway_noop_contract_is_explicit(self):
+        from pathlib import Path
+        source = Path("scripts/arbm091/wps_observer.py").read_text(encoding="utf-8")
+        self.assertIn("if actual==expected:", source)
+        self.assertIn("'action':'NOOP'", source)
+        self.assertIn("'geometry_after':list(expected_geom)", source)
+
+    def test_summaryburn_recurring_suffix_repair_accepts_already_correct_28m_before(self):
+        from pathlib import Path
+        source = Path("scripts/arbm091/wps_observer.py").read_text(encoding="utf-8")
+        self.assertIn("str(before_shape.get('text') or '') in ('$2.6M','$2.8M')", source)
+        self.assertIn("str(burn_before.get('text') or '') in ('$2.6M','$2.8M')", source)
+
+    def test_summaryburn_repair_remains_exact_negative_guard(self):
+        from pathlib import Path
+        source = Path("scripts/arbm091/wps_observer.py").read_text(encoding="utf-8")
+        self.assertIn("str(persisted_shape.get('text') or '')=='$2.8MM'", source)
+        self.assertIn("shape.count(b'$2.8MM')!=1", source)
+        self.assertIn("shape.replace(b'$2.8MM',b'$2.8M',1)", source)
+
+
 if __name__=="__main__":
     unittest.main()
