@@ -1,0 +1,35 @@
+name: ARBM SIST Evolution Gate
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha: {required: true}
+      baseline_report: {required: true, default: "evidence/evolution/baseline.json"}
+      candidate_report: {required: true, default: "evidence/evolution/candidate.json"}
+  pull_request:
+    paths:
+      - "policy/evolution_program.json"
+      - "scripts/evolution/**"
+      - "evidence/evolution/**"
+permissions:
+  contents: read
+jobs:
+  evolution-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Protect proven constitutional baseline
+        run: |
+          python3 - <<'PY'
+          import json
+          p=json.load(open("policy/evolution_program.json"))
+          assert p["baseline"]["status"]=="GREEN_PROVEN"
+          assert p["baseline"]["immutable"] is True
+          assert p["baseline"]["constitutional_candidate_sha"]=="671daa1999f765bfb577a6d1f3bd036a1044da41"
+          print("PROVEN_BASELINE_PROTECTED=PASS")
+          PY
+      - name: Candidate promotion gate
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: python3 scripts/evolution/evolution_gate.py --candidate "${{ inputs.candidate_sha }}" --baseline-report "${{ inputs.baseline_report }}" --candidate-report "${{ inputs.candidate_report }}"
