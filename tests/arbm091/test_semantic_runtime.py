@@ -927,5 +927,102 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertIn("TASK091_SECTION_E_ROUNDTRIP_DRIFT",body)
 
 
+
+    def _section_e_fixture(self):
+        ws=base_state()
+        ws["source"]="section-e-observation"
+        ws["screenshot_sha256"]="b"*64
+        ws["deck_slide_shapes"]["3"].append({
+            "id":16,"kind":"shape","name":"KpiReadout_Body",
+            "text":"Burn improvement relies on expansion payback from Q4.",
+            "geometry":{"x":100000,"y":100000,"w":2000000,"h":1000000},
+            "font_sizes":[1800,1800],
+        })
+        return ws,{"slide":3},((3,1000,470,"$42.8M","$40.9M"),)
+
+    def test_section_e_admits_raw_observer_geometry_before_normal_transaction(self):
+        ws,state,plan=self._section_e_fixture()
+        result=next_text_action(state,ws,plan)
+        self.assertEqual(result["specialist_phase"],"semantic-section-e-font-select")
+        self.assertEqual(state["semantic_owner"],"section-e")
+        self.assertEqual(state["semantic_tx"]["target_key"],
+                         [3,"shape",16,"KpiReadout_Body"])
+        self.assertEqual(state.get("semantic_index",0),0)
+
+    def test_section_e_ownership_survives_serialization_until_saved_readback(self):
+        ws,state,plan=self._section_e_fixture()
+        next_text_action(state,ws,plan)
+        phases=[]
+        for _ in range(11):
+            state=json.loads(json.dumps(state))
+            result=next_text_action(state,ws,plan)
+            self.assertEqual(result["action"],"exec")
+            phases.append(result["specialist_phase"])
+            self.assertEqual(state["semantic_owner"],"section-e")
+            self.assertEqual(state.get("semantic_index",0),0)
+        self.assertEqual(phases[-1],"semantic-section-e-font-save")
+        fixed=copy.deepcopy(ws)
+        fixed["deck_file"]["sha256"]="c"*64
+        fixed["deck_slide_shapes"]["3"][-1]["font_sizes"]=[1100,1100]
+        result=next_text_action(state,fixed,plan)
+        self.assertEqual(result["checkpoint"],"TASK091_SECTION_E_GUI_FONT_REPAIR_PROVEN")
+        self.assertNotIn("semantic_owner",state)
+        self.assertIsNone(state["semantic_tx"])
+        self.assertEqual(state.get("semantic_index",0),0)
+        result=next_text_action(state,fixed,plan)
+        self.assertEqual(result["specialist_phase"],"semantic-target-select")
+        self.assertEqual(state["semantic_tx"]["before_deck_sha256"],"c"*64)
+
+    def test_section_e_does_not_fall_through_when_target_admission_fails(self):
+        ws,state,plan=self._section_e_fixture()
+        ws.pop("slide_canvas_bbox")
+        result=next_text_action(state,ws,plan)
+        self.assertEqual(result["action"],"terminal")
+        self.assertEqual(result["reason"],"TASK091_SLIDE_CANVAS_UNPROVEN")
+        self.assertNotIn("semantic_tx",state)
+
+    def test_section_e_restarts_unmutated_normal_selection_with_fresh_baseline(self):
+        ws,state,plan=self._section_e_fixture()
+        state["section_e_gui_font_done"]=True
+        next_text_action(state,ws,plan)
+        state.pop("section_e_gui_font_done")
+        self.assertEqual(state["semantic_tx"]["stage"],"select-issued")
+        result=next_text_action(state,ws,plan)
+        self.assertEqual(result["specialist_phase"],"semantic-section-e-font-select")
+        self.assertEqual(state["semantic_owner"],"section-e")
+
+    def test_section_e_never_discards_an_issued_normal_mutation(self):
+        ws,state,plan=self._section_e_fixture()
+        state["section_e_gui_font_done"]=True
+        next_text_action(state,ws,plan)
+        state.pop("section_e_gui_font_done")
+        state["semantic_tx"]["stage"]="mutation-issued"
+        before=copy.deepcopy(state["semantic_tx"])
+        result=next_text_action(state,ws,plan)
+        self.assertEqual(result["reason"],"TASK091_SECTION_E_PREEMPTION_UNSAFE")
+        self.assertEqual(state["semantic_tx"],before)
+
+    def test_section_e_lost_ownership_and_index_drift_fail_closed(self):
+        ws,state,plan=self._section_e_fixture()
+        next_text_action(state,ws,plan)
+        lost=copy.deepcopy(state)
+        lost["semantic_tx"]=None
+        self.assertEqual(next_text_action(lost,ws,plan)["reason"],
+                         "TASK091_SECTION_E_OWNERSHIP_LOST")
+        state["semantic_index"]=1
+        self.assertEqual(next_text_action(state,ws,plan)["reason"],
+                         "TASK091_SECTION_E_INDEX_DRIFT")
+
+    def test_section_e_failed_readback_retains_owner_and_blocks_normal_edits(self):
+        ws,state,plan=self._section_e_fixture()
+        next_text_action(state,ws,plan)
+        for _ in range(11):
+            next_text_action(state,ws,plan)
+        result=next_text_action(state,ws,plan)
+        self.assertEqual(result["reason"],"TASK091_SECTION_E_GUI_FONT_ROUNDTRIP_MISMATCH")
+        self.assertEqual(state["semantic_owner"],"section-e")
+        self.assertIsNot(state.get("section_e_gui_font_done"),True)
+
+
 if __name__=="__main__":
     unittest.main()

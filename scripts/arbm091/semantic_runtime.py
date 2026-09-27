@@ -432,6 +432,39 @@ def next_text_action(state,window_state,plan):
     state["owned"]=True
     index=int(state.get("semantic_index") or 0)
     tx=state.get("semantic_tx")
+    section_e_active=(isinstance(tx,dict)
+                      and str(tx.get("stage") or "").startswith("section-e-font-"))
+    owner=state.get("semantic_owner")
+    if owner=="section-e":
+        if not section_e_active:
+            return _terminal("TASK091_SECTION_E_OWNERSHIP_LOST")
+        if int(tx.get("index",-1))!=index:
+            return _terminal("TASK091_SECTION_E_INDEX_DRIFT")
+    elif section_e_active:
+        # Adopt an in-flight transaction after restoring a persisted state.
+        state["semantic_owner"]="section-e"
+
+    # An ordinary selection may be re-created from a fresh snapshot, but an
+    # issued mutation must never be silently discarded or preempted.
+    if (isinstance(tx,dict) and not section_e_active
+            and int(tx.get("slide") or 0)==3
+            and state.get("section_e_gui_font_done") is not True):
+        rows=(window_state.get("deck_slide_shapes") or {}).get("3") or []
+        required=any(isinstance(row,dict) and int(row.get("id") or 0)==16
+                     and str(row.get("name") or "")=="KpiReadout_Body"
+                     for row in rows)
+        if required:
+            if str(tx.get("stage") or "")!="select-issued":
+                return _terminal("TASK091_SECTION_E_PREEMPTION_UNSAFE")
+            try:
+                unchanged=(model_sha256(normalize_deck(window_state))
+                           ==str(tx.get("before_model_sha256") or ""))
+            except SemanticTransactionError as exc:
+                return _terminal(str(exc))
+            if int(tx.get("index",-1))!=index or not unchanged:
+                return _terminal("TASK091_SECTION_E_PREEMPTION_STATE_DRIFT")
+            state["semantic_tx"]=None
+            tx=None
 
     if not isinstance(tx,dict):
         if index>=len(plan):
@@ -474,31 +507,26 @@ def next_text_action(state,window_state,plan):
                            and str(r.get("name") or "")=="KpiReadout_Body"
                            and "Burn improvement relies on expansion payback from Q4."
                                in str(r.get("text") or "")]
-        section_e_present=(len(section_e_matches)==1)
         section_e_target=None
-        if current==3 and section_e_present and state.get("section_e_gui_font_done") is not True:
-            try:
-                section_e_target=_signed_target(window_state,3,section_e_matches[0])
-            except SemanticTransactionError as exc:
-                # A fixture/state that merely carries the Section E identity
-                # but cannot prove its signed GUI geometry is not authorized
-                # to enter the exceptional surgery. Preserve the generic
-                # transaction path unchanged; its own validators remain the
-                # authority for canvas/geometry failures.
-                if str(exc) not in (
-                    "TASK091_TARGET_GEOMETRY_UNPROVEN",
-                    "TASK091_TARGET_GEOMETRY_INVALID",
-                    "TASK091_SLIDE_CANVAS_UNPROVEN",
-                    "TASK091_SLIDE_CANVAS_INVALID",
-                    "TASK091_SLIDE_CANVAS_ASPECT_MISMATCH",
-                    "TASK091_TARGET_OUTSIDE_SLIDE_CANVAS",
-                    "TASK091_CANONICAL_CONTEXT_UNPROVEN",
-                    "TASK091_TARGET_DIGEST_UNPROVEN",
-                ):
+        if current==3 and state.get("section_e_gui_font_done") is not True:
+            if section_e_matches:
+                if len(section_e_matches)!=1:
+                    return _terminal("TASK091_SECTION_E_TARGET_AMBIGUOUS")
+                try:
+                    # Signed targets consume normalized geometry, exactly as
+                    # ordinary semantic transactions do. Never swallow a
+                    # failed admission and fall through to a Slide 3 edit.
+                    section_e_row=normalize_deck(window_state).get(
+                        (3,"shape",16,"KpiReadout_Body"))
+                    if section_e_row is None:
+                        return _terminal("TASK091_SECTION_E_TARGET_UNPROVEN")
+                    section_e_target=_signed_target(window_state,3,section_e_row)
+                except SemanticTransactionError as exc:
                     return _terminal(str(exc))
         if section_e_target is not None:
             matches=section_e_matches
             target=section_e_target
+            state["semantic_owner"]="section-e"
             state["semantic_tx"]={
                 "stage":"section-e-font-select-issued","index":index,
                 "target_key":[3,"shape",16,"KpiReadout_Body"],
@@ -628,6 +656,7 @@ def next_text_action(state,window_state,plan):
         if len(after_sha)!=64 or after_sha==str(tx.get("before_deck_sha256") or ""): return _terminal("TASK091_SECTION_E_GUI_FONT_SAVE_NOT_PERSISTED")
         state["semantic_tx"]=None
         state["section_e_gui_font_done"]=True
+        state.pop("semantic_owner",None)
         return {"action":"checkpoint","checkpoint":"TASK091_SECTION_E_GUI_FONT_REPAIR_PROVEN","target":[3,16,"KpiReadout_Body"],"font_delta":700,"geometry_unchanged":True}
     try:
         current_model=normalize_deck(window_state)
