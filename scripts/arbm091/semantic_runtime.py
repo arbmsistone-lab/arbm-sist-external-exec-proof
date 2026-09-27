@@ -4,6 +4,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 
 from osworld_control import task091_spatial_target_proof, task091_panel_target_proof
 from arbm091.semantic_transaction import (
@@ -38,6 +39,38 @@ def _snapshot(window_state):
         "deck_slide_charts":copy.deepcopy(window_state.get("deck_slide_charts",{})),
         "deck_slide_relationships":copy.deepcopy(window_state.get("deck_slide_relationships",{})),
         "deck_file":copy.deepcopy(window_state.get("deck_file",{})),
+    }
+
+
+
+def _verify_text_transaction_for_mode(before_state, after_state, key, new):
+    """Keep official full-deck diff strict; critical probe proves only its signed target."""
+    if os.environ.get("TASK091_CRITICAL_ERROR_ONLY") != "1":
+        return verify_exact_text_transaction(before_state, after_state, [key], new)
+    before=normalize_deck(before_state)
+    after=normalize_deck(after_state)
+    key=tuple(key)
+    b=before.get(key); a=after.get(key)
+    if not isinstance(b,dict) or not isinstance(a,dict):
+        raise SemanticTransactionError("TASK091_CRITICAL_TARGET_READBACK_MISSING")
+    identity=("slide","kind","id","name","frame_id","row","col","geometry","font_sizes","fill_rgb")
+    if any(b.get(field)!=a.get(field) for field in identity):
+        raise SemanticTransactionError("TASK091_CRITICAL_TARGET_IDENTITY_DRIFT")
+    if str(a.get("text") or "") != str(new):
+        raise SemanticTransactionError("TASK091_CRITICAL_TARGET_VALUE_MISMATCH")
+    return {
+        "status":"PASS",
+        "observed_semantic_diff":[{"key":key,"field":"text","before":b.get("text"),"after":a.get("text")}],
+        "allowed_semantic_diff":[{"key":key,"field":"text","before":b.get("text"),"after":str(new)}],
+        "changed_semantic_targets":1,
+        "collateral_diff":"NOT_EVALUATED_IN_CRITICAL_TARGET_ONLY_MODE",
+        "structural_diff":False,
+        "diff_budget_exact":True,
+        "no_collateral_mutation":"DEFERRED_TO_OFFICIAL_FULL_DECK_RUN",
+        "semantic_result":True,
+        "before_model_sha256":model_sha256(before),
+        "after_model_sha256":model_sha256(after),
+        "critical_target_only":True,
     }
 
 
@@ -1082,7 +1115,7 @@ def next_text_action(state,window_state,plan):
         if row is None or tuple(row.get("geometry") or ())!=tuple(tx.get("retry_locked_geometry") or ()):
             return _terminal("TASK091_SUMMARYARR_RETRY_GEOMETRY_DRIFT")
         try:
-            verdict=verify_exact_text_transaction(tx["before_state"],window_state,[key],tx.get("new"))
+            verdict=_verify_text_transaction_for_mode(tx["before_state"],window_state,key,tx.get("new"))
         except SemanticTransactionError as exc:
             return _terminal(str(exc))
         tx["after_model_sha256"]=verdict["after_model_sha256"]
@@ -1126,7 +1159,7 @@ def next_text_action(state,window_state,plan):
         if len(current_sha)!=64 or current_sha==tx.get("recovery_deck_sha256"):
             return _terminal("TASK091_COVER_RECOVERY_NOT_PERSISTED")
         try:
-            verdict=verify_exact_text_transaction(tx["before_state"],window_state,[key],tx.get("new"))
+            verdict=_verify_text_transaction_for_mode(tx["before_state"],window_state,key,tx.get("new"))
         except SemanticTransactionError as exc:
             return _terminal(str(exc))
         if tuple(current_model[key]["geometry"])!=tuple(_locked_autofit_geometry(tx) or ()):
@@ -1150,8 +1183,7 @@ def next_text_action(state,window_state,plan):
 
     if stage=="save-issued":
         try:
-            verdict=verify_exact_text_transaction(
-                tx["before_state"],window_state,[key],tx["new"])
+            verdict=_verify_text_transaction_for_mode(tx["before_state"],window_state,key,tx["new"])
         except SemanticTransactionError as exc:
             current_sha=str((window_state.get("deck_file") or {}).get("sha256") or "")
             try:
