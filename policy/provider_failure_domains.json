@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "routes": [
+    {
+      "id": "github_actions",
+      "capabilities": [
+        "source_control",
+        "compute_execute",
+        "artifact_evidence"
+      ],
+      "failure_domain": "github",
+      "provider": "github",
+      "cost_class": "free"
+    },
+    {
+      "id": "buildkite",
+      "capabilities": [
+        "compute_execute",
+        "artifact_evidence"
+      ],
+      "failure_domain": "buildkite",
+      "provider": "buildkite",
+      "cost_class": "free"
+    },
+    {
+      "id": "railway",
+      "capabilities": [
+        "compute_execute"
+      ],
+      "failure_domain": "railway",
+      "provider": "railway",
+      "cost_class": "free"
+    },
+    {
+      "id": "persistent_state_a",
+      "capabilities": [
+        "state_recovery"
+      ],
+      "failure_domain": "state-a",
+      "provider": "portable",
+      "cost_class": "free"
+    },
+    {
+      "id": "persistent_state_b",
+      "capabilities": [
+        "state_recovery"
+      ],
+      "failure_domain": "state-b",
+      "provider": "portable",
+      "cost_class": "free"
+    }
+  ]
+}
