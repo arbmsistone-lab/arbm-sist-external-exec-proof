@@ -1,0 +1,29 @@
+{
+  "candidate_sha": "CANDIDATE_SHA",
+  "baseline_sha": "BASELINE_SHA",
+  "benchmarks": {
+    "contract_tests": {
+      "candidate_sha": "CANDIDATE_SHA",
+      "passed": false
+    },
+    "regression_tests": {
+      "candidate_sha": "CANDIDATE_SHA",
+      "passed": false
+    },
+    "adversarial_eval": {
+      "candidate_sha": "CANDIDATE_SHA",
+      "passed": false
+    }
+  },
+  "evidence_ledger": [],
+  "rollback": {
+    "target_sha": "BASELINE_SHA",
+    "tested": false
+  },
+  "independent_verifier": {
+    "passed": false
+  },
+  "promotion_authority": {
+    "requested": false
+  }
+}
