@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
@@ -39,7 +39,7 @@ jobs:
           test -n "$BASELINE" || { echo "BASELINE_MISSING"; exit 1; }
           python3 scripts/policy/collect_evidence_ledger.py             --candidate-sha "$CANDIDATE" --baseline-sha "$BASELINE"             --evidence "executor_run:evidence/constitutional/runtime/upstream-run.json:github-actions-run-${{ github.event.workflow_run.id }}"
           echo "Ledger collected. Promotion remains DENY until all real benchmark, rollback and independent-verifier evidence is present."
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: constitutional-ledger-${{ github.event.workflow_run.id }}
           path: evidence/constitutional/
