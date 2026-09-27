@@ -963,20 +963,11 @@ def next_text_action(state,window_state,plan):
         tx["stage"]="mutation-issued"
         if tx.get("summaryarr_retry_pending") is True and key in _SUMMARY_NOOP_RETRY_KEYS:
             tx["mutation_mode"]="summaryarr-autofit-locked-selected-shape-overwrite"
-            if key == (2, "shape", 15, "SummaryArr_Value"):
-                command="\n".join((
-                    "import pyperclip",
-                    f"pyperclip.copy({str(tx.get('new') or '')!r})",
-                    "pyautogui.hotkey('ctrl', 'a')",
-                    "pyautogui.press('backspace')",
-                    "pyautogui.hotkey('ctrl', 'v')",
-                ))
-            else:
-                command="\n".join((
-                    "pyautogui.hotkey('ctrl', 'a')",
-                    "pyautogui.press('backspace')",
-                    f"pyautogui.write({str(tx.get('new') or '')!r}, interval=0.02)",
-                ))
+            command="\n".join((
+                "pyautogui.hotkey('ctrl', 'a')",
+                "pyautogui.press('backspace')",
+                f"pyautogui.write({str(tx.get('new') or '')!r}, interval=0.02)",
+            ))
             return {
                 "action":"exec","command":command,
                 "plan":f"AutoFit is now proven DO_NOT_AUTOFIT for the exact {key[3]} shape. Overwrite only its selected text; OOXML must prove exact text-only diff and identical geometry.",
