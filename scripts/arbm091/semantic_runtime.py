@@ -435,6 +435,13 @@ def next_text_action(state,window_state,plan):
 
     if not isinstance(tx,dict):
         if index>=len(plan):
+            if state.get("section_e_gui_font_done") is not True:
+                rows=((window_state.get("deck_slide_shapes") or {}).get("3") or [])
+                matches=[r for r in rows if isinstance(r,dict) and int(r.get("id") or 0)==16 and str(r.get("name") or "")=="KpiReadout_Body"]
+                if len(matches)!=1: return _terminal("TASK091_SECTION_E_GUI_FONT_TARGET_NOT_UNIQUE")
+                target=_signed_target(window_state,3,matches[0])
+                state["semantic_tx"]={"stage":"section-e-font-select-issued","index":index,"target_key":[3,"shape",16,"KpiReadout_Body"],"before_geometry":dict(matches[0].get("geometry") or {}),"before_font_sizes":[int(v) for v in (matches[0].get("font_sizes") or [])],"before_deck_sha256":str((window_state.get("deck_file") or {}).get("sha256") or "")}
+                return {"action":"exec","command":f"pyautogui.doubleClick({target['cx']}, {target['cy']}, interval=0.08)","target":target,"plan":"Select exact Slide 3 KpiReadout_Body for official GUI containment repair.","specialist_phase":"semantic-section-e-font-select"}
             state["semantic_text_done"]=True
             state["spatial_index"]=len(plan)
             return {"action":"checkpoint",
@@ -513,6 +520,30 @@ def next_text_action(state,window_state,plan):
 
     stage=str(tx.get("stage") or "")
     key=tuple(tx.get("target_key") or ())
+
+    if stage=="section-e-font-select-issued":
+        tx["stage"]="section-e-font-mutation-issued"
+        return {"action":"exec","command":"pyautogui.hotkey('ctrl', 'a')\\nfor _ in range(7): pyautogui.hotkey('ctrl', '[')","plan":"Reduce only selected KpiReadout_Body by exactly seven WPS font steps.","specialist_phase":"semantic-section-e-font-mutate"}
+    if stage=="section-e-font-mutation-issued":
+        tx["stage"]="section-e-font-commit-issued"
+        return {"action":"exec","command":"pyautogui.press('esc')","plan":"Finalize exact Slide 3 GUI font mutation.","specialist_phase":"semantic-section-e-font-commit"}
+    if stage=="section-e-font-commit-issued":
+        tx["stage"]="section-e-font-save-issued"
+        return {"action":"exec","command":"pyautogui.hotkey('ctrl', 's')","plan":"Persist official Slide 3 GUI containment repair.","specialist_phase":"semantic-section-e-font-save"}
+    if stage=="section-e-font-save-issued":
+        rows=((window_state.get("deck_slide_shapes") or {}).get("3") or [])
+        matches=[r for r in rows if isinstance(r,dict) and int(r.get("id") or 0)==16 and str(r.get("name") or "")=="KpiReadout_Body"]
+        if len(matches)!=1: return _terminal("TASK091_SECTION_E_GUI_FONT_ROUNDTRIP_TARGET")
+        after=matches[0]
+        if dict(after.get("geometry") or {})!=dict(tx.get("before_geometry") or {}): return _terminal("TASK091_SECTION_E_GUI_FONT_GEOMETRY_DRIFT")
+        before_sizes=[int(v) for v in (tx.get("before_font_sizes") or [])]
+        after_sizes=[int(v) for v in (after.get("font_sizes") or [])]
+        if not before_sizes or after_sizes!=[v-700 for v in before_sizes]: return _terminal("TASK091_SECTION_E_GUI_FONT_ROUNDTRIP_MISMATCH")
+        after_sha=str((window_state.get("deck_file") or {}).get("sha256") or "")
+        if len(after_sha)!=64 or after_sha==str(tx.get("before_deck_sha256") or ""): return _terminal("TASK091_SECTION_E_GUI_FONT_SAVE_NOT_PERSISTED")
+        state["semantic_tx"]=None
+        state["section_e_gui_font_done"]=True
+        return {"action":"checkpoint","checkpoint":"TASK091_SECTION_E_GUI_FONT_REPAIR_PROVEN","target":[3,16,"KpiReadout_Body"],"font_delta":700,"geometry_unchanged":True}
     try:
         current_model=normalize_deck(window_state)
     except SemanticTransactionError as exc:
