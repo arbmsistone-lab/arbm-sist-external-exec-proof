@@ -284,7 +284,7 @@ def _guest_summaryrunway_geometry_repair(controller, before_shape, persisted_sha
         "   if info.filename!=slide_name and check.read(info.filename)!=original.read(info.filename): raise RuntimeError('TASK091_SUMMARYRUNWAY_COLLATERAL:'+info.filename)",
         " os.replace(tmp,path)",
         " after=open(path,'rb').read()",
-        " print(json.dumps({'status':'PASS','action':'OOXML_SUMMARYRUNWAY_GEOMETRY_REPAIR','target':[2,30,'SummaryRunway_Value'],'before_sha256':before_sha,'after_sha256':hashlib.sha256(after).hexdigest(),'geometry_before':list(actual),'geometry_after':list(expected)}))",
+        " print(json.dumps({'status':'PASS','action':'OOXML_SUMMARYRUNWAY_GEOMETRY_REPAIR','target':[2,30,'SummaryRunway_Value'],'before_sha256':before_sha,'after_sha256':hashlib.sha256(after).hexdigest(),'geometry_before':list(actual),'geometry_after':list(expected_geom)}))",
         "finally:",
         " try: os.unlink(tmp)",
         " except FileNotFoundError: pass"
