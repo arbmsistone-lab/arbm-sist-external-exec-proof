@@ -1,0 +1,26 @@
+name: ARBM SIST Generalist 300 Schema Gate
+on:
+  push:
+    paths:
+      - "scripts/evolution/generate_generalist_300.py"
+      - "scripts/evolution/validate_generalist_300.py"
+      - "benchmarks/evolution/generalist-300.json"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  schema-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Reproduce suite
+        run: python3 scripts/evolution/generate_generalist_300.py
+      - name: Validate balance and protection
+        run: python3 scripts/evolution/validate_generalist_300.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: generalist-300-${{ github.sha }}
+          path: benchmarks/evolution/generalist-300.json
+          retention-days: 30
