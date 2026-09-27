@@ -289,6 +289,7 @@ def _guest_summaryrunway_geometry_repair(controller, before_shape, persisted_sha
         " try: os.unlink(tmp)",
         " except FileNotFoundError: pass"
     ]
+    # TASK091_RUN447_REGRESSION_GUARD: guest repair CFG must carry observed actual geometry.
     cfg=json.dumps({'path':path,'expected':list(expected),'actual':list(actual)},separators=(',',':'))
     code="CFG="+repr(cfg)+"\n"+"\n".join(lines)
     session=requests.Session(); session.trust_env=False
