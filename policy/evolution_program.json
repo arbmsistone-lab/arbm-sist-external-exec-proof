@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "program": "ARBM SIST Continuous Evolution",
+  "baseline": {
+    "constitutional_candidate_sha": "671daa1999f765bfb577a6d1f3bd036a1044da41",
+    "promotion_run_id": 36356785244,
+    "status": "GREEN_PROVEN",
+    "immutable": true
+  },
+  "objectives": {
+    "quality_floor": "measured_reference_parity_or_better_on_defined_task_populations",
+    "target": "top3_world_class_agentic_system",
+    "zero_spend": true,
+    "no_regression": true,
+    "multi_provider": true
+  },
+  "promotion_law": {
+    "candidate_never_replaces_baseline_by_recency": true,
+    "require_constitutional_authority": true,
+    "require_benchmark_delta_nonnegative": true,
+    "require_no_protected_regression": true,
+    "require_real_evidence": true
+  },
+  "benchmark_dimensions": [
+    "task_completion",
+    "correctness",
+    "autonomy",
+    "tool_use",
+    "coding",
+    "computer_use",
+    "recovery",
+    "multi_provider_failover",
+    "latency",
+    "resource_efficiency",
+    "evidence_integrity"
+  ]
+}
