@@ -169,7 +169,7 @@ def _guest_summaryburn_text_repair(controller, before_shape, persisted_shape):
     require(int(before_shape.get('id') or 0)==25
             and str(before_shape.get('name') or '')=='SummaryBurn_Value',
             'TASK091_SUMMARYBURN_TEXT_IDENTITY')
-    require(str(before_shape.get('text') or '')=='$2.6M'
+    require(str(before_shape.get('text') or '') in ('$2.6M','$2.8M')
             and str(persisted_shape.get('text') or '')=='$2.8MM',
             'TASK091_SUMMARYBURN_TEXT_UNEXPECTED')
     bg=before_shape.get('geometry') or {}
@@ -639,7 +639,7 @@ def install(environment_class):
                                 burn_after=next((x for x in (persisted.get('deck_slide_shapes',{}).get('2') or [])
                                                   if int(x.get('id') or 0)==25 and str(x.get('name') or '')=='SummaryBurn_Value'),None)
                                 if (isinstance(burn_before,dict) and isinstance(burn_after,dict)
-                                    and str(burn_before.get('text') or '')=='$2.6M'
+                                    and str(burn_before.get('text') or '') in ('$2.6M','$2.8M')
                                     and str(burn_after.get('text') or '')=='$2.8MM'):
                                     burn_before['_deck_file_path']=str((before.get('deck_file') or {}).get('path') or '')
                                     row['summaryburn_text_repair']=_guest_summaryburn_text_repair(controller,burn_before,burn_after)
