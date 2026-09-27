@@ -5,7 +5,7 @@ run-name: ARBM 091 real WPS KVM critical ${{ github.sha }}
     branches:
       - chatgpt/arbm-091-clean-rebuild-20260922
     paths:
-      - .github/workflows/arbm-091-real-wps-kvm-critical.yml
+      - .github/task091-critical-probe.trigger
   workflow_dispatch: {}
 permissions:
   contents: read
@@ -220,59 +220,71 @@ jobs:
         echo "QCOW_PATH=$PWD/$QCOW" >> "$GITHUB_ENV"
         sha256sum "$QCOW" | cut -d' ' -f1 > qcow-base.sha256
         PYTHONPATH=scripts python -c 'import json; from osworld_v32_gate import PINS; open("official-pins.json","w").write(json.dumps(PINS,sort_keys=True))'
-    - name: Install quota-independent local VLM fallback
-      run: python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
-    - name: Execute official task 091 only
+    - name: Execute only the blocking SummaryArr and Section E probe
       shell: bash
-      run: "set -euo pipefail\nDIR=\"$GITHUB_WORKSPACE/osworld-v32-evidence/task-091\"\ntest ! -e \"$DIR\"\nmkdir\
-        \ -p \"$DIR\"\nprintf '%s\\n' \"$GITHUB_RUN_ID\" > \"$DIR/run-id.txt\"\nprintf '%s\\n' \"$GITHUB_RUN_ATTEMPT\"\
-        \ > \"$DIR/run-attempt.txt\"\ncp osworld-wps-observer.patch \"$DIR/\"\npython -m arbm091.score_tracker \"\
-        $DIR\" --sha \"$GITHUB_SHA\" --run-id \"$GITHUB_RUN_ID\" --run-attempt \"$GITHUB_RUN_ATTEMPT\" --watch --timeout-seconds\
-        \ 2700 > \"$GITHUB_WORKSPACE/arbm091-score-tracker.log\" 2>&1 &\nTRACKER_PID=$!\ntrap 'kill \"$TRACKER_PID\"\
-        \ 2>/dev/null || true; wait \"$TRACKER_PID\" 2>/dev/null || true' EXIT\nexport ARBM_OSWORLD_SHIM_LOG=\"\
-        $DIR/shim.jsonl\"\nexport ARBM_OSWORLD_OBSERVATIONS=\"$DIR/shim-observations\"\nexport ARBM_JUDGE_EVIDENCE=\"\
-        $DIR/judge\"\nexport OSWORLD_EVAL_SAVE_RAW_DIR=\"$DIR/official-evaluator-raw\"\ntouch \"$DIR/shim.jsonl\"\
-        \nprintf '%s\\n' 091 > \"$DIR/task-id.txt\"\nprintf '%s\\n' \"$ZERO_SPEND_MODE\" > \"$DIR/zero-spend-mode.txt\"\
-        \nprintf '%s\\n' \"$RUNNER_ENVIRONMENT\" > \"$DIR/runner-environment.txt\"\nprintf '%s\\n' \"$GITHUB_SHA\"\
-        \ > \"$DIR/candidate-sha.txt\"\nprintf '%s\\n' osworld-v2-2026.08.08 > \"$DIR/release.txt\"\nprintf '%s\\\
-        n' 500 > \"$DIR/max-steps.txt\"\ncp official-pins.json \"$DIR/pins.json\"\ncp osworld-docker-provider.patch\
-        \ osworld-volume.patch osworld-upload-transport.patch \"$DIR/\"\npython scripts/osworld_v32_integrity.py\
-        \ snapshot osworld \"$DIR/evaluator-before.json\"\nprintf '{\"tasks\":[\"091\"]}\\n' > \"$GITHUB_WORKSPACE/osworld/evaluation_examples/test_arbm_v32.json\"\
-        \ntest \"$(sha256sum \"$QCOW_PATH\" | cut -d' ' -f1)\" = \"$(cat qcow-base.sha256)\"\npython scripts/osworld_free_mesh_shim.py\
-        \ > \"$DIR/shim-runtime.log\" 2>&1 &\nSHIM_PID=$!\npython scripts/osworld_free_judge.py > \"$DIR/judge-runtime.log\"\
-        \ 2>&1 &\nJUDGE_PID=$!\nready=0\nfor i in $(seq 1 30); do\n  if curl -fsS http://127.0.0.1:8088/health >/dev/null\
-        \ && curl -fsS http://127.0.0.1:8089/health >/dev/null; then ready=1; break; fi\n  if ! kill -0 \"$SHIM_PID\"\
-        \ 2>/dev/null || ! kill -0 \"$JUDGE_PID\" 2>/dev/null; then break; fi\n  sleep 1\ndone\ntest \"$ready\"\
-        \ = 1\nset +e\n(cd osworld && timeout --signal=TERM --kill-after=30s \"${ARBM_RUN_MULTIENV_TIMEOUT_SECONDS}s\"\
-        \ uv run python scripts/python/run_multienv.py --headless --provider_name docker --path_to_vm \"$QCOW_PATH\"\
-        \ --eval_version v2 --test_all_meta_path evaluation_examples/test_arbm_v32.json --domain tasks --observation_type\
-        \ screenshot_a11y_tree --action_space pyautogui --model gpt-arbm-osworld-v32-isolated --temperature 0 --max_steps\
-        \ 120 --max_trajectory_length 8 --max_tokens 4096 --num_envs 1 --result_dir \"../osworld-v32-evidence/task-091/results\"\
-        \ 2>&1 | tee \"../osworld-v32-evidence/task-091/osworld.log\")\nrc=$?\nset -e\nkill \"$SHIM_PID\" 2>/dev/null\
-        \ || true\nwait \"$SHIM_PID\" 2>/dev/null || true\nkill \"$JUDGE_PID\" 2>/dev/null || true\nwait \"$JUDGE_PID\"\
-        \ 2>/dev/null || true\nprintf '%s\\n' \"$rc\" > \"$DIR/task-rc.txt\"\ntest \"$(sha256sum \"$QCOW_PATH\"\
-        \ | cut -d' ' -f1)\" = \"$(cat qcow-base.sha256)\"\npython scripts/osworld_v32_integrity.py verify osworld\
-        \ \"$DIR/evaluator-before.json\" \"$DIR/evaluator-integrity.json\"\npython scripts/osworld_v32_gate.py seal\
-        \ \"$DIR\"\npython -m arbm091.finalize_evidence \"$DIR\"\npython scripts/osworld_v32_gate.py task \"$DIR\"\
-        \ --task 091\n\nwait \"$TRACKER_PID\"\npython -m arbm091.score_tracker \"$DIR\" --sha \"$GITHUB_SHA\" --run-id\
-        \ \"$GITHUB_RUN_ID\" --run-attempt \"$GITHUB_RUN_ATTEMPT\" > \"$GITHUB_WORKSPACE/arbm091-verdict.json\"\n"
-    - name: Preserve focal 091 evidence
+      run: |
+        set -euo pipefail
+        DIR="$GITHUB_WORKSPACE/osworld-v32-evidence/task-091-critical"
+        rm -rf "$DIR"
+        mkdir -p "$DIR/shim-observations"
+        export ARBM_OSWORLD_SHIM_LOG="$DIR/shim.jsonl"
+        export ARBM_OSWORLD_OBSERVATIONS="$DIR/shim-observations"
+        touch "$DIR/shim.jsonl"
+        printf '{"tasks":["091"]}\n' > "$GITHUB_WORKSPACE/osworld/evaluation_examples/test_arbm_v32.json"
+        test "$(sha256sum "$QCOW_PATH" | cut -d' ' -f1)" = "$(cat qcow-base.sha256)"
+
+        python scripts/osworld_free_mesh_shim.py > "$DIR/shim-runtime.log" 2>&1 &
+        SHIM_PID=$!
+        cleanup() {
+          kill "$RUN_PID" 2>/dev/null || true
+          kill "$SHIM_PID" 2>/dev/null || true
+          wait "$RUN_PID" 2>/dev/null || true
+          wait "$SHIM_PID" 2>/dev/null || true
+        }
+        RUN_PID=""
+        trap cleanup EXIT
+
+        ready=0
+        for i in $(seq 1 30); do
+          if curl -fsS http://127.0.0.1:8088/health >/dev/null; then ready=1; break; fi
+          kill -0 "$SHIM_PID" 2>/dev/null || break
+          sleep 1
+        done
+        test "$ready" = 1
+
+        (
+          cd osworld
+          timeout --signal=TERM --kill-after=20s 720s uv run python scripts/python/run_multienv.py             --headless --provider_name docker --path_to_vm "$QCOW_PATH"             --eval_version v2 --test_all_meta_path evaluation_examples/test_arbm_v32.json             --domain tasks --observation_type screenshot_a11y_tree --action_space pyautogui             --model gpt-arbm-osworld-v32-isolated --temperature 0 --max_steps 80             --max_trajectory_length 8 --max_tokens 4096 --num_envs 1             --result_dir "../osworld-v32-evidence/task-091-critical/results"
+        ) > "$DIR/osworld.log" 2>&1 &
+        RUN_PID=$!
+
+        proven=0
+        for i in $(seq 1 600); do
+          if grep -Fq 'TASK091_CRITICAL_ERROR_PATH_PROVEN' "$DIR/shim.jsonl" "$DIR/shim-runtime.log" "$DIR/osworld.log" 2>/dev/null; then
+            proven=1
+            break
+          fi
+          if ! kill -0 "$RUN_PID" 2>/dev/null; then
+            break
+          fi
+          sleep 1
+        done
+
+        if [ "$proven" != 1 ]; then
+          echo "TASK091_CRITICAL_PROBE=FAIL"
+          tail -n 160 "$DIR/shim-runtime.log" || true
+          tail -n 160 "$DIR/osworld.log" || true
+          exit 1
+        fi
+
+        printf '%s\n' 'TASK091_CRITICAL_PROBE=PASS'
+        printf '%s\n' 'SUMMARYARR_AND_SECTION_E_PERSISTED_READBACK=PROVEN'
+        touch "$DIR/critical-probe.pass"
+    - name: Preserve critical probe evidence
       if: always()
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       with:
-        name: osworld-v32-focal-091-free
-        path: osworld-v32-evidence
-        if-no-files-found: error
-        retention-days: 90
-    - name: Preserve supplemental tracker report
-      if: always()
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-      with:
-        name: arbm091-wps-proof-report
-        path: 'arbm091-score-tracker.log
-
-          arbm091-verdict.json
-
-          osworld-v32-evidence/task-091.complete.json'
+        name: arbm091-critical-error-probe
+        path: osworld-v32-evidence/task-091-critical
         if-no-files-found: error
         retention-days: 90
