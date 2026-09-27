@@ -1,0 +1,3908 @@
+{
+  "schema_version": 1,
+  "suite": "ARBM-SIST-GENERALIST-300",
+  "task_count": 300,
+  "domains": 10,
+  "tasks": [
+    {
+      "id": "EVO-0001",
+      "domain": "coding",
+      "skill": "patch",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0002",
+      "domain": "coding",
+      "skill": "patch",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0003",
+      "domain": "coding",
+      "skill": "patch",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0004",
+      "domain": "coding",
+      "skill": "debug",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0005",
+      "domain": "coding",
+      "skill": "debug",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0006",
+      "domain": "coding",
+      "skill": "debug",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0007",
+      "domain": "coding",
+      "skill": "refactor",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0008",
+      "domain": "coding",
+      "skill": "refactor",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0009",
+      "domain": "coding",
+      "skill": "refactor",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0010",
+      "domain": "coding",
+      "skill": "tests",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0011",
+      "domain": "coding",
+      "skill": "tests",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0012",
+      "domain": "coding",
+      "skill": "tests",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0013",
+      "domain": "coding",
+      "skill": "dependency",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0014",
+      "domain": "coding",
+      "skill": "dependency",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0015",
+      "domain": "coding",
+      "skill": "dependency",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0016",
+      "domain": "coding",
+      "skill": "api",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0017",
+      "domain": "coding",
+      "skill": "api",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0018",
+      "domain": "coding",
+      "skill": "api",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0019",
+      "domain": "coding",
+      "skill": "cli",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0020",
+      "domain": "coding",
+      "skill": "cli",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0021",
+      "domain": "coding",
+      "skill": "cli",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0022",
+      "domain": "coding",
+      "skill": "parser",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0023",
+      "domain": "coding",
+      "skill": "parser",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0024",
+      "domain": "coding",
+      "skill": "parser",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0025",
+      "domain": "coding",
+      "skill": "serialization",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0026",
+      "domain": "coding",
+      "skill": "serialization",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0027",
+      "domain": "coding",
+      "skill": "serialization",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0028",
+      "domain": "coding",
+      "skill": "concurrency",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0029",
+      "domain": "coding",
+      "skill": "concurrency",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0030",
+      "domain": "coding",
+      "skill": "concurrency",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0031",
+      "domain": "tool_use",
+      "skill": "file_read",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0032",
+      "domain": "tool_use",
+      "skill": "file_read",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0033",
+      "domain": "tool_use",
+      "skill": "file_read",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0034",
+      "domain": "tool_use",
+      "skill": "file_write",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0035",
+      "domain": "tool_use",
+      "skill": "file_write",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0036",
+      "domain": "tool_use",
+      "skill": "file_write",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0037",
+      "domain": "tool_use",
+      "skill": "search",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0038",
+      "domain": "tool_use",
+      "skill": "search",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0039",
+      "domain": "tool_use",
+      "skill": "search",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0040",
+      "domain": "tool_use",
+      "skill": "git",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0041",
+      "domain": "tool_use",
+      "skill": "git",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0042",
+      "domain": "tool_use",
+      "skill": "git",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0043",
+      "domain": "tool_use",
+      "skill": "process",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0044",
+      "domain": "tool_use",
+      "skill": "process",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0045",
+      "domain": "tool_use",
+      "skill": "process",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0046",
+      "domain": "tool_use",
+      "skill": "artifact",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0047",
+      "domain": "tool_use",
+      "skill": "artifact",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0048",
+      "domain": "tool_use",
+      "skill": "artifact",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0049",
+      "domain": "tool_use",
+      "skill": "workflow",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0050",
+      "domain": "tool_use",
+      "skill": "workflow",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0051",
+      "domain": "tool_use",
+      "skill": "workflow",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0052",
+      "domain": "tool_use",
+      "skill": "api_call",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0053",
+      "domain": "tool_use",
+      "skill": "api_call",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0054",
+      "domain": "tool_use",
+      "skill": "api_call",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0055",
+      "domain": "tool_use",
+      "skill": "routing",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0056",
+      "domain": "tool_use",
+      "skill": "routing",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0057",
+      "domain": "tool_use",
+      "skill": "routing",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0058",
+      "domain": "tool_use",
+      "skill": "fallback",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0059",
+      "domain": "tool_use",
+      "skill": "fallback",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0060",
+      "domain": "tool_use",
+      "skill": "fallback",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0061",
+      "domain": "recovery",
+      "skill": "checkpoint",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0062",
+      "domain": "recovery",
+      "skill": "checkpoint",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0063",
+      "domain": "recovery",
+      "skill": "checkpoint",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0064",
+      "domain": "recovery",
+      "skill": "resume",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0065",
+      "domain": "recovery",
+      "skill": "resume",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0066",
+      "domain": "recovery",
+      "skill": "resume",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0067",
+      "domain": "recovery",
+      "skill": "retry",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0068",
+      "domain": "recovery",
+      "skill": "retry",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0069",
+      "domain": "recovery",
+      "skill": "retry",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0070",
+      "domain": "recovery",
+      "skill": "idempotency",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0071",
+      "domain": "recovery",
+      "skill": "idempotency",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0072",
+      "domain": "recovery",
+      "skill": "idempotency",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0073",
+      "domain": "recovery",
+      "skill": "lease",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0074",
+      "domain": "recovery",
+      "skill": "lease",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0075",
+      "domain": "recovery",
+      "skill": "lease",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0076",
+      "domain": "recovery",
+      "skill": "fencing",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0077",
+      "domain": "recovery",
+      "skill": "fencing",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0078",
+      "domain": "recovery",
+      "skill": "fencing",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0079",
+      "domain": "recovery",
+      "skill": "rollback",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0080",
+      "domain": "recovery",
+      "skill": "rollback",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0081",
+      "domain": "recovery",
+      "skill": "rollback",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0082",
+      "domain": "recovery",
+      "skill": "compensation",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0083",
+      "domain": "recovery",
+      "skill": "compensation",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0084",
+      "domain": "recovery",
+      "skill": "compensation",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0085",
+      "domain": "recovery",
+      "skill": "takeover",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0086",
+      "domain": "recovery",
+      "skill": "takeover",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0087",
+      "domain": "recovery",
+      "skill": "takeover",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0088",
+      "domain": "recovery",
+      "skill": "replay",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0089",
+      "domain": "recovery",
+      "skill": "replay",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0090",
+      "domain": "recovery",
+      "skill": "replay",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0091",
+      "domain": "evidence",
+      "skill": "hash",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0092",
+      "domain": "evidence",
+      "skill": "hash",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0093",
+      "domain": "evidence",
+      "skill": "hash",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0094",
+      "domain": "evidence",
+      "skill": "provenance",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0095",
+      "domain": "evidence",
+      "skill": "provenance",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0096",
+      "domain": "evidence",
+      "skill": "provenance",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0097",
+      "domain": "evidence",
+      "skill": "postcondition",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0098",
+      "domain": "evidence",
+      "skill": "postcondition",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0099",
+      "domain": "evidence",
+      "skill": "postcondition",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0100",
+      "domain": "evidence",
+      "skill": "artifact",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0101",
+      "domain": "evidence",
+      "skill": "artifact",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0102",
+      "domain": "evidence",
+      "skill": "artifact",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0103",
+      "domain": "evidence",
+      "skill": "log",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0104",
+      "domain": "evidence",
+      "skill": "log",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0105",
+      "domain": "evidence",
+      "skill": "log",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0106",
+      "domain": "evidence",
+      "skill": "world_state",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0107",
+      "domain": "evidence",
+      "skill": "world_state",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0108",
+      "domain": "evidence",
+      "skill": "world_state",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0109",
+      "domain": "evidence",
+      "skill": "binding",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0110",
+      "domain": "evidence",
+      "skill": "binding",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0111",
+      "domain": "evidence",
+      "skill": "binding",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0112",
+      "domain": "evidence",
+      "skill": "freshness",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0113",
+      "domain": "evidence",
+      "skill": "freshness",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0114",
+      "domain": "evidence",
+      "skill": "freshness",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0115",
+      "domain": "evidence",
+      "skill": "tamper",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0116",
+      "domain": "evidence",
+      "skill": "tamper",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0117",
+      "domain": "evidence",
+      "skill": "tamper",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0118",
+      "domain": "evidence",
+      "skill": "reproduce",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0119",
+      "domain": "evidence",
+      "skill": "reproduce",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0120",
+      "domain": "evidence",
+      "skill": "reproduce",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0121",
+      "domain": "security",
+      "skill": "least_privilege",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0122",
+      "domain": "security",
+      "skill": "least_privilege",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0123",
+      "domain": "security",
+      "skill": "least_privilege",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0124",
+      "domain": "security",
+      "skill": "secret_scope",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0125",
+      "domain": "security",
+      "skill": "secret_scope",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0126",
+      "domain": "security",
+      "skill": "secret_scope",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0127",
+      "domain": "security",
+      "skill": "injection",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0128",
+      "domain": "security",
+      "skill": "injection",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0129",
+      "domain": "security",
+      "skill": "injection",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0130",
+      "domain": "security",
+      "skill": "untrusted_input",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0131",
+      "domain": "security",
+      "skill": "untrusted_input",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0132",
+      "domain": "security",
+      "skill": "untrusted_input",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0133",
+      "domain": "security",
+      "skill": "network_policy",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0134",
+      "domain": "security",
+      "skill": "network_policy",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0135",
+      "domain": "security",
+      "skill": "network_policy",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0136",
+      "domain": "security",
+      "skill": "authz",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0137",
+      "domain": "security",
+      "skill": "authz",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0138",
+      "domain": "security",
+      "skill": "authz",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0139",
+      "domain": "security",
+      "skill": "sandbox",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0140",
+      "domain": "security",
+      "skill": "sandbox",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0141",
+      "domain": "security",
+      "skill": "sandbox",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0142",
+      "domain": "security",
+      "skill": "exfiltration",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0143",
+      "domain": "security",
+      "skill": "exfiltration",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0144",
+      "domain": "security",
+      "skill": "exfiltration",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0145",
+      "domain": "security",
+      "skill": "approval",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0146",
+      "domain": "security",
+      "skill": "approval",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0147",
+      "domain": "security",
+      "skill": "approval",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0148",
+      "domain": "security",
+      "skill": "audit",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0149",
+      "domain": "security",
+      "skill": "audit",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0150",
+      "domain": "security",
+      "skill": "audit",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0151",
+      "domain": "planning",
+      "skill": "decompose",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0152",
+      "domain": "planning",
+      "skill": "decompose",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0153",
+      "domain": "planning",
+      "skill": "decompose",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0154",
+      "domain": "planning",
+      "skill": "dependency_graph",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0155",
+      "domain": "planning",
+      "skill": "dependency_graph",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0156",
+      "domain": "planning",
+      "skill": "dependency_graph",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0157",
+      "domain": "planning",
+      "skill": "parallelize",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0158",
+      "domain": "planning",
+      "skill": "parallelize",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0159",
+      "domain": "planning",
+      "skill": "parallelize",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0160",
+      "domain": "planning",
+      "skill": "replan",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0161",
+      "domain": "planning",
+      "skill": "replan",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0162",
+      "domain": "planning",
+      "skill": "replan",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0163",
+      "domain": "planning",
+      "skill": "budget",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0164",
+      "domain": "planning",
+      "skill": "budget",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0165",
+      "domain": "planning",
+      "skill": "budget",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0166",
+      "domain": "planning",
+      "skill": "stop_condition",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0167",
+      "domain": "planning",
+      "skill": "stop_condition",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0168",
+      "domain": "planning",
+      "skill": "stop_condition",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0169",
+      "domain": "planning",
+      "skill": "definition_of_done",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0170",
+      "domain": "planning",
+      "skill": "definition_of_done",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0171",
+      "domain": "planning",
+      "skill": "definition_of_done",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0172",
+      "domain": "planning",
+      "skill": "risk",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0173",
+      "domain": "planning",
+      "skill": "risk",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0174",
+      "domain": "planning",
+      "skill": "risk",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0175",
+      "domain": "planning",
+      "skill": "priority",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0176",
+      "domain": "planning",
+      "skill": "priority",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0177",
+      "domain": "planning",
+      "skill": "priority",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0178",
+      "domain": "planning",
+      "skill": "handoff",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0179",
+      "domain": "planning",
+      "skill": "handoff",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0180",
+      "domain": "planning",
+      "skill": "handoff",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0181",
+      "domain": "computer_use",
+      "skill": "observe",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0182",
+      "domain": "computer_use",
+      "skill": "observe",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0183",
+      "domain": "computer_use",
+      "skill": "observe",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0184",
+      "domain": "computer_use",
+      "skill": "locate",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0185",
+      "domain": "computer_use",
+      "skill": "locate",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0186",
+      "domain": "computer_use",
+      "skill": "locate",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0187",
+      "domain": "computer_use",
+      "skill": "click",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0188",
+      "domain": "computer_use",
+      "skill": "click",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0189",
+      "domain": "computer_use",
+      "skill": "click",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0190",
+      "domain": "computer_use",
+      "skill": "type",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0191",
+      "domain": "computer_use",
+      "skill": "type",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0192",
+      "domain": "computer_use",
+      "skill": "type",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0193",
+      "domain": "computer_use",
+      "skill": "save",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0194",
+      "domain": "computer_use",
+      "skill": "save",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0195",
+      "domain": "computer_use",
+      "skill": "save",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0196",
+      "domain": "computer_use",
+      "skill": "verify_ui",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0197",
+      "domain": "computer_use",
+      "skill": "verify_ui",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0198",
+      "domain": "computer_use",
+      "skill": "verify_ui",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0199",
+      "domain": "computer_use",
+      "skill": "recover_focus",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0200",
+      "domain": "computer_use",
+      "skill": "recover_focus",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0201",
+      "domain": "computer_use",
+      "skill": "recover_focus",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0202",
+      "domain": "computer_use",
+      "skill": "dialog",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0203",
+      "domain": "computer_use",
+      "skill": "dialog",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0204",
+      "domain": "computer_use",
+      "skill": "dialog",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0205",
+      "domain": "computer_use",
+      "skill": "scroll",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0206",
+      "domain": "computer_use",
+      "skill": "scroll",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0207",
+      "domain": "computer_use",
+      "skill": "scroll",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0208",
+      "domain": "computer_use",
+      "skill": "screenshot",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0209",
+      "domain": "computer_use",
+      "skill": "screenshot",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0210",
+      "domain": "computer_use",
+      "skill": "screenshot",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0211",
+      "domain": "multi_provider",
+      "skill": "route",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0212",
+      "domain": "multi_provider",
+      "skill": "route",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0213",
+      "domain": "multi_provider",
+      "skill": "route",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0214",
+      "domain": "multi_provider",
+      "skill": "health",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0215",
+      "domain": "multi_provider",
+      "skill": "health",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0216",
+      "domain": "multi_provider",
+      "skill": "health",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0217",
+      "domain": "multi_provider",
+      "skill": "failover",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0218",
+      "domain": "multi_provider",
+      "skill": "failover",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0219",
+      "domain": "multi_provider",
+      "skill": "failover",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0220",
+      "domain": "multi_provider",
+      "skill": "shared_dependency",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0221",
+      "domain": "multi_provider",
+      "skill": "shared_dependency",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0222",
+      "domain": "multi_provider",
+      "skill": "shared_dependency",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0223",
+      "domain": "multi_provider",
+      "skill": "provider_loss",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0224",
+      "domain": "multi_provider",
+      "skill": "provider_loss",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0225",
+      "domain": "multi_provider",
+      "skill": "provider_loss",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0226",
+      "domain": "multi_provider",
+      "skill": "state_transfer",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0227",
+      "domain": "multi_provider",
+      "skill": "state_transfer",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0228",
+      "domain": "multi_provider",
+      "skill": "state_transfer",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0229",
+      "domain": "multi_provider",
+      "skill": "artifact_transfer",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0230",
+      "domain": "multi_provider",
+      "skill": "artifact_transfer",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0231",
+      "domain": "multi_provider",
+      "skill": "artifact_transfer",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0232",
+      "domain": "multi_provider",
+      "skill": "capability_match",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0233",
+      "domain": "multi_provider",
+      "skill": "capability_match",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0234",
+      "domain": "multi_provider",
+      "skill": "capability_match",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0235",
+      "domain": "multi_provider",
+      "skill": "degraded_mode",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0236",
+      "domain": "multi_provider",
+      "skill": "degraded_mode",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0237",
+      "domain": "multi_provider",
+      "skill": "degraded_mode",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0238",
+      "domain": "multi_provider",
+      "skill": "restore",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0239",
+      "domain": "multi_provider",
+      "skill": "restore",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0240",
+      "domain": "multi_provider",
+      "skill": "restore",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0241",
+      "domain": "documents",
+      "skill": "extract",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0242",
+      "domain": "documents",
+      "skill": "extract",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0243",
+      "domain": "documents",
+      "skill": "extract",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0244",
+      "domain": "documents",
+      "skill": "transform",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0245",
+      "domain": "documents",
+      "skill": "transform",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0246",
+      "domain": "documents",
+      "skill": "transform",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0247",
+      "domain": "documents",
+      "skill": "validate",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0248",
+      "domain": "documents",
+      "skill": "validate",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0249",
+      "domain": "documents",
+      "skill": "validate",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0250",
+      "domain": "documents",
+      "skill": "layout",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0251",
+      "domain": "documents",
+      "skill": "layout",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0252",
+      "domain": "documents",
+      "skill": "layout",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0253",
+      "domain": "documents",
+      "skill": "table",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0254",
+      "domain": "documents",
+      "skill": "table",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0255",
+      "domain": "documents",
+      "skill": "table",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0256",
+      "domain": "documents",
+      "skill": "slide",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0257",
+      "domain": "documents",
+      "skill": "slide",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0258",
+      "domain": "documents",
+      "skill": "slide",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0259",
+      "domain": "documents",
+      "skill": "spreadsheet",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0260",
+      "domain": "documents",
+      "skill": "spreadsheet",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0261",
+      "domain": "documents",
+      "skill": "spreadsheet",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0262",
+      "domain": "documents",
+      "skill": "pdf",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0263",
+      "domain": "documents",
+      "skill": "pdf",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0264",
+      "domain": "documents",
+      "skill": "pdf",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0265",
+      "domain": "documents",
+      "skill": "roundtrip",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0266",
+      "domain": "documents",
+      "skill": "roundtrip",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0267",
+      "domain": "documents",
+      "skill": "roundtrip",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0268",
+      "domain": "documents",
+      "skill": "semantic_check",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0269",
+      "domain": "documents",
+      "skill": "semantic_check",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0270",
+      "domain": "documents",
+      "skill": "semantic_check",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0271",
+      "domain": "data_reasoning",
+      "skill": "filter",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0272",
+      "domain": "data_reasoning",
+      "skill": "filter",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0273",
+      "domain": "data_reasoning",
+      "skill": "filter",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0274",
+      "domain": "data_reasoning",
+      "skill": "aggregate",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0275",
+      "domain": "data_reasoning",
+      "skill": "aggregate",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0276",
+      "domain": "data_reasoning",
+      "skill": "aggregate",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0277",
+      "domain": "data_reasoning",
+      "skill": "compare",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0278",
+      "domain": "data_reasoning",
+      "skill": "compare",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0279",
+      "domain": "data_reasoning",
+      "skill": "compare",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0280",
+      "domain": "data_reasoning",
+      "skill": "join",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0281",
+      "domain": "data_reasoning",
+      "skill": "join",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0282",
+      "domain": "data_reasoning",
+      "skill": "join",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0283",
+      "domain": "data_reasoning",
+      "skill": "validate",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0284",
+      "domain": "data_reasoning",
+      "skill": "validate",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0285",
+      "domain": "data_reasoning",
+      "skill": "validate",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0286",
+      "domain": "data_reasoning",
+      "skill": "outlier",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0287",
+      "domain": "data_reasoning",
+      "skill": "outlier",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0288",
+      "domain": "data_reasoning",
+      "skill": "outlier",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0289",
+      "domain": "data_reasoning",
+      "skill": "schema",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0290",
+      "domain": "data_reasoning",
+      "skill": "schema",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0291",
+      "domain": "data_reasoning",
+      "skill": "schema",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0292",
+      "domain": "data_reasoning",
+      "skill": "consistency",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0293",
+      "domain": "data_reasoning",
+      "skill": "consistency",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0294",
+      "domain": "data_reasoning",
+      "skill": "consistency",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0295",
+      "domain": "data_reasoning",
+      "skill": "calculation",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0296",
+      "domain": "data_reasoning",
+      "skill": "calculation",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0297",
+      "domain": "data_reasoning",
+      "skill": "calculation",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0298",
+      "domain": "data_reasoning",
+      "skill": "report",
+      "variant": "nominal",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0299",
+      "domain": "data_reasoning",
+      "skill": "report",
+      "variant": "faulted",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    },
+    {
+      "id": "EVO-0300",
+      "domain": "data_reasoning",
+      "skill": "report",
+      "variant": "adversarial",
+      "protected": true,
+      "expected_evidence": [
+        "result",
+        "postcondition",
+        "provenance"
+      ],
+      "zero_spend": true
+    }
+  ]
+}
