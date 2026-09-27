@@ -220,6 +220,12 @@ jobs:
         echo "QCOW_PATH=$PWD/$QCOW" >> "$GITHUB_ENV"
         sha256sum "$QCOW" | cut -d' ' -f1 > qcow-base.sha256
         PYTHONPATH=scripts python -c 'import json; from osworld_v32_gate import PINS; open("official-pins.json","w").write(json.dumps(PINS,sort_keys=True))'
+    - name: Save pinned official VM cache immediately
+      if: steps.vm-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: vm/osworld-v2-ubuntu-x86.qcow2
+        key: task091-critical-vm-8213366932c553e5fe758d0f2c8c8b81ffc3be8c-v1
     - name: Execute only the blocking SummaryArr and Section E probe
       shell: bash
       run: |
