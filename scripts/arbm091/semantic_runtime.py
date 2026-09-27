@@ -1048,7 +1048,6 @@ def next_text_action(state,window_state,plan):
         if tx.get("summaryarr_retry_pending") is True and key in _SUMMARY_NOOP_RETRY_KEYS:
             tx["mutation_mode"]="summaryarr-autofit-locked-selected-shape-overwrite"
             command="\n".join((
-                "pyautogui.press('f2')",
                 "pyautogui.hotkey('ctrl', 'a')",
                 "pyautogui.press('backspace')",
                 f"pyautogui.write({str(tx.get('new') or '')!r}, interval=0.02)",

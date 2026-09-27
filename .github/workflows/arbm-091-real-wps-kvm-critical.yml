@@ -178,7 +178,7 @@ jobs:
         '
     - name: Restore pinned official VM cache
       id: vm-cache
-      uses: actions/cache@v4
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
       with:
         path: vm/osworld-v2-ubuntu-x86.qcow2
         key: task091-critical-vm-8213366932c553e5fe758d0f2c8c8b81ffc3be8c-v1
@@ -224,7 +224,7 @@ jobs:
         PYTHONPATH=scripts python -c 'import json; from osworld_v32_gate import PINS; open("official-pins.json","w").write(json.dumps(PINS,sort_keys=True))'
     - name: Save pinned official VM cache immediately
       if: steps.vm-cache.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
       with:
         path: vm/osworld-v2-ubuntu-x86.qcow2
         key: task091-critical-vm-8213366932c553e5fe758d0f2c8c8b81ffc3be8c-v1
