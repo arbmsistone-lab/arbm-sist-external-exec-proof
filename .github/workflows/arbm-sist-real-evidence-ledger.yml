@@ -1,0 +1,47 @@
+name: ARBM SIST Real Evidence Ledger
+on:
+  workflow_run:
+    workflows:
+      - ARBM SIST Constitutional Adversarial Self-Test
+      - ARBM SIST Constitutional Gate
+    types: [completed]
+permissions:
+  actions: read
+  contents: read
+jobs:
+  collect-real-evidence:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+      - name: Capture upstream run as real executor evidence
+        env:
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_NAME: ${{ github.event.workflow_run.name }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: |
+          mkdir -p evidence/constitutional/runtime
+          python3 - <<'PY'
+          import json,os,pathlib
+          p=pathlib.Path("evidence/constitutional/runtime/upstream-run.json")
+          p.write_text(json.dumps({k:os.environ[k] for k in ("RUN_ID","RUN_NAME","RUN_SHA","RUN_CONCLUSION")},sort_keys=True,indent=2)+"\n")
+          PY
+      - name: Build fail-closed ledger manifest
+        env:
+          CANDIDATE: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          BASELINE="$(git rev-parse HEAD^ 2>/dev/null || true)"
+          test -n "$BASELINE" || { echo "BASELINE_MISSING"; exit 1; }
+          python3 scripts/policy/collect_evidence_ledger.py             --candidate-sha "$CANDIDATE" --baseline-sha "$BASELINE"             --evidence "executor_run:evidence/constitutional/runtime/upstream-run.json:github-actions-run-${{ github.event.workflow_run.id }}"
+          echo "Ledger collected. Promotion remains DENY until all real benchmark, rollback and independent-verifier evidence is present."
+      - uses: actions/upload-artifact@v4
+        with:
+          name: constitutional-ledger-${{ github.event.workflow_run.id }}
+          path: evidence/constitutional/
+          if-no-files-found: error
+          retention-days: 30
