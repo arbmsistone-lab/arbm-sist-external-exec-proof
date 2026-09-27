@@ -1205,6 +1205,27 @@ def next_text_action(state,window_state,plan):
             verdict=_verify_text_transaction_for_mode(tx["before_state"],window_state,key,tx["new"])
         except SemanticTransactionError as exc:
             current_sha=str((window_state.get("deck_file") or {}).get("sha256") or "")
+            # WPS 2019 can retain exactly one trailing M after the grounded
+            # SummaryArr replacement. Admit only that proven corruption and
+            # perform one bounded, target-signed GUI repair before Section E.
+            if (key==(2,"shape",15,"SummaryArr_Value")
+                    and str(tx.get("new") or "")=="$40.9M"
+                    and key in current_model
+                    and str(current_model[key].get("text") or "")=="$40.9MM"
+                    and len(current_sha)==64
+                    and current_sha!=str(tx.get("before_deck_sha256") or "")):
+                try:
+                    target=_signed_target(window_state,2,current_model[key])
+                except SemanticTransactionError as target_exc:
+                    return _terminal(str(target_exc))
+                tx["stage"]="summaryarr-suffix-repair-issued"
+                tx["suffix_repair_geometry"]=list(current_model[key].get("geometry") or ())
+                tx["suffix_repair_deck_sha256"]=current_sha
+                return {"action":"exec",
+                        "command":f"pyautogui.doubleClick({target['cx']}, {target['cy']}, interval=0.08)",
+                        "target":target,
+                        "specialist_phase":"semantic-summaryarr-suffix-repair-select",
+                        "plan":"Re-enter only the signed SummaryArr_Value text editor for the one proven trailing-M corruption."}
             try:
                 noop_scoped=_summary_arr_noop_retry_scope(tx,window_state)
             except SemanticTransactionError:
@@ -1297,6 +1318,41 @@ def next_text_action(state,window_state,plan):
             "plan":"Close/finalize selection so the next observer pass independently re-reads the persisted PPTX.",
             "specialist_phase":"semantic-roundtrip-reread",
         }
+
+    if stage=="summaryarr-suffix-repair-issued":
+        tx["stage"]="summaryarr-suffix-repair-save-issued"
+        return {"action":"exec",
+                "command":"\n".join((
+                    "pyautogui.hotkey('ctrl', 'a')",
+                    "pyautogui.press('backspace')",
+                    "pyautogui.write('$40.9M', interval=0.02)",
+                    "pyautogui.press('esc')",
+                    "pyautogui.hotkey('ctrl', 's')",
+                    "pyautogui.sleep(0.35)",
+                )),
+                "specialist_phase":"semantic-summaryarr-suffix-repair-write",
+                "plan":"Replace the complete re-entered SummaryArr text and persist exactly once."}
+
+    if stage=="summaryarr-suffix-repair-save-issued":
+        current_sha=str((window_state.get("deck_file") or {}).get("sha256") or "")
+        row=current_model.get(key)
+        if row is None or str(row.get("text") or "")!="$40.9M":
+            return _terminal("TASK091_SUMMARYARR_SUFFIX_REPAIR_TEXT_UNPROVEN")
+        if list(row.get("geometry") or ())!=list(tx.get("suffix_repair_geometry") or ()):
+            return _terminal("TASK091_SUMMARYARR_SUFFIX_REPAIR_GEOMETRY_DRIFT")
+        if len(current_sha)!=64 or current_sha==str(tx.get("suffix_repair_deck_sha256") or ""):
+            return _terminal("TASK091_SUMMARYARR_SUFFIX_REPAIR_NOT_PERSISTED")
+        try:
+            verdict=_verify_text_transaction_for_mode(tx["before_state"],window_state,key,tx["new"])
+        except SemanticTransactionError as repair_exc:
+            return _terminal(str(repair_exc))
+        tx["after_model_sha256"]=verdict["after_model_sha256"]
+        tx["after_deck_sha256"]=current_sha
+        tx["semantic_verdict"]=verdict
+        tx["stage"]="roundtrip-issued"
+        return {"action":"exec","command":"pyautogui.press('esc')",
+                "specialist_phase":"semantic-summaryarr-suffix-repair-roundtrip",
+                "plan":"Independently re-read the exact repaired SummaryArr value before advancing."}
 
     if stage=="roundtrip-issued":
         try:
