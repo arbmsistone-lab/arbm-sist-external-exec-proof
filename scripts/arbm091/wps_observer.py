@@ -461,6 +461,48 @@ def snapshot(controller, root: Path, name: str, point, active_slide=None):
                      'screenshot_sha256': hashlib.sha256(png).hexdigest()}
 
 
+
+def _capture_saved_deck(controller, root: Path, name: str):
+    """Preserve the actual saved ZIP before any post-save repair or witness veto."""
+    parsed=urlparse(controller.http_server)
+    require(parsed.scheme=="http" and parsed.hostname in ("localhost","127.0.0.1"),
+            "PROBE_ISOLATED_GUEST_ONLY")
+    code="\n".join((
+        "import base64,hashlib,json,os",
+        "p='/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx'",
+        "with open(p,'rb') as f:",
+        "    before=os.fstat(f.fileno())",
+        "    raw=f.read()",
+        "    after=os.fstat(f.fileno())",
+        "assert (before.st_size,before.st_mtime_ns)==(after.st_size,after.st_mtime_ns), 'SAVE_IN_PROGRESS'",
+        "print(json.dumps({'sha256':hashlib.sha256(raw).hexdigest(),'data':base64.b64encode(raw).decode()}))",
+    ))
+    session=requests.Session()
+    session.trust_env=False
+    try:
+        response=session.post(controller.http_server.rstrip("/")+"/execute",
+                              json={"command":["python3","-c",code],"shell":False},
+                              timeout=(3,30))
+        response.raise_for_status()
+        result=response.json()
+    finally:
+        session.close()
+    require(result.get("returncode")==0 and result.get("status")=="success",
+            "POST_SAVE_DECK_CAPTURE_FAILED")
+    payload=json.loads(str(result.get("output") or "").strip())
+    raw=base64.b64decode(payload["data"],validate=True)
+    sha=hashlib.sha256(raw).hexdigest()
+    require(sha==payload["sha256"],"POST_SAVE_DECK_CAPTURE_DIGEST_MISMATCH")
+    directory=root/"saved-decks"
+    directory.mkdir(parents=True,exist_ok=True)
+    path=directory/(name+"-"+sha+".pptx")
+    with path.open("xb") as stream:
+        stream.write(raw)
+        stream.flush()
+        os.fsync(stream.fileno())
+    return {"path":str(path.relative_to(root)),"sha256":sha,"bytes":len(raw)}
+
+
 def _read_window_state(root: Path):
     path=root/'window-state.json'
     if not path.is_file():
@@ -586,7 +628,9 @@ def install(environment_class):
                     require(isinstance(result, dict) and result.get('status') == 'success'
                             and result.get('returncode') == 0, 'GUEST_ACTION_FAILED_OR_UNACKNOWLEDGED')
                     if _is_ctrl_s(atom):
-                        persisted,_ = _settled_probe(controller,None)
+                        row['saved_deck']=_capture_saved_deck(controller,root,f'{step:04d}-{substep:02d}')
+                        persisted, persisted_ref = snapshot(controller,root,f'{step:04d}-{substep:02d}-post-save',None,next_active_slide)
+                        row['post_save']=persisted_ref
                         # Exact post-save repairs for the two proven WPS side effects.
                         if active_slide == 2:
                             try:
@@ -643,6 +687,7 @@ def install(environment_class):
                             except Exception as exc:
                                 raise RuntimeError('TASK091_SECTION_E_FONT_REPAIR_BLOCKED:'+str(exc)[:240])
                     after, reference = snapshot(controller, root, f'{step:04d}-{substep:02d}-after', None, next_active_slide)
+                    row['after'] = reference
                     postflight(atom, before, after)
                     active_slide = next_active_slide
                     self._arbm091_active_slide = active_slide

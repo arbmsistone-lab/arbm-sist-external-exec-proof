@@ -44,59 +44,8 @@ def _snapshot(window_state):
 
 
 def _verify_text_transaction_for_mode(before_state, after_state, key, new):
-    """Keep official full-deck diff strict; critical probe proves only its signed target."""
-    if os.environ.get("TASK091_CRITICAL_ERROR_ONLY") != "1":
-        return verify_exact_text_transaction(before_state, after_state, [key], new)
-    before=normalize_deck(before_state)
-    after=normalize_deck(after_state)
-    key=tuple(key)
-    b=before.get(key)
-    if not isinstance(b,dict):
-        raise SemanticTransactionError("TASK091_CRITICAL_TARGET_BASELINE_MISSING")
-    # The critical observer intentionally returns a partial OOXML snapshot.
-    # Resolve the persisted target by immutable structural identity instead of
-    # requiring the full-deck key set to be present.
-    identity=("slide","kind","frame_id","row","col","geometry","font_sizes","fill_rgb")
-    structural=[(candidate_key,row) for candidate_key,row in after.items()
-                if all(b.get(field)==row.get(field) for field in identity)]
-    candidates=[(candidate_key,row) for candidate_key,row in structural
-                if str(row.get("text") or "")==str(new)]
-    if len(candidates)!=1:
-        diagnostic={
-            "structural_count":len(structural),
-            "value_count":len(candidates),
-            "structural":[
-                {
-                    "key":list(candidate_key),
-                    "text":str(row.get("text") or ""),
-                    "id":int(row.get("id") or 0),
-                    "name":str(row.get("name") or ""),
-                    "geometry":list(row.get("geometry") or ()),
-                    "font_sizes":list(row.get("font_sizes") or ()),
-                    "fill_rgb":str(row.get("fill_rgb") or ""),
-                }
-                for candidate_key,row in structural[:8]
-            ],
-            "new":str(new),
-        }
-        raise SemanticTransactionError(
-            "TASK091_CRITICAL_TARGET_FINGERPRINT_AMBIGUOUS_OR_MISSING:"+
-            json.dumps(diagnostic,sort_keys=True,separators=(",",":")))
-    persisted_key,a=candidates[0]
-    return {
-        "status":"PASS",
-        "observed_semantic_diff":[{"key":persisted_key,"field":"text","before":b.get("text"),"after":a.get("text")}],
-        "allowed_semantic_diff":[{"key":key,"field":"text","before":b.get("text"),"after":str(new)}],
-        "changed_semantic_targets":1,
-        "collateral_diff":"NOT_EVALUATED_IN_CRITICAL_TARGET_ONLY_MODE",
-        "structural_diff":False,
-        "diff_budget_exact":True,
-        "no_collateral_mutation":"DEFERRED_TO_OFFICIAL_FULL_DECK_RUN",
-        "semantic_result":True,
-        "before_model_sha256":model_sha256(before),
-        "after_model_sha256":model_sha256(after),
-        "critical_target_only":True,
-    }
+    """Require the same complete semantic diff in critical and official runs."""
+    return verify_exact_text_transaction(before_state, after_state, [key], new)
 
 
 def _screen_center(window_state,row):
@@ -653,6 +602,7 @@ def next_text_action(state,window_state,plan):
             "before_target_text":str(resolved["row"].get("text") or ""),
             "before_deck_sha256":str((window_state.get("deck_file") or {}).get("sha256") or ""),
             "selection_before_screenshot_sha256":str(window_state.get("screenshot_sha256") or ""),
+            "selection_canvas":copy.deepcopy(window_state.get("slide_canvas_bbox")),
             "contract":contract,
         }
         return {
@@ -722,6 +672,30 @@ def next_text_action(state,window_state,plan):
         return _terminal(str(exc))
     row=current_model.get(key)
 
+    if stage=="critical-text-edit-issued":
+        if (row is None or str(row.get("text") or "")!=str(tx.get("before_target_text") or "")
+                or model_sha256(current_model)!=str(tx.get("before_model_sha256") or "")):
+            return _terminal("TASK091_PRECONDITION_DRIFT")
+        if window_state.get("slide_canvas_bbox")!=tx.get("selection_canvas"):
+            return _terminal("TASK091_TEXT_EDIT_CANVAS_DRIFT")
+        # doubleClick already entered text editing. F2 toggles OUT of it in WPS.
+        # Never issue the former F2 / select-all / Backspace sequence.
+        tx["mutation_mode"]="critical-grounded-text-replace"
+        tx["stage"]="save-issued"
+        return {
+            "action":"exec",
+            "command":"\n".join((
+                "pyautogui.hotkey('ctrl', 'a')",
+                f"pyautogui.write({str(tx.get('new') or '')!r}, interval=0.02)",
+                "pyautogui.press('esc')",
+                "pyautogui.hotkey('ctrl', 's')",
+                "pyautogui.sleep(0.35)",
+            )),
+            "plan":"Replace text in the freshly entered editor, save, then require a complete target-only OOXML diff.",
+            "specialist_phase":"critical-summaryarr-atomic-persist",
+            "expected_change":tx["new"],
+        }
+
     if stage=="select-issued":
         if row is None or str(row.get("text") or "")!=str(tx.get("before_target_text") or ""):
             return _terminal("TASK091_PRECONDITION_DRIFT")
@@ -733,28 +707,22 @@ def next_text_action(state,window_state,plan):
             and str(tx.get("old") or "") == "$42.8M"
             and str(tx.get("new") or "") == "$40.9M"
         ):
-            # Critical real-WPS probe: the signed target was selected in the
-            # preceding observed frame. Execute the known atomic mutation,
-            # finalize it, and persist it as one deterministic actuator call.
-            # The next independent OOXML observation remains the authority.
-            tx["mutation_mode"]="critical-deterministic-summaryarr-atomic"
-            tx["stage"]="save-issued"
-            command="\n".join((
-                "pyautogui.press('f2')",
-                "pyautogui.hotkey('ctrl', 'a')",
-                "pyautogui.press('backspace')",
-                f"pyautogui.write({str(tx.get('new') or '')!r}, interval=0.02)",
-                "pyautogui.press('esc')",
-                "pyautogui.hotkey('ctrl', 's')",
-                "pyautogui.sleep(0.35)",
-            ))
+            # Selection can open WPS's formatting pane and resize the canvas.
+            # Re-ground on the current frame before entering text editing.
+            try:
+                target=_signed_target(window_state,int(key[0]),row)
+            except SemanticTransactionError as exc:
+                return _terminal(str(exc))
+            tx["stage"]="critical-text-edit-issued"
+            tx["selection_canvas"]=copy.deepcopy(window_state.get("slide_canvas_bbox"))
             return {
                 "action":"exec",
-                "command":command,
-                "plan":"Deterministically mutate only the already signed SummaryArr target and persist it; independent OOXML readback decides pass/fail.",
-                "specialist_phase":"critical-summaryarr-atomic-persist",
-                "expected_change":tx["new"],
+                "command":f"pyautogui.doubleClick({target['cx']}, {target['cy']}, interval=0.08)",
+                "target":target,
+                "plan":"Enter text editing on the freshly grounded SummaryArr target after pane layout settles.",
+                "specialist_phase":"critical-summaryarr-enter-text",
             }
+
         if (
             tx.get("summaryarr_retry_pending") is True
             and key == (2, "shape", 30, "SummaryRunway_Value")

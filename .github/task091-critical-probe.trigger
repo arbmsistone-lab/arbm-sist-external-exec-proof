@@ -1,11 +1,6 @@
-attempt=8
-strategy=hard-audit-evidence-first
-audit=adversarial-fail-closed
-root_cause=post-save-state-not-yet-discriminated
-diagnostic=emit-exact-structural-candidates-and-values
-reasoning=strongest-admitted-route
-action_tokens=8192
-max_steps=80
-summaryarr=atomic-select-mutate-save
-section_e=quarantined-until-summaryarr-persistence-proven
-authority=persisted-ooxml
+attempt=9
+strategy=full-width-canvas-fresh-text-entry-full-deck-diff
+root_cause=navy-band-clipped-at-1670-and-f2-after-doubleclick
+summaryarr=reobserve-pane-layout-before-text-replacement
+custody=raw-saved-pptx-and-complete-witness-directory
+acceptance=unchanged-full-deck-semantic-gates

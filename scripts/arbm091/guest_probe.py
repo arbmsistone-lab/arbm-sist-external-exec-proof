@@ -355,7 +355,7 @@ def _task091_slide_canvas_bbox(image, deck_file):
         return None
     rgb=image.convert('RGB')
     width,height=rgb.size
-    x0=250; x1=min(width-250,1700)
+    x0=250; x1=width-20
     y0=180; y1=min(height,900)
     best=None
     for y in range(y0,y1):
