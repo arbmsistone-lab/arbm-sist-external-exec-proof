@@ -6,3 +6,5 @@ custody=raw-saved-pptx-and-complete-witness-directory
 acceptance=unchanged-full-deck-semantic-gates
 
 retrigger=canonical-actions-2026-09-27T22:00Z
+
+api_git_ref_retrigger=2
