@@ -461,9 +461,30 @@ def next_text_action(state,window_state,plan):
                            and "Burn improvement relies on expansion payback from Q4."
                                in str(r.get("text") or "")]
         section_e_present=(len(section_e_matches)==1)
+        section_e_target=None
         if current==3 and section_e_present and state.get("section_e_gui_font_done") is not True:
+            try:
+                section_e_target=_signed_target(window_state,3,section_e_matches[0])
+            except SemanticTransactionError as exc:
+                # A fixture/state that merely carries the Section E identity
+                # but cannot prove its signed GUI geometry is not authorized
+                # to enter the exceptional surgery. Preserve the generic
+                # transaction path unchanged; its own validators remain the
+                # authority for canvas/geometry failures.
+                if str(exc) not in (
+                    "TASK091_TARGET_GEOMETRY_UNPROVEN",
+                    "TASK091_TARGET_GEOMETRY_INVALID",
+                    "TASK091_SLIDE_CANVAS_UNPROVEN",
+                    "TASK091_SLIDE_CANVAS_INVALID",
+                    "TASK091_SLIDE_CANVAS_ASPECT_MISMATCH",
+                    "TASK091_TARGET_OUTSIDE_SLIDE_CANVAS",
+                    "TASK091_CANONICAL_CONTEXT_UNPROVEN",
+                    "TASK091_TARGET_DIGEST_UNPROVEN",
+                ):
+                    return _terminal(str(exc))
+        if section_e_target is not None:
             matches=section_e_matches
-            target=_signed_target(window_state,3,matches[0])
+            target=section_e_target
             state["semantic_tx"]={
                 "stage":"section-e-font-select-issued","index":index,
                 "target_key":[3,"shape",16,"KpiReadout_Body"],
