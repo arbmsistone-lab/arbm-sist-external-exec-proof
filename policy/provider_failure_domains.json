@@ -1,9 +1,85 @@
-{"schema_version":1,"routes":[
-{"id":"github_actions","capabilities":["source_control","compute_execute","artifact_evidence"],"failure_domain":"github","provider":"github","cost_class":"free","verified":true},
-{"id":"git_mirror","capabilities":["source_control","artifact_evidence"],"failure_domain":"independent_git_mirror","provider":"provider_independent_contract","cost_class":"free","verified":false},
-{"id":"buildkite","capabilities":["compute_execute","artifact_evidence"],"failure_domain":"buildkite","provider":"buildkite","cost_class":"free","verified":true},
-{"id":"railway","capabilities":["compute_execute"],"failure_domain":"railway","provider":"railway","cost_class":"free","verified":true},
-{"id":"artifact_mirror","capabilities":["artifact_evidence"],"failure_domain":"independent_artifact_store","provider":"provider_independent_contract","cost_class":"free","verified":false},
-{"id":"persistent_state_a","capabilities":["state_recovery"],"failure_domain":"state-a","provider":"portable","cost_class":"free","verified":true},
-{"id":"persistent_state_b","capabilities":["state_recovery"],"failure_domain":"state-b","provider":"portable","cost_class":"free","verified":true}
-]}
+{
+  "schema_version": 1,
+  "routes": [
+    {
+      "id": "github_actions",
+      "capabilities": [
+        "source_control",
+        "compute_execute",
+        "artifact_evidence"
+      ],
+      "failure_domain": "github",
+      "provider": "github",
+      "cost_class": "free",
+      "verified": true
+    },
+    {
+      "id": "git_mirror",
+      "capabilities": [
+        "source_control",
+        "artifact_evidence"
+      ],
+      "failure_domain": "buildkite_artifact_store",
+      "provider": "buildkite",
+      "cost_class": "free",
+      "verified": true,
+      "evidence": {
+        "build_number": 4,
+        "candidate_sha": "9f0235348e6d2646538e114a184ad96f1725abe9",
+        "artifact": "source-control-witness.json",
+        "recovery_test": "clone_bundle_and_resolve_baseline"
+      }
+    },
+    {
+      "id": "buildkite",
+      "capabilities": [
+        "compute_execute",
+        "artifact_evidence"
+      ],
+      "failure_domain": "buildkite",
+      "provider": "buildkite",
+      "cost_class": "free",
+      "verified": true
+    },
+    {
+      "id": "railway",
+      "capabilities": [
+        "compute_execute"
+      ],
+      "failure_domain": "railway",
+      "provider": "railway",
+      "cost_class": "free",
+      "verified": true
+    },
+    {
+      "id": "artifact_mirror",
+      "capabilities": [
+        "artifact_evidence"
+      ],
+      "failure_domain": "independent_artifact_store",
+      "provider": "provider_independent_contract",
+      "cost_class": "free",
+      "verified": false
+    },
+    {
+      "id": "persistent_state_a",
+      "capabilities": [
+        "state_recovery"
+      ],
+      "failure_domain": "state-a",
+      "provider": "portable",
+      "cost_class": "free",
+      "verified": true
+    },
+    {
+      "id": "persistent_state_b",
+      "capabilities": [
+        "state_recovery"
+      ],
+      "failure_domain": "state-b",
+      "provider": "portable",
+      "cost_class": "free",
+      "verified": true
+    }
+  ]
+}
