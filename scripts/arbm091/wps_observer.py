@@ -257,7 +257,7 @@ def _guest_summaryrunway_geometry_repair(controller, before_shape, persisted_sha
     lines=[
         "import hashlib,io,json,os,re,tempfile,zipfile",
         "cfg=json.loads(CFG)",
-        "path=cfg['path']; slide_no=2; shape_id=30; expected_text='17 mo'; expected_geom=tuple(cfg['expected'])",
+        "path=cfg['path']; slide_no=2; shape_id=30; expected_text='17 mo'; expected_geom=tuple(cfg['expected']); actual=tuple(cfg['actual'])",
         "raw=open(path,'rb').read(); before_sha=hashlib.sha256(raw).hexdigest(); slide_name='ppt/slides/slide%d.xml'%slide_no",
         "with zipfile.ZipFile(io.BytesIO(raw),'r') as zin: slide=zin.read(slide_name)",
         "marker=re.compile(br'<p:cNvPr\\b[^>]*\\bid=\\x2230\\x22[^>]*\\bname=\\x22SummaryRunway_Value\\x22[^>]*/>')",
@@ -289,7 +289,7 @@ def _guest_summaryrunway_geometry_repair(controller, before_shape, persisted_sha
         " try: os.unlink(tmp)",
         " except FileNotFoundError: pass"
     ]
-    cfg=json.dumps({'path':path,'expected':list(expected)},separators=(',',':'))
+    cfg=json.dumps({'path':path,'expected':list(expected),'actual':list(actual)},separators=(',',':'))
     code="CFG="+repr(cfg)+"\n"+"\n".join(lines)
     session=requests.Session(); session.trust_env=False
     try:
