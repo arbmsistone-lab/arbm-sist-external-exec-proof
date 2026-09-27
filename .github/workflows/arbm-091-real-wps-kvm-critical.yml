@@ -27,7 +27,7 @@ jobs:
       OSWORLD_EVAL_MODEL_BASE_URL: http://127.0.0.1:8089/v1
       OSWORLD_EVAL_MODEL_API_KEY_ENV: OPENAI_API_KEY
       OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
-      ARBM_MAX_STEPS: '40'
+      ARBM_MAX_STEPS: '80'
       PYTHONPATH: ${{ github.workspace }}/scripts
       ARBM_TASK_SECONDS: '360'
       ARBM_RUN_MULTIENV_TIMEOUT_SECONDS: '420'
@@ -55,7 +55,7 @@ jobs:
 
         test "$ZERO_SPEND_MODE" = HARD
 
-        test "$ARBM_MAX_STEPS" = 40
+        test "$ARBM_MAX_STEPS" = 80
 
         python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
 
@@ -260,7 +260,7 @@ jobs:
 
         (
           cd osworld
-          timeout --signal=TERM --kill-after=15s 360s uv run python scripts/python/run_multienv.py             --headless --provider_name docker --path_to_vm "$QCOW_PATH"             --eval_version v2 --test_all_meta_path evaluation_examples/test_arbm_v32.json             --domain tasks --observation_type screenshot_a11y_tree --action_space pyautogui             --model gpt-arbm-osworld-v32-isolated --temperature 0 --max_steps 40             --max_trajectory_length 8 --max_tokens 4096 --num_envs 1             --result_dir "../osworld-v32-evidence/task-091-critical/results"
+          timeout --signal=TERM --kill-after=15s 360s uv run python scripts/python/run_multienv.py             --headless --provider_name docker --path_to_vm "$QCOW_PATH"             --eval_version v2 --test_all_meta_path evaluation_examples/test_arbm_v32.json             --domain tasks --observation_type screenshot_a11y_tree --action_space pyautogui             --model gpt-arbm-osworld-v32-isolated --temperature 0 --max_steps 80             --max_trajectory_length 8 --max_tokens 8192 --num_envs 1             --result_dir "../osworld-v32-evidence/task-091-critical/results"
         ) > "$DIR/osworld.log" 2>&1 &
         RUN_PID=$!
 
