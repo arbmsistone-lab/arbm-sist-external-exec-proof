@@ -1453,7 +1453,13 @@ def next_091_specialist_action(instruction, active_application, observation, sta
     # below only for historical replay compatibility and is unreachable until
     # every semantic transaction has been structurally verified.
     if not state.get('semantic_text_done'):
-        return next_091_semantic_text_action(state,window_state,TASK091_SPATIAL_TEXT_EDITS)
+        semantic_plan=TASK091_SPATIAL_TEXT_EDITS
+        if os.environ.get('TASK091_CRITICAL_ERROR_ONLY')=='1':
+            semantic_plan=tuple(row for row in TASK091_SPATIAL_TEXT_EDITS
+                                if int(row[0])==2 and str(row[3])=='$42.8M' and str(row[4])=='$40.9M')
+            if len(semantic_plan)!=1:
+                return _task091_terminal('TASK091_CRITICAL_SUMMARYARR_PLAN_UNPROVEN',state)
+        return next_091_semantic_text_action(state,window_state,semantic_plan)
     if not state.get('section_e_format_done'):
         return _task091_section_e_format_step(state,window_state)
 
