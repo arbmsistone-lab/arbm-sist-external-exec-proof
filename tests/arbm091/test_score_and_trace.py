@@ -1055,6 +1055,26 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
                 'Reforecast_Model_H2.xlsx is the source of truth.')
 
 
+    def _complete_section_e(self,deck,plan):
+        from arbm091.semantic_runtime import next_text_action
+        state={'slide':3}
+        selected=next_text_action(state,deck,plan)
+        self.assertEqual(selected['specialist_phase'],'semantic-section-e-font-select')
+        for _ in range(11):
+            action=next_text_action(state,deck,plan)
+            self.assertEqual(action['action'],'exec')
+            self.assertEqual(state['semantic_owner'],'section-e')
+        self.assertEqual(action['specialist_phase'],'semantic-section-e-font-save')
+        target=next(row for row in deck['deck_slide_shapes']['3']
+                    if row.get('name')=='KpiReadout_Body')
+        target['font_sizes']=[value-700 for value in target['font_sizes']]
+        deck['deck_file']['sha256']='e'*64
+        verified=next_text_action(state,deck,plan)
+        self.assertEqual(verified['checkpoint'],'TASK091_SECTION_E_GUI_FONT_REPAIR_PROVEN')
+        self.assertEqual(state.get('semantic_index',0),0)
+        self.assertIsNone(state['semantic_tx'])
+        return state
+
     def test_table_cell_semantic_transaction_requires_no_caret_geometry(self):
         from arbm091.semantic_runtime import next_text_action
         deck=self._deck('1')
@@ -1069,7 +1089,7 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
         cell.setdefault('font_sizes',[1600]); cell.setdefault('fill_rgb','')
         deck['deck_file']['slide_size']={'w':12192000,'h':6858000}
         plan=((3,843,404,'$42.8M','$40.9M'),)
-        state={'slide':3}
+        state=self._complete_section_e(deck,plan)
         select=next_text_action(state,deck,plan)
         self.assertEqual(select['specialist_phase'],'semantic-target-select')
         mutation=next_text_action(state,deck,plan)
@@ -1094,7 +1114,7 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
             row.setdefault('font_sizes',[1600]); row.setdefault('fill_rgb','')
         deck['deck_file']['slide_size']={'w':12192000,'h':6858000}
         plan=((3,843,404,'$42.8M','$40.9M'),)
-        state={'slide':3}
+        state=self._complete_section_e(deck,plan)
         next_text_action(state,deck,plan)
         next_text_action(state,deck,plan)
         next_text_action(state,deck,plan)
@@ -1110,7 +1130,7 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
                 'font_sizes':[1600],'fill_rgb':''})
             # Baseline must include the sibling for a pure sibling drift test.
             deck['deck_slide_shapes']['3'].append(copy.deepcopy(bad['deck_slide_shapes']['3'][1]))
-            state={'slide':3}
+            state=self._complete_section_e(deck,plan)
             next_text_action(state,deck,plan); next_text_action(state,deck,plan)
             next_text_action(state,deck,plan); next_text_action(state,deck,plan)
             bad=copy.deepcopy(deck); bad['deck_file']['sha256']='b'*64
