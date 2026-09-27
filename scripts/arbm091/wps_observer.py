@@ -278,7 +278,7 @@ def _guest_summaryrunway_geometry_repair(controller, before_shape, persisted_sha
         "  out=check.read(slide_name)",
         "  if out.count(expected_text.encode())!=1: raise RuntimeError('TASK091_SUMMARYRUNWAY_VERIFY_TEXT')",
         "  matches=list(marker.finditer(out)); mm=matches[0]; ss=out.rfind(b'<p:sp',0,mm.start()); ee=out.find(b'</p:sp>',mm.end())+len(b'</p:sp>'); seg=out[ss:ee]",
-        "  xx=re.search(br'<a:ext\\b[^>]*\\bcx="([0-9]+)"[^>]*\\bcy="([0-9]+)"[^>]*/>',seg)",
+        "  xx=re.search(br'<a:ext\\b[^>]*\\bcx=\\x22([0-9]+)\\x22[^>]*\\bcy=\\x22([0-9]+)\\x22[^>]*/>',seg)",
         "  if not xx or (int(xx.group(1)),int(xx.group(2)))!=(expected_geom[2],expected_geom[3]): raise RuntimeError('TASK091_SUMMARYRUNWAY_VERIFY_GEOMETRY')",
         "  for info in check.infolist():",
         "   if info.filename!=slide_name and check.read(info.filename)!=original.read(info.filename): raise RuntimeError('TASK091_SUMMARYRUNWAY_COLLATERAL:'+info.filename)",
