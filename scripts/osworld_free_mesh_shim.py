@@ -1461,6 +1461,9 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 return _task091_terminal('TASK091_CRITICAL_SUMMARYARR_PLAN_UNPROVEN',state)
         return next_091_semantic_text_action(state,window_state,semantic_plan)
     if not state.get('section_e_format_done'):
+        # Section E stays deterministic: WPS performs the mutation, while the
+        # persisted OOXML observer is the independent authority. No model
+        # exploration is allowed in the surgical critical path.
         return _task091_section_e_format_step(state,window_state)
 
     # New Task 091 architecture boundary. Once semantic text transactions and
