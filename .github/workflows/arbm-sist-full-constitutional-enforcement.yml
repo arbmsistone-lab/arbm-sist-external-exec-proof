@@ -1,0 +1,31 @@
+name: ARBM SIST Full Constitutional Enforcement
+on:
+  workflow_dispatch:
+    inputs:
+      evidence_path:
+        description: Evidence manifest committed or materialized in workspace
+        required: true
+        default: evidence/constitutional/promotion-evidence.json
+  pull_request:
+    paths:
+      - "policy/**"
+      - "scripts/policy/**"
+      - "evidence/constitutional/**"
+permissions:
+  contents: read
+jobs:
+  constitutional-enforcement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Policy lint
+        run: python3 scripts/policy/constitution_gate.py
+      - name: Require real promotion evidence
+        env:
+          EVIDENCE_PATH: ${{ inputs.evidence_path || 'evidence/constitutional/promotion-evidence.json' }}
+        run: |
+          test -f "$EVIDENCE_PATH" || { echo "PROMOTION_AUTHORITY=DENY evidence_missing"; exit 1; }
+          python3 scripts/policy/full_constitutional_gate.py --evidence "$EVIDENCE_PATH"
