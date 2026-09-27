@@ -2,6 +2,11 @@ name: ARBM 091 Critical Micro Gate 10x
 run-name: ARBM 091 critical micro gate 10x ${{ github.sha }}
 'on':
   workflow_dispatch: {}
+  push:
+    branches:
+      - chatgpt/arbm-091-clean-rebuild-20260922
+    paths:
+      - .github/workflows/arbm-091-critical-micro-10x.yml
 permissions:
   contents: read
 env:
