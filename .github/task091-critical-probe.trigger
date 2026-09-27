@@ -8,3 +8,5 @@ acceptance=unchanged-full-deck-semantic-gates
 retrigger=canonical-actions-2026-09-27T22:00Z
 
 api_git_ref_retrigger=2
+
+clean_relaunch=2026-09-27T23:01Z
