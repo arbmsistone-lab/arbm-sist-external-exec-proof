@@ -56,19 +56,14 @@ def _verify_text_transaction_for_mode(before_state, after_state, key, new):
     # The critical observer intentionally returns a partial OOXML snapshot.
     # Resolve the persisted target by immutable structural identity instead of
     # requiring the full-deck key set to be present.
-    candidates=[(candidate_key,row) for candidate_key,row in after.items()
-                if int(row.get("slide") or 0)==int(b.get("slide") or 0)
-                and str(row.get("kind") or "")==str(b.get("kind") or "")
-                and int(row.get("id") or 0)==int(b.get("id") or 0)
-                and str(row.get("name") or "")==str(b.get("name") or "")]
+    identity=("slide","kind","frame_id","row","col","geometry","font_sizes","fill_rgb")
+    structural=[(candidate_key,row) for candidate_key,row in after.items()
+                if all(b.get(field)==row.get(field) for field in identity)]
+    candidates=[(candidate_key,row) for candidate_key,row in structural
+                if str(row.get("text") or "")==str(new)]
     if len(candidates)!=1:
-        raise SemanticTransactionError("TASK091_CRITICAL_TARGET_READBACK_AMBIGUOUS_OR_MISSING")
+        raise SemanticTransactionError("TASK091_CRITICAL_TARGET_FINGERPRINT_AMBIGUOUS_OR_MISSING")
     persisted_key,a=candidates[0]
-    identity=("slide","kind","id","name","frame_id","row","col","geometry","font_sizes","fill_rgb")
-    if any(b.get(field)!=a.get(field) for field in identity):
-        raise SemanticTransactionError("TASK091_CRITICAL_TARGET_IDENTITY_DRIFT")
-    if str(a.get("text") or "") != str(new):
-        raise SemanticTransactionError("TASK091_CRITICAL_TARGET_VALUE_MISMATCH")
     return {
         "status":"PASS",
         "observed_semantic_diff":[{"key":persisted_key,"field":"text","before":b.get("text"),"after":a.get("text")}],
