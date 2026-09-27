@@ -50,9 +50,20 @@ def _verify_text_transaction_for_mode(before_state, after_state, key, new):
     before=normalize_deck(before_state)
     after=normalize_deck(after_state)
     key=tuple(key)
-    b=before.get(key); a=after.get(key)
-    if not isinstance(b,dict) or not isinstance(a,dict):
-        raise SemanticTransactionError("TASK091_CRITICAL_TARGET_READBACK_MISSING")
+    b=before.get(key)
+    if not isinstance(b,dict):
+        raise SemanticTransactionError("TASK091_CRITICAL_TARGET_BASELINE_MISSING")
+    # The critical observer intentionally returns a partial OOXML snapshot.
+    # Resolve the persisted target by immutable structural identity instead of
+    # requiring the full-deck key set to be present.
+    candidates=[(candidate_key,row) for candidate_key,row in after.items()
+                if int(row.get("slide") or 0)==int(b.get("slide") or 0)
+                and str(row.get("kind") or "")==str(b.get("kind") or "")
+                and int(row.get("id") or 0)==int(b.get("id") or 0)
+                and str(row.get("name") or "")==str(b.get("name") or "")]
+    if len(candidates)!=1:
+        raise SemanticTransactionError("TASK091_CRITICAL_TARGET_READBACK_AMBIGUOUS_OR_MISSING")
+    persisted_key,a=candidates[0]
     identity=("slide","kind","id","name","frame_id","row","col","geometry","font_sizes","fill_rgb")
     if any(b.get(field)!=a.get(field) for field in identity):
         raise SemanticTransactionError("TASK091_CRITICAL_TARGET_IDENTITY_DRIFT")
@@ -60,7 +71,7 @@ def _verify_text_transaction_for_mode(before_state, after_state, key, new):
         raise SemanticTransactionError("TASK091_CRITICAL_TARGET_VALUE_MISMATCH")
     return {
         "status":"PASS",
-        "observed_semantic_diff":[{"key":key,"field":"text","before":b.get("text"),"after":a.get("text")}],
+        "observed_semantic_diff":[{"key":persisted_key,"field":"text","before":b.get("text"),"after":a.get("text")}],
         "allowed_semantic_diff":[{"key":key,"field":"text","before":b.get("text"),"after":str(new)}],
         "changed_semantic_targets":1,
         "collateral_diff":"NOT_EVALUATED_IN_CRITICAL_TARGET_ONLY_MODE",
