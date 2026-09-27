@@ -27,14 +27,15 @@ jobs:
       OSWORLD_EVAL_MODEL_BASE_URL: http://127.0.0.1:8089/v1
       OSWORLD_EVAL_MODEL_API_KEY_ENV: OPENAI_API_KEY
       OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
-      ARBM_MAX_STEPS: '500'
-      ARBM_TASK_SECONDS: '2400'
-      ARBM_RUN_MULTIENV_TIMEOUT_SECONDS: '2520'
+      ARBM_MAX_STEPS: '120'
+      ARBM_TASK_SECONDS: '900'
+      ARBM_RUN_MULTIENV_TIMEOUT_SECONDS: '1020'
       ARBM_VM_VOLUME_GB: '50'
       AWS_REGION: us-east-1
       WEBSITE_HOST_SUFFIX: site.hku.icu
       TASK_ID: '091'
       ARBM_WPS_OBSERVER: '1'
+      TASK091_CRITICAL_ERROR_ONLY: '1'
       ARBM_WPS_EVIDENCE_DIR: ${{ github.workspace }}/osworld-v32-evidence/task-091
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -53,7 +54,7 @@ jobs:
 
         test "$ZERO_SPEND_MODE" = HARD
 
-        test "$ARBM_MAX_STEPS" = 500
+        test "$ARBM_MAX_STEPS" = 120
 
         python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
 
