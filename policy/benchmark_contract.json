@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "required_suites": [
+    "contract_tests",
+    "regression_tests",
+    "adversarial_eval"
+  ],
+  "rule": "all_required_suites_must_be_bound_to_candidate_sha_and_pass"
+}
