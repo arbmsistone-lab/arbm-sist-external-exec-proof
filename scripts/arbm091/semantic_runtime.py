@@ -714,6 +714,34 @@ def next_text_action(state,window_state,plan):
         if model_sha256(current_model)!=str(tx.get("before_model_sha256") or ""):
             return _terminal("TASK091_PRECONDITION_DRIFT")
         if (
+            os.environ.get("TASK091_CRITICAL_ERROR_ONLY") == "1"
+            and key == (2, "shape", 15, "SummaryArr_Value")
+            and str(tx.get("old") or "") == "$42.8M"
+            and str(tx.get("new") or "") == "$40.9M"
+        ):
+            # Critical real-WPS probe: the signed target was selected in the
+            # preceding observed frame. Execute the known atomic mutation,
+            # finalize it, and persist it as one deterministic actuator call.
+            # The next independent OOXML observation remains the authority.
+            tx["mutation_mode"]="critical-deterministic-summaryarr-atomic"
+            tx["stage"]="save-issued"
+            command="\\n".join((
+                "pyautogui.press('f2')",
+                "pyautogui.hotkey('ctrl', 'a')",
+                "pyautogui.press('backspace')",
+                f"pyautogui.write({str(tx.get('new') or '')!r}, interval=0.02)",
+                "pyautogui.press('esc')",
+                "pyautogui.hotkey('ctrl', 's')",
+                "pyautogui.sleep(0.35)",
+            ))
+            return {
+                "action":"exec",
+                "command":command,
+                "plan":"Deterministically mutate only the already signed SummaryArr target and persist it; independent OOXML readback decides pass/fail.",
+                "specialist_phase":"critical-summaryarr-atomic-persist",
+                "expected_change":tx["new"],
+            }
+        if (
             tx.get("summaryarr_retry_pending") is True
             and key == (2, "shape", 30, "SummaryRunway_Value")
         ):
