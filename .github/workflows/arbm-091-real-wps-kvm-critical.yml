@@ -174,7 +174,14 @@ jobs:
         test -s osworld-wps-observer.patch
 
         '
+    - name: Restore pinned official VM cache
+      id: vm-cache
+      uses: actions/cache@v4
+      with:
+        path: vm/osworld-v2-ubuntu-x86.qcow2
+        key: task091-critical-vm-8213366932c553e5fe758d0f2c8c8b81ffc3be8c-v1
     - name: Download pinned official VM
+      if: steps.vm-cache.outputs.cache-hit != 'true'
       shell: bash
       run: 'set -euo pipefail
 
@@ -203,6 +210,16 @@ jobs:
         PYTHONPATH=scripts python -c ''import json; from osworld_v32_gate import PINS; open("official-pins.json","w").write(json.dumps(PINS,sort_keys=True))''
 
         '
+    - name: Bind and verify pinned official VM
+      shell: bash
+      run: |
+        set -euo pipefail
+        QCOW=$(find vm -type f -name '*.qcow2' | head -1)
+        test -n "$QCOW"
+        python scripts/osworld_docker_volume.py --check-image "$QCOW"
+        echo "QCOW_PATH=$PWD/$QCOW" >> "$GITHUB_ENV"
+        sha256sum "$QCOW" | cut -d' ' -f1 > qcow-base.sha256
+        PYTHONPATH=scripts python -c 'import json; from osworld_v32_gate import PINS; open("official-pins.json","w").write(json.dumps(PINS,sort_keys=True))'
     - name: Install quota-independent local VLM fallback
       run: python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
     - name: Execute official task 091 only
