@@ -28,6 +28,7 @@ jobs:
       OSWORLD_EVAL_MODEL_API_KEY_ENV: OPENAI_API_KEY
       OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
       ARBM_MAX_STEPS: '120'
+      PYTHONPATH: ${{ github.workspace }}/scripts
       ARBM_TASK_SECONDS: '900'
       ARBM_RUN_MULTIENV_TIMEOUT_SECONDS: '1020'
       ARBM_VM_VOLUME_GB: '50'
@@ -229,7 +230,7 @@ jobs:
         \ uv run python scripts/python/run_multienv.py --headless --provider_name docker --path_to_vm \"$QCOW_PATH\"\
         \ --eval_version v2 --test_all_meta_path evaluation_examples/test_arbm_v32.json --domain tasks --observation_type\
         \ screenshot_a11y_tree --action_space pyautogui --model gpt-arbm-osworld-v32-isolated --temperature 0 --max_steps\
-        \ 500 --max_trajectory_length 8 --max_tokens 4096 --num_envs 1 --result_dir \"../osworld-v32-evidence/task-091/results\"\
+        \ 120 --max_trajectory_length 8 --max_tokens 4096 --num_envs 1 --result_dir \"../osworld-v32-evidence/task-091/results\"\
         \ 2>&1 | tee \"../osworld-v32-evidence/task-091/osworld.log\")\nrc=$?\nset -e\nkill \"$SHIM_PID\" 2>/dev/null\
         \ || true\nwait \"$SHIM_PID\" 2>/dev/null || true\nkill \"$JUDGE_PID\" 2>/dev/null || true\nwait \"$JUDGE_PID\"\
         \ 2>/dev/null || true\nprintf '%s\\n' \"$rc\" > \"$DIR/task-rc.txt\"\ntest \"$(sha256sum \"$QCOW_PATH\"\
