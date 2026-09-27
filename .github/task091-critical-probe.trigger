@@ -1,5 +1,7 @@
-attempt=5
-strategy=max-capability-deterministic-actuator-independent-ooxml-readback
+attempt=6
+strategy=canonical-multiline-deterministic-actuator-independent-ooxml-readback
+root_cause=literal-backslash-n-invalid-python
+reference_architecture=canonical-action-direct-gui-calls
 reasoning=strongest-admitted-route
 action_tokens=8192
 max_steps=80
