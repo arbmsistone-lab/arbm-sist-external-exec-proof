@@ -1024,16 +1024,16 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertIsNot(state.get("section_e_gui_font_done"),True)
 
 
-    def test_summary_retry_paths_enter_f2_before_select_all(self):
+    def test_summary_retry_paths_do_not_toggle_out_of_text_edit(self):
         source=Path("scripts/arbm091/semantic_runtime.py").read_text(encoding="utf-8")
         needle='"summaryarr-autofit-locked-selected-shape-overwrite"'
         self.assertGreaterEqual(source.count(needle),2)
         for chunk in source.split(needle)[1:3]:
             command=chunk[:2200]
-            self.assertIn("pyautogui.press('f2')",command)
+            self.assertNotIn("pyautogui.press('f2')",command)
             self.assertIn("pyautogui.hotkey('ctrl', 'a')",command)
-            self.assertLess(command.index("pyautogui.press('f2')"),
-                            command.index("pyautogui.hotkey('ctrl', 'a')"))
+            self.assertLess(command.index("pyautogui.hotkey('ctrl', 'a')"),
+                            command.index("pyautogui.write("))
 
 
 if __name__=="__main__":

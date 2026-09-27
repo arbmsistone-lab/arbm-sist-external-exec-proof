@@ -730,7 +730,6 @@ def next_text_action(state,window_state,plan):
             tx["mutation_mode"]="summaryarr-autofit-locked-selected-shape-overwrite"
             tx["stage"]="mutation-issued"
             command="\n".join((
-                "pyautogui.press('f2')",
                 "pyautogui.hotkey('ctrl', 'a')",
                 "pyautogui.press('backspace')",
                 f"pyautogui.write({str(tx.get('new') or '')!r}, interval=0.02)",
