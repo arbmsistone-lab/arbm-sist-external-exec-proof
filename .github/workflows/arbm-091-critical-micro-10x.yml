@@ -1,0 +1,28 @@
+name: ARBM 091 Critical Micro Gate 10x
+run-name: ARBM 091 critical micro gate 10x ${{ github.sha }}
+'on':
+  workflow_dispatch: {}
+permissions:
+  contents: read
+env:
+  PYTHONPATH: ${{ github.workspace }}/scripts
+  ZERO_SPEND_MODE: HARD
+  PYTHONDONTWRITEBYTECODE: '1'
+jobs:
+  critical-contract-10x:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+    - name: Install pinned dependencies
+      run: python -m pip install -r scripts/requirements-osworld.txt
+    - name: Prove critical Summary retry and Section E admission 10 consecutive times
+      shell: bash
+      run: |
+        set -euo pipefail
+        for i in $(seq 1 10); do
+          echo "TASK091_CRITICAL_CYCLE=$i/10"
+          python -m unittest             tests.arbm091.test_semantic_runtime.SemanticRuntimeTests.test_transaction_has_no_caret_or_character_navigation             tests.arbm091.test_semantic_runtime.SemanticRuntimeTests.test_section_e_runs_before_first_slide3_semantic_edit             tests.arbm091.test_semantic_runtime.SemanticRuntimeTests.test_section_e_font_roundtrip_requires_exact_delta             tests.arbm091.test_semantic_runtime.SemanticRuntimeTests.test_summary_retry_enters_f2_before_overwrite             -v
+          echo "TASK091_CRITICAL_CYCLE_PASS=$i/10"
+        done
+        echo "TASK091_CRITICAL_10X_CONSECUTIVE=PASS"
