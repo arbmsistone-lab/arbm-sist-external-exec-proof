@@ -142,5 +142,20 @@ class CoverStatFamilyGeometryDecisionTests(unittest.TestCase):
         self.assertEqual(dict(_coverstat_family_repair_decisions(ws))[(1,19,"CoverStatValue_2")],"FAIL_CLOSED")
 
 
+    def test_summaryrunway_guest_payload_transports_actual_geometry(self):
+        from pathlib import Path
+        source = Path("scripts/arbm091/wps_observer.py").read_text(encoding="utf-8")
+        self.assertIn(
+            "expected_geom=tuple(cfg['expected']); actual=tuple(cfg['actual'])",
+            source,
+        )
+        self.assertIn(
+            "cfg=json.dumps({'path':path,'expected':list(expected),'actual':list(actual)}",
+            source,
+        )
+        self.assertIn("'geometry_before':list(actual)", source)
+
+
+
 if __name__=="__main__":
     unittest.main()
