@@ -445,7 +445,12 @@ def next_text_action(state,window_state,plan):
         current=int(state.get("slide") or 1)
         nav=_nav(current,slide)
         if nav:
-            state["slide"]=current+(1 if int(slide)>current else -1)
+            next_slide=current+(1 if int(slide)>current else -1)
+            state["slide"]=next_slide
+            if next_slide==3 and state.get("section_e_gui_font_done") is not True:
+                state["section_e_snapshot_required"]=True
+                state["section_e_pre_nav_source"]=str(window_state.get("source") or "")
+                state["section_e_pre_nav_screenshot_sha256"]=str(window_state.get("screenshot_sha256") or "")
             return {"action":"exec","command":nav,
                     "plan":f"Navigate to structural target slide {slide}.",
                     "specialist_phase":"semantic-navigate-slide"}
@@ -454,6 +459,15 @@ def next_text_action(state,window_state,plan):
         # semantic navigator enters Slide 3, before any ordinary Slide 3 edit.
         # This guarantees the required GUI mutation occurs before the
         # specialist can terminate the remaining trajectory.
+        if current==3 and state.get("section_e_snapshot_required") is True:
+            source=str(window_state.get("source") or "")
+            shot=str(window_state.get("screenshot_sha256") or "")
+            if (not source or len(shot)!=64
+                    or source==str(state.get("section_e_pre_nav_source") or "")
+                    or shot==str(state.get("section_e_pre_nav_screenshot_sha256") or "")):
+                return _terminal("TASK091_SECTION_E_FRESH_SNAPSHOT_UNPROVEN")
+            state["section_e_snapshot_required"]=False
+
         rows=((window_state.get("deck_slide_shapes") or {}).get("3") or [])
         section_e_matches=[r for r in rows if isinstance(r,dict)
                            and int(r.get("id") or 0)==16
@@ -491,6 +505,8 @@ def next_text_action(state,window_state,plan):
                 "before_geometry":dict(matches[0].get("geometry") or {}),
                 "before_font_sizes":[int(v) for v in (matches[0].get("font_sizes") or [])],
                 "before_deck_sha256":str((window_state.get("deck_file") or {}).get("sha256") or ""),
+                "before_text":str(matches[0].get("text") or ""),
+                "before_snapshot":_snapshot(window_state),
             }
             return {
                 "action":"exec",
@@ -565,9 +581,33 @@ def next_text_action(state,window_state,plan):
     key=tuple(tx.get("target_key") or ())
 
     if stage=="section-e-font-select-issued":
-        tx["stage"]="section-e-font-mutation-issued"
-        return {"action":"exec","command":"pyautogui.hotkey('ctrl', 'a')\nfor _ in range(7): pyautogui.hotkey('ctrl', '[')","plan":"Reduce only selected KpiReadout_Body by exactly seven WPS font steps.","specialist_phase":"semantic-section-e-font-mutate"}
-    if stage=="section-e-font-mutation-issued":
+        tx["stage"]="section-e-font-f2-issued"
+        return {"action":"exec","command":"pyautogui.press('f2')","plan":"Enter WPS text-edit mode on the signed KpiReadout_Body target.","specialist_phase":"semantic-section-e-font-f2"}
+    if stage=="section-e-font-f2-issued":
+        tx["stage"]="section-e-font-select-text-issued"
+        return {"action":"exec","command":"pyautogui.hotkey('ctrl', 'a')","plan":"Select only the text of the signed KpiReadout_Body target.","specialist_phase":"semantic-section-e-font-select-text"}
+    if stage=="section-e-font-select-text-issued":
+        tx["stage"]="section-e-font-minus-1"
+        return {"action":"exec","command":"pyautogui.hotkey('ctrl', '[')","plan":"Section E font decrement 1 of 7.","specialist_phase":"semantic-section-e-font-minus-1"}
+    if stage=="section-e-font-minus-1":
+        tx["stage"]="section-e-font-minus-2"
+        return {"action":"exec","command":"pyautogui.hotkey('ctrl', '[')","plan":"Section E font decrement 2 of 7.","specialist_phase":"semantic-section-e-font-minus-2"}
+    if stage=="section-e-font-minus-2":
+        tx["stage"]="section-e-font-minus-3"
+        return {"action":"exec","command":"pyautogui.hotkey('ctrl', '[')","plan":"Section E font decrement 3 of 7.","specialist_phase":"semantic-section-e-font-minus-3"}
+    if stage=="section-e-font-minus-3":
+        tx["stage"]="section-e-font-minus-4"
+        return {"action":"exec","command":"pyautogui.hotkey('ctrl', '[')","plan":"Section E font decrement 4 of 7.","specialist_phase":"semantic-section-e-font-minus-4"}
+    if stage=="section-e-font-minus-4":
+        tx["stage"]="section-e-font-minus-5"
+        return {"action":"exec","command":"pyautogui.hotkey('ctrl', '[')","plan":"Section E font decrement 5 of 7.","specialist_phase":"semantic-section-e-font-minus-5"}
+    if stage=="section-e-font-minus-5":
+        tx["stage"]="section-e-font-minus-6"
+        return {"action":"exec","command":"pyautogui.hotkey('ctrl', '[')","plan":"Section E font decrement 6 of 7.","specialist_phase":"semantic-section-e-font-minus-6"}
+    if stage=="section-e-font-minus-6":
+        tx["stage"]="section-e-font-minus-7"
+        return {"action":"exec","command":"pyautogui.hotkey('ctrl', '[')","plan":"Section E font decrement 7 of 7.","specialist_phase":"semantic-section-e-font-minus-7"}
+    if stage=="section-e-font-minus-7":
         tx["stage"]="section-e-font-commit-issued"
         return {"action":"exec","command":"pyautogui.press('esc')","plan":"Finalize exact Slide 3 GUI font mutation.","specialist_phase":"semantic-section-e-font-commit"}
     if stage=="section-e-font-commit-issued":
@@ -578,6 +618,8 @@ def next_text_action(state,window_state,plan):
         matches=[r for r in rows if isinstance(r,dict) and int(r.get("id") or 0)==16 and str(r.get("name") or "")=="KpiReadout_Body"]
         if len(matches)!=1: return _terminal("TASK091_SECTION_E_GUI_FONT_ROUNDTRIP_TARGET")
         after=matches[0]
+        if "Burn improvement relies on expansion payback from Q4." not in str(after.get("text") or ""): return _terminal("TASK091_SECTION_E_GUI_FONT_TEXT_DRIFT")
+        if str(after.get("text") or "")!=str(tx.get("before_text") or ""): return _terminal("TASK091_SECTION_E_GUI_FONT_TEXT_DRIFT")
         if dict(after.get("geometry") or {})!=dict(tx.get("before_geometry") or {}): return _terminal("TASK091_SECTION_E_GUI_FONT_GEOMETRY_DRIFT")
         before_sizes=[int(v) for v in (tx.get("before_font_sizes") or [])]
         after_sizes=[int(v) for v in (after.get("font_sizes") or [])]
