@@ -613,16 +613,21 @@ def install(environment_class):
                                     persisted,_=_settled_probe(controller,None)
                             except Exception as exc:
                                 raise RuntimeError('TASK091_SUMMARY_POST_SAVE_REPAIR_BLOCKED:'+str(exc)[:260])
-                        decisions=_coverstat_family_repair_decisions(persisted)
-                        row['coverstat_geometry_decisions']=[(list(k),v) for k,v in decisions]
-                        repairs=[]
-                        for target,decision in decisions:
-                            if decision=='FAIL_CLOSED':
-                                raise RuntimeError('COVERSTAT_GEOMETRY_NONHEIGHT_OR_IDENTITY_DRIFT:'+repr(target))
-                            if decision=='REPAIR_HEIGHT':
-                                repairs.append(_guest_coverstat_geometry_repair(controller,target))
-                        if repairs:
-                            row['coverstat_geometry_repairs']=repairs
+                        # The surgical critical harness owns only SummaryArr + Section E.
+                        # Unrelated CoverStat-family drift remains fail-closed in every official run.
+                        if os.environ.get('TASK091_CRITICAL_ERROR_ONLY') == '1':
+                            row['coverstat_geometry_decisions']='SKIPPED_OUTSIDE_CRITICAL_SCOPE'
+                        else:
+                            decisions=_coverstat_family_repair_decisions(persisted)
+                            row['coverstat_geometry_decisions']=[(list(k),v) for k,v in decisions]
+                            repairs=[]
+                            for target,decision in decisions:
+                                if decision=='FAIL_CLOSED':
+                                    raise RuntimeError('COVERSTAT_GEOMETRY_NONHEIGHT_OR_IDENTITY_DRIFT:'+repr(target))
+                                if decision=='REPAIR_HEIGHT':
+                                    repairs.append(_guest_coverstat_geometry_repair(controller,target))
+                            if repairs:
+                                row['coverstat_geometry_repairs']=repairs
                         if active_slide == 3:
                             try:
                                 sec_shape_before=next((x for x in (before.get('deck_slide_shapes',{}).get('3') or [])
