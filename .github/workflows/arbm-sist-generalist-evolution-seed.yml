@@ -1,0 +1,29 @@
+name: ARBM SIST Generalist Evolution Seed
+on:
+  push:
+    paths:
+      - "scripts/evolution/**"
+      - "policy/evolution_program.json"
+      - "arbm-*-tests.py"
+      - "arbm-context-isolation.py"
+      - "test_shared_control.py"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  generalist-seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Execute first real generalist evolution battery
+        run: python3 scripts/evolution/generalist_seed.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: generalist-evolution-seed-${{ github.sha }}
+          path: evidence/evolution/generalist-seed.json
+          if-no-files-found: error
+          retention-days: 30
