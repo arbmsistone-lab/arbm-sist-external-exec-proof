@@ -1593,9 +1593,13 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         self.assertIn('def _guest_section_e_font_repair',source)
         self.assertIn('"shape_id": 16',source)
         self.assertIn('"name": "KpiReadout_Body"',source)
-        self.assertIn('"font_delta": 700',source)
+        self.assertIn('"font_delta_steps": 7',source)
         self.assertIn('TASK091_SECTION_E_FONT_REPAIR_ISOLATED_GUEST_ONLY',source)
-        self.assertIn('TASK091_SECTION_E_COLLATERAL',source)
+        self.assertIn("'action':'GUI_SECTION_E_FONT_REPAIR'",source)
+        self.assertIn("pyautogui.hotkey('ctrl','[')",source)
+        section=source[source.index('def _guest_section_e_font_repair'):source.index('def _is_ctrl_s')]
+        self.assertNotIn('zipfile',section)
+        self.assertNotIn('OOXML_SECTION_E_FONT_REPAIR',section)
 
 class Task091FinalCertificationBoardTests(unittest.TestCase):
     def _root(self):
