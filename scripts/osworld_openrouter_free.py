@@ -185,7 +185,11 @@ class FreeRoute:
                 # budget pass through unchanged. Never retry a valid NO verdict.
                 payload.update(messages=raw_messages,max_tokens=raw_tokens,temperature=temperature)
             elif 'response_format' in model.get('supported_parameters', []): payload['response_format'] = {'type':'json_object'}
-            if 'reasoning' in model.get('supported_parameters', []): payload['reasoning'] = {'enabled':False}
+            if 'reasoning' in model.get('supported_parameters', []):
+                # Use the provider's strongest available reasoning mode. The
+                # execution controller still constrains output to one grounded
+                # action and the independent board/verifier remains sovereign.
+                payload['reasoning'] = {'enabled':True}
             before = self.clock()
             status, data, headers = self.transport('/chat/completions', key, payload, timeout=min(float(os.environ.get('ARBM_FREE_CALL_TIMEOUT_S','20')), remaining))
             latency = self.clock()-before
