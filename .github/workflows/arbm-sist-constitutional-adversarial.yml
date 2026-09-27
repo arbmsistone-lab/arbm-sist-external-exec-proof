@@ -1,0 +1,23 @@
+name: ARBM SIST Constitutional Adversarial Self-Test
+on:
+  push:
+    paths:
+      - "scripts/policy/**"
+      - "policy/**"
+      - ".github/workflows/arbm-sist-constitutional-*.yml"
+  pull_request:
+    paths:
+      - "scripts/policy/**"
+      - "policy/**"
+permissions:
+  contents: read
+jobs:
+  adversarial-self-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prove ALLOW only with complete evidence and DENY on regression
+        run: python3 scripts/policy/test_full_constitutional_gate.py
