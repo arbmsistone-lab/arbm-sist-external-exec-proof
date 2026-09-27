@@ -34,7 +34,7 @@ jobs:
           echo "witness=${INPUT_WITNESS:-36354631163}" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         with:
-          ref: ${{ steps.proof.outputs.candidate }}
+          ref: ${{ github.sha }}
           fetch-depth: 2
           persist-credentials: false
       - name: Fetch exact run records and witness artifact
