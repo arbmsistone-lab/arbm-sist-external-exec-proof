@@ -1,11 +1,11 @@
-attempt=7
-strategy=artifact-first-durable-fingerprint-independent-readback
-root_cause=unstable-wps-ooxml-id-name-roundtrip
-identity=slide-kind-frame-row-col-geometry-font-fill
-postcondition=exact-new-text
+attempt=8
+strategy=hard-audit-evidence-first
+audit=adversarial-fail-closed
+root_cause=post-save-state-not-yet-discriminated
+diagnostic=emit-exact-structural-candidates-and-values
 reasoning=strongest-admitted-route
 action_tokens=8192
 max_steps=80
 summaryarr=atomic-select-mutate-save
-section_e=separate-persisted-proof-then-visual
+section_e=quarantined-until-summaryarr-persistence-proven
 authority=persisted-ooxml
