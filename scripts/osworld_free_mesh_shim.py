@@ -1337,7 +1337,7 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             return _task091_terminal('TASK091_START_CENTER_DECK_OPEN_UNPROVEN',state)
         state['bootstrap_deck_open_issued']=True
         target={
-            'source':'task091-wps-start-center-canonical',
+            'source':'screenshot',
             'label':'Operating_Committee_Rebaseline_Draft.pptx',
             'role':'recent-document',
             'bbox':[384,188,960,60],
