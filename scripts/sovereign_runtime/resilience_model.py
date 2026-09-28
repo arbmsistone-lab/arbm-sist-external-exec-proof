@@ -48,17 +48,24 @@ class Mission:
 
 def independent_domains(routes,capability,now):
     usable=[r for r in routes if r.capability==capability and r.counts(now)]
-    groups=[]
-    for r in usable:
-        footprint={r.domain}|set(r.dependencies)
-        merged=[]
-        for g in groups:
-            if footprint & g:
-                footprint |= g
-            else:
-                merged.append(g)
-        merged.append(footprint); groups=merged
-    return len(groups)
+    # Connected components over complete dependency footprints.  This is
+    # intentionally order-independent: transitive shared dependencies collapse
+    # nominally different routes into one failure domain.
+    footprints=[{r.domain}|set(r.dependencies) for r in usable]
+    parent=list(range(len(footprints)))
+    def find(x):
+        while parent[x]!=x:
+            parent[x]=parent[parent[x]]
+            x=parent[x]
+        return x
+    def union(a,b):
+        ra,rb=find(a),find(b)
+        if ra!=rb: parent[rb]=ra
+    for i in range(len(footprints)):
+        for j in range(i):
+            if footprints[i] & footprints[j]:
+                union(i,j)
+    return len({find(i) for i in range(len(footprints))})
 
 def survives(routes,capability,now,lost_domains,min_remaining=1):
     alive=[r for r in routes if r.domain not in lost_domains and not (r.dependencies & lost_domains)]
