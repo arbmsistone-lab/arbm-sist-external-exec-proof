@@ -32,13 +32,6 @@ jobs:
           test "$RUNNER_ENVIRONMENT" = github-hosted
           test -c /dev/kvm
           sudo chmod 666 /dev/kvm
-      - name: Prove OSWorld control-plane contracts
-        env:
-          PYTHONPATH: ${{ github.workspace }}/scripts
-        run: |
-          set -euo pipefail
-          python tests/arbm091/test_senior_elite_agent.py
-          python scripts/test_osworld_local_vlm.py
       - name: Install host dependencies
         run: |
           set -euo pipefail
@@ -47,6 +40,13 @@ jobs:
           .host-venv/bin/python -m pip install --disable-pip-version-check -q huggingface_hub
           .host-venv/bin/python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
           echo "$GITHUB_WORKSPACE/.host-venv/bin" >> "$GITHUB_PATH"
+      - name: Prove OSWorld control-plane contracts
+        env:
+          PYTHONPATH: ${{ github.workspace }}/scripts
+        run: |
+          set -euo pipefail
+          python tests/arbm091/test_senior_elite_agent.py
+          python scripts/test_osworld_local_vlm.py
       - name: Clone pinned OSWorld classic and prove 369-task catalog
         run: |
           set -euo pipefail
