@@ -13,6 +13,8 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Unit resilience model
         run: python -m unittest scripts/sovereign_runtime/test_resilience_model.py -v
+      - name: Global route fabric invariants
+        run: python scripts/sovereign_runtime/global_route_gate.py
       - name: Chaos contract gate
         run: python scripts/sovereign_runtime/chaos_gate.py
       - name: Bind synthetic witness to exact candidate
@@ -27,6 +29,7 @@ jobs:
           d["candidate_sha"]=os.environ["CANDIDATE_SHA"]
           d["workflow_run_id"]=os.environ["RUN_ID"]
           d["evidence_class"]="SYNTHETIC_CONTRACT_WITNESS"
+          d["global_route_fabric_invariants"]=["NO_MANDATORY_PROVIDER","OPEN_ADAPTER_PROTOCOL","DYNAMIC_ROUTE_DISCOVERY","SURPLUS_ROUTE_CAPACITY"]
           p.write_text(json.dumps(d,indent=2)+"\n")
           PY
       - name: Adversarial promotion gate
