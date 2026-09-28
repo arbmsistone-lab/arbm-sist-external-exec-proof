@@ -870,6 +870,34 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertEqual(passed["checkpoint"],"TASK091_SEMANTIC_TRANSACTION_PASS")
         self.assertEqual(state["semantic_index"],1)
 
+    def test_summary_burn_double_dollar_suffix_corruption_repairs_exactly(self):
+        ws=base_state()
+        ws["active_slide"]=2
+        ws["deck_slide_shapes"]={"2":[{
+            "id":25,"name":"SummaryBurn_Value","text":"$2.6M","kind":"shape",
+            "geometry":{"x":1000,"y":2000,"w":3000,"h":4000},
+            "font_sizes":[1600],"fill_rgb":"",
+        }]}
+        ws["deck_slide_relationships"]={"2":[]}
+        state={"slide":2}
+        plan=((2,900,364,"$2.6M","$2.8M"),)
+        for _ in range(4):
+            next_text_action(state,ws,plan)
+        corrupt=copy.deepcopy(ws)
+        corrupt["deck_file"]["sha256"]="b"*64
+        corrupt["deck_slide_shapes"]["2"][0]["text"]="$2.8MM"
+        repair=next_text_action(state,corrupt,plan)
+        self.assertEqual(repair["specialist_phase"],"semantic-summaryarr-suffix-repair-select")
+        self.assertEqual(next_text_action(state,corrupt,plan)["specialist_phase"],
+                         "semantic-summaryarr-suffix-repair-write")
+        fixed=copy.deepcopy(corrupt)
+        fixed["deck_file"]["sha256"]="c"*64
+        fixed["deck_slide_shapes"]["2"][0]["text"]="$2.8M"
+        reread=next_text_action(state,fixed,plan)
+        self.assertEqual(reread["specialist_phase"],"semantic-summaryarr-suffix-repair-roundtrip")
+        passed=next_text_action(state,fixed,plan)
+        self.assertEqual(passed["checkpoint"],"TASK091_SEMANTIC_TRANSACTION_PASS")
+
     def test_summary_burn_retry_scope_rejects_other_shape_identity(self):
         ws=base_state()
         ws["active_slide"]=2
@@ -916,11 +944,11 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertNotEqual(tuple(other_tx.get("target_key") or ()),
                             (2,"shape",15,"SummaryArr_Value"))
 
-    def test_section_e_uses_seven_step_bounded_font_reduction(self):
+    def test_section_e_uses_proven_nine_step_bounded_font_reduction(self):
         shim=Path("scripts/osworld_free_mesh_shim.py").read_text(encoding="utf-8")
         matrix=Path("scripts/arbm091/closed_matrix.py").read_text(encoding="utf-8")
         block=matrix.split("TASK091_SECTION_E_FORMAT = {",1)[1].split("}",1)[0]
-        self.assertIn("'font_decrements': 7",block)
+        self.assertIn("'font_decrements': 9",block)
         body=shim.split("def _task091_section_e_format_step",1)[1].split(
             "def _task091_system_check_close",1)[0]
         self.assertIn("task091_verify_font_transaction",body)
@@ -953,7 +981,7 @@ class SemanticRuntimeTests(unittest.TestCase):
         ws,state,plan=self._section_e_fixture()
         next_text_action(state,ws,plan)
         phases=[]
-        for _ in range(11):
+        for _ in range(13):
             state=json.loads(json.dumps(state))
             result=next_text_action(state,ws,plan)
             self.assertEqual(result["action"],"exec")
@@ -963,7 +991,7 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertEqual(phases[-1],"semantic-section-e-font-save")
         fixed=copy.deepcopy(ws)
         fixed["deck_file"]["sha256"]="c"*64
-        fixed["deck_slide_shapes"]["3"][-1]["font_sizes"]=[1100,1100]
+        fixed["deck_slide_shapes"]["3"][-1]["font_sizes"]=[900,900]
         result=next_text_action(state,fixed,plan)
         self.assertEqual(result["checkpoint"],"TASK091_SECTION_E_GUI_FONT_REPAIR_PROVEN")
         self.assertNotIn("semantic_owner",state)
@@ -1016,7 +1044,7 @@ class SemanticRuntimeTests(unittest.TestCase):
     def test_section_e_failed_readback_retains_owner_and_blocks_normal_edits(self):
         ws,state,plan=self._section_e_fixture()
         next_text_action(state,ws,plan)
-        for _ in range(11):
+        for _ in range(13):
             next_text_action(state,ws,plan)
         result=next_text_action(state,ws,plan)
         self.assertEqual(result["reason"],"TASK091_SECTION_E_GUI_FONT_ROUNDTRIP_MISMATCH")
