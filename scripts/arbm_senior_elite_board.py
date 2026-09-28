@@ -70,12 +70,16 @@ def review_action(action, *, task_id="", source="generic", state=None,
     terminal_requested=bool(re.search(
         r"\b(?:command[ -]?line|terminal|shell|cli|force\s+quit\b.*\bcommand)\b",
         str(instruction or ""),re.I))
+    guest_process_control=bool(re.search(
+        r"pyautogui\.(?:write|typewrite)\([^\n]*(?:pkill|killall|kill\s+-)",
+        command,re.I))
     dangerous_guest_text=bool(re.search(
         r"(?i)(?:rm\s+-rf\s+/|mkfs(?:\.|\s)|dd\s+if=|shutdown\b|reboot\b|curl\b.*\|\s*(?:sh|bash)|wget\b.*\|\s*(?:sh|bash))",
         command))
-    forbidden=host_forbidden or dangerous_guest_text or (terminal_hotkey and not terminal_requested)
+    forbidden=(host_forbidden or terminal_hotkey or dangerous_guest_text
+               or (guest_process_control and not terminal_requested))
     rows.append(_lane("security",not forbidden,
-        "host shell APIs and destructive guest commands are forbidden; guest terminal launch requires an explicit command-line task"))
+        "host shell APIs, terminal-launch hotkeys and destructive guest commands are forbidden; bounded guest process-control typing requires an explicit command-line task"))
 
     provenance_ok=(not sha) or bool(re.fullmatch(r"[0-9a-f]{40}",sha,re.I))
     rows.append(_lane("provenance",provenance_ok,
