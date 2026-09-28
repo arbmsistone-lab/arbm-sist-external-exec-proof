@@ -1,0 +1,98 @@
+{
+  "schema_version": 2,
+  "candidate_sha": "0a8e4012f022066dd638b580500641a82846e478",
+  "baseline_sha": "76e2d61b3d6b266c277c01cf3384c0b4733c3397",
+  "benchmarks": {
+    "contract_tests": {
+      "candidate_sha": "0a8e4012f022066dd638b580500641a82846e478",
+      "passed": true,
+      "source": "buildkite:arbm-091-actions-external-trigger#18"
+    },
+    "regression_tests": {
+      "candidate_sha": "0a8e4012f022066dd638b580500641a82846e478",
+      "passed": true,
+      "source": "render:dep-dat7tnbtqb8s73a4inhg"
+    },
+    "adversarial_eval": {
+      "candidate_sha": "0a8e4012f022066dd638b580500641a82846e478",
+      "passed": true,
+      "source": "github-actions:36439062035"
+    }
+  },
+  "compute_witnesses": [
+    {
+      "provider": "buildkite+railway",
+      "failure_domain": "buildkite-control-plus-railway-executor",
+      "candidate_sha": "0a8e4012f022066dd638b580500641a82846e478",
+      "result": "PASS",
+      "independent_failure_domain": true,
+      "cost_class": "free",
+      "sha256": "9f21b1f9a90fe315faee0b452aca468a0dff2014c538e93ba681f9175c45403a",
+      "source": "buildkite:#18/takeover-prepared.json"
+    },
+    {
+      "provider": "github-actions",
+      "failure_domain": "github",
+      "candidate_sha": "0a8e4012f022066dd638b580500641a82846e478",
+      "result": "PASS",
+      "independent_failure_domain": true,
+      "cost_class": "free",
+      "sha256": "e3066549a85856b785b2ae7571463b8f9f138a609a4dd517d3fc55c3dcc2a2b5",
+      "source": "github-actions:36439184959"
+    },
+    {
+      "provider": "render",
+      "failure_domain": "render",
+      "candidate_sha": "0a8e4012f022066dd638b580500641a82846e478",
+      "result": "PASS",
+      "independent_failure_domain": true,
+      "cost_class": "free",
+      "sha256": "5c353d6da75902bfe6a79fd83a9f395f62b89e1ec2e00161c9ab09585d30520c",
+      "source": "render:dep-dat7tnbtqb8s73a4inhg"
+    }
+  ],
+  "provider_independence": {
+    "passed": true,
+    "independent_compute_domains": [
+      "buildkite-control-plus-railway-executor",
+      "github",
+      "render"
+    ]
+  },
+  "zero_spend": {
+    "passed": true
+  },
+  "evidence_ledger": [
+    {
+      "kind": "buildkite_railway_checkpoint",
+      "sha256": "9f21b1f9a90fe315faee0b452aca468a0dff2014c538e93ba681f9175c45403a",
+      "source": "buildkite:arbm-091-actions-external-trigger#18"
+    },
+    {
+      "kind": "cross_domain_takeover",
+      "sha256": "e3066549a85856b785b2ae7571463b8f9f138a609a4dd517d3fc55c3dcc2a2b5",
+      "source": "github-actions:36439184959"
+    },
+    {
+      "kind": "render_exact_candidate_witness",
+      "sha256": "5c353d6da75902bfe6a79fd83a9f395f62b89e1ec2e00161c9ab09585d30520c",
+      "source": "render:dep-dat7tnbtqb8s73a4inhg"
+    }
+  ],
+  "rollback": {
+    "target_sha": "76e2d61b3d6b266c277c01cf3384c0b4733c3397",
+    "tested": true,
+    "evidence": [
+      "buildkite:#17",
+      "render:dep-dat7s57lk1mc73ekea7g",
+      "github-actions:36438781285"
+    ]
+  },
+  "independent_verifier": {
+    "passed": true,
+    "source": "github-actions:36439062035"
+  },
+  "promotion_authority": {
+    "requested": true
+  }
+}
