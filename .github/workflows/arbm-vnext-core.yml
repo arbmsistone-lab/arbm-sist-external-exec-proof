@@ -40,3 +40,24 @@ jobs:
           path: evidence/vnext/internal-400x3.json
           if-no-files-found: error
           retention-days: 90
+      - name: Validate and execute GENERALIST-300 x3
+        run: |
+          python scripts/evolution/validate_generalist_300.py
+          python scripts/evolution/run_generalist_300.py --repetitions 3 --out evidence/evolution/generalist-300-runtime.json
+          python - <<'PY'
+          import json
+          d=json.load(open("evidence/evolution/generalist-300-runtime.json"))
+          assert d["tasks"] == 300 and d["trials"] == 900
+          assert d["frontier_comparable"] is False
+          assert d["promotion"]["passed"] is True, d["promotion"]
+          for v in ("nominal","faulted","adversarial"):
+              assert d["by_variant"][v]["success_rate"] >= 0.95, (v,d["by_variant"][v])
+          print("GENERALIST_300_RUNTIME_GATE=PASS")
+          PY
+      - name: Preserve GENERALIST-300 runtime evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: arbm-generalist-300-runtime
+          path: evidence/evolution/generalist-300-runtime.json
+          if-no-files-found: error
+          retention-days: 90
