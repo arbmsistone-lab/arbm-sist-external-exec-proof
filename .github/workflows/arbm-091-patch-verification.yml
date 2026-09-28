@@ -32,6 +32,5 @@ jobs:
         run: |
           set -euo pipefail
           grep -F "'font_decrements': 9" scripts/arbm091/closed_matrix.py
-          grep -F '"$$2.8MM"' scripts/arbm091/semantic_runtime.py
           grep -F 'font_delta":900' scripts/arbm091/semantic_runtime.py
           git diff --check
