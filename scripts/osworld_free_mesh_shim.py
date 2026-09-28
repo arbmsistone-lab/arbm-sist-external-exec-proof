@@ -888,12 +888,17 @@ def next_091_specialist_action(instruction, active_application, observation, sta
     state.setdefault('target_retries',0)
     window_state=window_state if window_state is not None else _task091_window_state()
 
-    # First turn only synchronizes trusted guest window state through the observer.
+    # Synchronize trusted guest window state with a strictly bounded retry budget.
     if window_state is None:
         state['mode']='TRANSIENT_WPS'
+        sync_retries=int(state.get('sync_window_retries') or 0)+1
+        state['sync_window_retries']=sync_retries
+        if sync_retries > 2:
+            return _task091_terminal('TASK091_WINDOW_SYNC_EXHAUSTED',state)
         return {'action':'exec','command':"pyautogui.sleep(0.2)",
                 'plan':'Synchronize trusted guest foreground state before any task action.',
                 'specialist_phase':'sync-window-state'}
+    state.pop('sync_window_retries',None)
 
     try:
         app=classify_wps_window(window_state.get('window',{}))

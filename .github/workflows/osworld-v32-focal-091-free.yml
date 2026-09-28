@@ -41,6 +41,7 @@ jobs:
           test "$ARBM_MAX_STEPS" = 500
           python -m pip install --disable-pip-version-check --require-hashes -q -r scripts/requirements-osworld.txt
           python -m unittest scripts/test_osworld_groq_free.py scripts/test_osworld_groq_local_fallback.py scripts/test_osworld_failover_matrix.py -v
+          PYTHONPATH=scripts python -c 'import arbm_senior_elite_board as b; b._self_test_bounded_091_resync(); print("TASK091_BOUNDED_RESYNC_POLICY=PASS")'
           git diff --check
       - name: Prove cloud KVM
         shell: bash
@@ -109,6 +110,11 @@ jobs:
           git -C osworld diff -- scripts/python/run_multienv.py > osworld-docker-provider.patch
           test -s osworld-docker-provider.patch
           python scripts/osworld_docker_volume.py osworld
+          cp scripts/arbm_safe_http.py osworld/arbm_safe_http.py
+          cp -R scripts/arbm091 osworld/arbm091
+          cp scripts/osworld_control.py osworld/osworld_control.py
+          PYTHONPATH=osworld python -c 'import arbm_safe_http; import arbm091.wps_observer; print("ARBM_SAFE_HTTP_IMPORT=PASS"); print("ARBM_091_OBSERVER_IMPORT=PASS")'
+          python scripts/arbm091/install_observer.py osworld
           git -C osworld diff -- scripts/python/run_multienv.py desktop_env/providers/docker/provider.py > osworld-volume.patch
           test -s osworld-volume.patch
           python scripts/osworld_vm_upload.py osworld/desktop_env/controllers/setup.py
@@ -139,6 +145,8 @@ jobs:
           mkdir -p "$DIR"
           export ARBM_OSWORLD_SHIM_LOG="$DIR/shim.jsonl"
           export ARBM_OSWORLD_OBSERVATIONS="$DIR/shim-observations"
+          export ARBM_WPS_OBSERVER=1
+          export ARBM_WPS_EVIDENCE_DIR="$DIR/wps-observer"
           export ARBM_JUDGE_EVIDENCE="$DIR/judge"
           export OSWORLD_EVAL_SAVE_RAW_DIR="$DIR/official-evaluator-raw"
           touch "$DIR/shim.jsonl"

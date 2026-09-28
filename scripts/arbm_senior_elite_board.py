@@ -96,9 +96,45 @@ def review_action(action, *, task_id="", source="generic", state=None,
         "pointer actions require an explicit grounded target source"))
 
     repeated=bool(command and recent and command==recent[-1])
-    anti_repeat=not (repeated and int(verifier.get("no_progress") or 0)>0)
+    no_progress=int(verifier.get("no_progress") or 0)
+    phase=str(a.get("specialist_phase") or "")
+    task091_state=state.get("task091_specialist") if isinstance(state.get("task091_specialist"),dict) else {}
+    bounded_observation_retry=(
+        str(task_id)=="091"
+        and source=="task091-specialist"
+        and command=="pyautogui.sleep(0.2)"
+        and no_progress==1
+        and (
+            (phase=="sync-window-state"
+             and int(task091_state.get("sync_window_retries") or 0)==2)
+            or
+            (phase=="deck-a11y-resync"
+             and int(task091_state.get("deck_observation_retries") or 0)==1)
+        )
+    )
+    pending091=task091_state.get("pending_edit") if isinstance(task091_state.get("pending_edit"),dict) else {}
+    target091=pending091.get("target") if isinstance(pending091.get("target"),dict) else {}
+    expected_table_click=(
+        f"pyautogui.click({int(target091.get('cx') or 0)}, {int(target091.get('cy') or 0)})"
+        if target091 else ""
+    )
+    bounded_table_cell_entry=(
+        str(task_id)=="091"
+        and source=="task091-specialist"
+        and phase=="enter-table-cell-caret-candidate"
+        and str(pending091.get("stage") or "")=="table-cell-enter-issued"
+        and str(pending091.get("shape_kind") or "")=="table-cell"
+        and command==expected_table_click
+        and repeated
+        and no_progress==1
+        and bool(str(pending091.get("table_selected_screenshot_sha256") or ""))
+        and bool(str(pending091.get("table_selected_target_visual_sha256") or ""))
+        and bool(str(pending091.get("table_selected_sibling_visual_sha256") or ""))
+    )
+    bounded_semantic_retry=bounded_observation_retry or bounded_table_cell_entry
+    anti_repeat=not (repeated and no_progress>0 and not bounded_semantic_retry)
     rows.append(_lane("anti_repetition",anti_repeat,
-        "an action that produced no progress cannot be repeated without a bounded retry proof"))
+        "no-progress repetition is forbidden except state-bound Task 091 observation resync or the single evidence-proven table-cell text-entry click"))
 
     progress_ok=not (
         kind=="finish"
@@ -134,3 +170,22 @@ def require_unanimous(*args,**kwargs):
     if not result["allow"]:
         raise ValueError("SENIOR_ELITE_VETO:"+",".join(result["failed"]))
     return result
+
+def _self_test_bounded_091_resync():
+    base={"action":"exec","command":"pyautogui.sleep(0.2)","specialist_phase":"deck-a11y-resync"}
+    state={"task091_specialist":{"owned":True,"handoff":False,"deck_observation_retries":1}}
+    ok=review_action(base,task_id="091",source="task091-specialist",state=state,
+                     verifier={"no_progress":1},recent_commands=["pyautogui.sleep(0.2)"],
+                     zero_spend_mode="HARD",github_sha="a"*40)
+    assert ok["allow"] and ok["unanimous"], ok
+    sync={"action":"exec","command":"pyautogui.sleep(0.2)","specialist_phase":"sync-window-state"}
+    sync_state={"task091_specialist":{"owned":True,"handoff":False,"sync_window_retries":2}}
+    sync_ok=review_action(sync,task_id="091",source="task091-specialist",state=sync_state,
+                          verifier={"no_progress":1},recent_commands=["pyautogui.sleep(0.2)"],
+                          zero_spend_mode="HARD",github_sha="a"*40)
+    assert sync_ok["allow"] and sync_ok["unanimous"], sync_ok
+    state["task091_specialist"]["deck_observation_retries"]=2
+    blocked=review_action(base,task_id="091",source="task091-specialist",state=state,
+                          verifier={"no_progress":2},recent_commands=["pyautogui.sleep(0.2)"],
+                          zero_spend_mode="HARD",github_sha="a"*40)
+    assert not blocked["allow"] and "anti_repetition" in blocked["failed"], blocked
