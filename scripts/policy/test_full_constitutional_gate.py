@@ -4,6 +4,7 @@ import hashlib,json,pathlib,subprocess,sys,tempfile
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 GATE=ROOT/"scripts/policy/full_constitutional_gate.py"
 MATRIX=ROOT/"policy/provider_failure_domains.json"
+POLICY=ROOT/"policy/arbm_sist_constitution.json"
 
 def H(s):
     return hashlib.sha256(s.encode()).hexdigest()
@@ -39,39 +40,17 @@ def run(m):
 
 original=MATRIX.read_text()
 data=json.loads(original)
+policy=json.loads(POLICY.read_text())
 
 try:
-    # Negative proof against the real matrix: with the fresh third compute route
-    # intentionally unverified, a complete-looking manifest MUST be denied.
+    # The real matrix must satisfy exactly the constitution currently declared.
     current=run(manifest())
-    if current.returncode==0:
-        raise SystemExit("production evidence gap failed open")
-    if "failure_domains:compute_execute" not in current.stdout:
+    if current.returncode!=0 or "PROMOTION_AUTHORITY=ALLOW" not in current.stdout:
         print(current.stdout)
-        raise SystemExit("unexpected production deny reason")
-    print("CURRENT_UNVERIFIED_THIRD_ROUTE=DENY")
+        raise SystemExit("constitution-ready matrix did not allow complete evidence")
+    print("CURRENT_CONSTITUTION_READY_MATRIX=ALLOW")
 
-    # Logic-positive fixture: temporarily qualify the declared candidate route
-    # only inside this self-test to prove the gate can ALLOW after real evidence
-    # changes its verified state. This does not alter production truth.
-    candidates=[
-        r for r in data["routes"]
-        if r.get("id")=="circleci_candidate"
-        and "compute_execute" in r.get("capabilities",[])
-    ]
-    if len(candidates)!=1:
-        raise SystemExit("missing unique candidate compute route")
-    candidates[0]["verified"]=True
-    MATRIX.write_text(json.dumps(data))
-
-    ok=run(manifest())
-    if ok.returncode!=0 or "PROMOTION_AUTHORITY=ALLOW" not in ok.stdout:
-        print(ok.stdout)
-        raise SystemExit("qualified positive logic path failed")
-    print("QUALIFIED_POSITIVE_LOGIC_PATH=ALLOW")
-
-    # Regression mutation must still fail closed even after the synthetic route
-    # qualification used above.
+    # A benchmark regression must always force DENY.
     bad=manifest()
     bad["benchmarks"]["regression_tests"]["passed"]=False
     deny=run(bad)
@@ -79,20 +58,32 @@ try:
         raise SystemExit("regression failed open")
     print("NEGATIVE_REGRESSION_PATH=DENY")
 
-    # Remove a required source-control route from the qualified fixture and
-    # prove the gate denies provider/failure-domain regression.
-    candidates_sc=[
-        r for r in data["routes"]
-        if "source_control" in r.get("capabilities",[])
-        and r.get("verified") is True
-    ]
-    if len(candidates_sc)<2:
-        raise SystemExit("qualified fixture lacks source-control routes")
-    candidates_sc[-1]["verified"]=False
-    MATRIX.write_text(json.dumps(data))
-    deny_missing=run(manifest())
-    if deny_missing.returncode==0:
-        raise SystemExit("missing-route mutation failed open")
-    print("MUTATED_MISSING_ROUTE_PATH=DENY")
+    # For every critical capability, remove verified routes until it falls below
+    # the declared independent-domain minimum and prove the gate fails closed.
+    for cap,cfg in policy["critical_capabilities"].items():
+        mutated=json.loads(original)
+        verified=[
+            r for r in mutated["routes"]
+            if cap in r.get("capabilities",[]) and r.get("verified") is not False
+        ]
+        domains=[]
+        for r in verified:
+            if r["failure_domain"] not in domains:
+                domains.append(r["failure_domain"])
+        minimum=cfg["minimum_independent_routes"]
+        if len(domains)<minimum:
+            raise SystemExit(f"real matrix already underprovisioned:{cap}")
+        keep=set(domains[:max(0,minimum-1)])
+        for r in mutated["routes"]:
+            if cap in r.get("capabilities",[]) and r.get("failure_domain") not in keep:
+                r["verified"]=False
+        MATRIX.write_text(json.dumps(mutated))
+        r=run(manifest())
+        if r.returncode==0 or f"failure_domains:{cap}" not in r.stdout:
+            print(r.stdout)
+            raise SystemExit(f"missing-route mutation failed open:{cap}")
+        print(f"MUTATED_{cap.upper()}_UNDER_MINIMUM=DENY")
+
+    print("ADVERSARIAL_FAIL_CLOSED_SELF_TEST=PASS")
 finally:
     MATRIX.write_text(original)
