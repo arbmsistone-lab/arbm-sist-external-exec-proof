@@ -364,7 +364,7 @@ def _guest_section_e_font_repair(controller, before_state, persisted_state):
             try:
                 response=session.post(server.rstrip("/")+"/execute",
                                       json={"command":["python3","-c",code],"shell":False},
-                                      timeout=(3,75 if index == 1 else 30))
+                                      timeout=(3,75 if index in (1,2,3) else 30))
             except requests.RequestException as exc:
                 raise RuntimeError(
                     "TASK091_SECTION_E_GUI_FONT_REPAIR_TRANSPORT_ATOM_%d:%s" %
