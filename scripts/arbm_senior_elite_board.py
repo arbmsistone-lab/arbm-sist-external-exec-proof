@@ -63,15 +63,15 @@ def review_action(action, *, task_id="", source="generic", state=None,
         kind in {"exec","wait","finish"} and (kind!="exec" or bool(calls)),
         "typed action and parseable direct GUI calls required"))
 
-    host_forbidden=bool(re.search(r"(?:/home/oai/share|powershell|cmd\\.exe|subprocess|os\\.system)",command,re.I))
+    host_forbidden=bool(re.search(r"(?:/home/oai/share|powershell|cmd\.exe|subprocess|os\.system)",command,re.I))
     terminal_hotkey=bool(re.fullmatch(
-        r"\\s*pyautogui\\.hotkey\\(\\s*['\"]ctrl['\"]\\s*,\\s*['\"]alt['\"]\\s*,\\s*['\"]t['\"]\\s*\\)\\s*",
+        r"\s*pyautogui\.hotkey\(\s*['\"]ctrl['\"]\s*,\s*['\"]alt['\"]\s*,\s*['\"]t['\"]\s*\)\s*",
         command,re.I))
     terminal_requested=bool(re.search(
-        r"\\b(?:command[ -]?line|terminal|shell|cli|force\\s+quit\\b.*\\bcommand)\\b",
+        r"\b(?:command[ -]?line|terminal|shell|cli|force\s+quit\b.*\bcommand)\b",
         str(instruction or ""),re.I))
     dangerous_guest_text=bool(re.search(
-        r"(?i)(?:rm\\s+-rf\\s+/|mkfs(?:\\.|\\s)|dd\\s+if=|shutdown\\b|reboot\\b|curl\\b.*\\|\\s*(?:sh|bash)|wget\\b.*\\|\\s*(?:sh|bash))",
+        r"(?i)(?:rm\s+-rf\s+/|mkfs(?:\.|\s)|dd\s+if=|shutdown\b|reboot\b|curl\b.*\|\s*(?:sh|bash)|wget\b.*\|\s*(?:sh|bash))",
         command))
     forbidden=host_forbidden or dangerous_guest_text or (terminal_hotkey and not terminal_requested)
     rows.append(_lane("security",not forbidden,
