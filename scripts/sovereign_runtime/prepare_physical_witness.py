@@ -33,7 +33,6 @@ subprocess.run(
 )
 
 data = json.loads(out.read_text())
-before = json.dumps(data, sort_keys=True, separators=(",", ":")).encode()
 data.update(
     {
         "provider": "buildkite+railway",
@@ -41,9 +40,16 @@ data.update(
         "result": "PASS",
         "independent_failure_domain": True,
         "evidence_class": "PHYSICAL_PREPARE_WITNESS",
-        "evidence_sha256": hashlib.sha256(before).hexdigest(),
     }
 )
+unsigned = dict(data)
+unsigned.pop("checkpoint_hash", None)
+checkpoint_material = dict(unsigned)
+checkpoint_material.pop("evidence_sha256", None)
+data["checkpoint_hash"] = hashlib.sha256(json.dumps(checkpoint_material, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+unsigned_with_checkpoint = dict(data)
+unsigned_with_checkpoint.pop("evidence_sha256", None)
+data["evidence_sha256"] = hashlib.sha256(json.dumps(unsigned_with_checkpoint, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 out.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
 print("PHYSICAL_PREPARE_A=PASS")
 print("CANDIDATE_SHA=" + data["candidate_sha"])
