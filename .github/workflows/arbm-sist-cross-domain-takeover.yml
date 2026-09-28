@@ -20,20 +20,24 @@ jobs:
           path: evidence-head
           persist-credentials: false
 
-      - name: Checkout frozen candidate base
+      - name: Locate and resolve checkpoint candidate
+        id: checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          checkpoint="$(find evidence-head/evidence/physical -maxdepth 1 -name 'takeover-prepared-*.json' -print -quit)"
+          test -n "$checkpoint"
+          candidate_sha="$(python3 -c 'import json;print(json.load(open("'"$checkpoint"'"))["candidate_sha"])')"
+          echo "path=$checkpoint" >> "$GITHUB_OUTPUT"
+          echo "candidate_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
+          echo "CANDIDATE_SHA=$candidate_sha"
+
+      - name: Checkout frozen exact candidate
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ steps.checkpoint.outputs.candidate_sha }}
           path: candidate-src
           persist-credentials: false
-
-      - name: Resolve checkpoint candidate
-        id: checkpoint
-        shell: bash
-        run: |
-          set -euo pipefail
-          candidate_sha="$(python3 -c 'import json;print(json.load(open("candidate-src/takeover-prepared.json"))["candidate_sha"])')"
-          echo "candidate_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
 
       - name: Resume A checkpoint on independent GitHub executor B
         shell: bash
@@ -41,11 +45,7 @@ jobs:
           CANDIDATE_SHA: ${{ steps.checkpoint.outputs.candidate_sha }}
         run: |
           set -euo pipefail
-          checkpoint="$(find evidence-head/evidence/physical -maxdepth 1 -name 'takeover-prepared-*.json' -print -quit)"
-          test -n "$checkpoint"
-          cp "$checkpoint" candidate-src/takeover-prepared.json
-          candidate_sha="$(python3 -c 'import json;print(json.load(open("candidate-src/takeover-prepared.json"))["candidate_sha"])')"
-          echo "candidate_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
+          cp "${{ steps.checkpoint.outputs.path }}" candidate-src/takeover-prepared.json
           cd candidate-src
 
           python3 - "$CANDIDATE_SHA" <<'PY'
@@ -56,9 +56,9 @@ jobs:
           print("CHECKPOINT_CANDIDATE_BINDING=PASS")
           PY
 
-          python3 scripts/sovereign_runtime/takeover_protocol.py takeover             --infile takeover-prepared.json             --new-owner github-actions-B             --out takeover-taken.json
+          python3 scripts/sovereign_runtime/takeover_protocol.py takeover --infile takeover-prepared.json --new-owner github-actions-B --out takeover-taken.json
 
-          python3 scripts/sovereign_runtime/takeover_protocol.py verify             --prepared takeover-prepared.json             --taken takeover-taken.json             --expected-candidate "$CANDIDATE_SHA"
+          python3 scripts/sovereign_runtime/takeover_protocol.py verify --prepared takeover-prepared.json --taken takeover-taken.json --expected-candidate "$CANDIDATE_SHA"
 
           new_token="$(python3 -c 'import json;print(json.load(open("takeover-taken.json"))["fencing_token"])')"
           idem="$(python3 -c 'import json;print(json.load(open("takeover-taken.json"))["idempotency_key"])')"
@@ -66,10 +66,10 @@ jobs:
           old_owner="$(python3 -c 'import json;print(json.load(open("takeover-prepared.json"))["owner"])')"
           old_token="$(python3 -c 'import json;print(json.load(open("takeover-prepared.json"))["fencing_token"])')"
 
-          python3 scripts/sovereign_runtime/takeover_protocol.py commit             --infile takeover-taken.json             --owner github-actions-B             --token "$new_token"             --idempotency-key "$idem"             --receipt "$receipt"             --out takeover-committed.json
+          python3 scripts/sovereign_runtime/takeover_protocol.py commit --infile takeover-taken.json --owner github-actions-B --token "$new_token" --idempotency-key "$idem" --receipt "$receipt" --out takeover-committed.json
 
           set +e
-          python3 scripts/sovereign_runtime/takeover_protocol.py commit             --infile takeover-taken.json             --owner "$old_owner"             --token "$old_token"             --idempotency-key "$idem"             --receipt "$receipt" > stale-owner.log 2>&1
+          python3 scripts/sovereign_runtime/takeover_protocol.py commit --infile takeover-taken.json --owner "$old_owner" --token "$old_token" --idempotency-key "$idem" --receipt "$receipt" > stale-owner.log 2>&1
           stale_rc=$?
           set -e
           test "$stale_rc" -eq 23
