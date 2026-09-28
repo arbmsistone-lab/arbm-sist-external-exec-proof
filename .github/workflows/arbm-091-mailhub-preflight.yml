@@ -1,0 +1,32 @@
+name: ARBM 091 MailHub Preflight
+run-name: ARBM 091 mailhub preflight ${{ github.sha }}
+'on':
+  push:
+    branches:
+      - chatgpt/arbm-091-clean-rebuild-20260922
+    paths:
+      - .github/workflows/arbm-091-mailhub-preflight.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Probe exact official MailHub endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scheme in https http; do
+            url="$scheme://mailhub.site.hku.icu/api/state"
+            echo "PROBE $url"
+            if curl -fsS --connect-timeout 5 --max-time 15 -D /tmp/headers -o /tmp/body "$url"; then
+              echo "MAILHUB_OFFICIAL_ENDPOINT_REACHABLE scheme=$scheme"
+              cat /tmp/headers
+              head -c 500 /tmp/body || true
+              exit 0
+            fi
+          done
+          echo "MAILHUB_OFFICIAL_ENDPOINT_UNREACHABLE"
+          exit 1
