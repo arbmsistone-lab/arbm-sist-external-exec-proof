@@ -1,0 +1,37 @@
+name: ARBM 091 Patch Verification
+run-name: ARBM 091 patch verification ${{ github.sha }}
+'on':
+  push:
+    branches:
+      - chatgpt/arbm-091-evaluator-lab-20260928
+    paths:
+      - scripts/arbm091/closed_matrix.py
+      - scripts/arbm091/semantic_runtime.py
+      - tests/arbm091/test_semantic_runtime.py
+      - .github/workflows/arbm-091-patch-verification.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+env:
+  PYTHONPATH: ${{ github.workspace }}/scripts
+  ZERO_SPEND_MODE: HARD
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install pinned dependencies
+        run: python -m pip install -r scripts/requirements-osworld.txt
+      - name: Run Task 091 semantic runtime tests
+        run: python -m unittest tests.arbm091.test_semantic_runtime -v
+      - name: Run closed matrix gate
+        run: python -m arbm091.closed_matrix_gate --json-out /tmp/task091-closed-matrix.json
+      - name: Prove exact patch invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F "'font_decrements': 9" scripts/arbm091/closed_matrix.py
+          grep -F '"$$2.8MM"' scripts/arbm091/semantic_runtime.py
+          grep -F 'font_delta":900' scripts/arbm091/semantic_runtime.py
+          git diff --check
