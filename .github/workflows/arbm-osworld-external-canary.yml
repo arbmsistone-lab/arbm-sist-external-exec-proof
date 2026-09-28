@@ -17,6 +17,7 @@ jobs:
       OPENAI_BASE_URL: http://127.0.0.1:8088/v1
       OPENAI_API_KEY: zero-spend-oidc-shim
       ARBM_ENABLE_LOCAL_VLM: '1'
+      ARBM_OSWORLD_SHIM_LOG: osworld-v32-shim.log
       OSWORLD_CODE_SHA: b138d348256078fa634fc3b73567a7337c793e6b
       OSWORLD_VM_REV: a5d9c3eaae98eebf6e3a0beb84e7e47cf72ae133
     steps:
@@ -34,6 +35,7 @@ jobs:
           python -m venv .host-venv
           .host-venv/bin/python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
           .host-venv/bin/python -m pip install --disable-pip-version-check -q huggingface_hub
+          .host-venv/bin/python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
           echo "$GITHUB_WORKSPACE/.host-venv/bin" >> "$GITHUB_PATH"
       - name: Clone pinned OSWorld classic and prove 369-task catalog
         run: |
@@ -128,6 +130,8 @@ jobs:
             external-canary-results
             external-canary-summary.txt
             shim-runtime.log
+            osworld-v32-shim.log
+            shim-observations
             vm.sha256
           if-no-files-found: warn
           retention-days: 90
