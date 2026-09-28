@@ -1,0 +1,97 @@
+name: ARBM 091 Official Evaluator Lab
+run-name: ARBM 091 official evaluator lab ${{ github.sha }}
+'on':
+  push:
+    branches:
+      - chatgpt/arbm-091-evaluator-lab-20260928
+    paths:
+      - .github/workflows/arbm-091-official-evaluator-lab.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+  ZERO_SPEND_MODE: HARD
+jobs:
+  recover-official-evaluator:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Hydrate exact pinned OSWorld task 091
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v2026.08.08 https://github.com/xlang-ai/OSWorld-V2.git osworld
+          test "$(git -C osworld rev-parse HEAD)" = d578d2d4e0dc82b43e270fdaa7fa89d9708cd154
+          python -m pip install --disable-pip-version-check -q uv==0.8.15 huggingface_hub==0.35.3
+          cd osworld
+          uv sync --frozen
+          uv run python scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
+          test -f evaluation_examples/task_class/task_091.py
+          python - <<'PY'
+          import hashlib, os
+          from huggingface_hub import hf_hub_download
+          p=hf_hub_download(
+              'xlangai/osworld_v2_tasks',
+              'manifests/task_hashes.json',
+              repo_type='dataset',
+              revision='v2026.08.08',
+              token=os.environ['HF_TOKEN'])
+          d=hashlib.sha256(open(p,'rb').read()).hexdigest()
+          assert d=='42f8f6f8939b8712997d5891456a575f8a2a5f53465e9e3e6747af5d6efd0915', d
+          print('TASK_HASH_MANIFEST_SHA256='+d)
+          PY
+          sha256sum evaluation_examples/task_class/task_091.py | tee ../task091-source.sha256
+          cp evaluation_examples/task_class/task_091.py ../task_091.py
+          cd ..
+      - name: Recover exact failing official evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p prior
+          gh run download 36348777998 --repo "$GITHUB_REPOSITORY" --name osworld-v32-focal-091-free --dir prior
+          find prior -type f -printf '%p\n' | sort > prior-files.txt
+          grep -Ei '\.(pptx|json|log)$' prior-files.txt | tail -n 300 | tee prior-interesting-files.txt
+      - name: Extract official containment implementation and Slide 3 binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' | tee task091-official-evaluator-map.txt
+          from pathlib import Path
+          import ast, re
+          p=Path('task_091.py')
+          s=p.read_text()
+          print('TASK091_SOURCE_BYTES',len(s.encode()))
+          print('TASK091_SOURCE_SHA256',__import__('hashlib').sha256(s.encode()).hexdigest())
+          tree=ast.parse(s)
+          names=[]
+          for n in ast.walk(tree):
+              if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef,ast.ClassDef)):
+                  src=ast.get_source_segment(s,n) or ''
+                  if re.search(r'contain|rounded|visual|render|collision|slide.?3',src,re.I):
+                      names.append((getattr(n,'lineno',0),getattr(n,'name','?')))
+          print('RELEVANT_SYMBOLS')
+          for row in sorted(set(names)):
+              print(row[0],row[1])
+          print('MATCHING_LINES')
+          for i,line in enumerate(s.splitlines(),1):
+              if re.search(r'contain|rounded|visual|render|collision|threshold|slide.?3',line,re.I):
+                  print(f'{i}: {line}')
+          PY
+      - name: Preserve exact lab inputs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: task091-official-evaluator-lab-inputs
+          path: |
+            task_091.py
+            task091-source.sha256
+            task091-official-evaluator-map.txt
+            prior-files.txt
+            prior-interesting-files.txt
+          if-no-files-found: error
+          retention-days: 30
