@@ -341,37 +341,25 @@ def _guest_section_e_font_repair(controller, before_state, persisted_state):
     require(parsed.scheme=="http" and parsed.hostname in ("localhost","127.0.0.1"),
             "TASK091_SECTION_E_FONT_REPAIR_ISOLATED_GUEST_ONLY")
     phrase=spec["text_fingerprint"].lstrip("• ").strip()
-    code="\n".join((
-        "import json,pyautogui,pyperclip,time",
+    # Execute through the controller's already-proven guest channel, one bounded GUI atom at a time.
+    # A monolithic nested /execute request can outlive the 30s read window while WPS processes
+    # search/focus/save. Atomic acknowledgements identify the exact failing atom and avoid that timeout.
+    atoms=(
         "pyautogui.hotkey('ctrl','f')",
-        "time.sleep(0.25)",
-        f"pyperclip.copy({phrase!r})",
-        "pyautogui.hotkey('ctrl','v')",
+        f"pyperclip.copy({phrase!r}); pyautogui.hotkey('ctrl','v')",
         "pyautogui.press('enter')",
-        "time.sleep(0.25)",
         "pyautogui.press('esc')",
         "pyautogui.hotkey('ctrl','a')",
-        "time.sleep(0.15)",
-        f"[pyautogui.hotkey('ctrl','[') for _ in range({spec['font_delta_steps']})]",
+        *tuple("pyautogui.hotkey('ctrl','[')" for _ in range(spec["font_delta_steps"])),
         "pyautogui.press('esc')",
         "pyautogui.hotkey('ctrl','s')",
-        "time.sleep(0.5)",
-        "print(json.dumps({'status':'PASS','action':'GUI_SECTION_E_FONT_REPAIR','target':[3,16,'KpiReadout_Body'],'font_delta_steps':7}))",
-    ))
-    session=requests.Session(); session.trust_env=False
-    try:
-        response=session.post(server.rstrip("/")+"/execute",
-                              json={"command":["python3","-c",code],"shell":False},
-                              timeout=(3,30))
-        response.raise_for_status(); result=response.json()
-    finally:
-        session.close()
-    require(result.get("returncode")==0 and result.get("status")=="success",
-            "TASK091_SECTION_E_GUI_FONT_REPAIR_FAILED:"+str(result.get("error",""))[:220])
-    payload=json.loads(str(result.get("output") or "").strip())
-    require(payload.get("status")=="PASS" and payload.get("action")=="GUI_SECTION_E_FONT_REPAIR",
-            "TASK091_SECTION_E_GUI_FONT_REPAIR_UNPROVEN")
-    return payload
+    )
+    for index,atom in enumerate(atoms,1):
+        result=controller.execute_python_command(atom)
+        require(isinstance(result,dict) and result.get("returncode")==0 and result.get("status")=="success",
+                "TASK091_SECTION_E_GUI_FONT_REPAIR_ATOM_FAILED:%d:%s"%(index,str((result or {}).get("error",""))[:160]))
+    return {"status":"PASS","action":"GUI_SECTION_E_FONT_REPAIR","target":[3,16,"KpiReadout_Body"],
+            "font_delta_steps":spec["font_delta_steps"],"atoms":len(atoms)}
 
 def _is_ctrl_s(atom):
     try:
