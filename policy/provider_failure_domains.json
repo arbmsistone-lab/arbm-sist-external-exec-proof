@@ -1,13 +1,13 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "dependency_accounting": {
+    "rule": "shared_critical_dependency_collapses_routes",
+    "note": "Buildkite jobs executed on the Railway agent are one composite failure domain, not two independent compute routes."
+  },
   "routes": [
     {
       "id": "github_actions",
-      "capabilities": [
-        "source_control",
-        "compute_execute",
-        "artifact_evidence"
-      ],
+      "capabilities": ["source_control","compute_execute","artifact_evidence"],
       "failure_domain": "github",
       "provider": "github",
       "cost_class": "free",
@@ -15,47 +15,42 @@
     },
     {
       "id": "git_mirror",
-      "capabilities": [
-        "source_control",
-        "artifact_evidence"
-      ],
+      "capabilities": ["source_control","artifact_evidence"],
       "failure_domain": "buildkite_artifact_store",
       "provider": "buildkite",
       "cost_class": "free",
       "verified": true,
       "evidence": {
-        "build_number": 4,
-        "candidate_sha": "9f0235348e6d2646538e114a184ad96f1725abe9",
-        "artifact": "source-control-witness.json",
-        "recovery_test": "clone_bundle_and_resolve_baseline"
+        "build_number": 11,
+        "candidate_sha": "9a722af8c4ef3c4f16bf0ae95062de9fde01c731",
+        "recovery_test": "bundle_verify_clone_and_resolve_baseline"
       }
     },
     {
-      "id": "buildkite",
-      "capabilities": [
-        "compute_execute",
-        "artifact_evidence"
-      ],
-      "failure_domain": "buildkite",
-      "provider": "buildkite",
+      "id": "buildkite_on_railway",
+      "capabilities": ["compute_execute","artifact_evidence"],
+      "failure_domain": "buildkite-control-plus-railway-executor",
+      "provider": "buildkite+railway",
       "cost_class": "free",
-      "verified": true
+      "verified": true,
+      "evidence": {
+        "build_number": 11,
+        "candidate_sha": "9a722af8c4ef3c4f16bf0ae95062de9fde01c731",
+        "agent_provider": "railway-zero-spend"
+      }
     },
     {
-      "id": "railway",
-      "capabilities": [
-        "compute_execute"
-      ],
-      "failure_domain": "railway",
-      "provider": "railway",
+      "id": "circleci_candidate",
+      "capabilities": ["compute_execute"],
+      "failure_domain": "circleci",
+      "provider": "circleci",
       "cost_class": "free",
-      "verified": true
+      "verified": false,
+      "verification_required": "fresh exact-candidate executed witness"
     },
     {
       "id": "artifact_mirror",
-      "capabilities": [
-        "artifact_evidence"
-      ],
+      "capabilities": ["artifact_evidence"],
       "failure_domain": "independent_artifact_store",
       "provider": "provider_independent_contract",
       "cost_class": "free",
@@ -63,9 +58,7 @@
     },
     {
       "id": "persistent_state_a",
-      "capabilities": [
-        "state_recovery"
-      ],
+      "capabilities": ["state_recovery"],
       "failure_domain": "state-a",
       "provider": "portable",
       "cost_class": "free",
@@ -73,9 +66,7 @@
     },
     {
       "id": "persistent_state_b",
-      "capabilities": [
-        "state_recovery"
-      ],
+      "capabilities": ["state_recovery"],
       "failure_domain": "state-b",
       "provider": "portable",
       "cost_class": "free",
