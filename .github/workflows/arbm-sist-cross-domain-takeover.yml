@@ -25,7 +25,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          checkpoint="$(find evidence-head/evidence/physical -maxdepth 1 -name 'takeover-prepared-*.json' -print -quit)"
+          checkpoint="$(find evidence-head/evidence/physical -maxdepth 1 -name 'takeover-prepared-current.json' -print -quit)"
           test -n "$checkpoint"
           candidate_sha="$(python3 -c 'import json;print(json.load(open("'"$checkpoint"'"))["candidate_sha"])')"
           echo "path=$checkpoint" >> "$GITHUB_OUTPUT"
