@@ -1,0 +1,31 @@
+name: ARBM 091 MailHub Selfhost Probe
+run-name: ARBM 091 mailhub selfhost probe ${{ github.sha }}
+'on':
+  push:
+    branches:
+      - chatgpt/arbm-091-evaluator-lab-20260928
+    paths:
+      - .github/workflows/arbm-091-mailhub-selfhost-probe.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Probe exact self-hosted MailHub API
+        shell: bash
+        run: |
+          set -euo pipefail
+          host="mailhub.167.172.146.60.nip.io:8001"
+          url="http://$host/api/state"
+          echo "PROBE $url"
+          curl -fsS --connect-timeout 5 --max-time 20 -D /tmp/headers -o /tmp/body "$url"
+          grep -F "200 OK" /tmp/headers
+          python - <<'PY'
+          import json
+          data=json.load(open('/tmp/body'))
+          assert 'user_id' in data and 'state' in data, data
+          print('MAILHUB_SELFHOST_API_CONTRACT_PASS')
+          PY
