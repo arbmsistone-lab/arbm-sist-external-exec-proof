@@ -1335,17 +1335,25 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             return _task091_terminal('TASK091_START_CENTER_DURING_SECTION_E',state)
         if state.get('bootstrap_deck_open_issued') is True:
             return _task091_terminal('TASK091_START_CENTER_DECK_OPEN_UNPROVEN',state)
+        shot=str(window_state.get('screenshot_sha256') or '')
+        if (window_state.get('screen') != [0,0,1920,1080]
+                or window.get('bbox') != [70,27,1850,1053]
+                or title != 'wps office'
+                or not re.fullmatch(r'[0-9a-f]{64}',shot)):
+            return _task091_terminal('TASK091_START_CENTER_VISUAL_PROOF_MISSING',state)
         state['bootstrap_deck_open_issued']=True
         target={
-            'source':'task091-wps-start-center-canonical',
+            'source':'screenshot',
             'label':'Operating_Committee_Rebaseline_Draft.pptx',
             'role':'recent-document',
-            'bbox':[384,188,960,60],
-            'cx':550,'cy':216,
+            'bbox':[448,240,1180,44],
+            'cx':550,'cy':260,
+            'screenshot_sha256':shot,
+            'window_bbox':window.get('bbox'),
         }
         return {
             'action':'exec',
-            'command':"pyautogui.doubleClick(550, 216, interval=0.08)",
+            'command':"pyautogui.doubleClick(550, 260, interval=0.08)",
             'target':target,
             'plan':'Open only the canonical Task 091 deck from the exact WPS start-center recent-document row; postflight must prove the deck title in WPS Presentation.',
             'specialist_phase':'bootstrap-open-canonical-deck',
