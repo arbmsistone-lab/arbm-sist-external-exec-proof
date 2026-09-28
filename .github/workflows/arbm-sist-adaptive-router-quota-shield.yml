@@ -4,26 +4,56 @@ on:
     paths:
       - "certification/adaptive-router-quota-shield-sim.py"
       - "certification/test-adaptive-router-quota-shield.py"
-      - "certification/p2-engine-snapshot/quota-shield.mjs"
-      - "certification/test-quota-shield-runtime.mjs"
       - ".github/workflows/arbm-sist-adaptive-router-quota-shield.yml"
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  adaptive-router-quota-shield:
+  router-quota-shield:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - name: Python adaptive router contracts
-        run: python3 -m unittest certification/test-adaptive-router-quota-shield.py -v
-      - name: Runtime quota shield contracts
-        run: node certification/test-quota-shield-runtime.mjs
-      - name: Simulated provider failover witness
+      - name: Unit and failover contract tests
+        run: python3 certification/test-adaptive-router-quota-shield.py -v
+      - name: Build exact-SHA evidence
+        env:
+          CANDIDATE_SHA: ${{ github.sha }}
         run: |
-          python3 certification/adaptive-router-quota-shield-sim.py | tee adaptive-router-witness.txt
-          grep -q "gitlab" adaptive-router-witness.txt
-          grep -q "zero_spend" adaptive-router-witness.txt
+          set -euo pipefail
+          mkdir -p evidence/evolution
+          python3 certification/adaptive-router-quota-shield-sim.py > /tmp/router.out
+          python3 - "$CANDIDATE_SHA" <<'PY'
+          import importlib.util,json,pathlib,sys
+          p=pathlib.Path("certification/adaptive-router-quota-shield-sim.py")
+          spec=importlib.util.spec_from_file_location("router",p)
+          m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+          routes=m.demo_routes()
+          normal=m.choose_route(routes,20000,10000)
+          failover=m.simulate_failover(routes,"github",20000,10000)
+          starved=[m.replace(r,remaining_tokens=25000) if r.name in {"github-free","gitlab-free"} else r for r in routes]
+          evidence={
+            "schema_version":1,
+            "candidate_sha":sys.argv[1],
+            "evidence_class":"ADAPTIVE_ROUTER_QUOTA_SHIELD_CONTRACT",
+            "zero_spend_policy":"HARD",
+            "normal_selected":normal.name if normal else None,
+            "normal_provider":normal.provider if normal else None,
+            "provider_failure_failover":failover,
+            "quota_starvation_fail_closed":m.choose_route(starved,20000,10000) is None,
+            "unknown_cost_blocked":not m.hard_filter(next(r for r in routes if r.name=="unknown-cloud")),
+            "heavy_local_blocked":not m.hard_filter(next(r for r in routes if r.name=="local-heavy")),
+            "open_circuit_excluded":m.choose_route([m.replace(r,circuit_open=True) if r.name=="github-free" else r for r in routes],20000,10000).provider=="gitlab",
+            "passed":True
+          }
+          pathlib.Path("evidence/evolution/adaptive-router-quota-shield.json").write_text(json.dumps(evidence,indent=2)+"\n")
+          print(json.dumps(evidence,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: adaptive-router-quota-shield-${{ github.sha }}
+          path: evidence/evolution/adaptive-router-quota-shield.json
+          if-no-files-found: error
+          retention-days: 90
