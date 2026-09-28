@@ -2,7 +2,7 @@
   "schema_version": 2,
   "dependency_accounting": {
     "rule": "shared_critical_dependency_collapses_routes",
-    "note": "Buildkite jobs executed on the Railway agent are one composite failure domain, not two independent compute routes."
+    "note": "Routes sharing a critical executor/control dependency collapse into one failure domain."
   },
   "routes": [
     {
@@ -19,12 +19,7 @@
       "failure_domain": "buildkite_artifact_store",
       "provider": "buildkite",
       "cost_class": "free",
-      "verified": true,
-      "evidence": {
-        "build_number": 11,
-        "candidate_sha": "9a722af8c4ef3c4f16bf0ae95062de9fde01c731",
-        "recovery_test": "bundle_verify_clone_and_resolve_baseline"
-      }
+      "verified": true
     },
     {
       "id": "buildkite_on_railway",
@@ -34,9 +29,22 @@
       "cost_class": "free",
       "verified": true,
       "evidence": {
-        "build_number": 11,
-        "candidate_sha": "9a722af8c4ef3c4f16bf0ae95062de9fde01c731",
+        "build_number": 14,
+        "candidate_sha": "de88c8a6b5bc58b3c7cd3e77ec6074f1af6b5a60",
         "agent_provider": "railway-zero-spend"
+      }
+    },
+    {
+      "id": "render_free_runner",
+      "capabilities": ["compute_execute","artifact_evidence"],
+      "failure_domain": "render",
+      "provider": "render",
+      "cost_class": "free",
+      "verified": true,
+      "evidence": {
+        "deploy_id": "dep-dat7lmou01pc73csia80",
+        "candidate_sha": "de88c8a6b5bc58b3c7cd3e77ec6074f1af6b5a60",
+        "result": "RENDER_SOVEREIGN_RUNTIME_WITNESS=PASS"
       }
     },
     {
