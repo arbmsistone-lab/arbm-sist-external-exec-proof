@@ -797,6 +797,44 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertEqual(passed["checkpoint"],"TASK091_SEMANTIC_TRANSACTION_PASS")
         self.assertEqual(state["semantic_index"],1)
 
+    def test_summary_arr_suffix_repair_rederives_autofit_persistence(self):
+        ws=base_state()
+        ws["active_slide"]=2
+        ws["screenshot_sha256"]="a"*64
+        ws["deck_slide_shapes"]={"2":[{
+            "id":15,"name":"SummaryArr_Value","text":"$42.8M","kind":"shape",
+            "geometry":{"x":1000,"y":2000,"w":3000,"h":4000},
+            "font_sizes":[1600],"fill_rgb":"","autofit_mode":"DO_NOT_AUTOFIT",
+        }]}
+        ws["deck_slide_relationships"]={"2":[]}
+        before=_snapshot(ws)
+        tx={
+            "stage":"summaryarr-suffix-repair-save-issued",
+            "index":0,"slide":2,"old":"$42.8M","new":"$40.9M",
+            "target_key":[2,"shape",15,"SummaryArr_Value"],
+            "before_state":before,
+            "before_model_sha256":model_sha256(normalize_deck(before)),
+            "before_deck_sha256":"a"*64,
+            "suffix_repair_deck_sha256":"b"*64,
+            "suffix_repair_geometry":[1000,2000,3000,4000],
+            "retry_locked_geometry":[1000,2000,3000,4000],
+            "autofit_selection_confirmed":True,
+            "mutation_mode":"summaryarr-autofit-locked-selected-shape-overwrite",
+            "contract":{"status":"PASS","target_resolved":True,"target_unique":True,
+                        "precondition":True,"mutation_authorized":True},
+        }
+        fixed=copy.deepcopy(ws)
+        fixed["deck_file"]["sha256"]="c"*64
+        fixed["deck_slide_shapes"]["2"][0]["text"]="$40.9M"
+        state={"slide":2,"semantic_tx":tx}
+        plan=((2,558,364,"$42.8M","$40.9M"),)
+        reread=next_text_action(state,fixed,plan)
+        self.assertEqual(reread["specialist_phase"],"semantic-summaryarr-suffix-repair-roundtrip")
+        self.assertTrue(state["semantic_tx"]["autofit_persisted"])
+        passed=next_text_action(state,fixed,plan)
+        self.assertEqual(passed["checkpoint"],"TASK091_SEMANTIC_TRANSACTION_PASS")
+        self.assertEqual(state["semantic_index"],1)
+
     def test_summary_runway_persisted_noop_retries_once_then_roundtrips(self):
         ws=base_state(); ws["active_slide"]=2
         ws["deck_slide_shapes"]={"2":[{

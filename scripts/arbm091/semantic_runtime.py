@@ -1346,6 +1346,18 @@ def next_text_action(state,window_state,plan):
             verdict=_verify_text_transaction_for_mode(tx["before_state"],window_state,key,tx["new"])
         except SemanticTransactionError as repair_exc:
             return _terminal(str(repair_exc))
+        if _cover_title_lock_required(tx):
+            try:
+                raw=_raw_locked_shape(window_state,tx)
+            except SemanticTransactionError as repair_exc:
+                return _terminal(str(repair_exc))
+            if tx.get("autofit_selection_confirmed") is not True:
+                return _terminal("TASK091_AUTOFIT_SELECTION_EVIDENCE_MISSING")
+            if str(raw.get("autofit_mode") or "")!="DO_NOT_AUTOFIT":
+                return _terminal("TASK091_AUTOFIT_NOT_PERSISTED")
+            if tuple(int((raw.get("geometry") or {}).get(k) or 0) for k in ("x","y","w","h"))!=tuple(_locked_autofit_geometry(tx) or ()):
+                return _terminal("TASK091_COVERTITLE_GEOMETRY_DRIFT_AFTER_SUFFIX_REPAIR")
+            tx["autofit_persisted"]=True
         tx["after_model_sha256"]=verdict["after_model_sha256"]
         tx["after_deck_sha256"]=current_sha
         tx["semantic_verdict"]=verdict
