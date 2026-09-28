@@ -404,9 +404,13 @@ class MeshTests(unittest.TestCase):
   with patch.dict(os.environ,{'TASK_ID':'091','ZERO_SPEND_MODE':'HARD'},clear=False):
    action=shim.next_091_specialist_action(task,'WPS Office','',state,start)
   self.assertEqual(action['specialist_phase'],'bootstrap-open-canonical-deck')
-  self.assertEqual(action['command'],"pyautogui.doubleClick(550, 216, interval=0.08)")
-  self.assertEqual(action['target']['source'],'task091-wps-start-center-canonical')
-  self.assertEqual([action['target']['cx'],action['target']['cy']],[550,216])
+  self.assertEqual(action['command'],"pyautogui.doubleClick(550, 260, interval=0.08)")
+  self.assertEqual(action['target']['source'],'screenshot')
+  self.assertEqual(action['target']['label'],'Operating_Committee_Rebaseline_Draft.pptx')
+  self.assertEqual(action['target']['screenshot_sha256'],'5'*64)
+  self.assertEqual([action['target']['cx'],action['target']['cy']],[550,260])
+  grounded=shim.ground_action(action,'WPS Office','',[],allow_canonical=True)
+  self.assertEqual(grounded['command'],action['command'])
   self.assertTrue(state['bootstrap_deck_open_issued'])
 
  def test_task091_specialist_does_not_capture_other_tasks(self):
