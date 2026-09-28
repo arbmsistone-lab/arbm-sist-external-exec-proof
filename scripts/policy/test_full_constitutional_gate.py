@@ -22,6 +22,20 @@ def manifest():
         "evidence_ledger":[
             {"kind":"gate-self-test","sha256":H("x"),"source":"self-test"}
         ],
+        "compute_witnesses":[
+            {
+                "candidate_sha":c,
+                "failure_domain":r["failure_domain"],
+                "result":"PASS",
+                "independent_failure_domain":True,
+                "cost_class":"free",
+                "sha256":H("compute:"+r["failure_domain"])
+            }
+            for r in json.loads(MATRIX.read_text())["routes"]
+            if "compute_execute" in r.get("capabilities",[])
+            and r.get("verified") is not False
+            and r.get("cost_class")=="free"
+        ],
         "rollback":{"target_sha":b,"tested":True},
         "independent_verifier":{"passed":True},
         "promotion_authority":{"requested":True},
