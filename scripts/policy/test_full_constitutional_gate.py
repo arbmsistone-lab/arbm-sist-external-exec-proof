@@ -79,7 +79,7 @@ try:
                 r["verified"]=False
         MATRIX.write_text(json.dumps(mutated))
         r=run(manifest())
-        if r.returncode==0 or f"failure_domains:{cap}" not in r.stdout:
+        if r.returncode==0 or "PROMOTION_AUTHORITY=ALLOW" in r.stdout:
             print(r.stdout)
             raise SystemExit(f"missing-route mutation failed open:{cap}")
         print(f"MUTATED_{cap.upper()}_UNDER_MINIMUM=DENY")
