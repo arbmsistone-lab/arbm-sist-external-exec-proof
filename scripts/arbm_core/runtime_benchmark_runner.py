@@ -52,7 +52,8 @@ def run_task(task: BenchmarkTask, trial: int) -> Mapping[str,Any]:
     before_value="before"
     desired=f"done:{task.domain}:{task.seed}"
     entity=f"bench.{task.domain}.{task.task_id}"
-    initial=_evidence(task,before_value,"v1",conflict=(task.domain=="adversarial" and task.seed % 11 == 0))
+    variant=str(task.metadata.get("variant") or "nominal")
+    initial=_evidence(task,before_value,"v1",conflict=(variant=="adversarial" or (task.domain=="adversarial" and task.seed % 11 == 0)))
     initial_world=fuse_world_state(initial)
 
     # Adversarial conflicting evidence is expected to fail closed safely.
@@ -71,13 +72,14 @@ def run_task(task: BenchmarkTask, trial: int) -> Mapping[str,Any]:
 
     def executor(action):
         current["attempts"]+=1
+        inject_variant=(variant=="faulted" and current["attempts"]==1)
         inject_recovery=(task.domain=="recovery" and task.seed % 3 == 0 and current["attempts"]==1)
         inject_provider=(task.domain=="provider_resilience" and task.seed % 4 == 0 and current["attempts"]==1)
-        if inject_recovery or inject_provider:
+        if inject_variant or inject_recovery or inject_provider:
             return {
                 "accepted":False,
                 "injected":True,
-                "kind":"provider" if inject_provider else "execution",
+                "kind":"provider" if inject_provider else ("variant_fault" if inject_variant else "execution"),
             }
         current["world"]=fuse_world_state(_evidence(task,desired,f"v{current['attempts']+1}"))
         return {"accepted":True,"domain":task.domain}
@@ -95,7 +97,7 @@ def run_task(task: BenchmarkTask, trial: int) -> Mapping[str,Any]:
         entity,
         {"value":desired},
         tuple(task.required_capabilities),
-        retry_budget=(2 if task.domain in ("recovery","provider_resilience") else 1),
+        retry_budget=(2 if variant=="faulted" or task.domain in ("recovery","provider_resilience") else 1),
     )
     runtime=ARBMRuntime(assurance=BenchmarkAssurance())
     result=runtime.run(
