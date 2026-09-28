@@ -1,0 +1,13 @@
+{
+  "candidate_sha": "76e2d61b3d6b266c277c01cf3384c0b4733c3397",
+  "checkpoint": 1,
+  "checkpoint_hash": "d3630700254500755a318f9b9023eb70ff65a203d99aabbfd966867719d55cf8",
+  "duplicate_effect_executions": 0,
+  "effect_receipt": "provider_tx_demo_001",
+  "effect_state": "OBSERVED_UNCOMMITTED",
+  "fencing_token": 1,
+  "idempotency_key": "arbm-sist-76e2d61b-001:effect:1",
+  "mission_id": "arbm-sist-76e2d61b-001",
+  "owner": "buildkite-railway-A",
+  "schema_version": 2
+}
