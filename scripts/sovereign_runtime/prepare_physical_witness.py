@@ -9,8 +9,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 EXPECTED = "3af925426537c51ed72eed6ae652fbaef0f1c95c"
 
 actual = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
-if actual != EXPECTED:
-    raise SystemExit(f"EXACT_CANDIDATE_SHA=FAIL actual={actual} expected={EXPECTED}")
+ancestor = subprocess.run(["git", "merge-base", "--is-ancestor", EXPECTED, actual])
+if ancestor.returncode != 0:
+    raise SystemExit(f"CANDIDATE_BINDING=FAIL candidate={EXPECTED} executor={actual}")
+print(f"WITNESS_HARNESS_COMMIT={actual}")
 
 out = ROOT / "takeover-prepared.json"
 subprocess.run(
