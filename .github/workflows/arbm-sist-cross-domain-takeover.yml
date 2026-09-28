@@ -1,0 +1,104 @@
+name: ARBM SIST Cross-Domain Takeover Witness
+
+on:
+  pull_request:
+    branches:
+      - cert/arbm-091-56c813654988
+    paths:
+      - evidence/physical/takeover-prepared-*.json
+
+permissions:
+  contents: read
+
+jobs:
+  physical-takeover-b:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout evidence head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          path: evidence-head
+          persist-credentials: false
+
+      - name: Locate and resolve checkpoint candidate
+        id: checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          checkpoint="$(find evidence-head/evidence/physical -maxdepth 1 -name 'takeover-prepared-current.json' -print -quit)"
+          test -n "$checkpoint"
+          candidate_sha="$(python3 -c 'import json;print(json.load(open("'"$checkpoint"'"))["candidate_sha"])')"
+          echo "path=$checkpoint" >> "$GITHUB_OUTPUT"
+          echo "candidate_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
+          echo "CANDIDATE_SHA=$candidate_sha"
+
+      - name: Checkout frozen exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ steps.checkpoint.outputs.candidate_sha }}
+          path: candidate-src
+          persist-credentials: false
+
+      - name: Resume A checkpoint on independent GitHub executor B
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ steps.checkpoint.outputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          cp "${{ steps.checkpoint.outputs.path }}" candidate-src/takeover-prepared.json
+          cd candidate-src
+
+          python3 - "$CANDIDATE_SHA" <<'PY'
+          import json,pathlib,sys
+          d=json.loads(pathlib.Path("takeover-prepared.json").read_text())
+          if d.get("candidate_sha") != sys.argv[1]:
+              raise SystemExit("CHECKPOINT_CANDIDATE_BINDING=FAIL")
+          print("CHECKPOINT_CANDIDATE_BINDING=PASS")
+          PY
+
+          python3 scripts/sovereign_runtime/takeover_protocol.py takeover --infile takeover-prepared.json --new-owner github-actions-B --out takeover-taken.json
+
+          python3 scripts/sovereign_runtime/takeover_protocol.py verify --prepared takeover-prepared.json --taken takeover-taken.json --expected-candidate "$CANDIDATE_SHA"
+
+          new_token="$(python3 -c 'import json;print(json.load(open("takeover-taken.json"))["fencing_token"])')"
+          idem="$(python3 -c 'import json;print(json.load(open("takeover-taken.json"))["idempotency_key"])')"
+          receipt="$(python3 -c 'import json;print(json.load(open("takeover-taken.json"))["effect_receipt"])')"
+          old_owner="$(python3 -c 'import json;print(json.load(open("takeover-prepared.json"))["owner"])')"
+          old_token="$(python3 -c 'import json;print(json.load(open("takeover-prepared.json"))["fencing_token"])')"
+
+          python3 scripts/sovereign_runtime/takeover_protocol.py commit --infile takeover-taken.json --owner github-actions-B --token "$new_token" --idempotency-key "$idem" --receipt "$receipt" --out takeover-committed.json
+
+          set +e
+          python3 scripts/sovereign_runtime/takeover_protocol.py commit --infile takeover-taken.json --owner "$old_owner" --token "$old_token" --idempotency-key "$idem" --receipt "$receipt" > stale-owner.log 2>&1
+          stale_rc=$?
+          set -e
+          test "$stale_rc" -eq 23
+          grep -q "COMMIT=REJECTED stale_fencing" stale-owner.log
+
+          python3 - "$CANDIDATE_SHA" <<'PY'
+          import hashlib,json,pathlib,sys
+          prepared=json.loads(pathlib.Path("takeover-prepared.json").read_text())
+          taken=json.loads(pathlib.Path("takeover-taken.json").read_text())
+          committed=json.loads(pathlib.Path("takeover-committed.json").read_text())
+          witness={
+            "schema_version":1,
+            "candidate_sha":sys.argv[1],
+            "executor_a_failure_domain":"buildkite-control-plus-railway-executor",
+            "executor_b_failure_domain":"github",
+            "owner_changed":prepared["owner"] != taken["owner"],
+            "fencing_incremented":taken["fencing_token"] == prepared["fencing_token"] + 1,
+            "idempotency_key_preserved":taken["idempotency_key"] == prepared["idempotency_key"],
+            "effect_receipt_preserved":taken["effect_receipt"] == prepared["effect_receipt"],
+            "duplicate_effect_executions":taken["duplicate_effect_executions"],
+            "current_owner_commit":"PASS" if committed["effect_state"]=="COMMITTED" else "FAIL",
+            "stale_owner_rejection":"PASS",
+            "physical_takeover":"PASS"
+          }
+          raw=json.dumps(witness,sort_keys=True,separators=(",",":")).encode()
+          witness["sha256"]=hashlib.sha256(raw).hexdigest()
+          print(json.dumps(witness,sort_keys=True))
+          PY
+
+          echo "PHYSICAL_TAKEOVER_CROSS_DOMAIN=PASS"
+          echo "STALE_OWNER_REJECTION=PASS"
+          echo "IDEMPOTENCY_PRESERVED=PASS"

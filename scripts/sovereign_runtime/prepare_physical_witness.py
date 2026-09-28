@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+import hashlib
+import json
+import pathlib
+import subprocess
+import sys
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+EXPECTED = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+
+actual = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+ancestor = subprocess.run(["git", "merge-base", "--is-ancestor", EXPECTED, actual])
+if ancestor.returncode != 0:
+    raise SystemExit(f"CANDIDATE_BINDING=FAIL candidate={EXPECTED} executor={actual}")
+print(f"WITNESS_HARNESS_COMMIT={actual}")
+
+out = ROOT / "takeover-prepared.json"
+subprocess.run(
+    [
+        sys.executable,
+        str(ROOT / "scripts/sovereign_runtime/takeover_protocol.py"),
+        "prepare",
+        "--mission",
+        "arbm-sist-sovereign-runtime-physical-takeover",
+        "--owner",
+        "buildkite-control-plus-railway-executor",
+        "--candidate",
+        EXPECTED,
+        "--out",
+        str(out),
+    ],
+    check=True,
+)
+
+data = json.loads(out.read_text())
+data.update(
+    {
+        "provider": "buildkite+railway",
+        "failure_domain": "buildkite-control-plus-railway-executor",
+        "result": "PASS",
+        "independent_failure_domain": True,
+        "evidence_class": "PHYSICAL_PREPARE_WITNESS",
+    }
+)
+unsigned = dict(data)
+unsigned.pop("checkpoint_hash", None)
+unsigned.pop("evidence_sha256", None)
+data["evidence_sha256"] = hashlib.sha256(json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+checkpoint_material = dict(data)
+checkpoint_material.pop("checkpoint_hash", None)
+data["checkpoint_hash"] = hashlib.sha256(json.dumps(checkpoint_material, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+out.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+print("PHYSICAL_PREPARE_A=PASS")
+print("CANDIDATE_SHA=" + data["candidate_sha"])

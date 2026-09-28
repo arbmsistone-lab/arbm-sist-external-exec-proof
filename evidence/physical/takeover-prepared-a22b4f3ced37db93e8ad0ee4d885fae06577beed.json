@@ -1,0 +1,19 @@
+{
+  "candidate_sha": "a22b4f3ced37db93e8ad0ee4d885fae06577beed",
+  "checkpoint": 1,
+  "checkpoint_hash": "84ff1cb3943b54ab89f853cc0bfe4da3be026d4d6eab624f54aa0939d0e9436e",
+  "duplicate_effect_executions": 0,
+  "effect_receipt": "provider_tx_demo_001",
+  "effect_state": "OBSERVED_UNCOMMITTED",
+  "evidence_class": "PHYSICAL_PREPARE_WITNESS",
+  "evidence_sha256": "de29a0a0dcf887b964647e194f518e96ad5e183e91750f0641784e61942c7338",
+  "failure_domain": "buildkite-control-plus-railway-executor",
+  "fencing_token": 1,
+  "idempotency_key": "arbm-sist-sovereign-runtime-physical-takeover:effect:1",
+  "independent_failure_domain": true,
+  "mission_id": "arbm-sist-sovereign-runtime-physical-takeover",
+  "owner": "buildkite-control-plus-railway-executor",
+  "provider": "buildkite+railway",
+  "result": "PASS",
+  "schema_version": 2
+}

@@ -1,0 +1,40 @@
+name: Sovereign Runtime Candidate Gates
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - architecture/sovereign-runtime-resilience-v1
+permissions:
+  contents: read
+jobs:
+  executable-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Unit resilience model
+        run: python -m unittest scripts/sovereign_runtime/test_resilience_model.py -v
+      - name: Global route fabric invariants
+        run: python scripts/sovereign_runtime/global_route_gate.py
+      - name: Chaos contract gate
+        run: python scripts/sovereign_runtime/chaos_gate.py
+      - name: Bind synthetic witness to exact candidate
+        env:
+          CANDIDATE_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          python - <<'PY'
+          import json, os, pathlib
+          p=pathlib.Path("evidence/sovereign-runtime/gate-result.json")
+          d=json.loads(p.read_text())
+          d["candidate_sha"]=os.environ["CANDIDATE_SHA"]
+          d["workflow_run_id"]=os.environ["RUN_ID"]
+          d["evidence_class"]="SYNTHETIC_CONTRACT_WITNESS"
+          d["global_route_fabric_invariants"]=["NO_MANDATORY_PROVIDER","OPEN_ADAPTER_PROTOCOL","DYNAMIC_ROUTE_DISCOVERY","SURPLUS_ROUTE_CAPACITY"]
+          p.write_text(json.dumps(d,indent=2)+"\n")
+          PY
+      - name: Adversarial promotion gate
+        run: python scripts/sovereign_runtime/promotion_gate.py
+      - name: Verify fail-closed promotion
+        run: |
+          grep -q '"lease_fencing_takeover": "PASS"' evidence/sovereign-runtime/gate-result.json
+          grep -q '"idempotency_reconciliation": "PASS"' evidence/sovereign-runtime/gate-result.json

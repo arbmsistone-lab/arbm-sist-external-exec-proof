@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "status": "candidate",
+  "required_scenarios": [
+    {
+      "id": "C01",
+      "faults": [
+        "primary_executor_loss"
+      ],
+      "expect": "takeover_and_continue"
+    },
+    {
+      "id": "C02",
+      "faults": [
+        "github_domain_loss"
+      ],
+      "expect": "continue_without_github"
+    },
+    {
+      "id": "C03",
+      "faults": [
+        "buildkite_domain_loss"
+      ],
+      "expect": "continue_without_buildkite"
+    },
+    {
+      "id": "C04",
+      "faults": [
+        "native_runtime_loss"
+      ],
+      "expect": "mission_truth_survives"
+    },
+    {
+      "id": "C05",
+      "faults": [
+        "relay_loss"
+      ],
+      "expect": "alternate_route_takeover"
+    },
+    {
+      "id": "C06",
+      "faults": [
+        "notebook_loss"
+      ],
+      "expect": "continue_without_notebook"
+    },
+    {
+      "id": "C07",
+      "faults": [
+        "executor_loss",
+        "state_replica_a_loss"
+      ],
+      "expect": "recover_and_continue"
+    },
+    {
+      "id": "C08",
+      "faults": [
+        "executor_a_loss",
+        "executor_b_loss"
+      ],
+      "expect": "continue_if_resilience_budget_two"
+    },
+    {
+      "id": "C09",
+      "faults": [
+        "network_partition"
+      ],
+      "expect": "no_split_brain_commit"
+    },
+    {
+      "id": "C10",
+      "faults": [
+        "stale_executor_rejoin"
+      ],
+      "expect": "fencing_rejects_stale_commit"
+    },
+    {
+      "id": "C11",
+      "faults": [
+        "crash_after_external_effect_before_ack"
+      ],
+      "expect": "reconcile_without_duplicate_effect"
+    },
+    {
+      "id": "C12",
+      "faults": [
+        "verifier_loss"
+      ],
+      "expect": "alternate_verifier_or_not_proven"
+    },
+    {
+      "id": "C13",
+      "faults": [
+        "authority_route_loss"
+      ],
+      "expect": "alternate_authorized_route_or_fail_closed"
+    },
+    {
+      "id": "C14",
+      "faults": [
+        "evidence_store_loss"
+      ],
+      "expect": "alternate_evidence_route_or_not_proven"
+    },
+    {
+      "id": "C15",
+      "faults": [
+        "expired_route_witness"
+      ],
+      "expect": "route_removed_from_resilience_count"
+    },
+    {
+      "id": "C16",
+      "faults": [
+        "hidden_shared_dependency"
+      ],
+      "expect": "false_independence_detected"
+    }
+  ]
+}
