@@ -14,11 +14,47 @@ jobs:
   generalist-seed:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: mesh_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d mesh_test"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+      - name: Prepare ephemeral shared-control database
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGDATABASE: mesh_test
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -c "create extension if not exists pgcrypto"
+          psql -v ON_ERROR_STOP=1 -c "do \$\$ begin create role anon; exception when duplicate_object then null; end \$\$;"
+          psql -v ON_ERROR_STOP=1 -c "do \$\$ begin create role authenticated; exception when duplicate_object then null; end \$\$;"
+          psql -v ON_ERROR_STOP=1 -c "do \$\$ begin create role service_role; exception when duplicate_object then null; end \$\$;"
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260908234554_arbm_free_mesh_shared_control.sql
+
       - name: Execute first real generalist evolution battery
+        env:
+          ARBM_TEST_DATABASE: "1"
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGDATABASE: mesh_test
+          PGUSER: postgres
+          PGPASSWORD: postgres
         run: python3 scripts/evolution/generalist_seed.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
