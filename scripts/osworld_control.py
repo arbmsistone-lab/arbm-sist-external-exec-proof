@@ -171,8 +171,15 @@ def _gui_calls(command):
 
 
 def _repair_single_pointer_target(action, observation):
-    if action.get('action')!='exec' or isinstance(action.get('target'),dict):
+    if action.get('action')!='exec':
         return action
+    declared=action.get('target')
+    if isinstance(declared,dict):
+        source=str(declared.get('source') or '').lower()
+        label=str(declared.get('label') or '').strip()
+        role=str(declared.get('role') or '').strip()
+        if source in {'accessibility','screenshot'} and label and (source!='accessibility' or role):
+            return action
     # Repair is intentionally narrower than normal grounding. It exists only
     # for a single atomic pointer call whose supplied coordinates already land
     # inside exactly one accessibility control. Compound programs and semantic
