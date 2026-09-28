@@ -1,0 +1,115 @@
+name: ARBM OSWorld External Canary
+on:
+  pull_request:
+    paths:
+      - 'scripts/arbm_core/osworld_external_catalog.py'
+      - 'tests/arbm_core/test_osworld_external_catalog.py'
+      - '.github/workflows/arbm-osworld-external-canary.yml'
+permissions:
+  contents: read
+jobs:
+  canary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      ZERO_SPEND_MODE: HARD
+      OPENAI_BASE_URL: http://127.0.0.1:8088/v1
+      OPENAI_API_KEY: zero-spend-oidc-shim
+      ARBM_ENABLE_LOCAL_VLM: '1'
+      OSWORLD_CODE_SHA: b138d348256078fa634fc3b73567a7337c793e6b
+      OSWORLD_VM_REV: a5d9c3eaae98eebf6e3a0beb84e7e47cf72ae133
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Prove zero-spend cloud KVM
+        run: |
+          set -euo pipefail
+          test "$ZERO_SPEND_MODE" = HARD
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test -c /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - name: Install host dependencies
+        run: |
+          set -euo pipefail
+          python -m venv .host-venv
+          .host-venv/bin/python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
+          .host-venv/bin/python -m pip install --disable-pip-version-check -q huggingface_hub
+          echo "$GITHUB_WORKSPACE/.host-venv/bin" >> "$GITHUB_PATH"
+      - name: Clone pinned OSWorld classic and prove 369-task catalog
+        run: |
+          set -euo pipefail
+          git clone -q https://github.com/xlang-ai/OSWorld.git osworld
+          git -C osworld checkout -q "$OSWORLD_CODE_SHA"
+          test "$(git -C osworld rev-parse HEAD)" = "$OSWORLD_CODE_SHA"
+          PYTHONPATH="$GITHUB_WORKSPACE/scripts" python scripts/arbm_core/osworld_external_catalog.py osworld --out external-catalog.json
+          test "$(python -c 'import json; print(json.load(open("external-catalog.json"))["task_count"])')" = 369
+      - name: Download pinned official classic VM
+        run: |
+          set -euo pipefail
+          hf download xlangai/ubuntu_osworld Ubuntu.qcow2.zip             --repo-type dataset --revision "$OSWORLD_VM_REV" --local-dir hf-vm
+          unzip -q hf-vm/Ubuntu.qcow2.zip -d vm
+          QCOW=$(find vm -type f -name '*.qcow2' | head -1)
+          test -n "$QCOW"
+          echo "QCOW_PATH=$PWD/$QCOW" >> "$GITHUB_ENV"
+          sha256sum "$QCOW" | tee vm.sha256
+      - name: Prepare OSWorld environment
+        working-directory: osworld
+        run: |
+          set -euo pipefail
+          python -m venv .venv
+          .venv/bin/python -m pip install --disable-pip-version-check -q --upgrade pip setuptools wheel
+          .venv/bin/python -m pip install --disable-pip-version-check -q -r requirements.txt
+          .venv/bin/python -m pip install --disable-pip-version-check -q 'pyOpenSSL>=24,<26' 'cryptography>=42,<47'
+          .venv/bin/python - <<'PY2'
+          import OpenSSL, cryptography, pydrive
+          print('ISOLATED_OSWORLD_PYTHON_OK', OpenSSL.__version__, cryptography.__version__)
+          PY2
+          docker pull happysixd/osworld-docker:latest
+      - name: Build multi-domain canary task set
+        run: |
+          python - <<'PY'
+          import json
+          meta=json.load(open('osworld/evaluation_examples/test_all.json'))
+          wanted=['chrome','gimp','libreoffice_calc','libreoffice_impress','multi_apps','vs_code']
+          out={d:[meta[d][0]] for d in wanted}
+          open('osworld/evaluation_examples/test_arbm_external_canary.json','w').write(json.dumps(out))
+          print(out)
+          PY
+      - name: Start ARBM real execution shim
+        run: |
+          set -euo pipefail
+          python scripts/osworld_free_mesh_shim.py > shim-runtime.log 2>&1 &
+          echo $! > shim.pid
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8088/health >/dev/null && exit 0
+            kill -0 "$(cat shim.pid)" 2>/dev/null || break
+            sleep 1
+          done
+          cat shim-runtime.log
+          exit 1
+      - name: Execute six official external tasks
+        working-directory: osworld
+        run: |
+          set -euo pipefail
+          PYTHONNOUSERSITE=1 PYTHONPATH="$GITHUB_WORKSPACE/scripts:$PWD" .venv/bin/python scripts/python/run_multienv.py             --headless             --provider_name docker             --path_to_vm "$QCOW_PATH"             --test_all_meta_path evaluation_examples/test_arbm_external_canary.json             --domain all             --observation_type screenshot_a11y_tree             --action_space pyautogui             --model gpt-arbm-osworld-vnext             --temperature 0             --max_steps 100             --max_trajectory_length 8             --max_tokens 4096             --num_envs 1             --result_dir ../external-canary-results
+      - name: Summarize official canary
+        run: |
+          set -euo pipefail
+          cd osworld
+          python show_result.py --result_dir ../external-canary-results --detailed | tee ../external-canary-summary.txt
+      - name: Stop shim
+        if: always()
+        run: |
+          kill "$(cat shim.pid)" 2>/dev/null || true
+      - name: Preserve canary evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: arbm-osworld-external-canary
+          path: |
+            external-catalog.json
+            external-canary-results
+            external-canary-summary.txt
+            shim-runtime.log
+            vm.sha256
+          if-no-files-found: warn
+          retention-days: 90
