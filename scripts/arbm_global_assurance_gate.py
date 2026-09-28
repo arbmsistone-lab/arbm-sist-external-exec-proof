@@ -145,7 +145,7 @@ def inspect_repo(root="."):
         "TASK091_SECTION_E_FORMAT" in closed_matrix
         and "'shape_id': 16" in closed_matrix
         and "'shape_name': 'KpiReadout_Body'" in closed_matrix
-        and "'font_decrements': 7" in closed_matrix
+        and "'font_decrements': 9" in closed_matrix
         and "task091_verify_font_transaction" in shim
         and "section-e-semantic-roundtrip" in shim
         and "TASK091_SECTION_E_ROUNDTRIP_DRIFT" in shim
