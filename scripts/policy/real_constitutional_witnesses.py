@@ -5,7 +5,7 @@ root=pathlib.Path(__file__).resolve().parents[2]
 def run(cmd): return subprocess.run(cmd,cwd=root,text=True,capture_output=True)
 # Regression witness: deterministic constitutional test suite on exact candidate.
 r=run([sys.executable,"scripts/policy/test_full_constitutional_gate.py"])
-reg=(r.returncode==0 and "NEGATIVE_REGRESSION_PATH=DENY" in r.stdout and "VERIFIED_POSITIVE_PATH=ALLOW" in r.stdout)
+reg=(r.returncode==0 and "CURRENT_CONSTITUTION_READY_MATRIX=ALLOW" in r.stdout and "NEGATIVE_REGRESSION_PATH=DENY" in r.stdout and "ADVERSARIAL_FAIL_CLOSED_SELF_TEST=PASS" in r.stdout)
 # Rollback witness: baseline object must exist and candidate must be able to identify it as a distinct git commit.
 rb=run(["git","cat-file","-e",a.baseline+"^{commit}"])
 rollback=(rb.returncode==0 and a.baseline!=a.candidate)
