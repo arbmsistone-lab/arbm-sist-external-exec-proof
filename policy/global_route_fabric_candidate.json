@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "status": "candidate_not_constitutional",
+  "provider_neutral": true,
+  "hardcoded_provider_allowlist": false,
+  "route_classes": [
+    "native_runtime",
+    "customer_runtime",
+    "cloud_runner",
+    "ci_runner",
+    "container",
+    "vm_bare_metal",
+    "serverless_edge",
+    "browser_node",
+    "official_api_connector",
+    "remote_desktop_node",
+    "state_backend",
+    "evidence_backend"
+  ],
+  "required_route_properties": [
+    "legitimate_authority",
+    "capability_match",
+    "health_pass",
+    "fresh_witness",
+    "dependency_graph",
+    "cost_policy_pass",
+    "security_policy_pass"
+  ],
+  "critical_route_properties": [
+    "takeover_witness"
+  ],
+  "routing_objectives": [
+    "safety",
+    "failure_domain_diversity",
+    "spare_capacity",
+    "availability",
+    "latency",
+    "cost_policy"
+  ],
+  "unavailable_route_behavior": "remove_from_eligible_quorum",
+  "rejoin_behavior": "requalify_before_counting",
+  "unknown_route_behavior": "not_counted_until_qualified"
+}
