@@ -17,6 +17,7 @@ jobs:
       OPENAI_BASE_URL: http://127.0.0.1:8088/v1
       OPENAI_API_KEY: zero-spend-oidc-shim
       ARBM_ENABLE_LOCAL_VLM: '1'
+      ARBM_LOCAL_VLM_OPEN_PLANNER: '1'
       ARBM_OSWORLD_SHIM_LOG: osworld-v32-shim.log
       OSWORLD_CODE_SHA: b138d348256078fa634fc3b73567a7337c793e6b
       OSWORLD_VM_REV: a5d9c3eaae98eebf6e3a0beb84e7e47cf72ae133
