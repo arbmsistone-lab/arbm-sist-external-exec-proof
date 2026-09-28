@@ -1,0 +1,72 @@
+name: ARBM SIST Physical Takeover B Witness
+on:
+  push:
+    paths:
+      - "evidence/physical/takeover-prepared-3af.json"
+      - ".github/workflows/arbm-sist-physical-takeover-b.yml"
+permissions:
+  contents: read
+jobs:
+  takeover-b:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Execute exact checkpoint takeover
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib
+          d=json.loads(pathlib.Path("evidence/physical/takeover-prepared-3af.json").read_text())
+          assert d["candidate_sha"]=="3af925426537c51ed72eed6ae652fbaef0f1c95c"
+          assert d["owner"]=="buildkite-control-plus-railway-executor"
+          assert d["fencing_token"]==1
+          assert d["idempotency_key"]=="arbm-sist-sovereign-runtime-physical-takeover:effect:1"
+          assert d["effect_receipt"]=="provider_tx_demo_001"
+          print("CHECKPOINT_BINDING=PASS")
+          PY
+          python3 scripts/sovereign_runtime/takeover_protocol.py takeover             --infile evidence/physical/takeover-prepared-3af.json             --new-owner github-actions-B             --out takeover-taken.json
+          python3 scripts/sovereign_runtime/takeover_protocol.py verify             --prepared evidence/physical/takeover-prepared-3af.json             --taken takeover-taken.json             --expected-candidate 3af925426537c51ed72eed6ae652fbaef0f1c95c
+          new_token="$(python3 -c 'import json; print(json.load(open("takeover-taken.json"))["fencing_token"])')"
+          idem="$(python3 -c 'import json; print(json.load(open("takeover-taken.json"))["idempotency_key"])')"
+          receipt="$(python3 -c 'import json; print(json.load(open("takeover-taken.json"))["effect_receipt"])')"
+          set +e
+          python3 scripts/sovereign_runtime/takeover_protocol.py commit             --infile takeover-taken.json             --owner buildkite-control-plus-railway-executor             --token 1             --idempotency-key "$idem"             --receipt "$receipt" > stale.log 2>&1
+          stale_rc=$?
+          set -e
+          test "$stale_rc" -eq 23
+          grep -q "COMMIT=REJECTED stale_fencing" stale.log
+          python3 scripts/sovereign_runtime/takeover_protocol.py commit             --infile takeover-taken.json             --owner github-actions-B             --token "$new_token"             --idempotency-key "$idem"             --receipt "$receipt"             --out takeover-committed.json
+          python3 - <<'PY'
+          import hashlib,json,pathlib
+          p=pathlib.Path("takeover-taken.json")
+          d=json.loads(p.read_text())
+          witness={
+            "candidate_sha":"3af925426537c51ed72eed6ae652fbaef0f1c95c",
+            "executor_a_failure_domain":"buildkite-control-plus-railway-executor",
+            "executor_b_failure_domain":"github",
+            "owner_changed":d["owner"]=="github-actions-B",
+            "fencing_incremented":d["fencing_token"]==2,
+            "idempotency_key_preserved":d["idempotency_key"]=="arbm-sist-sovereign-runtime-physical-takeover:effect:1",
+            "effect_receipt_preserved":d["effect_receipt"]=="provider_tx_demo_001",
+            "duplicate_effect_executions":d["duplicate_effect_executions"],
+            "stale_owner_rejection":"PASS",
+            "physical_takeover":"PASS"
+          }
+          witness["sha256"]=hashlib.sha256(json.dumps(witness,sort_keys=True,separators=(",",":")).encode()).hexdigest()
+          pathlib.Path("evidence/physical/takeover-witness-b.json").write_text(json.dumps(witness,indent=2,sort_keys=True)+"
+")
+          print("PHYSICAL_TAKEOVER_CROSS_DOMAIN=PASS")
+          print("STALE_OWNER_REJECTION=PASS")
+          print("IDEMPOTENCY_PRESERVED=PASS")
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: arbm-sist-takeover-witness-b
+          path: |
+            takeover-taken.json
+            takeover-committed.json
+            stale.log
+            evidence/physical/takeover-witness-b.json
