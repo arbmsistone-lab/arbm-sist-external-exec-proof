@@ -7,6 +7,7 @@ on:
       - "arbm-*-tests.py"
       - "arbm-context-isolation.py"
       - "test_shared_control.py"
+      - ".github/workflows/arbm-sist-generalist-evolution-seed.yml"
   workflow_dispatch:
 permissions:
   contents: read
