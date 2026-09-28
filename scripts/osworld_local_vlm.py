@@ -13,8 +13,8 @@ import time
 from osworld_control import canonical_action, canonical_target_proof
 
 ROUTE = 'local-cloud-vlm'
-MODEL = 'HuggingFaceTB/SmolVLM-256M-Instruct'
-MODEL_REVISION = '7e3e67edbbed1bf9888184d9df282b700a323964'
+MODEL = os.environ.get('ARBM_LOCAL_VLM_MODEL','HuggingFaceTB/SmolVLM-256M-Instruct')
+MODEL_REVISION = os.environ.get('ARBM_LOCAL_VLM_MODEL_REVISION','7e3e67edbbed1bf9888184d9df282b700a323964')
 _RECOVERABLE_CONTRACT_ERRORS = {
     'LOCAL_ACTION_REQUIRED',
     'LOCAL_GROUNDING_REQUIRED',
@@ -877,11 +877,31 @@ class LocalVLMRoute:
             return result,attempts
 
         if self.infer is default_infer:
+            if os.environ.get('ARBM_LOCAL_VLM_OPEN_PLANNER')=='1':
+                try:
+                    output=self.infer(text,image_arg,128)
+                    elapsed=self.clock()-started
+                    action=parse_action_object(output,body.get('observation',''))
+                    if elapsed<=budget:
+                        result={'provider':'local-cloud-vlm','model':MODEL,'action':action,
+                                'raw_response':{'choices':[{'message':{'role':'assistant','content':str(output)}}]}}
+                        attempts.append({**base,'status':200,'zero_spend_confirmed':True,
+                                         'planner_mode':'open_structured_generation',
+                                         'latency_seconds':round(elapsed,3),**_output_evidence(output)})
+                        return result,attempts
+                    attempts.append({**base,'status':'budget_exceeded','planner_mode':'open_structured_generation',
+                                     'latency_seconds':round(elapsed,3),**_output_evidence(output)})
+                except ValueError as exc:
+                    attempts.append({**base,'status':'open_planner_contract_rejected','error_type':'ValueError',
+                                     'contract_error':str(exc),'planner_mode':'open_structured_generation'})
+                except Exception as exc:
+                    attempts.append({**base,'status':'open_planner_error','error_type':type(exc).__name__,
+                                     'planner_mode':'open_structured_generation'})
             try:
                 action,selector_meta=default_select_action(body,image_arg)
                 elapsed=self.clock()-started
                 if elapsed>budget:
-                    return None,[{**base,'status':'budget_exceeded','selector_mode':'single_forward_logits',
+                    return None,attempts+[{**base,'status':'budget_exceeded','selector_mode':'single_forward_logits',
                                   'latency_seconds':round(elapsed,3),**selector_meta}]
                 result={'provider':'local-cloud-vlm','model':MODEL,'action':action,
                         'raw_response':{'choices':[{'message':{'role':'assistant','content':selector_meta['selector_symbol']}}]}}
@@ -890,10 +910,10 @@ class LocalVLMRoute:
                 return result,attempts
             except ValueError as exc:
                 status='selector_unavailable' if str(exc).startswith('LOCAL_SELECTOR_') else 'local_model_error'
-                return None,[{**base,'status':status,'error_type':'ValueError','contract_error':str(exc),
+                return None,attempts+[{**base,'status':status,'error_type':'ValueError','contract_error':str(exc),
                               'selector_mode':'single_forward_logits'}]
             except Exception as exc:
-                return None,[{**base,'status':'local_model_error','error_type':type(exc).__name__,
+                return None,attempts+[{**base,'status':'local_model_error','error_type':type(exc).__name__,
                               'selector_mode':'single_forward_logits'}]
 
         output=None; last_error='LOCAL_ACTION_REQUIRED'; max_repairs=max(0,min(2,int(os.environ.get('ARBM_LOCAL_VLM_REPAIRS','2'))))
