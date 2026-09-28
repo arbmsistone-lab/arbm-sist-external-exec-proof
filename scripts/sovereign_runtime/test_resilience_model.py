@@ -13,6 +13,16 @@ class ResilienceTests(unittest.TestCase):
  def test_shared_dependency_collapses_domains(self):
   rs=[Route("a","c","A",{"g"},witness_epoch=10),Route("b","c","B",{"g"},witness_epoch=10)]
   self.assertEqual(independent_domains(rs,"c",10),1)
+ def test_transitive_dependency_collapse_is_order_independent(self):
+  # A overlaps B through x; B overlaps C through y. All three are one
+  # connected failure component even though A and C do not overlap directly.
+  rs=[
+   Route("a","c","A",{"x"},witness_epoch=10),
+   Route("c","c","C",{"y"},witness_epoch=10),
+   Route("b","c","B",{"x","y"},witness_epoch=10),
+  ]
+  self.assertEqual(independent_domains(rs,"c",10),1)
+  self.assertEqual(independent_domains(list(reversed(rs)),"c",10),1)
  def test_two_domain_loss_leaves_three(self):
   rs=[Route(str(i),"c",str(i),witness_epoch=10) for i in range(5)]
   self.assertTrue(survives(rs,"c",10,{"0","1"},3))
