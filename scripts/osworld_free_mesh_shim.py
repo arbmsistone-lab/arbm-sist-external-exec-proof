@@ -2746,7 +2746,8 @@ def call_mesh(messages):
                 decision=apply_live_policy(action,body.get('active_application','unknown'),focused_obs,body.get('verified_milestones',[]))
                 senior_review=require_senior_elite(
                     action,task_id=os.environ.get('TASK_ID'),source='generic-mesh',
-                    state=STATE,verifier=VERIFIER.last_result,recent_commands=recent_commands)
+                    state=STATE,verifier=VERIFIER.last_result,recent_commands=recent_commands,
+                    instruction=body.get('instruction',''))
                 log_event({'status':'SENIOR_ELITE_BOARD_PASS','source':'generic-mesh',
                            'pass':senior_review['pass'],'total':senior_review['total'],
                            'lanes':senior_review['lanes']})
