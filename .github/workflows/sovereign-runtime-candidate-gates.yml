@@ -1,0 +1,23 @@
+name: Sovereign Runtime Candidate Gates
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - architecture/sovereign-runtime-resilience-v1
+permissions:
+  contents: read
+jobs:
+  executable-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Unit resilience model
+        run: python -m unittest scripts/sovereign_runtime/test_resilience_model.py -v
+      - name: Chaos contract gate
+        run: python scripts/sovereign_runtime/chaos_gate.py
+      - name: Adversarial promotion gate
+        run: python scripts/sovereign_runtime/promotion_gate.py
+      - name: Verify fail-closed promotion
+        run: |
+          grep -q '"lease_fencing_takeover": "PASS"' evidence/sovereign-runtime/gate-result.json
+          grep -q '"idempotency_reconciliation": "PASS"' evidence/sovereign-runtime/gate-result.json
