@@ -32,6 +32,13 @@ jobs:
           test "$RUNNER_ENVIRONMENT" = github-hosted
           test -c /dev/kvm
           sudo chmod 666 /dev/kvm
+      - name: Prove OSWorld control-plane contracts
+        env:
+          PYTHONPATH: ${{ github.workspace }}/scripts
+        run: |
+          set -euo pipefail
+          python tests/arbm091/test_senior_elite_agent.py
+          python scripts/test_osworld_local_vlm.py
       - name: Install host dependencies
         run: |
           set -euo pipefail
