@@ -673,20 +673,32 @@ def install(environment_class):
                                     repairs.append(_guest_coverstat_geometry_repair(controller,target))
                             if repairs:
                                 row['coverstat_geometry_repairs']=repairs
-                        if active_slide == 3:
-                            try:
-                                sec_shape_before=next((x for x in (before.get('deck_slide_shapes',{}).get('3') or [])
-                                                        if int(x.get('id') or 0)==16 and str(x.get('name') or '')=='KpiReadout_Body'),None)
-                                sec_shape_after=next((x for x in (persisted.get('deck_slide_shapes',{}).get('3') or [])
-                                                       if int(x.get('id') or 0)==16 and str(x.get('name') or '')=='KpiReadout_Body'),None)
-                                if (isinstance(sec_shape_before,dict) and isinstance(sec_shape_after,dict)
-                                    and list(sec_shape_after.get('font_sizes') or [])==list(sec_shape_before.get('font_sizes') or [])
-                                    and str(sec_shape_after.get('text') or '').find('• Burn improvement relies on expansion payback from Q4.')>=0):
-                                    repair=_guest_section_e_font_repair(controller,before,persisted)
-                                    row['section_e_font_repair']=repair
-                                    persisted,_=_settled_probe(controller,None)
-                            except Exception as exc:
-                                raise RuntimeError('TASK091_SECTION_E_FONT_REPAIR_BLOCKED:'+str(exc)[:240])
+                        # Section E is deck-scoped: the critical harness may save while another slide is active.
+                        # Detect the unique target from persisted deck state instead of gating reachability on UI slide state.
+                        try:
+                            sec_rows=(persisted.get('deck_slide_shapes',{}).get('3') or [])
+                            sec_matches=[x for x in sec_rows if int(x.get('id') or 0)==16 and str(x.get('name') or '')=='KpiReadout_Body']
+                            require(len(sec_matches)==1,'TASK091_SECTION_E_FONT_TARGET_NOT_UNIQUE_POST_SAVE')
+                            sec_shape_after=sec_matches[0]
+                            sec_text=str(sec_shape_after.get('text') or '')
+                            sec_geom=dict(sec_shape_after.get('geometry') or {})
+                            sec_sizes=[int(v) for v in (sec_shape_after.get('font_sizes') or [])]
+                            if ('• Burn improvement relies on expansion payback from Q4.' in sec_text
+                                and sec_sizes and all(v==1200 for v in sec_sizes)):
+                                repair=_guest_section_e_font_repair(controller,persisted,persisted)
+                                row['section_e_font_repair']=repair
+                                verified,_=_settled_probe(controller,None)
+                                verified_matches=[x for x in (verified.get('deck_slide_shapes',{}).get('3') or [])
+                                                  if int(x.get('id') or 0)==16 and str(x.get('name') or '')=='KpiReadout_Body']
+                                require(len(verified_matches)==1,'TASK091_SECTION_E_FONT_TARGET_NOT_UNIQUE_AFTER_REPAIR')
+                                verified_shape=verified_matches[0]
+                                require(str(verified_shape.get('text') or '')==sec_text,'TASK091_SECTION_E_FONT_TEXT_DRIFT')
+                                require(dict(verified_shape.get('geometry') or {})==sec_geom,'TASK091_SECTION_E_FONT_GEOMETRY_DRIFT')
+                                require([int(v) for v in (verified_shape.get('font_sizes') or [])]==[500 for _ in sec_sizes],
+                                        'TASK091_SECTION_E_FONT_NOT_PERSISTED_1200_TO_500')
+                                persisted=verified
+                        except Exception as exc:
+                            raise RuntimeError('TASK091_SECTION_E_FONT_REPAIR_BLOCKED:'+str(exc)[:240])
                     after, reference = snapshot(controller, root, f'{step:04d}-{substep:02d}-after', None, next_active_slide)
                     row['after'] = reference
                     postflight(atom, before, after)
