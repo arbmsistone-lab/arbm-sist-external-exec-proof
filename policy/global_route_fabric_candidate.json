@@ -1,8 +1,31 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "status": "candidate_not_constitutional",
+  "invariants": {
+    "NO_MANDATORY_PROVIDER": true,
+    "OPEN_ADAPTER_PROTOCOL": true,
+    "DYNAMIC_ROUTE_DISCOVERY": true,
+    "SURPLUS_ROUTE_CAPACITY": true
+  },
   "provider_neutral": true,
   "hardcoded_provider_allowlist": false,
+  "provider_names_non_semantic": true,
+  "adapter_protocol": {
+    "version": "arbm-route-adapter/v1",
+    "lifecycle": [
+      "DISCOVER",
+      "AUTHENTICATE",
+      "QUALIFY",
+      "LEASE",
+      "EXECUTE",
+      "OBSERVE",
+      "CHECKPOINT",
+      "VERIFY",
+      "RELEASE"
+    ],
+    "registration": "dynamic",
+    "future_adapters_without_mission_kernel_change": true
+  },
   "route_classes": [
     "native_runtime",
     "customer_runtime",
@@ -27,8 +50,14 @@
     "security_policy_pass"
   ],
   "critical_route_properties": [
-    "takeover_witness"
+    "takeover_witness",
+    "independent_failure_domain"
   ],
+  "resilience": {
+    "target_failure_domain_tolerance": 2,
+    "required_spare_routes_after_tolerated_failures": 1,
+    "shared_critical_dependency_collapses_routes": true
+  },
   "routing_objectives": [
     "safety",
     "failure_domain_diversity",
