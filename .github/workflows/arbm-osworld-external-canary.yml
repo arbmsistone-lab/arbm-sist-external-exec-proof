@@ -43,6 +43,8 @@ jobs:
           git clone -q https://github.com/xlang-ai/OSWorld.git osworld
           git -C osworld checkout -q "$OSWORLD_CODE_SHA"
           test "$(git -C osworld rev-parse HEAD)" = "$OSWORLD_CODE_SHA"
+          python scripts/arbm_core/patch_osworld_runner.py osworld/lib_run_single.py
+          grep -q "ARBM_OSWORLD_SCREENSHOT_REACQUIRE_V1" osworld/lib_run_single.py
           PYTHONPATH="$GITHUB_WORKSPACE/scripts" python scripts/arbm_core/osworld_external_catalog.py osworld --out external-catalog.json
           test "$(python -c 'import json; print(json.load(open("external-catalog.json"))["task_count"])')" = 369
       - name: Download pinned official classic VM
