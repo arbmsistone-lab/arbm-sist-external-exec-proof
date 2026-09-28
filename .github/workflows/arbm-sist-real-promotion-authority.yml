@@ -32,7 +32,7 @@ jobs:
           echo "constitutional=${INPUT_CONSTITUTIONAL:-36356485760}" >> "$GITHUB_OUTPUT"
           echo "adversarial=${INPUT_ADVERSARIAL:-36356485768}" >> "$GITHUB_OUTPUT"
           echo "witness=${INPUT_WITNESS:-36356485773}" >> "$GITHUB_OUTPUT"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.sha }}
           fetch-depth: 2
@@ -65,7 +65,7 @@ jobs:
           test -n "$WITNESS"
           python3 scripts/policy/build_final_real_manifest.py --candidate "$CANDIDATE" --baseline "$BASELINE" --constitutional-run "evidence/constitutional/runtime/run-$C.json" --adversarial-run "evidence/constitutional/runtime/run-$A.json" --witness-run "evidence/constitutional/runtime/run-$W.json" --witness-json "$WITNESS" --out evidence/constitutional/promotion-evidence.json
           python3 scripts/policy/full_constitutional_gate.py --evidence evidence/constitutional/promotion-evidence.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: constitutional-real-promotion-${{ steps.proof.outputs.candidate }}
           path: evidence/constitutional/
