@@ -1,0 +1,112 @@
+name: ARBM 091 Slide3 Official Containment Sweep
+run-name: ARBM 091 slide3 containment sweep ${{ github.sha }}
+'on':
+  push:
+    branches:
+      - chatgpt/arbm-091-evaluator-lab-20260928
+    paths:
+      - .github/workflows/arbm-091-slide3-official-sweep.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  sweep:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Hydrate exact pinned Task 091
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v2026.08.08 https://github.com/xlang-ai/OSWorld-V2.git osworld
+          test "$(git -C osworld rev-parse HEAD)" = d578d2d4e0dc82b43e270fdaa7fa89d9708cd154
+          python -m pip install --disable-pip-version-check -q uv==0.8.15 huggingface_hub==0.35.3
+          cd osworld
+          uv sync --frozen
+          uv run python scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08
+          test -f evaluation_examples/task_class/task_091.py
+          cd ..
+      - name: Recover best-run deck evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p prior
+          gh run download 36348777998 --repo "$GITHUB_REPOSITORY" --name osworld-v32-focal-091-free --dir prior
+          mapfile -t decks < <(find prior/task-091/saved-decks -type f -name '*.pptx' | sort)
+          test "${#decks[@]}" -gt 0
+          printf '%s\n' "${decks[@]}" | tee decks.txt
+          cp "${decks[-1]}" candidate.pptx
+          sha256sum candidate.pptx
+      - name: Execute official Slide 3 containment sweep
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd osworld
+          uv run python - <<'PY' | tee ../slide3-sweep.txt
+          import copy, importlib.util, json, sys
+          from pathlib import Path
+          from pptx import Presentation
+          from pptx.util import Pt
+
+          root=Path('..').resolve()
+          task_path=Path('evaluation_examples/task_class/task_091.py').resolve()
+          spec=importlib.util.spec_from_file_location('task091_official',task_path)
+          mod=importlib.util.module_from_spec(spec)
+          sys.modules['task091_official']=mod
+          spec.loader.exec_module(mod)
+
+          src=root/'candidate.pptx'
+          prs0=Presentation(str(src))
+          pairs=mod._rounded_text_container_pairs(prs0,3)
+          print('PAIRS',pairs)
+          refs=mod._slide_shape_refs(prs0,3)
+          for r in refs:
+              if r.key in {16} or any(r.key in p for p in pairs):
+                  print('REF',r.key,r.name,r.text,r.left,r.top,r.width,r.height,r.auto_shape_type)
+
+          def shrink(path_in,path_out,extra):
+              prs=Presentation(str(path_in))
+              slide=prs.slides[2]
+              target=None
+              for sh in slide.shapes:
+                  if int(getattr(sh,'shape_id',0) or 0)==16 and getattr(sh,'name','')=='KpiReadout_Body':
+                      target=sh; break
+              assert target is not None
+              for p in target.text_frame.paragraphs:
+                  for run in p.runs:
+                      if run.font.size is not None:
+                          run.font.size=Pt(max(1,run.font.size.pt-extra))
+              prs.save(str(path_out))
+              return prs
+
+          for extra in range(0,7):
+              out=root/f'candidate-extra-{extra}.pptx'
+              prs=shrink(src,out,extra)
+              pairs=mod._rounded_text_container_pairs(prs,3)
+              rendered=mod._local_rounded_text_container_masks(prs,3,pairs)
+              rows=[]
+              overall=True
+              for (tk,ck),(tm,cm) in rendered.items():
+                  meaningful,stats=mod._rendered_text_meaningfully_outside_container(tm,cm)
+                  rows.append((tk,ck,meaningful,stats))
+                  if meaningful is True:
+                      overall=False
+              print('SWEEP',extra,'PASS' if overall else 'FAIL',rows)
+          PY
+          cd ..
+      - name: Preserve sweep
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: task091-slide3-official-sweep
+          path: |
+            slide3-sweep.txt
+            decks.txt
+            candidate.pptx
+            candidate-extra-*.pptx
+          if-no-files-found: error
+          retention-days: 30
