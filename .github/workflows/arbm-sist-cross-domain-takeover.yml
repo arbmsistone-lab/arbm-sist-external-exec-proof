@@ -3,7 +3,7 @@ name: ARBM SIST Cross-Domain Takeover Witness
 on:
   pull_request:
     branches:
-      - architecture/sovereign-runtime-resilience-v1
+      - cert/arbm-091-56c813654988
     paths:
       - evidence/physical/takeover-prepared-*.json
 
@@ -23,19 +23,29 @@ jobs:
       - name: Checkout frozen candidate base
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: ${{ github.event.before }}
+          ref: ${{ steps.checkpoint.outputs.candidate_sha }}
           path: candidate-src
           persist-credentials: false
+
+      - name: Resolve checkpoint candidate
+        id: checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate_sha="$(python3 -c 'import json;print(json.load(open("candidate-src/takeover-prepared.json"))["candidate_sha"])')"
+          echo "candidate_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
 
       - name: Resume A checkpoint on independent GitHub executor B
         shell: bash
         env:
-          CANDIDATE_SHA: ${{ github.event.before }}
+          CANDIDATE_SHA: ${{ steps.checkpoint.outputs.candidate_sha }}
         run: |
           set -euo pipefail
           checkpoint="$(find evidence-head/evidence/physical -maxdepth 1 -name 'takeover-prepared-*.json' -print -quit)"
           test -n "$checkpoint"
           cp "$checkpoint" candidate-src/takeover-prepared.json
+          candidate_sha="$(python3 -c 'import json;print(json.load(open("candidate-src/takeover-prepared.json"))["candidate_sha"])')"
+          echo "candidate_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
           cd candidate-src
 
           python3 - "$CANDIDATE_SHA" <<'PY'
