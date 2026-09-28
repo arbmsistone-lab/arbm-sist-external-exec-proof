@@ -361,9 +361,14 @@ def _guest_section_e_font_repair(controller, before_state, persisted_state):
             imports="import pyautogui,pyperclip,time; "
             delay=0.50 if atom=="pyautogui.hotkey('ctrl','s')" else (0.25 if index in (1,3) else 0.12)
             code=imports+atom+"; time.sleep("+str(delay)+")"
-            response=session.post(server.rstrip("/")+"/execute",
-                                  json={"command":["python3","-c",code],"shell":False},
-                                  timeout=(3,30))
+            try:
+                response=session.post(server.rstrip("/")+"/execute",
+                                      json={"command":["python3","-c",code],"shell":False},
+                                      timeout=(3,75 if index in (1,2,3) else 30))
+            except requests.RequestException as exc:
+                raise RuntimeError(
+                    "TASK091_SECTION_E_GUI_FONT_REPAIR_TRANSPORT_ATOM_%d:%s" %
+                    (index,str(exc)[:160])) from exc
             response.raise_for_status()
             result=response.json()
             require(isinstance(result,dict) and result.get("returncode")==0 and result.get("status")=="success",
@@ -674,8 +679,8 @@ def install(environment_class):
                                     repairs.append(_guest_coverstat_geometry_repair(controller,target))
                             if repairs:
                                 row['coverstat_geometry_repairs']=repairs
-                        # Section E is deck-scoped: the critical harness may save while another slide is active.
-                        # Detect the unique target from persisted deck state instead of gating reachability on UI slide state.
+                        # The semantic planner owns the signed Slide 3 repair.
+                        # Do not preempt it during an earlier slide's save.
                         try:
                             sec_rows=(persisted.get('deck_slide_shapes',{}).get('3') or [])
                             sec_matches=[x for x in sec_rows if int(x.get('id') or 0)==16 and str(x.get('name') or '')=='KpiReadout_Body']
@@ -684,7 +689,8 @@ def install(environment_class):
                             sec_text=str(sec_shape_after.get('text') or '')
                             sec_geom=dict(sec_shape_after.get('geometry') or {})
                             sec_sizes=[int(v) for v in (sec_shape_after.get('font_sizes') or [])]
-                            if ('• Burn improvement relies on expansion payback from Q4.' in sec_text
+                            if (active_slide == 3
+                                and '• Burn improvement relies on expansion payback from Q4.' in sec_text
                                 and sec_sizes and all(v==1200 for v in sec_sizes)):
                                 repair=_guest_section_e_font_repair(controller,persisted,persisted)
                                 row['section_e_font_repair']=repair
