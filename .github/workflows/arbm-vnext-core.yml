@@ -11,7 +11,7 @@ permissions:
 jobs:
   vnext-contracts:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       PYTHONPATH: ${{ github.workspace }}/scripts
       ZERO_SPEND_MODE: HARD
@@ -22,3 +22,21 @@ jobs:
         run: python -m py_compile scripts/arbm_core/*.py tests/arbm_core/test_*.py
       - name: Run vNEXT contract suite
         run: python -m unittest discover -s tests/arbm_core -p 'test_*.py' -v
+      - name: Run balanced 400-task x3 shadow-runtime benchmark
+        run: |
+          python -m arbm_core.runtime_benchmark_runner --count 400 --repetitions 3 --out evidence/vnext/internal-400x3.json
+          python - <<'PY'
+          import json
+          d=json.load(open("evidence/vnext/internal-400x3.json"))
+          assert d["frontier_comparable"] is False
+          assert d["promotion"]["passed"] is True, d["promotion"]
+          assert d["metrics"]["total_cost_usd"] == 0.0
+          print("VNEXT_INTERNAL_400X3_GATE=PASS")
+          PY
+      - name: Preserve vNEXT benchmark evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: arbm-vnext-internal-400x3
+          path: evidence/vnext/internal-400x3.json
+          if-no-files-found: error
+          retention-days: 90
