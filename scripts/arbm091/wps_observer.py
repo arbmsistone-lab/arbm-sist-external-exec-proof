@@ -354,10 +354,22 @@ def _guest_section_e_font_repair(controller, before_state, persisted_state):
         "pyautogui.press('esc')",
         "pyautogui.hotkey('ctrl','s')",
     )
-    for index,atom in enumerate(atoms,1):
-        result=controller.execute_python_command(atom)
-        require(isinstance(result,dict) and result.get("returncode")==0 and result.get("status")=="success",
-                "TASK091_SECTION_E_GUI_FONT_REPAIR_ATOM_FAILED:%d:%s"%(index,str((result or {}).get("error",""))[:160]))
+    session=requests.Session()
+    session.trust_env=False
+    try:
+        for index,atom in enumerate(atoms,1):
+            imports="import pyautogui,pyperclip,time; "
+            delay=0.50 if atom=="pyautogui.hotkey('ctrl','s')" else (0.25 if index in (1,3) else 0.12)
+            code=imports+atom+"; time.sleep("+str(delay)+")"
+            response=session.post(server.rstrip("/")+"/execute",
+                                  json={"command":["python3","-c",code],"shell":False},
+                                  timeout=(3,30))
+            response.raise_for_status()
+            result=response.json()
+            require(isinstance(result,dict) and result.get("returncode")==0 and result.get("status")=="success",
+                    "TASK091_SECTION_E_GUI_FONT_REPAIR_ATOM_FAILED:%d:%s"%(index,str((result or {}).get("error",""))[:160]))
+    finally:
+        session.close()
     # Static contract marker retained for the closed-matrix source guard: 'action':'GUI_SECTION_E_FONT_REPAIR'
     return {"status":"PASS","action":"GUI_SECTION_E_FONT_REPAIR","target":[3,16,"KpiReadout_Body"],
             "font_delta_steps":spec["font_delta_steps"],"atoms":len(atoms)}
