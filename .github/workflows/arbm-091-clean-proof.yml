@@ -721,12 +721,26 @@ jobs:
       ARBM_RUN_MULTIENV_TIMEOUT_SECONDS: '2520'
       ARBM_VM_VOLUME_GB: '50'
       AWS_REGION: us-east-1
-      WEBSITE_HOST_SUFFIX: site.hku.icu
+      WEBSITE_HOST_SUFFIX: 167.172.146.60.nip.io:8001
       TASK_ID: '091'
       ARBM_WPS_OBSERVER: '1'
       ARBM_WPS_EVIDENCE_DIR: ${{ github.workspace }}/osworld-v32-evidence/task-091
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+    - name: Verify exact self-hosted MailHub availability before heavy initialization
+      shell: bash
+      run: |
+        set -euo pipefail
+        url="http://mailhub.$WEBSITE_HOST_SUFFIX/api/state"
+        echo "TASK091_MAILHUB_PREFLIGHT $url"
+        curl -fsS --connect-timeout 5 --max-time 20 -D /tmp/task091-mailhub-headers -o /tmp/task091-mailhub-body "$url"
+        grep -F "200 OK" /tmp/task091-mailhub-headers
+        python - <<'PY'
+        import json
+        data=json.load(open('/tmp/task091-mailhub-body'))
+        assert 'user_id' in data and 'state' in data, data
+        print('TASK091_MAILHUB_PREFLIGHT_PASS')
+        PY
     - name: Verify exact 091 observer environment before heavy initialization
       shell: bash
       run: |
