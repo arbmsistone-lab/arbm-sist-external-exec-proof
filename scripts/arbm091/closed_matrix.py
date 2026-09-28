@@ -106,7 +106,7 @@ TASK091_SECTION_E_FORMAT = {
     'shape_id': 16,
     'shape_name': 'KpiReadout_Body',
     'text_fingerprint': '• Burn improvement relies on expansion payback from Q4.',
-    'font_decrements': 7,
+    'font_decrements': 9,
 }
 
 
@@ -168,6 +168,6 @@ def assert_closed_matrix():
         "shape_id":16,
         "shape_name":"KpiReadout_Body",
         "text_fingerprint":"• Burn improvement relies on expansion payback from Q4.",
-        "font_decrements":7,
+        "font_decrements":9,
     }, spec
     return summary
