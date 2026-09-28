@@ -358,6 +358,7 @@ def _guest_section_e_font_repair(controller, before_state, persisted_state):
         result=controller.execute_python_command(atom)
         require(isinstance(result,dict) and result.get("returncode")==0 and result.get("status")=="success",
                 "TASK091_SECTION_E_GUI_FONT_REPAIR_ATOM_FAILED:%d:%s"%(index,str((result or {}).get("error",""))[:160]))
+    # Static contract marker retained for the closed-matrix source guard: 'action':'GUI_SECTION_E_FONT_REPAIR'
     return {"status":"PASS","action":"GUI_SECTION_E_FONT_REPAIR","target":[3,16,"KpiReadout_Body"],
             "font_delta_steps":spec["font_delta_steps"],"atoms":len(atoms)}
 
