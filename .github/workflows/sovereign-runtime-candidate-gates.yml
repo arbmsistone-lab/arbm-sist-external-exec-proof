@@ -15,6 +15,20 @@ jobs:
         run: python -m unittest scripts/sovereign_runtime/test_resilience_model.py -v
       - name: Chaos contract gate
         run: python scripts/sovereign_runtime/chaos_gate.py
+      - name: Bind synthetic witness to exact candidate
+        env:
+          CANDIDATE_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          python - <<'PY'
+          import json, os, pathlib
+          p=pathlib.Path("evidence/sovereign-runtime/gate-result.json")
+          d=json.loads(p.read_text())
+          d["candidate_sha"]=os.environ["CANDIDATE_SHA"]
+          d["workflow_run_id"]=os.environ["RUN_ID"]
+          d["evidence_class"]="SYNTHETIC_CONTRACT_WITNESS"
+          p.write_text(json.dumps(d,indent=2)+"\n")
+          PY
       - name: Adversarial promotion gate
         run: python scripts/sovereign_runtime/promotion_gate.py
       - name: Verify fail-closed promotion
