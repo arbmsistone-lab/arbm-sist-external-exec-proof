@@ -139,6 +139,23 @@ def review_action(action, *, task_id="", source="generic", state=None,
         and bool(str(pending091.get("table_selected_target_visual_sha256") or ""))
         and bool(str(pending091.get("table_selected_sibling_visual_sha256") or ""))
     )
+    semantic091=task091_state.get("semantic_tx") if isinstance(task091_state.get("semantic_tx"),dict) else {}
+    bounded_critical_summaryarr_entry=(
+        str(task_id)=="091"
+        and source=="task091-specialist"
+        and phase=="critical-summaryarr-enter-text"
+        and str(semantic091.get("stage") or "")=="critical-text-edit-issued"
+        and tuple(semantic091.get("target_key") or ())==(2,"shape",15,"SummaryArr_Value")
+        and str(semantic091.get("old") or "")=="$42.8M"
+        and str(semantic091.get("new") or "")=="$40.9M"
+        and str(target.get("source") or "")=="task091-pptx-canonical"
+        and int(target.get("slide") or 0)==2
+        and str(target.get("label") or "")=="$42.8M"
+        and bool(re.fullmatch(r"[0-9a-f]{64}",str(target.get("proof_sha256") or ""),re.I))
+        and repeated
+        and no_progress>0
+        and recent.count(command)==1
+    )
     section_e=task091_state.get("section_e_format") if isinstance(task091_state.get("section_e_format"),dict) else {}
     bounded_section_e_text_entry=(
         str(task_id)=="091"
@@ -177,6 +194,7 @@ def review_action(action, *, task_id="", source="generic", state=None,
         and no_progress>0
     )
     bounded_semantic_retry=(bounded_observation_retry or bounded_table_cell_entry
+                            or bounded_critical_summaryarr_entry
                             or bounded_section_e_text_entry
                             or bounded_nonpersisted_selection_observation)
     anti_repeat=not (repeated and no_progress>0 and not bounded_semantic_retry)

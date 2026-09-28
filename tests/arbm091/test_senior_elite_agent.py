@@ -91,6 +91,25 @@ class SeniorEliteBoardTests(unittest.TestCase):
         self.assertTrue(result['allow'],result)
         self.assertEqual(result['pass'],10)
 
+    def test_task091_critical_summaryarr_second_click_allows_only_single_grounded_text_entry(self):
+        command="pyautogui.doubleClick(651, 424, interval=0.08)"
+        state={'task091_specialist':{'owned':True,'handoff':False,'semantic_tx':{
+            'stage':'critical-text-edit-issued','target_key':[2,'shape',15,'SummaryArr_Value'],
+            'old':'$42.8M','new':'$40.9M'}}}
+        action={'action':'exec','command':command,'specialist_phase':'critical-summaryarr-enter-text',
+                'target':{'source':'task091-pptx-canonical','label':'$42.8M','slide':2,
+                          'proof_sha256':'5'*64}}
+        with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','GITHUB_SHA':'f'*40},clear=False):
+            result=review_action(action,task_id='091',source='task091-specialist',state=state,
+                                 verifier={'progress':False,'no_progress':5},recent_commands=[command])
+        self.assertTrue(result['allow'],result)
+        self.assertEqual(result['pass'],10)
+        blocked=review_action(action,task_id='091',source='task091-specialist',state=state,
+                              verifier={'progress':False,'no_progress':6},recent_commands=[command,command],
+                              zero_spend_mode='HARD',github_sha='f'*40)
+        self.assertFalse(blocked['allow'])
+        self.assertIn('anti_repetition',blocked['failed'])
+
     def test_task091_second_section_e_click_allows_only_evidence_bound_text_entry(self):
         command="pyautogui.click(1614, 490)"
         state={'task091_specialist':{'owned':True,'handoff':False,'section_e_format':{
