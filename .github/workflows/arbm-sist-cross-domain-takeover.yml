@@ -23,14 +23,14 @@ jobs:
       - name: Checkout frozen candidate base
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.event.before }}
           path: candidate-src
           persist-credentials: false
 
       - name: Resume A checkpoint on independent GitHub executor B
         shell: bash
         env:
-          CANDIDATE_SHA: ${{ github.event.pull_request.base.sha }}
+          CANDIDATE_SHA: ${{ github.event.before }}
         run: |
           set -euo pipefail
           checkpoint="$(find evidence-head/evidence/physical -maxdepth 1 -name 'takeover-prepared-*.json' -print -quit)"
