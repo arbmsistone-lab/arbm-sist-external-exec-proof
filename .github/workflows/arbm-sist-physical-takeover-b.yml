@@ -56,8 +56,7 @@ jobs:
             "physical_takeover":"PASS"
           }
           witness["sha256"]=hashlib.sha256(json.dumps(witness,sort_keys=True,separators=(",",":")).encode()).hexdigest()
-          pathlib.Path("evidence/physical/takeover-witness-b.json").write_text(json.dumps(witness,indent=2,sort_keys=True)+"
-")
+          pathlib.Path("evidence/physical/takeover-witness-b.json").write_text(json.dumps(witness,indent=2,sort_keys=True)+"\\n")
           print("PHYSICAL_TAKEOVER_CROSS_DOMAIN=PASS")
           print("STALE_OWNER_REJECTION=PASS")
           print("IDEMPOTENCY_PRESERVED=PASS")
