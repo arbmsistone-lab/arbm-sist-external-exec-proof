@@ -45,8 +45,8 @@ class SeniorEliteBoardTests(unittest.TestCase):
         self.assertFalse(result['allow'])
         self.assertIn('security',result['failed'])
 
-    def test_guest_terminal_allowed_only_when_task_explicitly_requests_command_line(self):
-        action={'action':'exec',"command":"pyautogui.hotkey('ctrl','alt','t')"}
+    def test_guest_process_control_allowed_only_when_task_explicitly_requests_command_line(self):
+        action={'action':'exec',"command":"pyautogui.write('pkill -f soffice.bin', interval=0.02)"}
         with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','GITHUB_SHA':'c'*40},clear=False):
             result=review_action(
                 action,task_id='001',source='generic-mesh',state={},
@@ -56,8 +56,8 @@ class SeniorEliteBoardTests(unittest.TestCase):
         self.assertTrue(result['allow'],result)
         self.assertEqual(result['pass'],10)
 
-    def test_guest_terminal_stays_blocked_without_explicit_command_line_instruction(self):
-        action={'action':'exec',"command":"pyautogui.hotkey('ctrl','alt','t')"}
+    def test_guest_process_control_stays_blocked_without_explicit_command_line_instruction(self):
+        action={'action':'exec',"command":"pyautogui.write('pkill -f soffice.bin', interval=0.02)"}
         with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','GITHUB_SHA':'c'*40},clear=False):
             result=review_action(
                 action,task_id='001',source='generic-mesh',state={},
