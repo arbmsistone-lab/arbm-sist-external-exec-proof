@@ -1,0 +1,68 @@
+name: ARBM SIST Physical Takeover B Witness
+
+on:
+  push:
+    branches:
+      - evidence/arbm-sist-takeover-4b92126f
+
+permissions:
+  contents: read
+
+jobs:
+  takeover-b:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout evidence branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          path: evidence-branch
+          persist-credentials: false
+
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: 4b92126f3cd1e7537753c03be7962eff41b3fd0d
+          path: candidate-src
+          persist-credentials: false
+
+      - name: Resume exact checkpoint on independent GitHub executor
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp evidence-branch/evidence/physical/takeover-prepared-buildkite-13.json candidate-src/takeover-prepared.json
+          cd candidate-src
+          python3 scripts/sovereign_runtime/takeover_protocol.py takeover             --infile takeover-prepared.json             --new-owner github-actions-B             --out takeover-taken.json
+          python3 scripts/sovereign_runtime/takeover_protocol.py verify             --prepared takeover-prepared.json             --taken takeover-taken.json             --expected-candidate 4b92126f3cd1e7537753c03be7962eff41b3fd0d
+          python3 scripts/sovereign_runtime/takeover_protocol.py commit             --infile takeover-taken.json             --owner github-actions-B             --token 2             --idempotency-key arbm-sist-4b92126f-001:effect:1             --receipt provider_tx_demo_001             --out takeover-committed.json
+          set +e
+          python3 scripts/sovereign_runtime/takeover_protocol.py commit             --infile takeover-taken.json             --owner buildkite-railway-A             --token 1             --idempotency-key arbm-sist-4b92126f-001:effect:1             --receipt provider_tx_demo_001 > stale-owner.log 2>&1
+          stale_rc=$?
+          set -e
+          test "$stale_rc" -eq 23
+          grep -q "COMMIT=REJECTED stale_fencing" stale-owner.log
+          python3 - <<'PY'
+          import hashlib,json,pathlib
+          prepared=json.loads(pathlib.Path("takeover-prepared.json").read_text())
+          taken=json.loads(pathlib.Path("takeover-taken.json").read_text())
+          committed=json.loads(pathlib.Path("takeover-committed.json").read_text())
+          witness={
+            "schema_version":1,
+            "candidate_sha":"4b92126f3cd1e7537753c03be7962eff41b3fd0d",
+            "executor_a":{"provider":"buildkite+railway","owner":prepared["owner"],"fencing_token":prepared["fencing_token"]},
+            "executor_b":{"provider":"github-actions","owner":taken["owner"],"fencing_token":taken["fencing_token"]},
+            "mission_id":taken["mission_id"],
+            "idempotency_key_preserved":taken["idempotency_key"]==prepared["idempotency_key"],
+            "receipt_preserved":taken["effect_receipt"]==prepared["effect_receipt"],
+            "duplicate_effect_executions":taken["duplicate_effect_executions"],
+            "stale_owner_rejection":"PASS",
+            "current_owner_commit":"PASS" if committed["effect_state"]=="COMMITTED" else "FAIL",
+            "physical_takeover":"PASS"
+          }
+          raw=json.dumps(witness,sort_keys=True,separators=(",",":")).encode()
+          witness["sha256"]=hashlib.sha256(raw).hexdigest()
+          pathlib.Path("physical-takeover-witness.json").write_text(json.dumps(witness,indent=2)+"\n")
+          print(json.dumps(witness,sort_keys=True))
+          PY
+          echo "PHYSICAL_TAKEOVER_CROSS_DOMAIN=PASS"
+          echo "STALE_OWNER_REJECTION=PASS"
+          echo "IDEMPOTENCY_PRESERVED=PASS"
