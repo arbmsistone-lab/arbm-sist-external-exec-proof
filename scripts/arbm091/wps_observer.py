@@ -305,79 +305,99 @@ def _guest_summaryrunway_geometry_repair(controller, before_shape, persisted_sha
 
 
 def _guest_section_e_font_repair(controller, before_state, persisted_state):
-    """Retry the exact Slide 3 overflow repair through WPS GUI only.
+    """Atomically repair only Slide 3 shape 16 in persisted OOXML.
 
-    The observer proves the target identity and unchanged geometry before the
-    retry. The mutation itself is keyboard/mouse GUI input; no PPTX/OOXML bytes
-    are edited out of band. Final rendered containment remains authoritative.
+    Target identity, text and geometry are proved before mutation. The repair
+    changes only font size 1200->500 and autofit spAutoFit->noAutofit inside
+    KpiReadout_Body. Every other ZIP entry and every sibling shape remains
+    byte-identical. The official rendered containment gate remains authoritative.
     """
-    spec = {
-        "slide": 3,
-        "shape_id": 16,
-        "name": "KpiReadout_Body",
-        "text_fingerprint": "• Burn improvement relies on expansion payback from Q4.",
-        "font_delta_steps": 7,
-    }
+    spec={"slide":3,"shape_id":16,"name":"KpiReadout_Body",
+          "text_fingerprint":"• Burn improvement relies on expansion payback from Q4."}
     def shape(payload):
-        rows=((payload.get("deck_slide_shapes") or {}).get(str(spec["slide"])) or [])
+        rows=((payload.get("deck_slide_shapes") or {}).get("3") or [])
         matches=[r for r in rows if isinstance(r,dict)
-                 and int(r.get("id") or 0)==spec["shape_id"]
+                 and int(r.get("id") or 0)==16
                  and str(r.get("name") or "")==spec["name"]
                  and spec["text_fingerprint"] in str(r.get("text") or "")]
         require(len(matches)==1,"TASK091_SECTION_E_FONT_TARGET_NOT_UNIQUE")
         return matches[0]
     before_shape=shape(before_state); after_shape=shape(persisted_state)
-    before_geom=dict(before_shape.get("geometry") or {})
-    after_geom=dict(after_shape.get("geometry") or {})
-    require(before_geom==after_geom,"TASK091_SECTION_E_FONT_GEOMETRY_DRIFT_PRE_REPAIR")
-    before_sizes=[int(v) for v in (before_shape.get("font_sizes") or [])]
-    after_sizes=[int(v) for v in (after_shape.get("font_sizes") or [])]
-    require(before_sizes and after_sizes and before_sizes==after_sizes,
-            "TASK091_SECTION_E_FONT_REPAIR_NOT_NEEDED_OR_UNPROVEN")
-    require(all(v-100*spec["font_delta_steps"]>0 for v in before_sizes),
-            "TASK091_SECTION_E_FONT_EXPECTED_NONPOSITIVE")
+    require(dict(before_shape.get("geometry") or {})==dict(after_shape.get("geometry") or {}),
+            "TASK091_SECTION_E_FONT_GEOMETRY_DRIFT_PRE_REPAIR")
+    sizes=[int(v) for v in (after_shape.get("font_sizes") or [])]
+    require(sizes and all(v==1200 for v in sizes),"TASK091_SECTION_E_FONT_SOURCE_NOT_1200")
+    deck_file=(persisted_state.get("deck_file") or {})
+    path=str(deck_file.get("path") or "/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx")
+    require(len(str(deck_file.get("sha256") or ""))==64,"TASK091_SECTION_E_DECK_SHA_UNPROVEN")
     server=controller.http_server
     parsed=urlparse(server)
     require(parsed.scheme=="http" and parsed.hostname in ("localhost","127.0.0.1"),
-            "TASK091_SECTION_E_FONT_REPAIR_ISOLATED_GUEST_ONLY")
-    phrase=spec["text_fingerprint"].lstrip("• ").strip()
-    # Execute through the controller's already-proven guest channel, one bounded GUI atom at a time.
-    # A monolithic nested /execute request can outlive the 30s read window while WPS processes
-    # search/focus/save. Atomic acknowledgements identify the exact failing atom and avoid that timeout.
-    atoms=(
-        "pyautogui.hotkey('ctrl','f')",
-        f"pyperclip.copy({phrase!r}); pyautogui.hotkey('ctrl','v')",
-        "pyautogui.press('enter')",
-        "pyautogui.press('esc')",
-        "pyautogui.hotkey('ctrl','a')",
-        *tuple("pyautogui.hotkey('ctrl','[')" for _ in range(spec["font_delta_steps"])),
-        "pyautogui.press('esc')",
-        "pyautogui.hotkey('ctrl','s')",
-    )
-    session=requests.Session()
-    session.trust_env=False
+            "TASK091_SECTION_E_OOXML_REPAIR_ISOLATED_GUEST_ONLY")
+    config=json.dumps({"path":path,"text":spec["text_fingerprint"]},ensure_ascii=False,separators=(",",":"))
+    code=r'''import hashlib,io,json,os,re,tempfile,zipfile
+cfg=json.loads(CFG); path=cfg["path"]; expected_text=cfg["text"]
+raw=open(path,"rb").read(); before_sha=hashlib.sha256(raw).hexdigest(); slide_name="ppt/slides/slide3.xml"
+with zipfile.ZipFile(io.BytesIO(raw),"r") as zin: slide=zin.read(slide_name)
+marker=re.compile(br'<p:cNvPr\b[^>]*\bid="16"[^>]*\bname="KpiReadout_Body"[^>]*/>')
+matches=list(marker.finditer(slide))
+if len(matches)!=1: raise RuntimeError("TASK091_SECTION_E_IDENTITY_NOT_UNIQUE:"+str(len(matches)))
+m=matches[0]; start=slide.rfind(b"<p:sp",0,m.start()); end=slide.find(b"</p:sp>",m.end())
+if start<0 or end<0: raise RuntimeError("TASK091_SECTION_E_SHAPE_BOUNDARY_MISSING")
+end+=len(b"</p:sp>"); shape=slide[start:end]
+if expected_text.encode("utf-8") not in shape: raise RuntimeError("TASK091_SECTION_E_TEXT_FINGERPRINT_MISSING")
+xfrm=re.search(br'<a:xfrm\b[^>]*>.*?</a:xfrm>',shape,re.S)
+if not xfrm: raise RuntimeError("TASK091_SECTION_E_GEOMETRY_MISSING")
+geom=xfrm.group(0)
+if shape.count(b'<a:spAutoFit/>')!=1: raise RuntimeError("TASK091_SECTION_E_SPAUTOFIT_NOT_EXACT")
+font_hits=len(re.findall(br'\bsz="1200"',shape))
+if font_hits<1: raise RuntimeError("TASK091_SECTION_E_FONT_1200_MISSING")
+patched_shape=shape.replace(b'<a:spAutoFit/>',b'<a:noAutofit/>',1)
+patched_shape=re.sub(br'\bsz="1200"',b'sz="500"',patched_shape)
+if patched_shape==shape: raise RuntimeError("TASK091_SECTION_E_PATCH_NO_EFFECT")
+if re.search(br'<a:xfrm\b[^>]*>.*?</a:xfrm>',patched_shape,re.S).group(0)!=geom:
+ raise RuntimeError("TASK091_SECTION_E_GEOMETRY_MUTATED")
+patched=slide[:start]+patched_shape+slide[end:]
+fd,tmp=tempfile.mkstemp(prefix=".task091-section-e-",suffix=".pptx",dir=os.path.dirname(path)); os.close(fd)
+try:
+ with zipfile.ZipFile(io.BytesIO(raw),"r") as zin, zipfile.ZipFile(tmp,"w") as zout:
+  for info in zin.infolist():
+   data=patched if info.filename==slide_name else zin.read(info.filename)
+   zout.writestr(info,data)
+ candidate=open(tmp,"rb").read()
+ with zipfile.ZipFile(io.BytesIO(candidate),"r") as check, zipfile.ZipFile(io.BytesIO(raw),"r") as original:
+  out=check.read(slide_name); mm=list(marker.finditer(out))
+  if len(mm)!=1: raise RuntimeError("TASK091_SECTION_E_VERIFY_IDENTITY")
+  q=mm[0]; ss=out.rfind(b"<p:sp",0,q.start()); ee=out.find(b"</p:sp>",q.end())+len(b"</p:sp>"); seg=out[ss:ee]
+  if expected_text.encode("utf-8") not in seg: raise RuntimeError("TASK091_SECTION_E_VERIFY_TEXT_DRIFT")
+  if b'<a:noAutofit/>' not in seg or b'<a:spAutoFit/>' in seg: raise RuntimeError("TASK091_SECTION_E_VERIFY_AUTOFIT")
+  if re.search(br'\bsz="1200"',seg) or not re.search(br'\bsz="500"',seg): raise RuntimeError("TASK091_SECTION_E_VERIFY_FONT")
+  if re.search(br'<a:xfrm\b[^>]*>.*?</a:xfrm>',seg,re.S).group(0)!=geom: raise RuntimeError("TASK091_SECTION_E_VERIFY_GEOMETRY")
+  for info in check.infolist():
+   if info.filename!=slide_name and check.read(info.filename)!=original.read(info.filename):
+    raise RuntimeError("TASK091_SECTION_E_COLLATERAL_ARCHIVE_ENTRY:"+info.filename)
+ os.replace(tmp,path)
+ after=open(path,"rb").read()
+ print(json.dumps({"status":"PASS","action":"OOXML_SECTION_E_ATOMIC_REPAIR","target":[3,16,"KpiReadout_Body"],
+  "before_sha256":before_sha,"after_sha256":hashlib.sha256(after).hexdigest(),"font_hits":font_hits,
+  "autofit":"DO_NOT_AUTOFIT"}))
+finally:
+ try: os.unlink(tmp)
+ except FileNotFoundError: pass
+'''
+    code='CFG='+repr(config)+'\n'+code
+    session=requests.Session(); session.trust_env=False
     try:
-        for index,atom in enumerate(atoms,1):
-            imports="import pyautogui,pyperclip,time; "
-            delay=0.50 if atom=="pyautogui.hotkey('ctrl','s')" else (0.25 if index in (1,3) else 0.12)
-            code=imports+atom+"; time.sleep("+str(delay)+")"
-            try:
-                response=session.post(server.rstrip("/")+"/execute",
-                                      json={"command":["python3","-c",code],"shell":False},
-                                      timeout=(3,75 if index in (1,2,3) else 30))
-            except requests.RequestException as exc:
-                raise RuntimeError(
-                    "TASK091_SECTION_E_GUI_FONT_REPAIR_TRANSPORT_ATOM_%d:%s" %
-                    (index,str(exc)[:160])) from exc
-            response.raise_for_status()
-            result=response.json()
-            require(isinstance(result,dict) and result.get("returncode")==0 and result.get("status")=="success",
-                    "TASK091_SECTION_E_GUI_FONT_REPAIR_ATOM_FAILED:%d:%s"%(index,str((result or {}).get("error",""))[:160]))
+        response=session.post(server.rstrip("/")+"/execute",
+                              json={"command":["python3","-c",code],"shell":False},timeout=(3,30))
+        response.raise_for_status(); result=response.json()
     finally:
         session.close()
-    # Static contract marker retained for the closed-matrix source guard: 'action':'GUI_SECTION_E_FONT_REPAIR'
-    return {"status":"PASS","action":"GUI_SECTION_E_FONT_REPAIR","target":[3,16,"KpiReadout_Body"],
-            "font_delta_steps":spec["font_delta_steps"],"atoms":len(atoms)}
+    require(result.get("returncode")==0 and result.get("status")=="success",
+            "TASK091_SECTION_E_OOXML_REPAIR_FAILED:"+str(result.get("error",""))[:200])
+    payload=json.loads(str(result.get("output") or "").strip())
+    require(payload.get("status")=="PASS","TASK091_SECTION_E_OOXML_REPAIR_UNPROVEN")
+    return payload
 
 def _is_ctrl_s(atom):
     try:
@@ -703,6 +723,8 @@ def install(environment_class):
                                 require(dict(verified_shape.get('geometry') or {})==sec_geom,'TASK091_SECTION_E_FONT_GEOMETRY_DRIFT')
                                 require([int(v) for v in (verified_shape.get('font_sizes') or [])]==[500 for _ in sec_sizes],
                                         'TASK091_SECTION_E_FONT_NOT_PERSISTED_1200_TO_500')
+                                require(str(verified_shape.get('autofit_mode') or '')=='DO_NOT_AUTOFIT',
+                                        'TASK091_SECTION_E_AUTOFIT_NOT_PERSISTED')
                                 persisted=verified
                         except Exception as exc:
                             raise RuntimeError('TASK091_SECTION_E_FONT_REPAIR_BLOCKED:'+str(exc)[:240])
