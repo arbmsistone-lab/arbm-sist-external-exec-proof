@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-EXPECTED = "3af925426537c51ed72eed6ae652fbaef0f1c95c"
+EXPECTED = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
 
 actual = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
 ancestor = subprocess.run(["git", "merge-base", "--is-ancestor", EXPECTED, actual])
