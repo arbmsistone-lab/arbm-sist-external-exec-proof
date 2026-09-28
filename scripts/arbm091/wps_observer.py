@@ -361,9 +361,14 @@ def _guest_section_e_font_repair(controller, before_state, persisted_state):
             imports="import pyautogui,pyperclip,time; "
             delay=0.50 if atom=="pyautogui.hotkey('ctrl','s')" else (0.25 if index in (1,3) else 0.12)
             code=imports+atom+"; time.sleep("+str(delay)+")"
-            response=session.post(server.rstrip("/")+"/execute",
-                                  json={"command":["python3","-c",code],"shell":False},
-                                  timeout=(3,30))
+            try:
+                response=session.post(server.rstrip("/")+"/execute",
+                                      json={"command":["python3","-c",code],"shell":False},
+                                      timeout=(3,75 if index == 1 else 30))
+            except requests.RequestException as exc:
+                raise RuntimeError(
+                    "TASK091_SECTION_E_GUI_FONT_REPAIR_TRANSPORT_ATOM_%d:%s" %
+                    (index,str(exc)[:160])) from exc
             response.raise_for_status()
             result=response.json()
             require(isinstance(result,dict) and result.get("returncode")==0 and result.get("status")=="success",
