@@ -45,6 +45,39 @@ class SeniorEliteBoardTests(unittest.TestCase):
         self.assertFalse(result['allow'])
         self.assertIn('security',result['failed'])
 
+    def test_guest_terminal_allowed_only_when_task_explicitly_requests_command_line(self):
+        action={'action':'exec',"command":"pyautogui.hotkey('ctrl','alt','t')"}
+        with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','GITHUB_SHA':'c'*40},clear=False):
+            result=review_action(
+                action,task_id='001',source='generic-mesh',state={},
+                verifier={'progress':True,'no_progress':0},
+                instruction='Please force quit LibreOffice from the command line on Ubuntu.'
+            )
+        self.assertTrue(result['allow'],result)
+        self.assertEqual(result['pass'],10)
+
+    def test_guest_terminal_stays_blocked_without_explicit_command_line_instruction(self):
+        action={'action':'exec',"command":"pyautogui.hotkey('ctrl','alt','t')"}
+        with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','GITHUB_SHA':'c'*40},clear=False):
+            result=review_action(
+                action,task_id='001',source='generic-mesh',state={},
+                verifier={'progress':True,'no_progress':0},
+                instruction='Close the current app.'
+            )
+        self.assertFalse(result['allow'])
+        self.assertIn('security',result['failed'])
+
+    def test_destructive_guest_shell_text_remains_blocked(self):
+        action={'action':'exec',"command":"pyautogui.write('rm -rf /', interval=0.01)"}
+        with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','GITHUB_SHA':'c'*40},clear=False):
+            result=review_action(
+                action,task_id='001',source='generic-mesh',state={},
+                verifier={'progress':True,'no_progress':0},
+                instruction='Use the command line.'
+            )
+        self.assertFalse(result['allow'])
+        self.assertIn('security',result['failed'])
+
     def test_zero_spend_is_hard_gate(self):
         with patch.dict(os.environ,{'ZERO_SPEND_MODE':'OFF','GITHUB_SHA':'d'*40},clear=False):
             with self.assertRaisesRegex(ValueError,'SENIOR_ELITE_VETO:.*zero_spend'):
