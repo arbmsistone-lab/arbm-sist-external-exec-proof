@@ -679,8 +679,8 @@ def install(environment_class):
                                     repairs.append(_guest_coverstat_geometry_repair(controller,target))
                             if repairs:
                                 row['coverstat_geometry_repairs']=repairs
-                        # Section E is deck-scoped: the critical harness may save while another slide is active.
-                        # Detect the unique target from persisted deck state instead of gating reachability on UI slide state.
+                        # The semantic planner owns the signed Slide 3 repair.
+                        # Do not preempt it during an earlier slide's save.
                         try:
                             sec_rows=(persisted.get('deck_slide_shapes',{}).get('3') or [])
                             sec_matches=[x for x in sec_rows if int(x.get('id') or 0)==16 and str(x.get('name') or '')=='KpiReadout_Body']
@@ -689,7 +689,8 @@ def install(environment_class):
                             sec_text=str(sec_shape_after.get('text') or '')
                             sec_geom=dict(sec_shape_after.get('geometry') or {})
                             sec_sizes=[int(v) for v in (sec_shape_after.get('font_sizes') or [])]
-                            if ('• Burn improvement relies on expansion payback from Q4.' in sec_text
+                            if (active_slide == 3
+                                and '• Burn improvement relies on expansion payback from Q4.' in sec_text
                                 and sec_sizes and all(v==1200 for v in sec_sizes)):
                                 repair=_guest_section_e_font_repair(controller,persisted,persisted)
                                 row['section_e_font_repair']=repair
