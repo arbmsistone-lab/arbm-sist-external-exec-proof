@@ -49,7 +49,7 @@ jobs:
           set -euo pipefail
           cd evidence-head
           git fetch --no-tags --depth=1 origin "$CANDIDATE_SHA"
-          changed="$(git diff --name-only "$CANDIDATE_SHA"...HEAD)"
+          changed="$(git diff --name-only "$CANDIDATE_SHA" HEAD)"
           test -n "$changed"
           bad="$(printf '%s\n' "$changed" | grep -Ev '^evidence/constitutional/' || true)"
           if [ -n "$bad" ]; then
