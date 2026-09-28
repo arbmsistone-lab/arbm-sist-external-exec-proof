@@ -1,31 +1,90 @@
 name: ARBM SIST Full Constitutional Enforcement
+
 on:
   workflow_dispatch:
     inputs:
       evidence_path:
-        description: Evidence manifest committed or materialized in workspace
+        description: Evidence manifest path in the selected ref
         required: true
         default: evidence/constitutional/promotion-evidence.json
   pull_request:
+    branches:
+      - architecture/sovereign-runtime-resilience-v1
     paths:
-      - "policy/**"
-      - "scripts/policy/**"
       - "evidence/constitutional/**"
+
 permissions:
   contents: read
+
 jobs:
   constitutional-enforcement:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Checkout evidence head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          path: evidence-head
           persist-credentials: false
-      - name: Policy lint
-        run: python3 scripts/policy/constitution_gate.py
-      - name: Require real promotion evidence
+
+      - name: Resolve frozen candidate
+        id: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            candidate="${{ github.event.pull_request.base.sha }}"
+          else
+            candidate="${{ github.sha }}"
+          fi
+          echo "sha=$candidate" >> "$GITHUB_OUTPUT"
+          echo "FROZEN_CANDIDATE_SHA=$candidate"
+
+      - name: Enforce evidence-only mutation on PR
+        if: github.event_name == 'pull_request'
+        shell: bash
         env:
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.sha }}
+        run: |
+          set -euo pipefail
+          cd evidence-head
+          git fetch --no-tags --depth=1 origin "$CANDIDATE_SHA"
+          changed="$(git diff --name-only "$CANDIDATE_SHA" HEAD)"
+          test -n "$changed"
+          bad="$(printf '%s\n' "$changed" | grep -Ev '^evidence/constitutional/' || true)"
+          if [ -n "$bad" ]; then
+            echo "PROMOTION_AUTHORITY=DENY non_evidence_mutation"
+            printf '%s\n' "$bad"
+            exit 1
+          fi
+          echo "EVIDENCE_ONLY_PR=PASS"
+
+      - name: Checkout exact frozen candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ steps.candidate.outputs.sha }}
+          path: candidate-src
+          persist-credentials: false
+
+      - name: Policy lint on candidate
+        run: python3 candidate-src/scripts/policy/constitution_gate.py
+
+      - name: Require candidate-bound promotion evidence
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.sha }}
           EVIDENCE_PATH: ${{ inputs.evidence_path || 'evidence/constitutional/promotion-evidence.json' }}
         run: |
-          test -f "$EVIDENCE_PATH" || { echo "PROMOTION_AUTHORITY=DENY evidence_missing"; exit 1; }
-          python3 scripts/policy/full_constitutional_gate.py --evidence "$EVIDENCE_PATH"
+          set -euo pipefail
+          manifest="$GITHUB_WORKSPACE/evidence-head/$EVIDENCE_PATH"
+          test -f "$manifest" || { echo "PROMOTION_AUTHORITY=DENY evidence_missing"; exit 1; }
+          python3 - "$manifest" "$CANDIDATE_SHA" <<'PY'
+          import json,sys
+          p,c=sys.argv[1:3]
+          d=json.load(open(p,encoding="utf-8"))
+          if d.get("candidate_sha") != c:
+              raise SystemExit("PROMOTION_AUTHORITY=DENY candidate_binding_mismatch")
+          print("PROMOTION_EVIDENCE_BINDING=PASS")
+          PY
+          cd candidate-src
+          python3 scripts/policy/full_constitutional_gate.py --evidence "$manifest"

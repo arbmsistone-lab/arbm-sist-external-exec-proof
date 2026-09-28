@@ -15,6 +15,31 @@ jobs:
               -H 'content-type: application/json' \
               --data '{"action":"heartbeat","healthy":true,"zeroSpendVerified":true,"capabilities":["git","tests","build","cloud","circleci-runner"],"detail":{"source":"circleci-oidc-heartbeat","mode":"autonomous-continuity-worker"}}' \
               https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-continuity-coordinator-v1
+  sovereign_runtime_candidate_gate:
+    docker:
+      - image: cimg/python:3.12
+    resource_class: small
+    steps:
+      - checkout
+      - run:
+          name: Independent Sovereign Runtime witness
+          command: |
+            set -euo pipefail
+            python -m unittest scripts/sovereign_runtime/test_resilience_model.py -v
+            python scripts/sovereign_runtime/chaos_gate.py
+            python scripts/sovereign_runtime/promotion_gate.py
+            python - <<'PY'
+            import hashlib,json,os,pathlib
+            p=pathlib.Path("evidence/sovereign-runtime/gate-result.json")
+            d=json.loads(p.read_text())
+            d["candidate_sha"]=os.environ["CIRCLE_SHA1"]
+            d["provider"]="circleci"
+            d["failure_domain"]="circleci"
+            d["evidence_class"]="INDEPENDENT_PROVIDER_CONTRACT_WITNESS"
+            d["evidence_sha256"]=hashlib.sha256(p.read_bytes()).hexdigest()
+            p.write_text(json.dumps(d,indent=2)+"\n")
+            print("CIRCLECI_SOVEREIGN_RUNTIME_WITNESS=PASS")
+            PY
   arbm_control_resilience_worker:
     docker:
       - image: cimg/node:24.8
@@ -28,6 +53,12 @@ jobs:
             test -n "$CIRCLE_OIDC_TOKEN_V2"
             node scripts/arbm-control-resilience-worker.mjs
 workflows:
+  sovereign_runtime_candidate:
+    jobs:
+      - sovereign_runtime_candidate_gate:
+          filters:
+            branches:
+              only: architecture/sovereign-runtime-resilience-v1
   sovereign_oidc_heartbeat:
     triggers:
       - schedule:
