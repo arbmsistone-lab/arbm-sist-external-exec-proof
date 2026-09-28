@@ -4,6 +4,7 @@ on:
     paths:
       - "scripts/policy/**"
       - "policy/**"
+      - "scripts/sovereign_runtime/**"
       - ".github/workflows/arbm-sist-constitutional-real-witnesses.yml"
   workflow_dispatch:
 permissions:
