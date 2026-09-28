@@ -45,7 +45,7 @@ def _lane(name, passed, reason):
 
 def review_action(action, *, task_id="", source="generic", state=None,
                   verifier=None, recent_commands=None, zero_spend_mode=None,
-                  github_sha=None):
+                  github_sha=None, instruction=""):
     state=state if isinstance(state,dict) else {}
     verifier=verifier if isinstance(verifier,dict) else {}
     recent=[str(x or "") for x in (recent_commands or [])]
@@ -63,10 +63,19 @@ def review_action(action, *, task_id="", source="generic", state=None,
         kind in {"exec","wait","finish"} and (kind!="exec" or bool(calls)),
         "typed action and parseable direct GUI calls required"))
 
-    forbidden=(re.search(r"(?:/home/oai/share|powershell|cmd\.exe|subprocess|os\.system)",command,re.I)
-               or ("hotkey" in command and "ctrl" in command and "alt" in command and "'t'" in command))
-    rows.append(_lane("security",not bool(forbidden),
-        "host paths, shells and terminal launch shortcuts are forbidden"))
+    host_forbidden=bool(re.search(r"(?:/home/oai/share|powershell|cmd\\.exe|subprocess|os\\.system)",command,re.I))
+    terminal_hotkey=bool(re.fullmatch(
+        r"\\s*pyautogui\\.hotkey\\(\\s*['\"]ctrl['\"]\\s*,\\s*['\"]alt['\"]\\s*,\\s*['\"]t['\"]\\s*\\)\\s*",
+        command,re.I))
+    terminal_requested=bool(re.search(
+        r"\\b(?:command[ -]?line|terminal|shell|cli|force\\s+quit\\b.*\\bcommand)\\b",
+        str(instruction or ""),re.I))
+    dangerous_guest_text=bool(re.search(
+        r"(?i)(?:rm\\s+-rf\\s+/|mkfs(?:\\.|\\s)|dd\\s+if=|shutdown\\b|reboot\\b|curl\\b.*\\|\\s*(?:sh|bash)|wget\\b.*\\|\\s*(?:sh|bash))",
+        command))
+    forbidden=host_forbidden or dangerous_guest_text or (terminal_hotkey and not terminal_requested)
+    rows.append(_lane("security",not forbidden,
+        "host shell APIs and destructive guest commands are forbidden; guest terminal launch requires an explicit command-line task"))
 
     provenance_ok=(not sha) or bool(re.fullmatch(r"[0-9a-f]{40}",sha,re.I))
     rows.append(_lane("provenance",provenance_ok,
