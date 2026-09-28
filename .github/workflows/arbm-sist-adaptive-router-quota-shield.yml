@@ -1,0 +1,29 @@
+name: ARBM SIST Adaptive Router Quota Shield
+on:
+  push:
+    paths:
+      - "certification/adaptive-router-quota-shield-sim.py"
+      - "certification/test-adaptive-router-quota-shield.py"
+      - "certification/p2-engine-snapshot/quota-shield.mjs"
+      - "certification/test-quota-shield-runtime.mjs"
+      - ".github/workflows/arbm-sist-adaptive-router-quota-shield.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  adaptive-router-quota-shield:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Python adaptive router contracts
+        run: python3 -m unittest certification/test-adaptive-router-quota-shield.py -v
+      - name: Runtime quota shield contracts
+        run: node certification/test-quota-shield-runtime.mjs
+      - name: Simulated provider failover witness
+        run: |
+          python3 certification/adaptive-router-quota-shield-sim.py | tee adaptive-router-witness.txt
+          grep -q "gitlab" adaptive-router-witness.txt
+          grep -q "zero_spend" adaptive-router-witness.txt
