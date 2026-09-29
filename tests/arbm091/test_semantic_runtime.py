@@ -1184,6 +1184,19 @@ class SemanticRuntimeTests(unittest.TestCase):
         draw.rectangle((ink_left,ink_top,ink_right,ink_bottom),fill="black")
         image.save(obs/(str(ws["source"])+".png"))
 
+    def _materialize_fixed_width_selection_chrome(self, root, ws):
+        root=Path(root)
+        obs=root/"wps-observations"
+        obs.mkdir(parents=True,exist_ok=True)
+        row=normalize_deck(ws)[(2,"shape",15,"SummaryArr_Value")]
+        x,y,w,h=_screen_bbox(ws,row)
+        image=Image.new("RGB",(1920,1080),"white")
+        draw=ImageDraw.Draw(image)
+        draw.rectangle((x+5,y+5,x+w-6,y+h-6),outline="black",width=2)
+        for px,py in ((x+5,y+5),(x+w-6,y+5),(x+5,y+h-6),(x+w-6,y+h-6)):
+            draw.rectangle((px-2,py-2,px+2,py+2),fill="black")
+        image.save(obs/(str(ws["source"])+".png"))
+
     def _assert_exec_phase(self, result, expected, state):
         self.assertEqual(
             result.get("action"),"exec",
@@ -1273,10 +1286,20 @@ class SemanticRuntimeTests(unittest.TestCase):
 
 
     def test_selection_chrome_cannot_expand_text_ink(self):
-        relative=_fixed_width_relative_geometry([557,415,121,24],[545,404,213,40])
-        repro=_fixed_width_reproject_bbox(relative,[545,404,213,40])
-        self.assertEqual(repro,[557,415,121,24])
-        self.assertNotEqual(repro,[550,409,203,30])
+        ws,state,plan=self._fixed_width_two_phase_fixture()
+        with tempfile.TemporaryDirectory() as td:
+            self._materialize_fixed_width_visual_evidence(td,ws)
+            with patch.dict(os.environ,{"TASK091_FIXED_WIDTH_ENGINE":"1","ARBM_WPS_EVIDENCE_DIR":td},clear=False):
+                selected=next_text_action(state,ws,plan)
+                self._assert_exec_phase(selected,"semantic-fixed-width-target-select",state)
+                baseline=list(state["semantic_tx"]["baseline_text_ink_bbox"])
+                relative=list(state["semantic_tx"]["baseline_text_ink_relative_geometry"])
+                self._materialize_fixed_width_selection_chrome(td,ws)
+                click1=next_text_action(state,ws,plan)
+                self._assert_exec_phase(click1,"semantic-fixed-width-enter-text-click-1",state)
+        self.assertEqual(state["semantic_tx"]["baseline_text_ink_bbox"],baseline)
+        self.assertEqual(state["semantic_tx"]["baseline_text_ink_relative_geometry"],relative)
+        self.assertLess(click1["target"]["cx"],ws["slide_canvas_bbox"][0]+ws["slide_canvas_bbox"][2])
 
     def test_baseline_ink_reprojects_after_reflow(self):
         relative=_fixed_width_relative_geometry([557,415,121,24],[545,404,213,40])

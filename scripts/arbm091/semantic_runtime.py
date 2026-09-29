@@ -924,6 +924,31 @@ def next_text_action(state,window_state,plan):
             return _terminal("TASK091_CONTRACT_MODEL_DRIFT")
         fixed_width=(_fixed_width_enabled()
                      and _fixed_width_contract(resolved["key"],old,new) is not None)
+        fixed_width_baseline={}
+        if fixed_width:
+            try:
+                baseline_bbox=_screen_bbox(window_state,resolved["row"])
+                baseline_ink=_fixed_width_text_ink(window_state,baseline_bbox)
+                baseline_end=_fixed_width_text_end_point(baseline_ink,baseline_bbox)
+            except SemanticTransactionError as exc:
+                return _terminal(str(exc))
+            if not isinstance(baseline_ink,dict) or not isinstance(baseline_end,dict):
+                return _terminal("TASK091_FIXED_WIDTH_BASELINE_TEXT_INK_UNPROVEN")
+            baseline_relative=_fixed_width_relative_geometry(
+                list(baseline_ink["bbox"]),list(baseline_bbox))
+            if not isinstance(baseline_relative,list):
+                return _terminal("TASK091_FIXED_WIDTH_BASELINE_INK_GEOMETRY_UNPROVEN")
+            fixed_width_baseline={
+                "baseline_text_ink_bbox":list(baseline_ink["bbox"]),
+                "baseline_target_screen_bbox":list(baseline_bbox),
+                "baseline_text_ink_relative_geometry":list(baseline_relative),
+                "baseline_text_endpoint":{
+                    "cx":int(baseline_end["cx"]),
+                    "cy":int(baseline_end["cy"]),
+                    "expected_x":int(baseline_end["expected_x"]),
+                },
+                "baseline_source":str(window_state.get("source") or ""),
+            }
         state["semantic_tx"]={
             "stage":"select-issued",
             "index":index,"slide":int(slide),"old":str(old),"new":str(new),
@@ -936,6 +961,7 @@ def next_text_action(state,window_state,plan):
             "selection_canvas":copy.deepcopy(window_state.get("slide_canvas_bbox")),
             "contract":contract,
             "fixed_width_enabled":bool(fixed_width),
+            **fixed_width_baseline,
         }
         command=(f"pyautogui.click({target['cx']}, {target['cy']})"
                  if fixed_width else
@@ -1066,6 +1092,7 @@ def next_text_action(state,window_state,plan):
             "logical_identity":list(key),
             "deck_sha256":reflow["deck_sha256"],
             "model_sha256":reflow["model_sha256"],
+            "text":str(row.get("text") or ""),
         }
         previous=tx.get("fixed_width_stability_signature")
         observations=int(tx.get("fixed_width_stability_observations") or 0)
@@ -1351,14 +1378,20 @@ def next_text_action(state,window_state,plan):
             try:
                 cfg=_fixed_width_contract(key,tx.get("old"),tx.get("new"))
                 bbox=_screen_bbox(window_state,row)
-                ink=_fixed_width_text_ink(window_state,bbox)
-                end=_fixed_width_text_end_point(ink,bbox)
             except SemanticTransactionError as exc:
                 return _terminal(str(exc))
             if cfg is None:
                 return _terminal("TASK091_FIXED_WIDTH_CONTRACT_MISSING")
-            if not isinstance(ink,dict) or not isinstance(end,dict):
-                return _terminal("TASK091_FIXED_WIDTH_TEXT_INK_UNPROVEN")
+            relative=tx.get("baseline_text_ink_relative_geometry")
+            if not isinstance(relative,list):
+                return _terminal("TASK091_FIXED_WIDTH_BASELINE_INK_MISSING")
+            ink_bbox=_fixed_width_reproject_bbox(relative,bbox)
+            if not isinstance(ink_bbox,list):
+                return _terminal("TASK091_FIXED_WIDTH_REPROJECTED_INK_UNPROVEN")
+            ink={"bbox":ink_bbox,"source":"baseline-reprojected-before-click1"}
+            end=_fixed_width_text_end_point(ink,bbox)
+            if not isinstance(end,dict):
+                return _terminal("TASK091_FIXED_WIDTH_REPROJECTED_ENDPOINT_UNPROVEN")
             source=str(window_state.get("source") or "")
             if re.fullmatch(r"\d{4}-\d{2}-(?:before|after)",source) is None:
                 return _terminal("TASK091_FIXED_WIDTH_SOURCE_EVIDENCE_MISSING")
@@ -1371,14 +1404,8 @@ def next_text_action(state,window_state,plan):
                 "diff":[list(item) for item in cfg["diff"]],
                 "forbidden":list(cfg["forbidden"]),
             }
-            relative=_fixed_width_relative_geometry(list(ink["bbox"]),list(bbox))
-            if not isinstance(relative,list):
-                return _terminal("TASK091_FIXED_WIDTH_BASELINE_INK_GEOMETRY_UNPROVEN")
             tx["fixed_width_shape_bbox"]=list(bbox)
-            tx["fixed_width_ink_bbox"]=list(ink["bbox"])
-            tx["baseline_text_ink_bbox"]=list(ink["bbox"])
-            tx["baseline_target_screen_bbox"]=list(bbox)
-            tx["baseline_text_ink_relative_geometry"]=list(relative)
+            tx["fixed_width_ink_bbox"]=list(ink_bbox)
             tx["fixed_width_expected_end_x"]=int(end["expected_x"])
             tx["fixed_width_first_click"]={
                 "logical_identity":list(key),
