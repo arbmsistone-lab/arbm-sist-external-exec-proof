@@ -232,12 +232,15 @@ def _fixed_width_text_end_point(ink,bbox,gap=3):
     if not isinstance(ib,list) or len(ib)!=4:
         return None
     x,y,w,h=bbox; ix,iy,iw,ih=(int(v) for v in ib)
-    right=x+w
     ink_right=ix+iw
-    cx=min(right-4,ink_right+int(gap)); cy=iy+ih//2
-    if not (ink_right<cx<right-2 and y+2<=cy<y+h-2):
+    # WPS single-click text entry requires the pointer to land on text ink.
+    # A point in the blank gap after the glyph keeps only the shape selected.
+    # Stay strictly inside the trailing ink; the subsequent caret proof still
+    # determines whether WPS actually entered text mode at the logical end.
+    cx=max(ix+1,ink_right-max(2,int(gap))); cy=iy+ih//2
+    if not (ix<cx<ink_right and x+2<=cx<x+w-2 and y+2<=cy<y+h-2):
         return None
-    return {"cx":int(cx),"cy":int(cy),"expected_x":int(cx)}
+    return {"cx":int(cx),"cy":int(cy),"expected_x":int(ink_right)}
 
 
 def _fixed_width_relative_geometry(inner_bbox,outer_bbox):

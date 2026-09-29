@@ -9,7 +9,8 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 from arbm091.semantic_runtime import (_current_autofit_group, next_text_action, _snapshot, _screen_bbox,
-                                      _fixed_width_relative_geometry, _fixed_width_reproject_bbox)
+                                      _fixed_width_relative_geometry, _fixed_width_reproject_bbox,
+                                      _fixed_width_text_end_point)
 from arbm091.semantic_transaction import model_sha256, normalize_deck
 from arbm091.score_tracker import SEMANTIC_REQUIRED_STATUSES, verify_semantic_architecture
 
@@ -1326,6 +1327,15 @@ class SemanticRuntimeTests(unittest.TestCase):
         tx=state["semantic_tx"]
         self.assertEqual(click2["target"]["cx"],tx["reprojected_text_endpoint"]["cx"])
         self.assertEqual(tx["fixed_width_ink_bbox"],tx["reprojected_text_ink_bbox"])
+
+    def test_text_endpoint_lands_inside_trailing_text_ink(self):
+        ink={"bbox":[557,415,121,24]}
+        point=_fixed_width_text_end_point(ink,[545,404,213,40])
+        self.assertIsNotNone(point)
+        self.assertGreater(point["cx"],557)
+        self.assertLess(point["cx"],557+121)
+        self.assertEqual(point["expected_x"],557+121)
+        self.assertNotEqual(point["cx"],754)
 
     def test_selection_border_endpoint_is_rejected(self):
         relative=_fixed_width_relative_geometry([550,409,203,30],[545,404,213,40])
