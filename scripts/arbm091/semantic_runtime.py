@@ -109,6 +109,44 @@ def _screen_bbox(window_state,row):
     return [left,top,right-left,bottom-top]
 
 
+def _fixed_width_validate_viewport_reflow(tx,window_state,row,current_model):
+    if window_state.get("screen")!=SCREEN:
+        raise SemanticTransactionError("TASK091_FIXED_WIDTH_REFLOW_SCREEN_DRIFT")
+    if (window_state.get("window") or {}).get("bbox")!=WINDOW:
+        raise SemanticTransactionError("TASK091_FIXED_WIDTH_REFLOW_WINDOW_DRIFT")
+    if int(window_state.get("active_slide") or 0)!=int(tx.get("slide") or 0):
+        raise SemanticTransactionError("TASK091_FIXED_WIDTH_REFLOW_SLIDE_DRIFT")
+    deck_sha=str((window_state.get("deck_file") or {}).get("sha256") or "")
+    if len(deck_sha)!=64 or deck_sha!=str(tx.get("before_deck_sha256") or ""):
+        raise SemanticTransactionError("TASK091_FIXED_WIDTH_REFLOW_DECK_DRIFT")
+    if row is None or str(row.get("text") or "")!=str(tx.get("before_target_text") or ""):
+        raise SemanticTransactionError("TASK091_FIXED_WIDTH_REFLOW_TEXT_DRIFT")
+    if model_sha256(current_model)!=str(tx.get("before_model_sha256") or ""):
+        raise SemanticTransactionError("TASK091_FIXED_WIDTH_REFLOW_MODEL_DRIFT")
+    key=tuple(tx.get("target_key") or ())
+    before_rows=((tx.get("before_state") or {}).get("deck_slide_shapes") or {}).get(str(key[0] if key else ""),[])
+    before_match=next((r for r in before_rows
+                       if isinstance(r,dict)
+                       and len(key)>=4
+                       and int(r.get("id") or 0)==int(key[2])
+                       and str(r.get("name") or "")==str(key[3])),None)
+    if not isinstance(before_match,dict):
+        raise SemanticTransactionError("TASK091_FIXED_WIDTH_REFLOW_BASELINE_TARGET_MISSING")
+    if tuple(row.get("geometry") or ())!=tuple(before_match.get("geometry") or ()):
+        raise SemanticTransactionError("TASK091_FIXED_WIDTH_REFLOW_GEOMETRY_DRIFT")
+    canvas=window_state.get("slide_canvas_bbox")
+    if not (isinstance(canvas,list) and len(canvas)==4 and all(type(v) is int for v in canvas)
+            and int(canvas[2])>0 and int(canvas[3])>0):
+        raise SemanticTransactionError("TASK091_FIXED_WIDTH_REFLOW_CANVAS_UNPROVEN")
+    return {
+        "canvas":list(canvas),
+        "deck_sha256":deck_sha,
+        "model_sha256":model_sha256(current_model),
+        "geometry":list(row.get("geometry") or ()),
+        "source":str(window_state.get("source") or ""),
+    }
+
+
 def _signed_point(window_state,slide,row,cx,cy):
     deck_sha=str((window_state.get("deck_file") or {}).get("sha256") or "")
     foreground=_foreground_sha(window_state)
@@ -930,8 +968,31 @@ def next_text_action(state,window_state,plan):
         if (row is None or str(row.get("text") or "")!=str(tx.get("before_target_text") or "")
                 or model_sha256(current_model)!=str(tx.get("before_model_sha256") or "")):
             return _terminal("TASK091_FIXED_WIDTH_PRECONDITION_DRIFT")
-        if window_state.get("slide_canvas_bbox")!=tx.get("selection_canvas"):
-            return _terminal("TASK091_FIXED_WIDTH_CANVAS_DRIFT")
+        current_canvas=window_state.get("slide_canvas_bbox")
+        if current_canvas!=tx.get("selection_canvas"):
+            try:
+                reflow=_fixed_width_validate_viewport_reflow(tx,window_state,row,current_model)
+                reflow_bbox=_screen_bbox(window_state,row)
+                reflow_ink=_fixed_width_text_ink(window_state,reflow_bbox)
+                reflow_end=_fixed_width_text_end_point(reflow_ink,reflow_bbox)
+            except SemanticTransactionError as exc:
+                return _terminal(str(exc))
+            if not isinstance(reflow_ink,dict):
+                return _terminal("TASK091_FIXED_WIDTH_REFLOW_TEXT_INK_UNPROVEN")
+            if not isinstance(reflow_end,dict):
+                return _terminal("TASK091_FIXED_WIDTH_REFLOW_END_POINT_UNPROVEN")
+            tx["fixed_width_viewport_reflow"]={
+                "from_canvas":list(tx.get("selection_canvas") or []),
+                "to_canvas":list(reflow["canvas"]),
+                "deck_sha256":reflow["deck_sha256"],
+                "model_sha256":reflow["model_sha256"],
+                "geometry":list(reflow["geometry"]),
+                "source":reflow["source"],
+            }
+            tx["selection_canvas"]=list(reflow["canvas"])
+            tx["fixed_width_shape_bbox"]=list(reflow_bbox)
+            tx["fixed_width_ink_bbox"]=list(reflow_ink["bbox"])
+            tx["fixed_width_expected_end_x"]=int(reflow_end["expected_x"])
         source=str(window_state.get("source") or "")
         if re.fullmatch(r"\d{4}-\d{2}-(?:before|after)",source) is None:
             return _terminal("TASK091_FIXED_WIDTH_TEXTMODE_EVIDENCE_MISSING")
