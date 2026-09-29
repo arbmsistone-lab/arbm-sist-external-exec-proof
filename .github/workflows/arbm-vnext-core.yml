@@ -1,0 +1,63 @@
+name: ARBM SIST vNEXT Core
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'scripts/arbm_core/**'
+      - 'tests/arbm_core/**'
+      - '.github/workflows/arbm-vnext-core.yml'
+permissions:
+  contents: read
+jobs:
+  vnext-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONPATH: ${{ github.workspace }}/scripts
+      ZERO_SPEND_MODE: HARD
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Compile vNEXT core
+        run: python -m py_compile scripts/arbm_core/*.py tests/arbm_core/test_*.py
+      - name: Run vNEXT contract suite
+        run: python -m unittest discover -s tests/arbm_core -p 'test_*.py' -v
+      - name: Run balanced 400-task x3 shadow-runtime benchmark
+        run: |
+          python -m arbm_core.runtime_benchmark_runner --count 400 --repetitions 3 --out evidence/vnext/internal-400x3.json
+          python - <<'PY'
+          import json
+          d=json.load(open("evidence/vnext/internal-400x3.json"))
+          assert d["frontier_comparable"] is False
+          assert d["promotion"]["passed"] is True, d["promotion"]
+          assert d["metrics"]["total_cost_usd"] == 0.0
+          print("VNEXT_INTERNAL_400X3_GATE=PASS")
+          PY
+      - name: Preserve vNEXT benchmark evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: arbm-vnext-internal-400x3
+          path: evidence/vnext/internal-400x3.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Validate and execute GENERALIST-300 x3
+        run: |
+          python scripts/evolution/validate_generalist_300.py
+          python scripts/evolution/run_generalist_300.py --repetitions 3 --out evidence/evolution/generalist-300-runtime.json
+          python - <<'PY'
+          import json
+          d=json.load(open("evidence/evolution/generalist-300-runtime.json"))
+          assert d["tasks"] == 300 and d["trials"] == 900
+          assert d["frontier_comparable"] is False
+          assert d["promotion"]["passed"] is True, d["promotion"]
+          for v in ("nominal","faulted","adversarial"):
+              assert d["by_variant"][v]["success_rate"] >= 0.95, (v,d["by_variant"][v])
+          print("GENERALIST_300_RUNTIME_GATE=PASS")
+          PY
+      - name: Preserve GENERALIST-300 runtime evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: arbm-generalist-300-runtime
+          path: evidence/evolution/generalist-300-runtime.json
+          if-no-files-found: error
+          retention-days: 90

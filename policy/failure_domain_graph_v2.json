@@ -1,0 +1,45 @@
+{
+  "schema_version": 2,
+  "status": "candidate",
+  "nodes": [
+    {
+      "id": "control_plane",
+      "kind": "logical_control"
+    },
+    {
+      "id": "mission_state",
+      "kind": "state"
+    },
+    {
+      "id": "authority_fabric",
+      "kind": "authority"
+    },
+    {
+      "id": "evidence_ledger",
+      "kind": "evidence"
+    },
+    {
+      "id": "independent_verifier",
+      "kind": "verification"
+    },
+    {
+      "id": "native_runtime",
+      "kind": "executor"
+    },
+    {
+      "id": "external_executor",
+      "kind": "executor"
+    },
+    {
+      "id": "browser_api_fabric",
+      "kind": "connection"
+    }
+  ],
+  "rules": [
+    "enumerate_direct_and_transitive_dependencies",
+    "shared_critical_dependency_collapses_routes",
+    "route_requires_fresh_witness",
+    "route_requires_takeover_witness",
+    "critical_path_target_tolerates_two_independent_failure_domains"
+  ]
+}

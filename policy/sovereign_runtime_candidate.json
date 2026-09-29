@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "status": "candidate_not_constitutional",
+  "target_failure_domain_tolerance": 2,
+  "route_qualification": {
+    "states": [
+      "QUALIFIED",
+      "DEGRADED",
+      "QUARANTINED",
+      "UNAVAILABLE",
+      "STALE_EVIDENCE"
+    ],
+    "fresh_witness_required": true,
+    "takeover_witness_required": true,
+    "transitive_dependency_accounting": true
+  },
+  "mission": {
+    "durable": true,
+    "portable": true,
+    "lease": true,
+    "fencing": true,
+    "idempotency": true,
+    "reconcile_before_retry": true
+  },
+  "authority": {
+    "scoped_capabilities": true,
+    "raw_secret_exposure": "avoid",
+    "explicit_high_impact_authorization": true
+  },
+  "verification": {
+    "executor_self_certification": false,
+    "independent_verifier_required_for_critical_effects": true,
+    "evidence_before_green": true
+  },
+  "promotion_required": [
+    "formal_spec",
+    "threat_model",
+    "failure_domain_graph",
+    "chaos_matrix",
+    "adversarial_review",
+    "regression_suite",
+    "rollback_evidence"
+  ]
+}

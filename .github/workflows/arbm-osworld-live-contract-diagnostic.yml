@@ -1,0 +1,72 @@
+name: ARBM OSWorld Live Contract Diagnostic
+on:
+  push:
+    paths:
+      - "scripts/osworld_free_mesh_shim.py"
+      - ".github/workflows/arbm-osworld-live-contract-diagnostic.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  live-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PYTHONPATH: ${{ github.workspace }}/scripts
+      ZERO_SPEND_MODE: HARD
+      ARBM_VALIDATION_SPEND_MODE: zero
+      ARBM_ENABLE_LOCAL_VLM: "1"
+      ARBM_OSWORLD_SHIM_LOG: contract-diagnostic.jsonl
+      ARBM_MESH_TOTAL_BUDGET_SECONDS: "90"
+      ARBM_LOCAL_VLM_RESERVE_SECONDS: "15"
+      ARBM_GATEWAY_TIMEOUT_CAP_SECONDS: "40"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install diagnostic dependency
+        run: |
+          python -m pip install --disable-pip-version-check -q pillow ijson
+          python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
+      - name: Run live action-contract diagnostic
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, base64, io
+          from PIL import Image, ImageDraw
+          import osworld_free_mesh_shim as shim
+          observation = """tag	name	text	class	description	position (top-left x&y)	size (w&h)
+          push-button	Reload	Reload			(147, 73)	(34, 34)
+          entry	Address and search bar	""			(227, 78)	(1459, 24)
+          document-web	New Tab	""			(70, 114)	(1850, 966)
+          push-button	Customise Chrome	""			(1736, 1032)	(168, 32)
+          """
+          img=Image.new("RGB",(1920,1080),"white")
+          draw=ImageDraw.Draw(img)
+          draw.rectangle((70,114,1910,1070),outline="black")
+          draw.text((250,80),"Chrome New Tab - address bar",fill="black")
+          buf=io.BytesIO(); img.save(buf,format="PNG")
+          shot="data:image/png;base64,"+base64.b64encode(buf.getvalue()).decode()
+          messages=[
+            {"role":"system","content":"You are asked to complete the following task: Make Bing the default search engine in Chrome settings."},
+            {"role":"user","content":[{"type":"text","text":observation},{"type":"image_url","image_url":{"url":shot}}]},
+          ]
+          result=shim.call_mesh(messages)
+          print("LIVE_CONTRACT_RESULT="+result)
+          if result in ("FAIL","WAIT","DONE") or "pyautogui" not in result:
+              raise SystemExit("LIVE_ACTION_CONTRACT=FAIL")
+          print("LIVE_ACTION_CONTRACT=PASS")
+          PY
+      - name: Print decision ledger
+        if: always()
+        run: |
+          test -f contract-diagnostic.jsonl && cat contract-diagnostic.jsonl || true
+      - name: Preserve diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: arbm-osworld-live-contract-diagnostic
+          path: contract-diagnostic.jsonl
+          if-no-files-found: warn
+          retention-days: 30

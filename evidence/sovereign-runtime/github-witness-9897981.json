@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "provider": "github",
+  "failure_domain": "github",
+  "independent_failure_domain": true,
+  "candidate_sha": "9897981bea36dd198cdbf91dbe76f897bba8db46",
+  "workflow_run_id": 36363101459,
+  "job_id": 108744058831,
+  "result": "PASS",
+  "witness_class": "EXECUTED_PROVIDER_CONTRACT_WITNESS",
+  "observations": [
+    "6 resilience unit tests passed",
+    "chaos contract gate passed",
+    "candidate SHA binding observed",
+    "promotion remained fail-closed"
+  ]
+}

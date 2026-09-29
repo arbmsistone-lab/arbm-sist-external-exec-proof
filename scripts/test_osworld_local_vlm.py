@@ -3,7 +3,7 @@ import os
 import unittest
 from osworld_control import canonical_target_proof, ground_action
 from unittest.mock import patch
-from osworld_local_vlm import LocalVLMRoute, parse_action_object, MODEL_REVISION, _smol_chat_messages, _binary_contract, _recent_tabu_counts, _selector_penalty, _action_fingerprint, _foreground_observation, _selector_candidates
+from osworld_local_vlm import LocalVLMRoute, parse_action_object, MODEL_REVISION, _smol_chat_messages, _binary_contract, _recent_tabu_counts, _selector_penalty, _action_fingerprint, _foreground_observation, _selector_candidates, action_prompt
 
 PNG=base64.b64encode(b'fixture').decode()
 OBS='''Given the screenshot and info from accessibility tree as below:\ntag\tname\ttext\tclass\tdescription\tposition (top-left x&y)\tsize (w&h)\npush-button\tCompose\tCompose\t\t\t(86, 194)\t(157, 56)\npush-button\tClose\tClose\t\t\t(1882, 27)\t(38, 35)\nlink\tInbox 1\tInbox1\t\t\t(70, 274)\t(240, 32)\n'''
@@ -182,6 +182,20 @@ class SelectorStatefulTests(unittest.TestCase):
         counts=_recent_tabu_counts(body)
         fp=_action_fingerprint({'action':'exec','command':'pyautogui.click(1114, 309)'})
         self.assertEqual(counts.get(fp,0),0)
+
+
+class GuestTerminalPromptTests(unittest.TestCase):
+    def test_regular_task_keeps_terminal_forbidden(self):
+        prompt=action_prompt({**BODY,'instruction':'Change all text to test'})
+        self.assertIn('Terminal and shell interaction are forbidden',prompt)
+        self.assertNotIn('task explicitly requires command-line',prompt)
+
+    def test_explicit_cli_task_gets_guest_only_terminal_clause(self):
+        prompt=action_prompt({**BODY,'instruction':'Force quit LibreOffice from the command line on Ubuntu'})
+        self.assertIn('task explicitly requires command-line use inside the guest VM',prompt)
+        self.assertIn('visible Terminal',prompt)
+        self.assertIn('Never use Ctrl+Alt+T',prompt)
+        self.assertIn('host shell APIs',prompt)
 
 
 class LocalVLMTests(unittest.TestCase):
