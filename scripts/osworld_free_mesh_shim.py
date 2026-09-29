@@ -894,13 +894,39 @@ def _task091_section_e_format_step(state, window_state):
                 return _task091_terminal('TASK091_SECTION_E_PRECONDITION_DRIFT',state)
         except Exception:
             return _task091_terminal('TASK091_SECTION_E_PRECONDITION_DRIFT',state)
+        tx['stage']='f2-issued'
+        return {'action':'exec','command':"pyautogui.press('f2')",
+                'plan':'Enter WPS text-edit mode on the structurally signed Section E shape.',
+                'specialist_phase':'section-e-semantic-f2'}
+
+    if stage=='f2-issued':
+        tx['stage']='select-text-issued'
+        return {'action':'exec','command':"pyautogui.hotkey('ctrl', 'a')",
+                'plan':'Select only the text inside the already signed Section E shape.',
+                'specialist_phase':'section-e-semantic-select-text'}
+
+    if stage=='select-text-issued':
+        tx['font_step']=1
+        tx['stage']='font-step-issued'
+        return {'action':'exec','command':"pyautogui.hotkey('ctrl', '[')",
+                'plan':f"Apply Section E font decrement 1 of {int(tx.get('font_decrements') or 1)}.",
+                'specialist_phase':'section-e-semantic-font-minus-1'}
+
+    if stage=='font-step-issued':
+        current_step=int(tx.get('font_step') or 0)
+        total=int(tx.get('font_decrements') or 0)
+        if current_step < 1 or total < 1 or current_step > total:
+            return _task091_terminal('TASK091_SECTION_E_FONT_STEP_STATE_INVALID',state)
+        if current_step < total:
+            next_step=current_step+1
+            tx['font_step']=next_step
+            return {'action':'exec','command':"pyautogui.hotkey('ctrl', '[')",
+                    'plan':f"Apply Section E font decrement {next_step} of {total}.",
+                    'specialist_phase':f'section-e-semantic-font-minus-{next_step}'}
         tx['stage']='font-issued'
-        commands=["pyautogui.press('f2')","pyautogui.hotkey('ctrl', 'a')"]
-        for _ in range(int(tx.get('font_decrements') or 1)):
-            commands.append("pyautogui.hotkey('ctrl', '[')")
-        return {'action':'exec','command':'\n'.join(commands),
-                'plan':'Select the resolved shape text and apply exactly the declared font decrement; OOXML will prove the result.',
-                'specialist_phase':'section-e-semantic-font'}
+        return {'action':'exec','command':"pyautogui.sleep(0.12)",
+                'plan':'All bounded Section E font decrements were issued individually; settle once before finalizing.',
+                'specialist_phase':'section-e-semantic-font-settle'}
 
     if stage=='font-issued':
         tx['stage']='commit-issued'
