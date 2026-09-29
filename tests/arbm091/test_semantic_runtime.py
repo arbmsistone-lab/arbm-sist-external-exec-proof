@@ -1103,14 +1103,25 @@ class SemanticRuntimeTests(unittest.TestCase):
         ws["deck_slide_relationships"]={"2":[]}
         state={"slide":2}
         plan=((2,558,364,"$42.8M","$40.9M"),)
-        with patch.dict(os.environ,{"TASK091_FIXED_WIDTH_ENGINE":"1"},clear=False):
-            select=next_text_action(state,ws,plan)
-            self.assertEqual(select["specialist_phase"],"semantic-fixed-width-target-select")
-            self.assertIn("pyautogui.click",select["command"])
-            self.assertNotIn("ctrl', 'a",select["command"])
-            self.assertTrue(state["semantic_tx"]["fixed_width_enabled"])
-            self.assertEqual(state["semantic_tx"]["target_key"],
-                             [2,"shape",15,"SummaryArr_Value"])
+        with tempfile.TemporaryDirectory() as td:
+            self._materialize_fixed_width_visual_evidence(td,ws)
+            with patch.dict(os.environ,{"TASK091_FIXED_WIDTH_ENGINE":"1",
+                                        "ARBM_WPS_EVIDENCE_DIR":td},clear=False):
+                select=next_text_action(state,ws,plan)
+                if select.get("action")=="terminal":
+                    diagnostic={
+                        "reason":select.get("reason"),
+                        "stage":(state.get("semantic_tx") or {}).get("stage"),
+                        "expected":"semantic-fixed-width-target-select",
+                        "actual":select,
+                    }
+                    self.fail(f"fixed-width fixture unexpectedly terminal: {diagnostic!r}")
+                self.assertEqual(select.get("specialist_phase"),"semantic-fixed-width-target-select")
+                self.assertIn("pyautogui.click",select["command"])
+                self.assertNotIn("ctrl', 'a",select["command"])
+                self.assertTrue(state["semantic_tx"]["fixed_width_enabled"])
+                self.assertEqual(state["semantic_tx"]["target_key"],
+                                 [2,"shape",15,"SummaryArr_Value"])
 
     def test_fixed_width_diff_command_mutates_only_indices_two_and_four(self):
         from arbm091.semantic_runtime import _fixed_width_mutation_command
@@ -1235,8 +1246,6 @@ class SemanticRuntimeTests(unittest.TestCase):
                 self._materialize_fixed_width_visual_evidence(td,reflow)
                 first_probe=next_text_action(state,reflow,plan)
                 self._assert_exec_phase(first_probe,"fixed-width-reflow-stability-probe-1",state)
-                settle=next_text_action(state,reflow,plan)
-                self._assert_exec_phase(settle,"fixed-width-reflow-stability-probe-2",state)
                 second=next_text_action(state,reflow,plan)
                 self._assert_exec_phase(second,"semantic-fixed-width-enter-text-click-2",state)
         self.assertIn("pyautogui.click",second["command"])
@@ -1257,8 +1266,6 @@ class SemanticRuntimeTests(unittest.TestCase):
                 self._assert_exec_phase(click1,"semantic-fixed-width-enter-text-click-1",state)
                 probe=next_text_action(state,ws,plan)
                 self._assert_exec_phase(probe,"fixed-width-reflow-stability-probe-1",state)
-                settle=next_text_action(state,ws,plan)
-                self._assert_exec_phase(settle,"fixed-width-reflow-stability-probe-2",state)
                 second=next_text_action(state,ws,plan)
                 self._assert_exec_phase(second,"semantic-fixed-width-enter-text-click-2",state)
         self.assertTrue(state["semantic_tx"]["fixed_width_identity_proof"]["same_logical_identity"])
@@ -1320,8 +1327,6 @@ class SemanticRuntimeTests(unittest.TestCase):
                 reflow["slide_canvas_bbox"]=[352,263,1135,638]
                 first_probe=next_text_action(state,reflow,plan)
                 self._assert_exec_phase(first_probe,"fixed-width-reflow-stability-probe-1",state)
-                settle=next_text_action(state,reflow,plan)
-                self._assert_exec_phase(settle,"fixed-width-reflow-stability-probe-2",state)
                 click2=next_text_action(state,reflow,plan)
                 self._assert_exec_phase(click2,"semantic-fixed-width-enter-text-click-2",state)
         tx=state["semantic_tx"]
