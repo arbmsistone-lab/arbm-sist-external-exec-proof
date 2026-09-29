@@ -162,6 +162,24 @@ def review_action(action, *, task_id="", source="generic", state=None,
         and int(target.get("cx") or 0)==int(section_e.get("cx") or -1)
         and int(target.get("cy") or 0)==int(section_e.get("cy") or -1)
     )
+    bounded_section_e_font_step=(
+        str(task_id)=="091"
+        and source=="task091-specialist"
+        and command=="pyautogui.hotkey('ctrl', '[')"
+        and bool(re.fullmatch(r"section-e-semantic-font-minus-([1-9])",phase))
+        and str(section_e.get("stage") or "")=="font-step-issued"
+        and int(section_e.get("slide") or 0)==3
+        and int(section_e.get("shape_id") or 0)==16
+        and str(section_e.get("shape_name") or "")=="KpiReadout_Body"
+        and tuple(section_e.get("target_key") or ())==(3,"shape",16,"KpiReadout_Body")
+        and int(section_e.get("font_decrements") or 0)==9
+        and int(section_e.get("font_step") or 0)==int(phase.rsplit("-",1)[-1])
+        and 1 <= int(section_e.get("font_step") or 0) <= 9
+        and bool(re.fullmatch(r"[0-9a-f]{64}",str(section_e.get("before_deck_sha256") or ""),re.I))
+        and repeated
+        and no_progress>0
+        and recent.count(command) < 9
+    )
     bounded_nonpersisted_selection_observation=(
         str(task_id)=="091"
         and source=="task091-specialist"
@@ -178,10 +196,11 @@ def review_action(action, *, task_id="", source="generic", state=None,
     )
     bounded_semantic_retry=(bounded_observation_retry or bounded_table_cell_entry
                             or bounded_section_e_text_entry
+                            or bounded_section_e_font_step
                             or bounded_nonpersisted_selection_observation)
     anti_repeat=not (repeated and no_progress>0 and not bounded_semantic_retry)
     rows.append(_lane("anti_repetition",anti_repeat,
-        "no-progress repetition is forbidden except evidence-bound Task 091 resync, a single proven text-entry transition, or one bounded observation after a non-persisted shape edit"))
+        "no-progress repetition is forbidden except evidence-bound Task 091 resync, bounded Section E font steps 1-9, a single proven text-entry transition, or one bounded observation after a non-persisted shape edit"))
 
     progress_ok=not (
         kind=="finish"
