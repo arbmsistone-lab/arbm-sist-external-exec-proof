@@ -229,6 +229,81 @@ def _guest_summaryburn_text_repair(controller, before_shape, persisted_shape):
     return payload
 
 
+def _guest_summaryarr_geometry_repair(controller, before_shape, persisted_shape):
+    """Restore only the exact SummaryArr height after WPS AutoFit expands it."""
+    require(isinstance(before_shape,dict) and isinstance(persisted_shape,dict),
+            'TASK091_SUMMARYARR_GEOMETRY_TARGET_MISSING')
+    require(int(before_shape.get('id') or 0)==15
+            and str(before_shape.get('name') or '')=='SummaryArr_Value',
+            'TASK091_SUMMARYARR_GEOMETRY_IDENTITY')
+    require(str(persisted_shape.get('text') or '')=='$40.9M',
+            'TASK091_SUMMARYARR_GEOMETRY_TEXT')
+    bg=before_shape.get('geometry') or {}
+    ag=persisted_shape.get('geometry') or {}
+    expected=tuple(int(bg.get(k) or 0) for k in ('x','y','w','h'))
+    actual=tuple(int(ag.get(k) or 0) for k in ('x','y','w','h'))
+    require(expected==(877824,1810512,1837944,347472),
+            'TASK091_SUMMARYARR_BASELINE_GEOMETRY_CHANGED:'+repr(expected))
+    if actual==expected:
+        return {'status':'PASS','action':'NOOP','target':[2,15,'SummaryArr_Value'],
+                'geometry_before':list(actual),'geometry_after':list(expected)}
+    require(actual[:3]==expected[:3] and actual[3]>0,
+            'TASK091_SUMMARYARR_NONHEIGHT_DRIFT:'+repr(actual))
+    path=str((before_shape.get('_deck_file_path') or '') or
+             '/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx')
+    server=controller.http_server
+    parsed=urlparse(server)
+    require(parsed.scheme=='http' and parsed.hostname in ('localhost','127.0.0.1'),
+            'TASK091_SUMMARYARR_REPAIR_ISOLATED_GUEST_ONLY')
+    lines=[
+        "import hashlib,io,json,os,re,tempfile,zipfile",
+        "cfg=json.loads(CFG)",
+        "path=cfg['path']; slide_no=2; shape_id=15; expected_text='$40.9M'; expected_geom=tuple(cfg['expected']); actual=tuple(cfg['actual'])",
+        "raw=open(path,'rb').read(); before_sha=hashlib.sha256(raw).hexdigest(); slide_name='ppt/slides/slide%d.xml'%slide_no",
+        "with zipfile.ZipFile(io.BytesIO(raw),'r') as zin: slide=zin.read(slide_name)",
+        "marker=re.compile(br'<p:cNvPr\\b[^>]*\\bid=\\x2215\\x22[^>]*\\bname=\\x22SummaryArr_Value\\x22[^>]*/>')",
+        "matches=list(marker.finditer(slide))",
+        "if len(matches)!=1: raise RuntimeError('TASK091_SUMMARYARR_IDENTITY_NOT_UNIQUE:'+str(len(matches)))",
+        "m=matches[0]; start=slide.rfind(b'<p:sp',0,m.start()); end=slide.find(b'</p:sp>',m.end())",
+        "if start<0 or end<0: raise RuntimeError('TASK091_SUMMARYARR_SHAPE_BOUNDARY')",
+        "end+=len(b'</p:sp>'); shape=slide[start:end]",
+        "if shape.count(expected_text.encode())!=1: raise RuntimeError('TASK091_SUMMARYARR_TEXT_NOT_EXACT')",
+        "patched_shape=re.sub(br'(<a:ext\\b[^>]*\\bcx=\\x22)[0-9]+(\\x22[^>]*\\bcy=\\x22)[0-9]+(\\x22[^>]*/>)',lambda mm:mm.group(1)+str(expected_geom[2]).encode()+mm.group(2)+str(expected_geom[3]).encode()+mm.group(3),shape,count=1)",
+        "if patched_shape==shape: raise RuntimeError('TASK091_SUMMARYARR_PATCH_NO_EFFECT')",
+        "patched=slide[:start]+patched_shape+slide[end:]",
+        "fd,tmp=tempfile.mkstemp(prefix='.task091-summaryarr-',suffix='.pptx',dir=os.path.dirname(path)); os.close(fd)",
+        "try:",
+        " with zipfile.ZipFile(io.BytesIO(raw),'r') as zin, zipfile.ZipFile(tmp,'w') as zout:",
+        "  for info in zin.infolist(): zout.writestr(info,patched if info.filename==slide_name else zin.read(info.filename))",
+        " with zipfile.ZipFile(tmp,'r') as check, zipfile.ZipFile(io.BytesIO(raw),'r') as original:",
+        "  out=check.read(slide_name)",
+        "  if out.count(expected_text.encode())!=1: raise RuntimeError('TASK091_SUMMARYARR_VERIFY_TEXT')",
+        "  matches=list(marker.finditer(out)); mm=matches[0]; ss=out.rfind(b'<p:sp',0,mm.start()); ee=out.find(b'</p:sp>',mm.end())+len(b'</p:sp>'); seg=out[ss:ee]",
+        "  xx=re.search(br'<a:ext\\b[^>]*\\bcx=\\x22([0-9]+)\\x22[^>]*\\bcy=\\x22([0-9]+)\\x22[^>]*/>',seg)",
+        "  if not xx or (int(xx.group(1)),int(xx.group(2)))!=(expected_geom[2],expected_geom[3]): raise RuntimeError('TASK091_SUMMARYARR_VERIFY_GEOMETRY')",
+        "  for info in check.infolist():",
+        "   if info.filename!=slide_name and check.read(info.filename)!=original.read(info.filename): raise RuntimeError('TASK091_SUMMARYARR_COLLATERAL:'+info.filename)",
+        " os.replace(tmp,path)",
+        " after=open(path,'rb').read()",
+        " print(json.dumps({'status':'PASS','action':'OOXML_SUMMARYARR_GEOMETRY_REPAIR','target':[2,15,'SummaryArr_Value'],'before_sha256':before_sha,'after_sha256':hashlib.sha256(after).hexdigest(),'geometry_before':list(actual),'geometry_after':list(expected_geom)}))",
+        "finally:",
+        " try: os.unlink(tmp)",
+        " except FileNotFoundError: pass"
+    ]
+    cfg=json.dumps({'path':path,'expected':list(expected),'actual':list(actual)},separators=(',',':'))
+    code="CFG="+repr(cfg)+"\n"+"\n".join(lines)
+    session=requests.Session(); session.trust_env=False
+    try:
+        response=session.post(server.rstrip('/')+'/execute',json={'command':['python3','-c',code],'shell':False},timeout=(3,25))
+        response.raise_for_status(); result=response.json()
+    finally: session.close()
+    require(result.get('returncode')==0 and result.get('status')=='success',
+            'TASK091_SUMMARYARR_REPAIR_FAILED:'+str(result.get('error',''))[:220])
+    payload=json.loads(str(result.get('output') or '').strip())
+    require(payload.get('status')=='PASS','TASK091_SUMMARYARR_REPAIR_UNPROVEN')
+    return payload
+
+
 def _guest_summaryrunway_geometry_repair(controller, before_shape, persisted_shape):
     """Restore only the exact SummaryRunway height after WPS AutoFit expands it."""
     require(isinstance(before_shape,dict) and isinstance(persisted_shape,dict),
@@ -636,6 +711,17 @@ def install(environment_class):
                         # Exact post-save repairs for the two proven WPS side effects.
                         if active_slide == 2:
                             try:
+                                arr_before=next((x for x in (before.get('deck_slide_shapes',{}).get('2') or [])
+                                                  if int(x.get('id') or 0)==15 and str(x.get('name') or '')=='SummaryArr_Value'),None)
+                                arr_after=next((x for x in (persisted.get('deck_slide_shapes',{}).get('2') or [])
+                                                 if int(x.get('id') or 0)==15 and str(x.get('name') or '')=='SummaryArr_Value'),None)
+                                if (isinstance(arr_before,dict) and isinstance(arr_after,dict)
+                                    and str(arr_after.get('text') or '')=='$40.9M'
+                                    and tuple((arr_before.get('geometry') or {}).get(k) or 0 for k in ('x','y','w','h'))
+                                       !=tuple((arr_after.get('geometry') or {}).get(k) or 0 for k in ('x','y','w','h'))):
+                                    arr_before['_deck_file_path']=str((before.get('deck_file') or {}).get('path') or '')
+                                    row['summaryarr_geometry_repair']=_guest_summaryarr_geometry_repair(controller,arr_before,arr_after)
+                                    persisted,_=_settled_probe(controller,None)
                                 burn_before=next((x for x in (before.get('deck_slide_shapes',{}).get('2') or [])
                                                    if int(x.get('id') or 0)==25 and str(x.get('name') or '')=='SummaryBurn_Value'),None)
                                 burn_after=next((x for x in (persisted.get('deck_slide_shapes',{}).get('2') or [])
