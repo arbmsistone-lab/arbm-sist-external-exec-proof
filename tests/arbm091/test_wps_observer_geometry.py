@@ -134,6 +134,46 @@ class CoverStatFamilyGeometryDecisionTests(unittest.TestCase):
             "FAIL_CLOSED",
         )
 
+    def test_summary_hc_completed_height_drift_requests_repair(self):
+        ws={"deck_slide_shapes":{
+            "2":[row(35,"SummaryHc_Value","206",
+                     {"x":9957816,"y":1810512,"w":1353312,"h":460375})]
+        }}
+        self.assertEqual(
+            dict(_coverstat_family_repair_decisions(ws))[(2,35,"SummaryHc_Value")],
+            "REPAIR_HEIGHT",
+        )
+
+    def test_summary_hc_exact_geometry_passes(self):
+        ws={"deck_slide_shapes":{
+            "2":[row(35,"SummaryHc_Value","206",
+                     {"x":9957816,"y":1810512,"w":1353312,"h":347472})]
+        }}
+        self.assertEqual(
+            dict(_coverstat_family_repair_decisions(ws))[(2,35,"SummaryHc_Value")],
+            "PASS",
+        )
+
+    def test_summary_hc_wrong_text_never_authorizes_repair(self):
+        ws={"deck_slide_shapes":{
+            "2":[row(35,"SummaryHc_Value","214",
+                     {"x":9957816,"y":1810512,"w":1353312,"h":460375})]
+        }}
+        self.assertEqual(
+            dict(_coverstat_family_repair_decisions(ws))[(2,35,"SummaryHc_Value")],
+            "NOOP",
+        )
+
+    def test_summary_hc_nonheight_drift_fails_closed(self):
+        ws={"deck_slide_shapes":{
+            "2":[row(35,"SummaryHc_Value","206",
+                     {"x":9957817,"y":1810512,"w":1353312,"h":460375})]
+        }}
+        self.assertEqual(
+            dict(_coverstat_family_repair_decisions(ws))[(2,35,"SummaryHc_Value")],
+            "FAIL_CLOSED",
+        )
+
     def test_missing_registered_member_fails_closed(self):
         ws=state(
             row(13,"CoverStatValue_0","$40.9M",{"x":8339327,"y":2167128,"w":2560320,"h":219456}),
