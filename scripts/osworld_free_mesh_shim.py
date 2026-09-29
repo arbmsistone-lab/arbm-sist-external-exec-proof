@@ -1449,11 +1449,23 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 'specialist_phase':'anchor-slide-1'}
 
     # Task 091 semantic migration: all textual mutations are owned by the
-    # caret-free transaction runtime. Legacy pending_edit/caret logic remains
-    # below only for historical replay compatibility and is unreachable until
-    # every semantic transaction has been structurally verified.
+    # caret-free transaction runtime. Micro scopes are deliberately isolated so
+    # the full workflow is not used as a debugging harness.
+    micro_scope=str(os.environ.get('TASK091_MICRO_SCOPE') or '').strip().casefold()
+    if micro_scope=='section-e':
+        state['semantic_text_done']=True
+        state['spatial_index']=0
+        if not state.get('section_e_format_done'):
+            return _task091_section_e_format_step(state,window_state)
+        return _task091_terminal('TASK091_MICRO_SECTION_E_PROVEN',state)
     if not state.get('semantic_text_done'):
         semantic_plan=TASK091_SPATIAL_TEXT_EDITS
+        if micro_scope=='summary-hc':
+            semantic_plan=tuple(row for row in TASK091_SPATIAL_TEXT_EDITS
+                                if int(row[0])==2 and str(row[3])=='214' and str(row[4])=='206')
+            if len(semantic_plan)!=1:
+                return _task091_terminal('TASK091_MICRO_SUMMARY_HC_PLAN_UNPROVEN',state)
+            return next_091_semantic_text_action(state,window_state,semantic_plan)
         if os.environ.get('TASK091_CRITICAL_ERROR_ONLY')=='1':
             semantic_plan=tuple(row for row in TASK091_SPATIAL_TEXT_EDITS
                                 if int(row[0])==2 and str(row[3])=='$42.8M' and str(row[4])=='$40.9M')
@@ -1461,6 +1473,8 @@ def next_091_specialist_action(instruction, active_application, observation, sta
                 return _task091_terminal('TASK091_CRITICAL_SUMMARYARR_PLAN_UNPROVEN',state)
             return next_091_semantic_text_action(state,window_state,semantic_plan)
         return next_091_semantic_text_action(state,window_state,TASK091_SPATIAL_TEXT_EDITS)
+    if micro_scope=='summary-hc':
+        return _task091_terminal('TASK091_MICRO_SUMMARY_HC_PROVEN',state)
     if not state.get('section_e_format_done'):
         # Section E stays deterministic: WPS performs the mutation, while the
         # persisted OOXML observer is the independent authority. No model
