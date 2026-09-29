@@ -20,6 +20,8 @@ TASK091_CANONICAL_WINDOW = [70, 27, 1850, 1053]
 TASK091_CANONICAL_SLIDE_VIEWPORT = [443, 194, 1413, 795]
 TASK091_WPS_START_CENTER_DECK_POINT = (550, 216)
 TASK091_WPS_START_CENTER_DECK_BBOX = [384, 188, 960, 60]
+TASK091_WPS_FONT_SIZE_BBOX = [337, 96, 69, 24]
+TASK091_WPS_FONT_SIZE_POINT = (371, 108)
 
 
 def _task091_canvas(snapshot: dict):
@@ -315,6 +317,23 @@ def preflight(command: str, snapshot: dict) -> str:
                     'DEFAULT_OFFICE_ACTION_FORBIDDEN')
 
     if point is not None:
+        if (app == 'wps-presentation'
+                and name == 'click'
+                and point == TASK091_WPS_FONT_SIZE_POINT):
+            require(snapshot.get('screen') == TASK091_CANONICAL_SCREEN,
+                    'TASK091_FONT_SIZE_SCREEN_UNPROVEN')
+            require(window.get('bbox') == TASK091_CANONICAL_WINDOW,
+                    'TASK091_FONT_SIZE_WINDOW_UNPROVEN')
+            require(inside(point, TASK091_WPS_FONT_SIZE_BBOX),
+                    'TASK091_FONT_SIZE_TARGET_UNPROVEN')
+            require(snapshot.get('active_slide') == 3,
+                    'TASK091_FONT_SIZE_SLIDE_UNPROVEN')
+            require(isinstance(snapshot.get('deck_file'), dict)
+                    and str(snapshot['deck_file'].get('path','')) ==
+                    '/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx'
+                    and len(str(snapshot['deck_file'].get('sha256',''))) == 64,
+                    'TASK091_FONT_SIZE_DECK_UNPROVEN')
+            return 'wps-content'
         target = snapshot.get('target')
         deck_spatial = (target is None and app == 'wps-presentation'
                         and name in ('click','doubleClick')
