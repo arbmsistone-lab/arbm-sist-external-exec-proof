@@ -123,6 +123,48 @@ class SeniorEliteBoardTests(unittest.TestCase):
         self.assertFalse(result['allow'])
         self.assertIn('anti_repetition',result['failed'])
 
+    def test_task091_section_e_bounded_font_repetition_is_allowed_only_in_exact_scope(self):
+        command="pyautogui.hotkey('ctrl', '[')"
+        state={'task091_specialist':{'owned':True,'handoff':False,'section_e_format':{
+            'stage':'font-step-issued','slide':3,'shape_id':16,'shape_name':'KpiReadout_Body',
+            'target_key':[3,'shape',16,'KpiReadout_Body'],
+            'font_decrements':9,'font_step':4,'before_deck_sha256':'1'*64}}}
+        action={'action':'exec','command':command,'specialist_phase':'section-e-semantic-font-minus-4'}
+        with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','GITHUB_SHA':'f'*40},clear=False):
+            result=review_action(action,task_id='091',source='task091-specialist',state=state,
+                                 verifier={'progress':False,'no_progress':4},
+                                 recent_commands=[command,command,command])
+        self.assertTrue(result['allow'],result)
+        self.assertEqual(result['pass'],10)
+
+    def test_task091_section_e_tenth_font_repeat_is_vetoed(self):
+        command="pyautogui.hotkey('ctrl', '[')"
+        state={'task091_specialist':{'owned':True,'handoff':False,'section_e_format':{
+            'stage':'font-step-issued','slide':3,'shape_id':16,'shape_name':'KpiReadout_Body',
+            'target_key':[3,'shape',16,'KpiReadout_Body'],
+            'font_decrements':9,'font_step':9,'before_deck_sha256':'1'*64}}}
+        action={'action':'exec','command':command,'specialist_phase':'section-e-semantic-font-minus-9'}
+        with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','GITHUB_SHA':'f'*40},clear=False):
+            result=review_action(action,task_id='091',source='task091-specialist',state=state,
+                                 verifier={'progress':False,'no_progress':10},
+                                 recent_commands=[command]*9)
+        self.assertFalse(result['allow'])
+        self.assertIn('anti_repetition',result['failed'])
+
+    def test_task091_section_e_wrong_target_cannot_use_font_repeat_exception(self):
+        command="pyautogui.hotkey('ctrl', '[')"
+        state={'task091_specialist':{'owned':True,'handoff':False,'section_e_format':{
+            'stage':'font-step-issued','slide':3,'shape_id':99,'shape_name':'Other',
+            'target_key':[3,'shape',99,'Other'],
+            'font_decrements':9,'font_step':2,'before_deck_sha256':'1'*64}}}
+        action={'action':'exec','command':command,'specialist_phase':'section-e-semantic-font-minus-2'}
+        with patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','GITHUB_SHA':'f'*40},clear=False):
+            result=review_action(action,task_id='091',source='task091-specialist',state=state,
+                                 verifier={'progress':False,'no_progress':2},
+                                 recent_commands=[command])
+        self.assertFalse(result['allow'])
+        self.assertIn('anti_repetition',result['failed'])
+
     def test_task091_nonpersisted_shape_recovery_allows_one_bounded_observation(self):
         command="pyautogui.sleep(0.2)"
         state={'task091_specialist':{'owned':True,'handoff':False,'pending_edit':{
