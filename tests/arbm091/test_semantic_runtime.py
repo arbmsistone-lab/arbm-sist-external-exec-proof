@@ -1147,6 +1147,77 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertEqual(result["canvas"],[352,263,1135,638])
         self.assertEqual(result["geometry"],[877824,1810512,1837944,347472])
 
+
+    def _fixed_width_two_phase_fixture(self):
+        ws=base_state()
+        ws["active_slide"]=2
+        ws["source"]="0001-01-after"
+        ws["screenshot_sha256"]="b"*64
+        ws["deck_file"]["sha256"]="a"*64
+        ws["deck_slide_shapes"]={"2":[{
+            "id":15,"name":"SummaryArr_Value","text":"$42.8M","kind":"shape",
+            "geometry":{"x":877824,"y":1810512,"w":1837944,"h":347472},
+            "font_sizes":[1600],"fill_rgb":"",
+        }]}
+        ws["deck_slide_relationships"]={"2":[]}
+        state={"slide":2}
+        plan=((2,558,364,"$42.8M","$40.9M"),)
+        return ws,state,plan
+
+    def test_fixed_width_first_click_is_not_atomic_doubleclick(self):
+        ws,state,plan=self._fixed_width_two_phase_fixture()
+        with patch.dict(os.environ,{"TASK091_FIXED_WIDTH_ENGINE":"1"},clear=False):
+            first=next_text_action(state,ws,plan)
+            self.assertEqual(first["specialist_phase"],"semantic-fixed-width-target-select")
+            second=next_text_action(state,ws,plan)
+        self.assertEqual(second["specialist_phase"],"semantic-fixed-width-enter-text-click-1")
+        self.assertIn("pyautogui.click",second["command"])
+        self.assertNotIn("doubleClick",second["command"])
+        self.assertEqual(state["semantic_tx"]["stage"],"fixed-width-end-first-click-issued")
+
+    def test_fixed_width_reflow_reprojects_second_click_same_identity(self):
+        ws,state,plan=self._fixed_width_two_phase_fixture()
+        with patch.dict(os.environ,{"TASK091_FIXED_WIDTH_ENGINE":"1"},clear=False):
+            next_text_action(state,ws,plan)
+            next_text_action(state,ws,plan)
+            reflow=copy.deepcopy(ws)
+            reflow["slide_canvas_bbox"]=[352,263,1135,638]
+            first_probe=next_text_action(state,reflow,plan)
+            self.assertEqual(first_probe["specialist_phase"],"fixed-width-reflow-stability-probe-1")
+            second=next_text_action(state,reflow,plan)
+        self.assertEqual(second["specialist_phase"],"semantic-fixed-width-enter-text-click-2")
+        self.assertIn("pyautogui.click",second["command"])
+        proof=state["semantic_tx"]["fixed_width_identity_proof"]
+        self.assertTrue(proof["same_logical_identity"])
+        self.assertEqual(proof["logical_identity"],[2,"shape",15,"SummaryArr_Value"])
+        self.assertNotEqual(proof["before_screen_bbox"],proof["after_screen_bbox"])
+
+    def test_fixed_width_same_identity_same_bbox_is_allowed(self):
+        ws,state,plan=self._fixed_width_two_phase_fixture()
+        with patch.dict(os.environ,{"TASK091_FIXED_WIDTH_ENGINE":"1"},clear=False):
+            next_text_action(state,ws,plan)
+            next_text_action(state,ws,plan)
+            next_text_action(state,ws,plan)
+            second=next_text_action(state,ws,plan)
+        self.assertEqual(second["specialist_phase"],"semantic-fixed-width-enter-text-click-2")
+        self.assertTrue(state["semantic_tx"]["fixed_width_identity_proof"]["same_logical_identity"])
+
+    def test_fixed_width_identity_drift_fails_closed(self):
+        ws,state,plan=self._fixed_width_two_phase_fixture()
+        with patch.dict(os.environ,{"TASK091_FIXED_WIDTH_ENGINE":"1"},clear=False):
+            next_text_action(state,ws,plan)
+            next_text_action(state,ws,plan)
+            drift=copy.deepcopy(ws)
+            drift["deck_slide_shapes"]["2"][0]["id"]=99
+            result=next_text_action(state,drift,plan)
+        self.assertEqual(result["action"],"terminal")
+
+    def test_fixed_width_second_click_still_requires_caret_proof(self):
+        source=Path("scripts/arbm091/semantic_runtime.py").read_text(encoding="utf-8")
+        self.assertIn('stage=="fixed-width-end-second-click-issued"',source)
+        self.assertIn("TASK091_FIXED_WIDTH_END_CARET_UNPROVEN",source)
+        self.assertIn("fixed-width-end-caret-probe-issued",source)
+
     def test_fixed_width_contract_rejects_historical_corruption_and_wrong_scope(self):
         from arbm091.semantic_runtime import _fixed_width_contract, FIXED_WIDTH_TEXTBOX_REGISTRY
         cfg=_fixed_width_contract((2,"shape",15,"SummaryArr_Value"),"$42.8M","$40.9M")
