@@ -8,7 +8,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from arbm091.semantic_runtime import _current_autofit_group, next_text_action, _snapshot, _screen_bbox
+from arbm091.semantic_runtime import (_current_autofit_group, next_text_action, _snapshot, _screen_bbox,
+                                      _fixed_width_relative_geometry, _fixed_width_reproject_bbox)
 from arbm091.semantic_transaction import model_sha256, normalize_deck
 from arbm091.score_tracker import SEMANTIC_REQUIRED_STATUSES, verify_semantic_architecture
 
@@ -1265,6 +1266,50 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertIn('stage=="fixed-width-end-second-click-issued"',source)
         self.assertIn("TASK091_FIXED_WIDTH_END_CARET_UNPROVEN",source)
         self.assertIn("fixed-width-end-caret-probe-issued",source)
+
+
+    def test_selection_chrome_cannot_expand_text_ink(self):
+        relative=_fixed_width_relative_geometry([557,415,121,24],[545,404,213,40])
+        repro=_fixed_width_reproject_bbox(relative,[545,404,213,40])
+        self.assertEqual(repro,[557,415,121,24])
+        self.assertNotEqual(repro,[550,409,203,30])
+
+    def test_baseline_ink_reprojects_after_reflow(self):
+        relative=_fixed_width_relative_geometry([557,415,121,24],[545,404,213,40])
+        repro=_fixed_width_reproject_bbox(relative,[500,390,240,45])
+        self.assertIsInstance(repro,list)
+        self.assertGreater(repro[0],500)
+        self.assertLess(repro[0]+repro[2],740)
+
+    def test_click2_uses_reprojected_text_endpoint(self):
+        ws,state,plan=self._fixed_width_two_phase_fixture()
+        with tempfile.TemporaryDirectory() as td:
+            self._materialize_fixed_width_visual_evidence(td,ws)
+            with patch.dict(os.environ,{"TASK091_FIXED_WIDTH_ENGINE":"1","ARBM_WPS_EVIDENCE_DIR":td},clear=False):
+                next_text_action(state,ws,plan)
+                next_text_action(state,ws,plan)
+                reflow=copy.deepcopy(ws)
+                reflow["slide_canvas_bbox"]=[352,263,1135,638]
+                first_probe=next_text_action(state,reflow,plan)
+                self._assert_exec_phase(first_probe,"fixed-width-reflow-stability-probe-1",state)
+                click2=next_text_action(state,reflow,plan)
+                self._assert_exec_phase(click2,"semantic-fixed-width-enter-text-click-2",state)
+        tx=state["semantic_tx"]
+        self.assertEqual(click2["target"]["cx"],tx["reprojected_text_endpoint"]["cx"])
+        self.assertEqual(tx["fixed_width_ink_bbox"],tx["reprojected_text_ink_bbox"])
+
+    def test_selection_border_endpoint_is_rejected(self):
+        relative=_fixed_width_relative_geometry([550,409,203,30],[545,404,213,40])
+        self.assertIsNotNone(relative)
+        baseline_relative=_fixed_width_relative_geometry([557,415,121,24],[545,404,213,40])
+        baseline_reprojected=_fixed_width_reproject_bbox(baseline_relative,[545,404,213,40])
+        self.assertLess(baseline_reprojected[0]+baseline_reprojected[2],754)
+
+    def test_identity_drift_still_fails_closed(self):
+        self.test_fixed_width_identity_drift_fails_closed()
+
+    def test_caret_proof_still_required(self):
+        self.test_fixed_width_second_click_still_requires_caret_proof()
 
     def test_fixed_width_contract_rejects_historical_corruption_and_wrong_scope(self):
         from arbm091.semantic_runtime import _fixed_width_contract, FIXED_WIDTH_TEXTBOX_REGISTRY

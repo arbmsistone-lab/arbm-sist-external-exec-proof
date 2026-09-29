@@ -240,6 +240,47 @@ def _fixed_width_text_end_point(ink,bbox,gap=3):
     return {"cx":int(cx),"cy":int(cy),"expected_x":int(cx)}
 
 
+def _fixed_width_relative_geometry(inner_bbox,outer_bbox):
+    if not (isinstance(inner_bbox,list) and len(inner_bbox)==4
+            and isinstance(outer_bbox,list) and len(outer_bbox)==4):
+        return None
+    ix,iy,iw,ih=(int(v) for v in inner_bbox)
+    ox,oy,ow,oh=(int(v) for v in outer_bbox)
+    if ow<=0 or oh<=0 or iw<=0 or ih<=0:
+        return None
+    if ix<ox or iy<oy or ix+iw>ox+ow or iy+ih>oy+oh:
+        return None
+    return [
+        (ix-ox)/ow,
+        (iy-oy)/oh,
+        iw/ow,
+        ih/oh,
+    ]
+
+
+def _fixed_width_reproject_bbox(relative_geometry,target_bbox):
+    if not (isinstance(relative_geometry,list) and len(relative_geometry)==4
+            and isinstance(target_bbox,list) and len(target_bbox)==4):
+        return None
+    x,y,w,h=(int(v) for v in target_bbox)
+    if w<=0 or h<=0:
+        return None
+    rx,ry,rw,rh=(float(v) for v in relative_geometry)
+    if not (0<=rx<1 and 0<=ry<1 and 0<rw<=1 and 0<rh<=1
+            and rx+rw<=1.000001 and ry+rh<=1.000001):
+        return None
+    left=round(x+rx*w); top=round(y+ry*h)
+    right=round(x+(rx+rw)*w); bottom=round(y+(ry+rh)*h)
+    box=[int(left),int(top),int(right-left),int(bottom-top)]
+    if box[2]<=0 or box[3]<=0:
+        return None
+    if box[0]<x or box[1]<y or box[0]+box[2]>x+w or box[1]+box[3]>y+h:
+        return None
+    return box
+
+
+
+
 def _fixed_width_caret_delta_geometry(before_source,after_source,bbox):
     before_path=_fixed_width_screenshot_source_path(before_source)
     after_path=_fixed_width_screenshot_source_path(after_source)
@@ -979,6 +1020,7 @@ def next_text_action(state,window_state,plan):
             "logical_identity":list(key),
             "deck_sha256":reflow["deck_sha256"],
             "model_sha256":reflow["model_sha256"],
+            "text":str(row.get("text") or ""),
         }
         tx["fixed_width_stability_signature"]=signature
         tx["fixed_width_stability_observations"]=0
@@ -1005,14 +1047,18 @@ def next_text_action(state,window_state,plan):
         try:
             reflow=_fixed_width_validate_viewport_reflow(tx,window_state,row,current_model)
             reflow_bbox=_screen_bbox(window_state,row)
-            reflow_ink=_fixed_width_text_ink(window_state,reflow_bbox)
-            reflow_end=_fixed_width_text_end_point(reflow_ink,reflow_bbox)
         except SemanticTransactionError as exc:
             return _terminal(str(exc))
-        if not isinstance(reflow_ink,dict):
-            return _terminal("TASK091_FIXED_WIDTH_REFLOW_TEXT_INK_UNPROVEN")
+        relative=tx.get("baseline_text_ink_relative_geometry")
+        if not isinstance(relative,list):
+            return _terminal("TASK091_FIXED_WIDTH_BASELINE_INK_MISSING")
+        reflow_ink_bbox=_fixed_width_reproject_bbox(relative,reflow_bbox)
+        if not isinstance(reflow_ink_bbox,list):
+            return _terminal("TASK091_FIXED_WIDTH_REPROJECTED_INK_UNPROVEN")
+        reflow_ink={"bbox":reflow_ink_bbox,"source":"baseline-reprojected"}
+        reflow_end=_fixed_width_text_end_point(reflow_ink,reflow_bbox)
         if not isinstance(reflow_end,dict):
-            return _terminal("TASK091_FIXED_WIDTH_REFLOW_END_POINT_UNPROVEN")
+            return _terminal("TASK091_FIXED_WIDTH_REPROJECTED_ENDPOINT_UNPROVEN")
         signature={
             "canvas":list(reflow["canvas"]),
             "screen_bbox":list(reflow_bbox),
@@ -1044,7 +1090,9 @@ def next_text_action(state,window_state,plan):
         except SemanticTransactionError as exc:
             return _terminal(str(exc))
         tx["fixed_width_shape_bbox"]=list(reflow_bbox)
-        tx["fixed_width_ink_bbox"]=list(reflow_ink["bbox"])
+        tx["fixed_width_ink_bbox"]=list(reflow_ink_bbox)
+        tx["reprojected_text_ink_bbox"]=list(reflow_ink_bbox)
+        tx["reprojected_text_endpoint"]={"cx":int(reflow_end["cx"]),"cy":int(reflow_end["cy"])}
         tx["fixed_width_expected_end_x"]=int(reflow_end["expected_x"])
         tx["selection_canvas"]=list(reflow["canvas"])
         tx["fixed_width_identity_proof"]={
@@ -1323,8 +1371,14 @@ def next_text_action(state,window_state,plan):
                 "diff":[list(item) for item in cfg["diff"]],
                 "forbidden":list(cfg["forbidden"]),
             }
+            relative=_fixed_width_relative_geometry(list(ink["bbox"]),list(bbox))
+            if not isinstance(relative,list):
+                return _terminal("TASK091_FIXED_WIDTH_BASELINE_INK_GEOMETRY_UNPROVEN")
             tx["fixed_width_shape_bbox"]=list(bbox)
             tx["fixed_width_ink_bbox"]=list(ink["bbox"])
+            tx["baseline_text_ink_bbox"]=list(ink["bbox"])
+            tx["baseline_target_screen_bbox"]=list(bbox)
+            tx["baseline_text_ink_relative_geometry"]=list(relative)
             tx["fixed_width_expected_end_x"]=int(end["expected_x"])
             tx["fixed_width_first_click"]={
                 "logical_identity":list(key),
