@@ -1,0 +1,147 @@
+name: ARBM ONE Exact 434bb46 Release Control
+
+on:
+  push:
+    branches: ["release-control-434bb46"]
+    paths: [".github/workflows/arbm-one-exact-434bb46-release.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arbm-one-exact-434bb46-release-control
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TARGET_SHA: 434bb46d7420abacb704de552f325d9fd5425d96
+      SOURCE_REPO: arbmsistone-lab/ARBM-one
+      SOURCE_TOKEN: ${{ secrets.ARBM_SOURCE_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      WORKERS_CI: "1"
+      WORKERS_CI_BRANCH: main
+      WORKERS_CI_COMMIT_SHA: 434bb46d7420abacb704de552f325d9fd5425d96
+      VITE_SUPABASE_URL: https://pvkpkqwdnnpkgvllwqbc.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_IAPNVvyZRbgLjiaEdArk_g_6qd3Dp_-
+    steps:
+      - name: Checkout release control
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Prove remote authorities without exposure
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$SOURCE_TOKEN"
+          echo "RELEASE_CONTROL_AUTHORITIES=PASS"
+
+      - name: Fetch exact private source SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p source
+          git -C source init
+          git -C source remote add origin "https://github.com/$SOURCE_REPO.git"
+          git -C source -c "http.extraHeader=Authorization: Bearer $SOURCE_TOKEN" fetch --depth 1 origin "$TARGET_SHA"
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "$TARGET_SHA"
+          echo "RELEASE_SOURCE_CHECKOUT=PASS sha=$TARGET_SHA"
+
+      - name: Setup Node 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "24"
+
+      - name: Verify authenticated quorum
+        shell: bash
+        working-directory: source
+        run: |
+          set -euo pipefail
+          body="$(curl --fail-with-body --silent --show-error "https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-platform-api-v1/v1/ci-quorum?sha=$TARGET_SHA")"
+          printf '%s' "$body" | TARGET="$TARGET_SHA" node -e '
+            let s="";
+            process.stdin.on("data",d=>s+=d).on("end",()=>{
+              const j=JSON.parse(s);
+              const p=[...new Set(Array.isArray(j.ci_healthy)?j.ci_healthy:[])];
+              const ok=j.sha===process.env.TARGET &&
+                j.same_sha===true &&
+                j.ci_quorum_pass===true &&
+                j.gate_contract_version==="ARBM_ONE_CLOUD_CRITICAL_V1" &&
+                j.ci_attestation_contract_version==="ARBM_ONE_CI_EXECUTION_V2" &&
+                p.includes("github") && p.includes("railway");
+              if(!ok) process.exit(1);
+              console.log("RELEASE_QUORUM=PASS providers="+p.join(","));
+            });'
+
+      - name: Install exact dependencies
+        working-directory: source
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build exact Cloudflare artifact
+        working-directory: source
+        run: npm run check:cloudflare
+
+      - name: Verify artifact digest
+        shell: bash
+        working-directory: source
+        run: |
+          set -euo pipefail
+          test -f dist/server/wrangler.json
+          sha256sum dist/server/wrangler.json > /tmp/wrangler.sha256
+          find dist -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum > /tmp/dist.sha256
+          echo "RELEASE_ARTIFACT_DIGEST=PASS"
+
+      - name: Deploy exact SHA to Cloudflare
+        shell: bash
+        working-directory: source
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          npx wrangler deploy --config dist/server/wrangler.json
+          echo "CLOUDFLARE_RELEASE=PASS sha=$TARGET_SHA"
+
+      - name: Production readback exact SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          matched=0
+          for i in $(seq 1 60); do
+            body="$(curl --fail-with-body --silent --show-error https://arbmone.api.br/__arbm/build || true)"
+            if printf '%s' "$body" | TARGET="$TARGET_SHA" node -e '
+              let s="";
+              process.stdin.on("data",d=>s+=d).on("end",()=>{
+                try{
+                  const j=JSON.parse(s);
+                  process.exit(j.sha===process.env.TARGET && j.gate_contract_version==="ARBM_ONE_CLOUD_CRITICAL_V1" ? 0 : 1);
+                }catch{process.exit(1)}
+              });'; then
+              matched=1
+              break
+            fi
+            sleep 5
+          done
+          test "$matched" = "1"
+          echo "PRODUCTION_SHA_MATCH=PASS sha=$TARGET_SHA"
+
+      - name: Runtime readback
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in / /login /__arbm/build; do
+            code="$(curl --silent --show-error --location -o /tmp/arbm-readback.out -w "%{http_code}" "https://arbmone.api.br$path")"
+            test "$code" = "200"
+          done
+          echo "RUNTIME_READBACK=PASS"
+
+      - name: UI 12P exact-source proof
+        shell: bash
+        working-directory: source
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          node --test             tests/theme-global-pdv-v1.test.mjs             tests/visual-12p-global-contract-v1.test.mjs             tests/pdv-visual-baseline-v1.test.mjs             tests/authenticated-production-visual-contract-v1.test.mjs             tests/ui-viewport-surgical-no-cut-v1.test.mjs             tests/ui-phase-b-accessibility.test.mjs             tests/ci-quorum-deadlock-v1.test.mjs
+          echo "UI_12P=PASS"
