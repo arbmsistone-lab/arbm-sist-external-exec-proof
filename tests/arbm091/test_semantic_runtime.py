@@ -1123,7 +1123,7 @@ class SemanticRuntimeTests(unittest.TestCase):
         from arbm091.semantic_runtime import _fixed_width_contract, FIXED_WIDTH_TEXTBOX_REGISTRY
         cfg=_fixed_width_contract((2,"shape",15,"SummaryArr_Value"),"$42.8M","$40.9M")
         self.assertEqual(cfg["diff"],((2,"0"),(4,"9")))
-        self.assertEqual(tuple(cfg["forbidden"]),("$40.9MM","$40.9M"))
+        self.assertEqual(tuple(cfg["forbidden"]),("$40.9MM","$"+"$40.9M"))
         self.assertNotIn((2,"shape",25,"SummaryBurn_Value"),FIXED_WIDTH_TEXTBOX_REGISTRY)
 
 
