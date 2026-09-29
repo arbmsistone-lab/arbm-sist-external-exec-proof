@@ -738,8 +738,11 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertNotIn("section-e-semantic-f2",body)
         self.assertNotIn("pyautogui.press('f2')",body)
         self.assertIn("section-e-semantic-select-text",body)
-        self.assertIn("section-e-semantic-font-minus-",body)
-        self.assertIn("TASK091_SECTION_E_FONT_STEP_STATE_INVALID",body)
+        self.assertIn("section-e-semantic-font-size-control",body)
+        self.assertIn("section-e-semantic-font-size-10",body)
+        self.assertIn("pyautogui.click(371, 108)",body)
+        self.assertIn("task091-wps-font-size-canonical",body)
+        self.assertNotIn("pyautogui.hotkey('ctrl', '[')",body)
 
     def test_transient_during_semantic_transaction_is_fail_closed(self):
         from pathlib import Path
@@ -994,7 +997,7 @@ class SemanticRuntimeTests(unittest.TestCase):
         ws,state,plan=self._section_e_fixture()
         next_text_action(state,ws,plan)
         phases=[]
-        for _ in range(6):
+        for _ in range(5):
             state=json.loads(json.dumps(state))
             result=next_text_action(state,ws,plan)
             self.assertEqual(result["action"],"exec")
@@ -1057,7 +1060,7 @@ class SemanticRuntimeTests(unittest.TestCase):
     def test_section_e_failed_readback_retains_owner_and_blocks_normal_edits(self):
         ws,state,plan=self._section_e_fixture()
         next_text_action(state,ws,plan)
-        for _ in range(6):
+        for _ in range(5):
             next_text_action(state,ws,plan)
         result=next_text_action(state,ws,plan)
         self.assertEqual(result["reason"],"TASK091_SECTION_E_GUI_FONT_ROUNDTRIP_MISMATCH")
