@@ -894,15 +894,12 @@ def _task091_section_e_format_step(state, window_state):
                 return _task091_terminal('TASK091_SECTION_E_PRECONDITION_DRIFT',state)
         except Exception:
             return _task091_terminal('TASK091_SECTION_E_PRECONDITION_DRIFT',state)
-        tx['stage']='f2-issued'
-        return {'action':'exec','command':"pyautogui.press('f2')",
-                'plan':'Enter WPS text-edit mode on the structurally signed Section E shape.',
-                'specialist_phase':'section-e-semantic-f2'}
-
-    if stage=='f2-issued':
+        # WPS doubleClick already enters the target's text editor. F2 here toggles
+        # back to shape mode and makes Ctrl+A select the whole slide, causing
+        # collateral font mutation. Select the target text directly.
         tx['stage']='select-text-issued'
         return {'action':'exec','command':"pyautogui.hotkey('ctrl', 'a')",
-                'plan':'Select only the text inside the already signed Section E shape.',
+                'plan':'Select only the text inside the already entered Section E text editor.',
                 'specialist_phase':'section-e-semantic-select-text'}
 
     if stage=='select-text-issued':
