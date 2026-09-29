@@ -1,5 +1,6 @@
 import copy
 import json
+import os
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -689,11 +690,15 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertIn("TASK091_SEMANTIC_PLAN_INCOMPLETE",sealed)
         self.assertIn("return None",sealed)
         self.assertIn('state["spatial_index"]=len(plan)',runtime)
-        for forbidden in (
-            "_task091_caret","CARET_NOT_AT_START","CARET_GEOMETRY_UNPROVEN",
-            "ink_left","caret_x","press('home')","press('left'",
-        ):
-            self.assertNotIn(forbidden,runtime)
+        # Legacy caret machinery remains sealed. The only admitted character
+        # navigation is the separately gated fixed-width engine for registered
+        # short textboxes.
+        self.assertNotIn("_task091_caret",runtime)
+        self.assertNotIn("press('home')",runtime)
+        self.assertIn("FIXED_WIDTH_TEXTBOX_REGISTRY",runtime)
+        self.assertIn("TASK091_FIXED_WIDTH_ENGINE",runtime)
+        self.assertIn('"max_diff":2',runtime)
+        self.assertIn("TASK091_FIXED_WIDTH_ROLLBACK_UNPROVEN",runtime)
 
     def test_semantic_certifier_rejects_any_legacy_phase(self):
         with tempfile.TemporaryDirectory() as td:
