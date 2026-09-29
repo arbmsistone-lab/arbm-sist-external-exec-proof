@@ -708,7 +708,10 @@ class Task091TransactionalTableCellTests(unittest.TestCase):
       "def _task091_system_check_close",1)[0]
   self.assertIn("task091_verify_font_transaction",body)
   self.assertIn("section-e-semantic-roundtrip",body)
-  self.assertIn("pyautogui.hotkey('ctrl', '[')",body)
+  self.assertIn("pyautogui.click(371, 108)",body)
+  self.assertIn("section-e-semantic-font-size-10",body)
+  self.assertIn("task091-wps-font-size-canonical",body)
+  self.assertNotIn("pyautogui.hotkey('ctrl', '[')",body)
   self.assertNotIn("_task091_caret",body)
   self.assertNotIn("CARET_UNPROVEN",body)
 
