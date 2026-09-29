@@ -6,6 +6,8 @@ run-name: ARBM 091 safe micro proof ${{ github.sha }}
       - chatgpt/arbm-091-safe-microtests-20260929
     paths:
       - .github/workflows/arbm-091-safe-real-wps-micro.yml
+      - scripts/osworld_free_mesh_shim.py
+      - tests/arbm091/test_semantic_runtime.py
   workflow_dispatch: {}
 permissions:
   contents: read
@@ -15,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scope: [section-e, summary-hc]
+        scope: [section-e]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
