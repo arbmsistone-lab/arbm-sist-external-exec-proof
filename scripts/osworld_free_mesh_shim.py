@@ -905,6 +905,9 @@ def _task091_section_e_format_step(state, window_state):
     if stage=='select-text-issued':
         tx['stage']='font-size-control-issued'
         return {'action':'exec','command':"pyautogui.click(371, 108)",
+                'target':{'source':'task091-wps-font-size-canonical','label':'Font Size',
+                          'role':'font-size-combobox','slide':3,
+                          'bbox':[337,96,69,24],'cx':371,'cy':108},
                 'plan':'Focus the canonical WPS font-size field for the already selected Section E text.',
                 'specialist_phase':'section-e-semantic-font-size-control'}
 
