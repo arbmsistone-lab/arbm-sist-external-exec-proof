@@ -836,6 +836,13 @@ def _generation_max_seconds(value):
     return max(5.0,min(seconds,90.0))
 
 
+def _generation_kwargs(max_tokens, max_seconds=None):
+    kwargs={'max_new_tokens':max(1,min(int(max_tokens),192)),'do_sample':False}
+    if max_seconds is not None:
+        kwargs['max_time']=_generation_max_seconds(max_seconds)
+    return kwargs
+
+
 def default_infer(text, image_b64, max_tokens, max_seconds=None):
     import torch
     from PIL import Image
@@ -846,11 +853,8 @@ def default_infer(text, image_b64, max_tokens, max_seconds=None):
     rendered=processor.apply_chat_template(messages,add_generation_prompt=True)
     inputs=processor(text=rendered,images=images,return_tensors='pt')
     if _binary_contract(messages): return _binary_label(processor,model,inputs)
-    generation_kwargs={'max_new_tokens':max(1,min(int(max_tokens),192)),'do_sample':False}
-    if max_seconds is not None:
-        generation_kwargs['max_time']=_generation_max_seconds(max_seconds)
     with torch.inference_mode():
-        generated=model.generate(**inputs,**generation_kwargs)
+        generated=model.generate(**inputs,**_generation_kwargs(max_tokens,max_seconds))
     prompt_tokens=inputs['input_ids'].shape[1]
     return processor.batch_decode(generated[:,prompt_tokens:],skip_special_tokens=True)[0].strip()
 
