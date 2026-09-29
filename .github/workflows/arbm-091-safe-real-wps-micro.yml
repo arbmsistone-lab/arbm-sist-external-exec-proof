@@ -7,6 +7,8 @@ run-name: ARBM 091 safe micro proof ${{ github.sha }}
     paths:
       - .github/workflows/arbm-091-safe-real-wps-micro.yml
       - scripts/osworld_free_mesh_shim.py
+      - scripts/arbm_senior_elite_board.py
+      - tests/arbm091/test_senior_elite_agent.py
       - tests/arbm091/test_semantic_runtime.py
   workflow_dispatch: {}
 permissions:
