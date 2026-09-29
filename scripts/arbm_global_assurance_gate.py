@@ -115,11 +115,21 @@ def inspect_repo(root="."):
                    and "TASK091_LEGACY_TEXT_STATE_FORBIDDEN" in shim[boundary_index:legacy_index]
                    and "TASK091_SEMANTIC_PLAN_INCOMPLETE" in shim[boundary_index:legacy_index]
                    and "return None" in shim[boundary_index:legacy_index])
+    fixed_width_caret_isolated=(
+        "FIXED_WIDTH_TEXTBOX_REGISTRY" in semantic_runtime
+        and '(2,"shape",15,"SummaryArr_Value")' in semantic_runtime
+        and '"max_diff":2' in semantic_runtime
+        and "TASK091_FIXED_WIDTH_ENGINE" in semantic_runtime
+        and "_fixed_width_mutation_command" in semantic_runtime
+        and "TASK091_FIXED_WIDTH_ROLLBACK_UNPROVEN" in semantic_runtime
+        and "TASK091_FIXED_WIDTH_ROLLBACK_PROVEN_AFTER_CORRUPTION" in semantic_runtime
+        and "press('home')" not in semantic_runtime
+        and "test_fixed_width_diff_command_mutates_only_indices_two_and_four" in semantic_runtime_tests
+        and "test_summaryarr_fixed_width_engine_uses_signed_caret_path_and_no_ctrl_a" in semantic_runtime_tests
+    )
     caret_decision_isolated=(
         "_task091_caret" not in semantic_runtime
-        and "ink_left" not in semantic_runtime
-        and "press('home')" not in semantic_runtime
-        and "press('left'" not in semantic_runtime
+        and fixed_width_caret_isolated
         and live_boundary
         and "_task091_caret_delta_geometry" not in
             shim[shim.index("def _task091_section_e_format_step"):
