@@ -6,7 +6,9 @@ import unittest
 from unittest.mock import patch
 from pathlib import Path
 
-from arbm091.semantic_runtime import _current_autofit_group, next_text_action, _snapshot
+from PIL import Image, ImageDraw
+
+from arbm091.semantic_runtime import _current_autofit_group, next_text_action, _snapshot, _screen_bbox
 from arbm091.semantic_transaction import model_sha256, normalize_deck
 from arbm091.score_tracker import SEMANTIC_REQUIRED_STATUSES, verify_semantic_architecture
 
@@ -1164,28 +1166,62 @@ class SemanticRuntimeTests(unittest.TestCase):
         plan=((2,558,364,"$42.8M","$40.9M"),)
         return ws,state,plan
 
+    def _materialize_fixed_width_visual_evidence(self, root, ws):
+        root=Path(root)
+        obs=root/"wps-observations"
+        obs.mkdir(parents=True,exist_ok=True)
+        row=normalize_deck(ws)[(2,"shape",15,"SummaryArr_Value")]
+        x,y,w,h=_screen_bbox(ws,row)
+        image=Image.new("RGB",(1920,1080),"white")
+        draw=ImageDraw.Draw(image)
+        ink_left=x+8
+        ink_top=y+max(6,(h//2)-5)
+        ink_right=min(x+w-12,ink_left+28)
+        ink_bottom=min(y+h-6,ink_top+10)
+        self.assertGreater(ink_right,ink_left)
+        self.assertGreater(ink_bottom,ink_top)
+        draw.rectangle((ink_left,ink_top,ink_right,ink_bottom),fill="black")
+        image.save(obs/(str(ws["source"])+".png"))
+
+    def _assert_exec_phase(self, result, expected, state):
+        self.assertEqual(
+            result.get("action"),"exec",
+            msg=f"expected exec/{expected}, got result={result!r} stage={(state.get('semantic_tx') or {}).get('stage')!r}")
+        self.assertEqual(
+            result.get("specialist_phase"),expected,
+            msg=f"unexpected phase result={result!r} stage={(state.get('semantic_tx') or {}).get('stage')!r}")
+
     def test_fixed_width_first_click_is_not_atomic_doubleclick(self):
         ws,state,plan=self._fixed_width_two_phase_fixture()
-        with patch.dict(os.environ,{"TASK091_FIXED_WIDTH_ENGINE":"1"},clear=False):
-            first=next_text_action(state,ws,plan)
-            self.assertEqual(first["specialist_phase"],"semantic-fixed-width-target-select")
-            second=next_text_action(state,ws,plan)
-        self.assertEqual(second["specialist_phase"],"semantic-fixed-width-enter-text-click-1")
+        with tempfile.TemporaryDirectory() as td:
+            self._materialize_fixed_width_visual_evidence(td,ws)
+            with patch.dict(os.environ,{"TASK091_FIXED_WIDTH_ENGINE":"1",
+                                        "ARBM_WPS_EVIDENCE_DIR":td},clear=False):
+                first=next_text_action(state,ws,plan)
+                self._assert_exec_phase(first,"semantic-fixed-width-target-select",state)
+                second=next_text_action(state,ws,plan)
+                self._assert_exec_phase(second,"semantic-fixed-width-enter-text-click-1",state)
         self.assertIn("pyautogui.click",second["command"])
         self.assertNotIn("doubleClick",second["command"])
         self.assertEqual(state["semantic_tx"]["stage"],"fixed-width-end-first-click-issued")
 
     def test_fixed_width_reflow_reprojects_second_click_same_identity(self):
         ws,state,plan=self._fixed_width_two_phase_fixture()
-        with patch.dict(os.environ,{"TASK091_FIXED_WIDTH_ENGINE":"1"},clear=False):
-            next_text_action(state,ws,plan)
-            next_text_action(state,ws,plan)
-            reflow=copy.deepcopy(ws)
-            reflow["slide_canvas_bbox"]=[352,263,1135,638]
-            first_probe=next_text_action(state,reflow,plan)
-            self.assertEqual(first_probe["specialist_phase"],"fixed-width-reflow-stability-probe-1")
-            second=next_text_action(state,reflow,plan)
-        self.assertEqual(second["specialist_phase"],"semantic-fixed-width-enter-text-click-2")
+        with tempfile.TemporaryDirectory() as td:
+            self._materialize_fixed_width_visual_evidence(td,ws)
+            with patch.dict(os.environ,{"TASK091_FIXED_WIDTH_ENGINE":"1",
+                                        "ARBM_WPS_EVIDENCE_DIR":td},clear=False):
+                first=next_text_action(state,ws,plan)
+                self._assert_exec_phase(first,"semantic-fixed-width-target-select",state)
+                click1=next_text_action(state,ws,plan)
+                self._assert_exec_phase(click1,"semantic-fixed-width-enter-text-click-1",state)
+                reflow=copy.deepcopy(ws)
+                reflow["slide_canvas_bbox"]=[352,263,1135,638]
+                self._materialize_fixed_width_visual_evidence(td,reflow)
+                first_probe=next_text_action(state,reflow,plan)
+                self._assert_exec_phase(first_probe,"fixed-width-reflow-stability-probe-1",state)
+                second=next_text_action(state,reflow,plan)
+                self._assert_exec_phase(second,"semantic-fixed-width-enter-text-click-2",state)
         self.assertIn("pyautogui.click",second["command"])
         proof=state["semantic_tx"]["fixed_width_identity_proof"]
         self.assertTrue(proof["same_logical_identity"])
@@ -1194,23 +1230,35 @@ class SemanticRuntimeTests(unittest.TestCase):
 
     def test_fixed_width_same_identity_same_bbox_is_allowed(self):
         ws,state,plan=self._fixed_width_two_phase_fixture()
-        with patch.dict(os.environ,{"TASK091_FIXED_WIDTH_ENGINE":"1"},clear=False):
-            next_text_action(state,ws,plan)
-            next_text_action(state,ws,plan)
-            next_text_action(state,ws,plan)
-            second=next_text_action(state,ws,plan)
-        self.assertEqual(second["specialist_phase"],"semantic-fixed-width-enter-text-click-2")
+        with tempfile.TemporaryDirectory() as td:
+            self._materialize_fixed_width_visual_evidence(td,ws)
+            with patch.dict(os.environ,{"TASK091_FIXED_WIDTH_ENGINE":"1",
+                                        "ARBM_WPS_EVIDENCE_DIR":td},clear=False):
+                first=next_text_action(state,ws,plan)
+                self._assert_exec_phase(first,"semantic-fixed-width-target-select",state)
+                click1=next_text_action(state,ws,plan)
+                self._assert_exec_phase(click1,"semantic-fixed-width-enter-text-click-1",state)
+                probe=next_text_action(state,ws,plan)
+                self._assert_exec_phase(probe,"fixed-width-reflow-stability-probe-1",state)
+                second=next_text_action(state,ws,plan)
+                self._assert_exec_phase(second,"semantic-fixed-width-enter-text-click-2",state)
         self.assertTrue(state["semantic_tx"]["fixed_width_identity_proof"]["same_logical_identity"])
 
     def test_fixed_width_identity_drift_fails_closed(self):
         ws,state,plan=self._fixed_width_two_phase_fixture()
-        with patch.dict(os.environ,{"TASK091_FIXED_WIDTH_ENGINE":"1"},clear=False):
-            next_text_action(state,ws,plan)
-            next_text_action(state,ws,plan)
-            drift=copy.deepcopy(ws)
-            drift["deck_slide_shapes"]["2"][0]["id"]=99
-            result=next_text_action(state,drift,plan)
-        self.assertEqual(result["action"],"terminal")
+        with tempfile.TemporaryDirectory() as td:
+            self._materialize_fixed_width_visual_evidence(td,ws)
+            with patch.dict(os.environ,{"TASK091_FIXED_WIDTH_ENGINE":"1",
+                                        "ARBM_WPS_EVIDENCE_DIR":td},clear=False):
+                first=next_text_action(state,ws,plan)
+                self._assert_exec_phase(first,"semantic-fixed-width-target-select",state)
+                click1=next_text_action(state,ws,plan)
+                self._assert_exec_phase(click1,"semantic-fixed-width-enter-text-click-1",state)
+                drift=copy.deepcopy(ws)
+                drift["deck_slide_shapes"]["2"][0]["id"]=99
+                result=next_text_action(state,drift,plan)
+        self.assertEqual(result.get("action"),"terminal",msg=f"unexpected result={result!r}")
+        self.assertTrue(result.get("reason"),msg=f"terminal reason missing result={result!r}")
 
     def test_fixed_width_second_click_still_requires_caret_proof(self):
         source=Path("scripts/arbm091/semantic_runtime.py").read_text(encoding="utf-8")
