@@ -305,7 +305,13 @@ jobs:
 
         if [ "$proven" != 1 ]; then
           echo "TASK091_MICRO_PROOF=FAIL scope=$TASK091_MICRO_SCOPE"
+          echo "=== TASK091 TERMINAL REASONS ==="
+          grep -F '"status":"TERMINAL_FAIL"' "$DIR/shim.jsonl" | tail -n 20 || true
+          echo "=== TASK091 SPECIALIST CHECKPOINTS ==="
+          grep -E 'TASK091_SECTION_E|TASK091_MICRO_' "$DIR/shim.jsonl" | tail -n 80 || true
+          echo "=== SHIM RUNTIME TAIL ==="
           tail -n 220 "$DIR/shim-runtime.log" || true
+          echo "=== OSWORLD TAIL ==="
           tail -n 220 "$DIR/osworld.log" || true
           exit 1
         fi
