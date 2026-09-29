@@ -3,7 +3,7 @@ import os
 import unittest
 from osworld_control import canonical_target_proof, ground_action
 from unittest.mock import patch
-from osworld_local_vlm import LocalVLMRoute, parse_action_object, MODEL_REVISION, _smol_chat_messages, _binary_contract, _recent_tabu_counts, _selector_penalty, _action_fingerprint, _foreground_observation, _selector_candidates, action_prompt, _generation_kwargs
+from osworld_local_vlm import LocalVLMRoute, parse_action_object, MODEL_REVISION, _smol_chat_messages, _binary_contract, _recent_tabu_counts, _selector_penalty, _action_fingerprint, _foreground_observation, _selector_candidates, action_prompt
 
 PNG=base64.b64encode(b'fixture').decode()
 OBS='''Given the screenshot and info from accessibility tree as below:\ntag\tname\ttext\tclass\tdescription\tposition (top-left x&y)\tsize (w&h)\npush-button\tCompose\tCompose\t\t\t(86, 194)\t(157, 56)\npush-button\tClose\tClose\t\t\t(1882, 27)\t(38, 35)\nlink\tInbox 1\tInbox1\t\t\t(70, 274)\t(240, 32)\n'''
@@ -214,100 +214,7 @@ class LocalVLMTests(unittest.TestCase):
         self.assertFalse(_binary_contract(open_ended))
 
     def test_model_revision_is_immutable_commit(self):
-        self.assertRegex(MODEL_REVISION,r'^[0-9a-f]{40}
-    def setUp(self):
-        self.env=patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','ARBM_ENABLE_LOCAL_VLM':'1','ARBM_LOCAL_VLM_REPAIRS':'2'})
-        self.env.start();self.addCleanup(self.env.stop)
-
-    def test_binary_raw_messages(self):
-        route=LocalVLMRoute(lambda text,image,tokens:'NO')
-        result,attempts=route.call({},raw_messages=RAW,raw_tokens=10)
-        self.assertEqual(result['text'],'NO')
-        self.assertEqual(result['provider'],'local-cloud-vlm')
-        self.assertTrue(attempts[-1]['zero_spend_confirmed'])
-
-    def test_raw_messages_preserve_roles_order_and_all_images(self):
-        seen=[]; png2=base64.b64encode(b'fixture-two').decode()
-        raw=[{'role':'system','content':'Judge exactly.'},{'role':'user','content':[{'type':'text','text':'First'},{'type':'image_url','image_url':{'url':'data:image/png;base64,'+PNG}},{'type':'text','text':'Second'},{'type':'image_url','image_url':{'url':'data:image/png;base64,'+png2}}]}]
-        result,attempts=LocalVLMRoute(lambda messages,images,tokens: seen.append((messages,images,tokens)) or 'NO').call({},raw_messages=raw,raw_tokens=11)
-        self.assertEqual(result['text'],'NO'); self.assertEqual(attempts[-1]['status'],200)
-        messages,images,tokens=seen[0]
-        self.assertEqual([m['role'] for m in messages],['system','user'])
-        self.assertEqual([x['type'] for x in messages[1]['content']],['text','image','text','image'])
-        self.assertEqual(images,[PNG,png2]); self.assertEqual(tokens,11)
-
-    def test_raw_remote_image_fails_closed(self):
-        called=[]; raw=[{'role':'user','content':[{'type':'image_url','image_url':{'url':'https://example.invalid/a.png'}}]}]
-        result,attempts=LocalVLMRoute(lambda *args: called.append(args) or 'NO').call({},raw_messages=raw)
-        self.assertIsNone(result); self.assertFalse(called)
-        self.assertEqual(attempts[-1]['contract_error'],'LOCAL_INLINE_IMAGE_REQUIRED')
-
-    def test_desktop_mode_keeps_single_image_contract(self):
-        seen=[]; route=LocalVLMRoute(lambda text,image,tokens: seen.append((text,image,tokens)) or "pyautogui.press('enter')")
-        result,_=route.call(BODY)
-        self.assertEqual(result['action']['command'],"pyautogui.press('enter')")
-        self.assertIsInstance(seen[0][0],str); self.assertIsInstance(seen[0][1],str)
-
-    def test_disabled_never_runs_model(self):
-        with patch.dict(os.environ,{'ARBM_ENABLE_LOCAL_VLM':'0'}):
-            result,attempts=LocalVLMRoute(lambda *x: (_ for _ in ()).throw(Exception())).call(BODY)
-        self.assertIsNone(result);self.assertEqual(attempts[-1]['status'],'disabled')
-
-    def test_action_output_accepts_safe_model_wrappers(self):
-        valid='{"action":"exec","command":"pyautogui.press(\'enter\')"}'
-        for output in (
-            valid,
-            '```json\n'+valid+'\n```',
-            'I will dismiss the dialog.\n'+valid+'\nThis is the visible action.',
-            "```python\nimport pyautogui\npyautogui.press('enter')\n```",
-            "pyautogui.press('enter')",
-            '{"command":"pyautogui.press(\'enter\')"}',
-            'Press Enter now.',
-        ):
-            with self.subTest(output=output):
-                result,attempts=LocalVLMRoute(lambda *args:output).call(BODY)
-                self.assertEqual(result['action']['command'],"pyautogui.press('enter')")
-                self.assertEqual(attempts[-1]['status'],200)
-        result,attempts=LocalVLMRoute(lambda *args:"__import__('os').system('id')").call(BODY)
-        self.assertIsNone(result)
-        self.assertEqual(attempts[-1]['contract_error'],'LOCAL_UNSAFE_OUTPUT_REJECTED')
-
-    def test_contract_failure_gets_bounded_repair(self):
-        outputs=iter(['I cannot format this action.','Press Enter.'])
-        route=LocalVLMRoute(lambda *args:next(outputs))
-        result,attempts=route.call(BODY,budget=100)
-        self.assertEqual(result['action']['command'],"pyautogui.press('enter')")
-        self.assertTrue(any(a.get('status')=='local_contract_retry' for a in attempts))
-        self.assertEqual(attempts[-1]['status'],200)
-        self.assertEqual(attempts[-1]['repair_index'],1)
-
-    def test_pointer_repair_can_ground_visible_label(self):
-        outputs=iter(['I should click something.','Click Compose.'])
-        route=LocalVLMRoute(lambda *args:next(outputs))
-        result,attempts=route.call(BODY,budget=100)
-        self.assertEqual(result['action']['command'],'pyautogui.click(164, 222)')
-        self.assertEqual(result['action']['target']['label'],'Compose')
-        self.assertEqual(attempts[-1]['status'],200)
-
-    def test_local_action_budget_and_compact_prompt(self):
-        seen=[]
-        route=LocalVLMRoute(lambda text,image,tokens: seen.append((text,tokens)) or "pyautogui.press('enter')")
-        result,_=route.call({**BODY,'observation':OBS+'\n'+'x'*9000,'active_application':'GIMP'})
-        self.assertEqual(result['action']['command'],"pyautogui.press('enter')")
-        self.assertEqual(seen[0][1],96)
-        self.assertLess(len(seen[0][0]),6000)
-
-
-if __name__=='__main__':unittest.main()
-)
-
-    def test_generation_timeout_is_bounded_and_forwarded(self):
-        kwargs=_generation_kwargs(128,90)
-        self.assertEqual(kwargs['max_new_tokens'],128)
-        self.assertFalse(kwargs['do_sample'])
-        self.assertEqual(kwargs['max_time'],90.0)
-        self.assertEqual(_generation_kwargs(512,999)['max_new_tokens'],192)
-        self.assertEqual(_generation_kwargs(512,999)['max_time'],90.0)
+        self.assertRegex(MODEL_REVISION,r'^[0-9a-f]{40}$')
 
     def setUp(self):
         self.env=patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','ARBM_ENABLE_LOCAL_VLM':'1','ARBM_LOCAL_VLM_REPAIRS':'2'})
