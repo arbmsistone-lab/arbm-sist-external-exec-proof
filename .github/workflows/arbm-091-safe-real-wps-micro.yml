@@ -1,0 +1,320 @@
+name: ARBM 091 Safe Real-WPS Micro Proof
+run-name: ARBM 091 safe micro proof ${{ matrix.scope }} ${{ github.sha }}
+'on':
+  push:
+    branches:
+      - chatgpt/arbm-091-safe-microtests-20260929
+    paths:
+      - .github/workflows/arbm-091-safe-real-wps-micro.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  safe-real-wps-micro:
+    strategy:
+      fail-fast: false
+      matrix:
+        scope: [section-e, summary-hc]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
+      ZERO_SPEND_MODE: HARD
+      ARBM_ENABLE_LOCAL_VLM: '1'
+      OPENAI_BASE_URL: http://127.0.0.1:8088/v1
+      OPENAI_API_KEY: zero-spend-oidc-shim
+      OSWORLD_EVAL_MODEL_PROVIDER: openai_compatible
+      OSWORLD_EVAL_MODEL_NAME: nex-agi/nex-n2.5-pro:free
+      OSWORLD_EVAL_MODEL_BASE_URL: http://127.0.0.1:8089/v1
+      OSWORLD_EVAL_MODEL_API_KEY_ENV: OPENAI_API_KEY
+      OSWORLD_FILE_BASE_URL: ${{ github.workspace }}/osworld/cache/osworld_v2_assets
+      ARBM_MAX_STEPS: '80'
+      PYTHONPATH: ${{ github.workspace }}/scripts
+      ARBM_TASK_SECONDS: '360'
+      ARBM_RUN_MULTIENV_TIMEOUT_SECONDS: '420'
+      ARBM_VM_VOLUME_GB: '50'
+      AWS_REGION: us-east-1
+      WEBSITE_HOST_SUFFIX: 167.172.146.60.nip.io:8001
+      TASK091_MICRO_SCOPE: ${{ matrix.scope }}
+      TASK_ID: '091'
+      ARBM_WPS_OBSERVER: '1'
+      ARBM_WPS_EVIDENCE_DIR: ${{ github.workspace }}/osworld-v32-evidence/task-091
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+    - name: Verify self-hosted MailHub before micro proof
+      shell: bash
+      run: |
+        set -euo pipefail
+        curl -fsS --connect-timeout 5 --max-time 20 "http://mailhub.$WEBSITE_HOST_SUFFIX/api/state" >/tmp/mailhub-state.json
+        python - <<'PY'
+        import json
+        data=json.load(open('/tmp/mailhub-state.json'))
+        assert 'user_id' in data and 'state' in data
+        print('TASK091_MICRO_MAILHUB_PREFLIGHT_PASS')
+        PY
+    - name: Verify exact 091 observer environment before heavy initialization
+      shell: bash
+      run: |
+        set -euo pipefail
+        test "$TASK_ID" = '091'
+        test "$ZERO_SPEND_MODE" = 'HARD'
+        test "$RUNNER_ENVIRONMENT" = 'github-hosted'
+        test "$ARBM_WPS_OBSERVER" = '1'
+        printf 'TASK091_ENVIRONMENT_PREFLIGHT_PASS task=%s runner=%s spend=%s\n' "$TASK_ID" "$RUNNER_ENVIRONMENT" "$ZERO_SPEND_MODE"
+    - name: Prepare pinned shim runtime
+      shell: bash
+      run: 'set -euo pipefail
+
+        test "$ZERO_SPEND_MODE" = HARD
+
+        test "$ARBM_MAX_STEPS" = 80
+
+        python -m pip install --disable-pip-version-check -q -r scripts/requirements-osworld.txt
+
+        python -m unittest scripts/test_osworld_groq_free.py scripts/test_osworld_groq_local_fallback.py scripts/test_osworld_failover_matrix.py
+        -v
+
+        python -m unittest discover -s tests/arbm091 -p ''test_critical_persistence.py'' -v
+
+        git diff --check
+
+        '
+    - name: Prove cloud KVM
+      shell: bash
+      run: 'set -euo pipefail
+
+        test "$RUNNER_ENVIRONMENT" = github-hosted
+
+        test -c /dev/kvm
+
+        sudo chmod 666 /dev/kvm
+
+        '
+    - name: Hydrate pinned OSWorld release and task 091
+      shell: bash
+      run: "set -euo pipefail\ngit clone --depth 1 --branch v2026.08.08 https://github.com/xlang-ai/OSWorld-V2.git\
+        \ osworld\ntest \"$(git -C osworld rev-parse HEAD)\" = d578d2d4e0dc82b43e270fdaa7fa89d9708cd154\npython\
+        \ -m pip install --disable-pip-version-check -q uv==0.8.15 huggingface_hub==0.35.3\ncd osworld\nuv sync\
+        \ --frozen\nuv run python scripts/tools/download_osworld_v2_tasks.py --benchmark-release osworld-v2-2026.08.08\n\
+        test \"$(find evaluation_examples/task_class -maxdepth 1 -name 'task_*.py' -type f | wc -l)\" -eq 108\n\
+        test -f evaluation_examples/task_class/task_091.py\nuv run python - <<'PY' > /tmp/osworld_asset_dirs.txt\n\
+        import os\nfrom huggingface_hub import HfApi\nfiles = HfApi(token=os.environ['HF_TOKEN']).list_repo_files(\n\
+        \    repo_id='xlangai/osworld_v2_assets_gated', repo_type='dataset', revision='v2026.08.08')\nassert files,\
+        \ 'OFFICIAL_ASSET_REPO_EMPTY_OR_UNREADABLE'\nprint('\\n'.join(sorted({x.split('/')[0] for x in files if\
+        \ x.startswith('task_') and '/' in x})))\nPY\nmatches=$(grep -E '^task_091($|_)' /tmp/osworld_asset_dirs.txt\
+        \ || true)\nif [ -n \"$matches\" ]; then\n  while IFS= read -r asset_dir; do\n    test -n \"$asset_dir\"\
+        \n    uv run python scripts/tools/download_osworld_v2_assets.py --benchmark-release osworld-v2-2026.08.08\
+        \ --allow-pattern \"${asset_dir}/**\" --target-dir cache/osworld_v2_assets\n  done <<< \"$matches\"\nfi\n"
+    - name: Verify official pins
+      shell: bash
+      run: 'set -euo pipefail
+
+        cd osworld
+
+        python - <<''PY''
+
+        import hashlib, os
+
+        from huggingface_hub import hf_hub_download
+
+        p=hf_hub_download(''xlangai/osworld_v2_tasks'',''manifests/task_hashes.json'',repo_type=''dataset'',revision=''v2026.08.08'',token=os.environ[''HF_TOKEN''])
+
+        d=hashlib.sha256(open(p,''rb'').read()).hexdigest()
+
+        assert d==''42f8f6f8939b8712997d5891456a575f8a2a5f53465e9e3e6747af5d6efd0915'', d
+
+        print(''TASK_HASH_MANIFEST_SHA256=''+d)
+
+        PY
+
+        cd ..
+
+        docker pull happysixd/osworld-docker@sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9
+
+        docker tag happysixd/osworld-docker@sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9
+        happysixd/osworld-docker:latest
+
+        docker inspect happysixd/osworld-docker:latest --format ''{{json .RepoDigests}}'' | grep -F ''sha256:0e6497a9295647cf05bf2b2af522fdd79bdeba2737595259cab310a3bcf6baa9''
+
+        '
+    - name: Apply exact upstream runtime patches
+      shell: bash
+      run: 'set -euo pipefail
+
+        python - <<''PY''
+
+        from pathlib import Path
+
+        p=Path(''osworld/scripts/python/run_multienv.py'')
+
+        s=p.read_text()
+
+        old=''''''        from desktop_env.providers.aws.manager import IMAGE_ID_MAP\n        REGION = args.region\n        screen_size
+        = (args.screen_width, args.screen_height)\n        ami_id = IMAGE_ID_MAP[REGION].get(screen_size, IMAGE_ID_MAP[REGION][(1920,
+        1080)])\n''''''
+
+        new=''''''        REGION = args.region\n        screen_size = (args.screen_width, args.screen_height)\n        if
+        args.provider_name == "aws":\n            from desktop_env.providers.aws.manager import IMAGE_ID_MAP\n            ami_id
+        = IMAGE_ID_MAP[REGION].get(screen_size, IMAGE_ID_MAP[REGION][(1920, 1080)])\n        else:\n            ami_id
+        = "init_state"\n''''''
+
+        assert old in s, ''UPSTREAM_DOCKER_AWS_IMPORT_BLOCK_CHANGED''
+
+        p.write_text(s.replace(old,new,1))
+
+        PY
+
+        git -C osworld diff -- scripts/python/run_multienv.py > osworld-docker-provider.patch
+
+        test -s osworld-docker-provider.patch
+
+        python scripts/osworld_docker_volume.py osworld
+
+        git -C osworld diff -- scripts/python/run_multienv.py desktop_env/providers/docker/provider.py > osworld-volume.patch
+
+        test -s osworld-volume.patch
+
+        python scripts/osworld_vm_upload.py osworld/desktop_env/controllers/setup.py
+
+        git -C osworld diff -- desktop_env/controllers/setup.py > osworld-upload-transport.patch
+
+        test -s osworld-upload-transport.patch
+
+
+        python scripts/arbm091/install_observer.py osworld
+
+        git -C osworld diff -- desktop_env/desktop_env.py > osworld-wps-observer.patch
+
+        test -s osworld-wps-observer.patch
+
+        '
+    - name: Restore pinned official VM cache
+      id: vm-cache
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+      with:
+        path: vm/osworld-v2-ubuntu-x86.qcow2
+        key: task091-critical-vm-8213366932c553e5fe758d0f2c8c8b81ffc3be8c-v1
+    - name: Download pinned official VM
+      if: steps.vm-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: 'set -euo pipefail
+
+        export HF_XET_HIGH_PERFORMANCE=1
+
+        hf download xlangai/v2-image osworld-v2-ubuntu-x86.qcow2.zip --repo-type dataset --revision 8213366932c553e5fe758d0f2c8c8b81ffc3be8c
+        --local-dir hf-vm
+
+        echo ''eb737ae70b49849e24af407de6a518439a23de05a8497096a948334ce0a909aa  hf-vm/osworld-v2-ubuntu-x86.qcow2.zip''
+        | sha256sum -c -
+
+        unzip -q hf-vm/osworld-v2-ubuntu-x86.qcow2.zip -d vm
+
+        rm -f hf-vm/osworld-v2-ubuntu-x86.qcow2.zip
+
+        QCOW=$(find vm -type f -name ''*.qcow2'' | head -1)
+
+        test -n "$QCOW"
+
+        python scripts/osworld_docker_volume.py --check-image "$QCOW"
+
+        echo "QCOW_PATH=$PWD/$QCOW" >> "$GITHUB_ENV"
+
+        sha256sum "$QCOW" | cut -d'' '' -f1 > qcow-base.sha256
+
+        PYTHONPATH=scripts python -c ''import json; from osworld_v32_gate import PINS; open("official-pins.json","w").write(json.dumps(PINS,sort_keys=True))''
+
+        '
+    - name: Bind and verify pinned official VM
+      shell: bash
+      run: |
+        set -euo pipefail
+        QCOW=$(find vm -type f -name '*.qcow2' | head -1)
+        test -n "$QCOW"
+        python scripts/osworld_docker_volume.py --check-image "$QCOW"
+        echo "QCOW_PATH=$PWD/$QCOW" >> "$GITHUB_ENV"
+        sha256sum "$QCOW" | cut -d' ' -f1 > qcow-base.sha256
+        PYTHONPATH=scripts python -c 'import json; from osworld_v32_gate import PINS; open("official-pins.json","w").write(json.dumps(PINS,sort_keys=True))'
+    - name: Save pinned official VM cache immediately
+      if: steps.vm-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+      with:
+        path: vm/osworld-v2-ubuntu-x86.qcow2
+        key: task091-critical-vm-8213366932c553e5fe758d0f2c8c8b81ffc3be8c-v1
+    - name: Execute isolated real-WPS micro proof
+      shell: bash
+      run: |
+        set -euo pipefail
+        DIR="$GITHUB_WORKSPACE/osworld-v32-evidence/task-091-micro-$TASK091_MICRO_SCOPE"
+        rm -rf "$DIR"
+        mkdir -p "$DIR/shim-observations"
+        export ARBM_OSWORLD_SHIM_LOG="$DIR/shim.jsonl"
+        export ARBM_OSWORLD_OBSERVATIONS="$DIR/shim-observations"
+        touch "$DIR/shim.jsonl"
+        printf '{"tasks":["091"]}\n' > "$GITHUB_WORKSPACE/osworld/evaluation_examples/test_arbm_v32.json"
+        test "$(sha256sum "$QCOW_PATH" | cut -d' ' -f1)" = "$(cat qcow-base.sha256)"
+
+        python scripts/osworld_free_mesh_shim.py > "$DIR/shim-runtime.log" 2>&1 &
+        SHIM_PID=$!
+        RUN_PID=""
+        cleanup() {
+          kill "$RUN_PID" 2>/dev/null || true
+          kill "$SHIM_PID" 2>/dev/null || true
+          wait "$RUN_PID" 2>/dev/null || true
+          wait "$SHIM_PID" 2>/dev/null || true
+        }
+        trap cleanup EXIT
+
+        ready=0
+        for i in $(seq 1 30); do
+          if curl -fsS http://127.0.0.1:8088/health >/dev/null; then ready=1; break; fi
+          kill -0 "$SHIM_PID" 2>/dev/null || break
+          sleep 1
+        done
+        test "$ready" = 1
+
+        (
+          cd osworld
+          timeout --signal=TERM --kill-after=15s 300s uv run python scripts/python/run_multienv.py             --headless --provider_name docker --path_to_vm "$QCOW_PATH"             --eval_version v2 --test_all_meta_path evaluation_examples/test_arbm_v32.json             --domain tasks --observation_type screenshot_a11y_tree --action_space pyautogui             --model gpt-arbm-osworld-v32-isolated --temperature 0 --max_steps 30             --max_trajectory_length 8 --max_tokens 8192 --num_envs 1             --result_dir "../osworld-v32-evidence/task-091-micro-$TASK091_MICRO_SCOPE/results"
+        ) > "$DIR/osworld.log" 2>&1 &
+        RUN_PID=$!
+
+        case "$TASK091_MICRO_SCOPE" in
+          section-e) marker="TASK091_MICRO_SECTION_E_PROVEN" ;;
+          summary-hc) marker="TASK091_MICRO_SUMMARY_HC_PROVEN" ;;
+          *) echo "UNKNOWN_MICRO_SCOPE=$TASK091_MICRO_SCOPE"; exit 2 ;;
+        esac
+
+        proven=0
+        for i in $(seq 1 260); do
+          if grep -Fq "$marker" "$DIR/shim.jsonl" "$DIR/shim-runtime.log" "$DIR/osworld.log" 2>/dev/null; then
+            proven=1
+            break
+          fi
+          if ! kill -0 "$RUN_PID" 2>/dev/null; then
+            break
+          fi
+          sleep 1
+        done
+
+        if [ "$proven" != 1 ]; then
+          echo "TASK091_MICRO_PROOF=FAIL scope=$TASK091_MICRO_SCOPE"
+          tail -n 220 "$DIR/shim-runtime.log" || true
+          tail -n 220 "$DIR/osworld.log" || true
+          exit 1
+        fi
+
+        echo "TASK091_MICRO_PROOF=PASS scope=$TASK091_MICRO_SCOPE marker=$marker"
+        touch "$DIR/micro-proof.pass"
+    - name: Preserve isolated micro proof evidence
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: arbm091-safe-micro-${{ matrix.scope }}
+        path: |
+          osworld-v32-evidence/task-091-micro-${{ matrix.scope }}
+          osworld-v32-evidence/task-091
+        if-no-files-found: error
+        retention-days: 90
