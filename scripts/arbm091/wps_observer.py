@@ -353,7 +353,7 @@ def _guest_section_e_font_repair(controller, before_state, persisted_state):
         "pyautogui.press('esc')",
         "pyautogui.hotkey('ctrl','a')",
         "time.sleep(0.15)",
-        f"[pyautogui.hotkey('ctrl','[') for _ in range({spec['font_delta_steps']})]",
+        "pyautogui.click(371,108)" + "\n" + "pyautogui.hotkey('ctrl','a')" + "\n" + "pyautogui.write('10', interval=0.05)" + "\n" + "pyautogui.press('enter')",
         "pyautogui.press('esc')",
         "pyautogui.hotkey('ctrl','s')",
         "time.sleep(0.5)",
