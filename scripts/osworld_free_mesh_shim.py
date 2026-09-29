@@ -1492,6 +1492,12 @@ def next_091_specialist_action(instruction, active_application, observation, sta
             if len(semantic_plan)!=1:
                 return _task091_terminal('TASK091_MICRO_SUMMARY_HC_PLAN_UNPROVEN',state)
             return next_091_semantic_text_action(state,window_state,semantic_plan)
+        if micro_scope=='summary-arr':
+            semantic_plan=tuple(row for row in TASK091_SPATIAL_TEXT_EDITS
+                                if int(row[0])==2 and str(row[3])=='$42.8M' and str(row[4])=='$40.9M')
+            if len(semantic_plan)!=1:
+                return _task091_terminal('TASK091_MICRO_SUMMARYARR_PLAN_UNPROVEN',state)
+            return next_091_semantic_text_action(state,window_state,semantic_plan)
         if os.environ.get('TASK091_CRITICAL_ERROR_ONLY')=='1':
             semantic_plan=tuple(row for row in TASK091_SPATIAL_TEXT_EDITS
                                 if int(row[0])==2 and str(row[3])=='$42.8M' and str(row[4])=='$40.9M')
@@ -1501,6 +1507,8 @@ def next_091_specialist_action(instruction, active_application, observation, sta
         return next_091_semantic_text_action(state,window_state,TASK091_SPATIAL_TEXT_EDITS)
     if micro_scope=='summary-hc':
         return _task091_terminal('TASK091_MICRO_SUMMARY_HC_PROVEN',state)
+    if micro_scope=='summary-arr':
+        return _task091_terminal('TASK091_MICRO_SUMMARYARR_PROVEN',state)
     if not state.get('section_e_format_done'):
         # Section E stays deterministic: WPS performs the mutation, while the
         # persisted OOXML observer is the independent authority. No model
