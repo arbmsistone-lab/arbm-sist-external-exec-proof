@@ -31,6 +31,8 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
     - name: Install pinned test dependencies
       run: python -m pip install -r scripts/requirements-osworld.txt
+    - name: Run gateway lifecycle cheap tests
+      run: ZERO_SPEND_MODE=HARD ARBM_ENABLE_LOCAL_VLM=0 python scripts/arbm091/gateway_supervisor.py --self-test
     - name: Run complete OSWorld regression suite
       run: python -m unittest discover -s scripts -p 'test_osworld_*.py'
     - name: Run v32 deterministic regression gate

@@ -1197,6 +1197,7 @@ def next_text_action(state,window_state,plan):
         if boundary.get("proven") is not True:
             return _terminal("TASK091_FIXED_WIDTH_CARET_NOT_AT_END")
         tx["fixed_width_end_caret"]=caret
+        tx["fixed_width_start_source"]=str(window_state.get("source") or "")
         tx["stage"]="fixed-width-start-nav-issued"
         steps=len(str(tx.get("old") or ""))
         return {"action":"exec",
@@ -1208,7 +1209,6 @@ def next_text_action(state,window_state,plan):
         source=str(window_state.get("source") or "")
         if re.fullmatch(r"\d{4}-\d{2}-(?:before|after)",source) is None:
             return _terminal("TASK091_FIXED_WIDTH_START_EVIDENCE_MISSING")
-        tx["fixed_width_start_source"]=source
         tx["fixed_width_start_probe_attempts"]=0
         tx["stage"]="fixed-width-start-caret-probe-issued"
         return {"action":"exec","command":"pyautogui.sleep(0.30)",
