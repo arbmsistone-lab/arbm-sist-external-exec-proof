@@ -3,7 +3,7 @@ import os
 import unittest
 from osworld_control import canonical_target_proof, ground_action
 from unittest.mock import patch
-from osworld_local_vlm import LocalVLMRoute, parse_action_object, MODEL_REVISION, _smol_chat_messages, _binary_contract, _recent_tabu_counts, _selector_penalty, _action_fingerprint, _foreground_observation, _selector_candidates, action_prompt
+from osworld_local_vlm import LocalVLMRoute, parse_action_object, MODEL_REVISION, _smol_chat_messages, _binary_contract, _recent_tabu_counts, _selector_penalty, _action_fingerprint, _foreground_observation, _selector_candidates, action_prompt, _generation_kwargs
 
 PNG=base64.b64encode(b'fixture').decode()
 OBS='''Given the screenshot and info from accessibility tree as below:\ntag\tname\ttext\tclass\tdescription\tposition (top-left x&y)\tsize (w&h)\npush-button\tCompose\tCompose\t\t\t(86, 194)\t(157, 56)\npush-button\tClose\tClose\t\t\t(1882, 27)\t(38, 35)\nlink\tInbox 1\tInbox1\t\t\t(70, 274)\t(240, 32)\n'''
@@ -301,18 +301,13 @@ class LocalVLMTests(unittest.TestCase):
 if __name__=='__main__':unittest.main()
 )
 
-    def test_generation_timeout_is_forwarded_to_open_planner(self):
-        calls=[]
-        route=LocalVLMRoute()
-        def fake_infer(text,image,tokens,max_seconds=None):
-            calls.append(max_seconds)
-            return "pyautogui.press('enter')"
-        route.infer=fake_infer
-        with patch.dict(os.environ,{'ARBM_LOCAL_VLM_OPEN_PLANNER':'1'}):
-            result,attempts=route.call(BODY,budget=105)
-        self.assertEqual(result['action']['command'],"pyautogui.press('enter')")
-        self.assertEqual(calls,[90.0])
-
+    def test_generation_timeout_is_bounded_and_forwarded(self):
+        kwargs=_generation_kwargs(128,90)
+        self.assertEqual(kwargs['max_new_tokens'],128)
+        self.assertFalse(kwargs['do_sample'])
+        self.assertEqual(kwargs['max_time'],90.0)
+        self.assertEqual(_generation_kwargs(512,999)['max_new_tokens'],192)
+        self.assertEqual(_generation_kwargs(512,999)['max_time'],90.0)
 
     def setUp(self):
         self.env=patch.dict(os.environ,{'ZERO_SPEND_MODE':'HARD','ARBM_ENABLE_LOCAL_VLM':'1','ARBM_LOCAL_VLM_REPAIRS':'2'})
