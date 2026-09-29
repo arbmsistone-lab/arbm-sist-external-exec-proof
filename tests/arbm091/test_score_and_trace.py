@@ -1581,7 +1581,7 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
             ('45_mismatch_preserves_failure_text',"failure_text" in mismatch),
             ('46_mismatch_records_reason',"failure_reason" in mismatch),
             ('47_mismatch_fail_closed_mode',"TARGET_FAIL_CLOSED" in mismatch),
-            ('48_section_e_nine_point',"'font_decrements': 9" in matrix_source),
+            ('48_section_e_official_minimum_two_point',"'font_decrements': 2" in matrix_source),
             ('49_zero_spend_contract',"NON_ZERO_SPEND_MODE_FORBIDDEN" in source),
             ('50_no_generic_evaluator_change',"official evaluator" not in writer.casefold()),
         ]
@@ -1613,7 +1613,7 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         self.assertIn('def _guest_section_e_font_repair',source)
         self.assertIn('"shape_id": 16',source)
         self.assertIn('"name": "KpiReadout_Body"',source)
-        self.assertIn('"font_delta_steps": 9',source)
+        self.assertIn('"font_delta_steps": 2',source)
         self.assertIn('TASK091_SECTION_E_FONT_REPAIR_ISOLATED_GUEST_ONLY',source)
         self.assertIn("'action':'GUI_SECTION_E_FONT_REPAIR'",source)
         self.assertIn("pyautogui.hotkey('ctrl','[')",source)
