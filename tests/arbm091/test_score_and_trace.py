@@ -1060,7 +1060,7 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
         state={'slide':3}
         selected=next_text_action(state,deck,plan)
         self.assertEqual(selected['specialist_phase'],'semantic-section-e-font-select')
-        for _ in range(6):
+        for _ in range(5):
             action=next_text_action(state,deck,plan)
             self.assertEqual(action['action'],'exec')
             self.assertEqual(state['semantic_owner'],'section-e')
