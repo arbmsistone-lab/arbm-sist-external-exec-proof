@@ -828,7 +828,15 @@ def warm_runtime():
         return False
 
 
-def default_infer(text, image_b64, max_tokens):
+def _generation_max_seconds(value):
+    try:
+        seconds=float(value)
+    except (TypeError,ValueError):
+        seconds=90.0
+    return max(5.0,min(seconds,90.0))
+
+
+def default_infer(text, image_b64, max_tokens, max_seconds=None):
     import torch
     from PIL import Image
     processor,model=_load_runtime()
@@ -838,8 +846,11 @@ def default_infer(text, image_b64, max_tokens):
     rendered=processor.apply_chat_template(messages,add_generation_prompt=True)
     inputs=processor(text=rendered,images=images,return_tensors='pt')
     if _binary_contract(messages): return _binary_label(processor,model,inputs)
+    generation_kwargs={'max_new_tokens':max(1,min(int(max_tokens),192)),'do_sample':False}
+    if max_seconds is not None:
+        generation_kwargs['max_time']=_generation_max_seconds(max_seconds)
     with torch.inference_mode():
-        generated=model.generate(**inputs,max_new_tokens=max(1,min(int(max_tokens),192)),do_sample=False)
+        generated=model.generate(**inputs,**generation_kwargs)
     prompt_tokens=inputs['input_ids'].shape[1]
     return processor.batch_decode(generated[:,prompt_tokens:],skip_special_tokens=True)[0].strip()
 
@@ -892,7 +903,8 @@ class LocalVLMRoute:
         if self.infer is default_infer:
             if os.environ.get('ARBM_LOCAL_VLM_OPEN_PLANNER')=='1':
                 try:
-                    output=self.infer(text,image_arg,128)
+                    generation_budget=max(5.0,min(float(budget)-15.0,90.0))
+                    output=self.infer(text,image_arg,128,max_seconds=generation_budget)
                     elapsed=self.clock()-started
                     action=parse_action_object(output,body.get('observation',''))
                     if elapsed<=budget:
