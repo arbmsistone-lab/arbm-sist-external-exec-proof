@@ -3,6 +3,7 @@ name: ARBM SIST Constitutional Gate
 on:
   push:
     branches:
+      - chatgpt/arbm-091-two-phase-reprojection-20260929
       - chatgpt/arbm-091-clean-rebuild-20260922
       - chatgpt/arbm-sist-final-candidate-20260929
       - chatgpt/arbm-sist-final-certification-20260929

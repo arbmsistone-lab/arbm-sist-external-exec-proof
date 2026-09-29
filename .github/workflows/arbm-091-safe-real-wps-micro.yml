@@ -4,6 +4,7 @@ run-name: ARBM 091 safe micro proof ${{ github.sha }}
 'on':
   push:
     branches:
+      - chatgpt/arbm-091-two-phase-reprojection-20260929
       - chatgpt/arbm-091-safe-microtests-20260929
       - chatgpt/arbm-sist-section-e-diagnostic-20260929
       - chatgpt/arbm-sist-final-candidate-20260929
