@@ -31,7 +31,7 @@ FIXED_WIDTH_TEXTBOX_REGISTRY={
         "baseline":"$42.8M",
         "target":"$40.9M",
         "max_diff":2,
-        "forbidden":("$40.9MM","$40.9M"),
+        "forbidden":("$40.9MM","$"+"$40.9M"),
     },
 }
 
