@@ -617,20 +617,23 @@ def next_text_action(state,window_state,plan):
     key=tuple(tx.get("target_key") or ())
 
     if stage=="section-e-font-select-issued":
-        tx["stage"]="section-e-font-f2-issued"
-        return {"action":"exec","command":"pyautogui.press('f2')","plan":"Enter WPS text-edit mode on the signed KpiReadout_Body target.","specialist_phase":"semantic-section-e-font-f2"}
-    if stage=="section-e-font-f2-issued":
         tx["stage"]="section-e-font-select-text-issued"
         return {"action":"exec","command":"pyautogui.hotkey('ctrl', 'a')","plan":"Select only the text of the signed KpiReadout_Body target.","specialist_phase":"semantic-section-e-font-select-text"}
     if stage=="section-e-font-select-text-issued":
-        tx["stage"]="section-e-font-minus-1"
-        return {"action":"exec","command":"pyautogui.hotkey('ctrl', '[')","plan":"Section E font decrement 1 of 2.","specialist_phase":"semantic-section-e-font-minus-1"}
-    if stage=="section-e-font-minus-1":
-        tx["stage"]="section-e-font-minus-2"
-        return {"action":"exec","command":"pyautogui.hotkey('ctrl', '[')","plan":"Section E font decrement 2 of 2.","specialist_phase":"semantic-section-e-font-minus-2"}
-    if stage=="section-e-font-minus-2":
+        tx["stage"]="section-e-font-size-control-issued"
+        return {
+            "action":"exec",
+            "command":"pyautogui.click(371, 108)",
+            "target":{"source":"task091-wps-font-size-canonical","label":"Font Size","role":"font-size-combobox","slide":3,"bbox":[337,96,69,24],"cx":371,"cy":108},
+            "plan":"Focus the canonical WPS font-size field for the selected Section E text.",
+            "specialist_phase":"semantic-section-e-font-size-control",
+        }
+    if stage=="section-e-font-size-control-issued":
+        tx["stage"]="section-e-font-size-value-issued"
+        return {"action":"exec","command":"pyautogui.hotkey('ctrl', 'a')\npyautogui.write('10', interval=0.05)\npyautogui.press('enter')","plan":"Set the selected Section E text to the official proven size of 10 pt exactly.","specialist_phase":"semantic-section-e-font-size-10"}
+    if stage=="section-e-font-size-value-issued":
         tx["stage"]="section-e-font-commit-issued"
-        return {"action":"exec","command":"pyautogui.press('esc')","plan":"Finalize the official minimum Slide 3 GUI font mutation.","specialist_phase":"semantic-section-e-font-commit"}
+        return {"action":"exec","command":"pyautogui.press('esc')","plan":"Finalize the exact 10 pt Slide 3 GUI font mutation.","specialist_phase":"semantic-section-e-font-commit"}
     if stage=="section-e-font-commit-issued":
         tx["stage"]="section-e-font-save-issued"
         return {"action":"exec","command":"pyautogui.hotkey('ctrl', 's')","plan":"Persist official Slide 3 GUI containment repair.","specialist_phase":"semantic-section-e-font-save"}
