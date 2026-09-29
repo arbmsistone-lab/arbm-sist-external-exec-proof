@@ -1616,7 +1616,8 @@ class Task091CaretBoundedWriterTests(unittest.TestCase):
         self.assertIn('"font_delta_steps": 2',source)
         self.assertIn('TASK091_SECTION_E_FONT_REPAIR_ISOLATED_GUEST_ONLY',source)
         self.assertIn("'action':'GUI_SECTION_E_FONT_REPAIR'",source)
-        self.assertIn("pyautogui.hotkey('ctrl','[')",source)
+        self.assertIn("pyautogui.click(371,108)",source)
+        self.assertIn("pyautogui.write('10', interval=0.05)",source)
         section=source[source.index('def _guest_section_e_font_repair'):source.index('def _is_ctrl_s')]
         self.assertNotIn('zipfile',section)
         self.assertNotIn('OOXML_SECTION_E_FONT_REPAIR',section)
