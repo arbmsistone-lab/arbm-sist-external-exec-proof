@@ -9,6 +9,7 @@ run-name: ARBM 091 safe micro proof ${{ github.sha }}
       - chatgpt/arbm-sist-final-candidate-20260929
       - chatgpt/arbm-sist-final-certification-20260929
       - chatgpt/arbm-sist-final-certification-r2-20260929
+      - chatgpt/arbm-sist-fixed-width-tx-20260929
     paths:
       - .github/workflows/arbm-091-safe-real-wps-micro.yml
       - scripts/osworld_free_mesh_shim.py
@@ -28,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scope: [section-e]
+        scope: [section-e, summary-arr]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -52,6 +53,7 @@ jobs:
       AWS_REGION: us-east-1
       WEBSITE_HOST_SUFFIX: 167.172.146.60.nip.io:8001
       TASK091_MICRO_SCOPE: ${{ matrix.scope }}
+      TASK091_FIXED_WIDTH_ENGINE: '1'
       TASK_ID: '091'
       ARBM_WPS_OBSERVER: '1'
       ARBM_WPS_EVIDENCE_DIR: ${{ github.workspace }}/osworld-v32-evidence/task-091
@@ -297,6 +299,7 @@ jobs:
         case "$TASK091_MICRO_SCOPE" in
           section-e) marker="TASK091_MICRO_SECTION_E_PROVEN" ;;
           summary-hc) marker="TASK091_MICRO_SUMMARY_HC_PROVEN" ;;
+          summary-arr) marker="TASK091_MICRO_SUMMARYARR_PROVEN" ;;
           *) echo "UNKNOWN_MICRO_SCOPE=$TASK091_MICRO_SCOPE"; exit 2 ;;
         esac
 
