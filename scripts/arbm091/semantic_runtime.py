@@ -124,12 +124,11 @@ def _fixed_width_validate_viewport_reflow(tx,window_state,row,current_model):
     if model_sha256(current_model)!=str(tx.get("before_model_sha256") or ""):
         raise SemanticTransactionError("TASK091_FIXED_WIDTH_REFLOW_MODEL_DRIFT")
     key=tuple(tx.get("target_key") or ())
-    before_rows=((tx.get("before_state") or {}).get("deck_slide_shapes") or {}).get(str(key[0] if key else ""),[])
-    before_match=next((r for r in before_rows
-                       if isinstance(r,dict)
-                       and len(key)>=4
-                       and int(r.get("id") or 0)==int(key[2])
-                       and str(r.get("name") or "")==str(key[3])),None)
+    try:
+        before_model=normalize_deck(tx.get("before_state") or {})
+    except SemanticTransactionError as exc:
+        raise SemanticTransactionError("TASK091_FIXED_WIDTH_REFLOW_BASELINE_MODEL_UNPROVEN") from exc
+    before_match=before_model.get(key)
     if not isinstance(before_match,dict):
         raise SemanticTransactionError("TASK091_FIXED_WIDTH_REFLOW_BASELINE_TARGET_MISSING")
     if tuple(row.get("geometry") or ())!=tuple(before_match.get("geometry") or ()):
