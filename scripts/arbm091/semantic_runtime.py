@@ -6,7 +6,7 @@ import hashlib
 import json
 import os
 
-from osworld_control import task091_spatial_target_proof, task091_panel_target_proof
+from osworld_control import task091_spatial_target_proof, task091_panel_target_proof, task091_wps_font_size_target_proof
 from arbm091.semantic_transaction import (
     SemanticTransactionError,
     assert_roundtrip,
@@ -621,10 +621,16 @@ def next_text_action(state,window_state,plan):
         return {"action":"exec","command":"pyautogui.hotkey('ctrl', 'a')","plan":"Select only the text of the signed KpiReadout_Body target.","specialist_phase":"semantic-section-e-font-select-text"}
     if stage=="section-e-font-select-text-issued":
         tx["stage"]="section-e-font-size-control-issued"
+        font_target={"source":"task091-wps-font-size-canonical","label":"Font Size",
+                     "role":"font-size-combobox","slide":3,
+                     "x":337,"y":96,"w":69,"h":24,"cx":371,"cy":108,
+                     "foreground_sha256":_foreground_sha(window_state),
+                     "deck_sha256":str((window_state.get("deck_file") or {}).get("sha256") or "")}
+        font_target["proof_sha256"]=task091_wps_font_size_target_proof(font_target)
         return {
             "action":"exec",
             "command":"pyautogui.click(371, 108)",
-            "target":{"source":"task091-wps-font-size-canonical","label":"Font Size","role":"font-size-combobox","slide":3,"bbox":[337,96,69,24],"cx":371,"cy":108},
+            "target":font_target,
             "plan":"Focus the canonical WPS font-size field for the selected Section E text.",
             "specialist_phase":"semantic-section-e-font-size-control",
         }
