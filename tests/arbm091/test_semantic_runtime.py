@@ -728,6 +728,18 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertNotIn("_task091_caret",body)
         self.assertNotIn("CARET_UNPROVEN",body)
 
+    def test_section_e_emits_policy_bounded_atomic_gui_steps(self):
+        from pathlib import Path
+        shim=Path("scripts/osworld_free_mesh_shim.py").read_text(encoding="utf-8")
+        body=shim.split("def _task091_section_e_format_step",1)[1].split(
+            "def _task091_system_check_close",1)[0]
+        self.assertNotIn("commands=[",body)
+        self.assertNotIn("'\\n'.join(commands)",body)
+        self.assertIn("section-e-semantic-f2",body)
+        self.assertIn("section-e-semantic-select-text",body)
+        self.assertIn("section-e-semantic-font-minus-",body)
+        self.assertIn("TASK091_SECTION_E_FONT_STEP_STATE_INVALID",body)
+
     def test_transient_during_semantic_transaction_is_fail_closed(self):
         from pathlib import Path
         shim=Path("scripts/osworld_free_mesh_shim.py").read_text(encoding="utf-8")
