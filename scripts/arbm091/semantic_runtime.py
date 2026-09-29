@@ -963,35 +963,130 @@ def next_text_action(state,window_state,plan):
         return _terminal(str(exc))
     row=current_model.get(key)
 
-    if stage=="fixed-width-end-entry-issued":
+    if stage=="fixed-width-end-first-click-issued":
         if (row is None or str(row.get("text") or "")!=str(tx.get("before_target_text") or "")
                 or model_sha256(current_model)!=str(tx.get("before_model_sha256") or "")):
             return _terminal("TASK091_FIXED_WIDTH_PRECONDITION_DRIFT")
-        current_canvas=window_state.get("slide_canvas_bbox")
-        if current_canvas!=tx.get("selection_canvas"):
-            try:
-                reflow=_fixed_width_validate_viewport_reflow(tx,window_state,row,current_model)
-                reflow_bbox=_screen_bbox(window_state,row)
-                reflow_ink=_fixed_width_text_ink(window_state,reflow_bbox)
-                reflow_end=_fixed_width_text_end_point(reflow_ink,reflow_bbox)
-            except SemanticTransactionError as exc:
-                return _terminal(str(exc))
-            if not isinstance(reflow_ink,dict):
-                return _terminal("TASK091_FIXED_WIDTH_REFLOW_TEXT_INK_UNPROVEN")
-            if not isinstance(reflow_end,dict):
-                return _terminal("TASK091_FIXED_WIDTH_REFLOW_END_POINT_UNPROVEN")
-            tx["fixed_width_viewport_reflow"]={
-                "from_canvas":list(tx.get("selection_canvas") or []),
-                "to_canvas":list(reflow["canvas"]),
-                "deck_sha256":reflow["deck_sha256"],
-                "model_sha256":reflow["model_sha256"],
-                "geometry":list(reflow["geometry"]),
-                "source":reflow["source"],
+        try:
+            reflow=_fixed_width_validate_viewport_reflow(tx,window_state,row,current_model)
+            reflow_bbox=_screen_bbox(window_state,row)
+        except SemanticTransactionError as exc:
+            return _terminal(str(exc))
+        signature={
+            "canvas":list(reflow["canvas"]),
+            "screen_bbox":list(reflow_bbox),
+            "geometry":list(reflow["geometry"]),
+            "logical_identity":list(key),
+            "deck_sha256":reflow["deck_sha256"],
+            "model_sha256":reflow["model_sha256"],
+        }
+        tx["fixed_width_stability_signature"]=signature
+        tx["fixed_width_stability_observations"]=0
+        tx["fixed_width_viewport_reflow"]={
+            "from_canvas":list(tx.get("selection_canvas") or []),
+            "to_canvas":list(reflow["canvas"]),
+            "deck_sha256":reflow["deck_sha256"],
+            "model_sha256":reflow["model_sha256"],
+            "geometry":list(reflow["geometry"]),
+            "source":reflow["source"],
+            "observed":list(reflow["canvas"])!=list(tx.get("selection_canvas") or []),
+        }
+        tx["stage"]="fixed-width-end-stability-probe-issued"
+        return {
+            "action":"exec","command":"pyautogui.sleep(0.10)",
+            "plan":"Debounce only; the acceptance criterion is unchanged same-target canvas/bbox geometry on re-observation, not elapsed time.",
+            "specialist_phase":"fixed-width-reflow-stability-probe-1",
+        }
+
+    if stage=="fixed-width-end-stability-probe-issued":
+        if (row is None or str(row.get("text") or "")!=str(tx.get("before_target_text") or "")
+                or model_sha256(current_model)!=str(tx.get("before_model_sha256") or "")):
+            return _terminal("TASK091_FIXED_WIDTH_PRECONDITION_DRIFT")
+        try:
+            reflow=_fixed_width_validate_viewport_reflow(tx,window_state,row,current_model)
+            reflow_bbox=_screen_bbox(window_state,row)
+            reflow_ink=_fixed_width_text_ink(window_state,reflow_bbox)
+            reflow_end=_fixed_width_text_end_point(reflow_ink,reflow_bbox)
+        except SemanticTransactionError as exc:
+            return _terminal(str(exc))
+        if not isinstance(reflow_ink,dict):
+            return _terminal("TASK091_FIXED_WIDTH_REFLOW_TEXT_INK_UNPROVEN")
+        if not isinstance(reflow_end,dict):
+            return _terminal("TASK091_FIXED_WIDTH_REFLOW_END_POINT_UNPROVEN")
+        signature={
+            "canvas":list(reflow["canvas"]),
+            "screen_bbox":list(reflow_bbox),
+            "geometry":list(reflow["geometry"]),
+            "logical_identity":list(key),
+            "deck_sha256":reflow["deck_sha256"],
+            "model_sha256":reflow["model_sha256"],
+        }
+        previous=tx.get("fixed_width_stability_signature")
+        observations=int(tx.get("fixed_width_stability_observations") or 0)
+        if signature!=previous:
+            observations+=1
+            if observations>=4:
+                return _terminal("TASK091_FIXED_WIDTH_UI_STABILITY_UNPROVEN")
+            tx["fixed_width_stability_signature"]=signature
+            tx["fixed_width_stability_observations"]=observations
+            return {
+                "action":"exec","command":"pyautogui.sleep(0.10)",
+                "plan":"WPS geometry is still changing. Re-observe the same OOXML target; do not issue click #2 until canvas and bbox stabilize.",
+                "specialist_phase":f"fixed-width-reflow-stability-probe-{observations+1}",
             }
-            tx["selection_canvas"]=list(reflow["canvas"])
-            tx["fixed_width_shape_bbox"]=list(reflow_bbox)
-            tx["fixed_width_ink_bbox"]=list(reflow_ink["bbox"])
-            tx["fixed_width_expected_end_x"]=int(reflow_end["expected_x"])
+        first=tx.get("fixed_width_first_click") if isinstance(tx.get("fixed_width_first_click"),dict) else {}
+        if list(first.get("logical_identity") or [])!=list(key):
+            return _terminal("TASK091_FIXED_WIDTH_LOGICAL_IDENTITY_DRIFT")
+        if list(first.get("geometry") or [])!=list(row.get("geometry") or ()):
+            return _terminal("TASK091_FIXED_WIDTH_REFLOW_GEOMETRY_DRIFT")
+        try:
+            target=_signed_point(window_state,int(key[0]),row,reflow_end["cx"],reflow_end["cy"])
+        except SemanticTransactionError as exc:
+            return _terminal(str(exc))
+        tx["fixed_width_shape_bbox"]=list(reflow_bbox)
+        tx["fixed_width_ink_bbox"]=list(reflow_ink["bbox"])
+        tx["fixed_width_expected_end_x"]=int(reflow_end["expected_x"])
+        tx["selection_canvas"]=list(reflow["canvas"])
+        tx["fixed_width_identity_proof"]={
+            "same_logical_identity":True,
+            "logical_identity":list(key),
+            "before_geometry":list(first.get("geometry") or []),
+            "after_geometry":list(row.get("geometry") or ()),
+            "before_screen_bbox":list(first.get("screen_bbox") or []),
+            "after_screen_bbox":list(reflow_bbox),
+            "deck_sha256":reflow["deck_sha256"],
+            "model_sha256":reflow["model_sha256"],
+        }
+        tx["fixed_width_second_click"]={
+            "point":[int(target["cx"]),int(target["cy"])],
+            "screen_bbox":list(reflow_bbox),
+            "canvas":list(reflow["canvas"]),
+        }
+        tx["stage"]="fixed-width-end-second-click-issued"
+        return {
+            "action":"exec",
+            "command":f"pyautogui.click({target['cx']}, {target['cy']})",
+            "target":target,
+            "plan":"Click #2 uses only the stabilized, freshly reprojected bbox of the same proven OOXML target.",
+            "specialist_phase":"semantic-fixed-width-enter-text-click-2",
+        }
+
+    if stage=="fixed-width-end-second-click-issued":
+        if (row is None or str(row.get("text") or "")!=str(tx.get("before_target_text") or "")
+                or model_sha256(current_model)!=str(tx.get("before_model_sha256") or "")):
+            return _terminal("TASK091_FIXED_WIDTH_PRECONDITION_DRIFT")
+        try:
+            post=_fixed_width_validate_viewport_reflow(tx,window_state,row,current_model)
+            post_bbox=_screen_bbox(window_state,row)
+        except SemanticTransactionError as exc:
+            return _terminal(str(exc))
+        proof=tx.get("fixed_width_identity_proof") if isinstance(tx.get("fixed_width_identity_proof"),dict) else {}
+        if proof.get("same_logical_identity") is not True or list(proof.get("logical_identity") or [])!=list(key):
+            return _terminal("TASK091_FIXED_WIDTH_LOGICAL_IDENTITY_UNPROVEN")
+        if list(row.get("geometry") or ())!=list(proof.get("after_geometry") or []):
+            return _terminal("TASK091_FIXED_WIDTH_POST_CLICK_IDENTITY_DRIFT")
+        if list(post_bbox)!=list((tx.get("fixed_width_second_click") or {}).get("screen_bbox") or []):
+            return _terminal("TASK091_FIXED_WIDTH_SECOND_CLICK_GEOMETRY_DRIFT")
         source=str(window_state.get("source") or "")
         if re.fullmatch(r"\d{4}-\d{2}-(?:before|after)",source) is None:
             return _terminal("TASK091_FIXED_WIDTH_TEXTMODE_EVIDENCE_MISSING")
@@ -999,7 +1094,7 @@ def next_text_action(state,window_state,plan):
         tx["fixed_width_end_probe_attempts"]=0
         tx["stage"]="fixed-width-end-caret-probe-issued"
         return {"action":"exec","command":"pyautogui.sleep(0.30)",
-                "plan":"Sample the unchanged signed textbox in text mode until the end caret is positively proven.",
+                "plan":"Click #2 completed on the reprojected same target. Mutation remains forbidden until text mode and the end caret are positively proven.",
                 "specialist_phase":"fixed-width-end-caret-probe-1"}
 
     if stage=="fixed-width-end-caret-probe-issued":
@@ -1231,13 +1326,23 @@ def next_text_action(state,window_state,plan):
             tx["fixed_width_shape_bbox"]=list(bbox)
             tx["fixed_width_ink_bbox"]=list(ink["bbox"])
             tx["fixed_width_expected_end_x"]=int(end["expected_x"])
-            tx["stage"]="fixed-width-end-entry-issued"
+            tx["fixed_width_first_click"]={
+                "logical_identity":list(key),
+                "screen_bbox":list(bbox),
+                "canvas":list(window_state.get("slide_canvas_bbox") or []),
+                "point":[int(target["cx"]),int(target["cy"])],
+                "geometry":list(row.get("geometry") or ()),
+                "deck_sha256":str((window_state.get("deck_file") or {}).get("sha256") or ""),
+                "model_sha256":model_sha256(current_model),
+            }
+            tx["fixed_width_stability_observations"]=0
+            tx["stage"]="fixed-width-end-first-click-issued"
             return {
                 "action":"exec",
-                "command":f"pyautogui.doubleClick({target['cx']}, {target['cy']}, interval=0.08)",
+                "command":f"pyautogui.click({target['cx']}, {target['cy']})",
                 "target":target,
-                "plan":"Enter text mode at the raster-proven end of the signed fixed-width textbox; no text mutation is authorized yet.",
-                "specialist_phase":"semantic-fixed-width-enter-text",
+                "plan":"Issue click #1 only. Re-observe WPS, prove the same OOXML target after any UI reflow, stabilize the reprojected geometry, then derive click #2 from the new frame.",
+                "specialist_phase":"semantic-fixed-width-enter-text-click-1",
             }
         if (
             os.environ.get("TASK091_CRITICAL_ERROR_ONLY") == "1"
