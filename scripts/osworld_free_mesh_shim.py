@@ -903,26 +903,22 @@ def _task091_section_e_format_step(state, window_state):
                 'specialist_phase':'section-e-semantic-select-text'}
 
     if stage=='select-text-issued':
-        tx['font_step']=1
-        tx['stage']='font-step-issued'
-        return {'action':'exec','command':"pyautogui.hotkey('ctrl', '[')",
-                'plan':f"Apply Section E font decrement 1 of {int(tx.get('font_decrements') or 1)}.",
-                'specialist_phase':'section-e-semantic-font-minus-1'}
+        tx['stage']='font-size-control-issued'
+        return {'action':'exec','command':"pyautogui.click(371, 108)",
+                'plan':'Focus the canonical WPS font-size field for the already selected Section E text.',
+                'specialist_phase':'section-e-semantic-font-size-control'}
 
-    if stage=='font-step-issued':
-        current_step=int(tx.get('font_step') or 0)
-        total=int(tx.get('font_decrements') or 0)
-        if current_step < 1 or total < 1 or current_step > total:
-            return _task091_terminal('TASK091_SECTION_E_FONT_STEP_STATE_INVALID',state)
-        if current_step < total:
-            next_step=current_step+1
-            tx['font_step']=next_step
-            return {'action':'exec','command':"pyautogui.hotkey('ctrl', '[')",
-                    'plan':f"Apply Section E font decrement {next_step} of {total}.",
-                    'specialist_phase':f'section-e-semantic-font-minus-{next_step}'}
+    if stage=='font-size-control-issued':
+        tx['stage']='font-size-value-issued'
+        return {'action':'exec',
+                'command':"pyautogui.hotkey('ctrl', 'a')\npyautogui.write('10', interval=0.05)\npyautogui.press('enter')",
+                'plan':'Set the selected Section E text to the official proven size of 10 pt exactly.',
+                'specialist_phase':'section-e-semantic-font-size-10'}
+
+    if stage=='font-size-value-issued':
         tx['stage']='font-issued'
         return {'action':'exec','command':"pyautogui.sleep(0.12)",
-                'plan':'All bounded Section E font decrements were issued individually; settle once before finalizing.',
+                'plan':'Allow the exact 10 pt WPS font-size mutation to settle before finalizing.',
                 'specialist_phase':'section-e-semantic-font-settle'}
 
     if stage=='font-issued':
