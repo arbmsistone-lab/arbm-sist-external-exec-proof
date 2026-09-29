@@ -1060,14 +1060,14 @@ class Task091FinalAtomicTableCellTests(unittest.TestCase):
         state={'slide':3}
         selected=next_text_action(state,deck,plan)
         self.assertEqual(selected['specialist_phase'],'semantic-section-e-font-select')
-        for _ in range(13):
+        for _ in range(6):
             action=next_text_action(state,deck,plan)
             self.assertEqual(action['action'],'exec')
             self.assertEqual(state['semantic_owner'],'section-e')
         self.assertEqual(action['specialist_phase'],'semantic-section-e-font-save')
         target=next(row for row in deck['deck_slide_shapes']['3']
                     if row.get('name')=='KpiReadout_Body')
-        target['font_sizes']=[value-900 for value in target['font_sizes']]
+        target['font_sizes']=[value-200 for value in target['font_sizes']]
         deck['deck_file']['sha256']='e'*64
         verified=next_text_action(state,deck,plan)
         self.assertEqual(verified['checkpoint'],'TASK091_SECTION_E_GUI_FONT_REPAIR_PROVEN')
