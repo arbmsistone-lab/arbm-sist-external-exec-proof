@@ -6,6 +6,7 @@ run-name: ARBM 091 clean proof ${{ github.sha }}
     - chatgpt/arbm-091-clean-rebuild-20260922
     - chatgpt/arbm-sist-final-candidate-20260929
     - chatgpt/arbm-sist-final-certification-20260929
+    - chatgpt/arbm-sist-final-certification-r2-20260929
   workflow_dispatch: {}
 permissions:
   actions: read
