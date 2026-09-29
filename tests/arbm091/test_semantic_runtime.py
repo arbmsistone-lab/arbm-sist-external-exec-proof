@@ -1119,6 +1119,34 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertIn("write('0'",command)
         self.assertIn("write('9'",command)
 
+    def test_fixed_width_viewport_reflow_compares_normalized_geometry(self):
+        from arbm091.semantic_runtime import _fixed_width_validate_viewport_reflow
+        ws=base_state()
+        ws["active_slide"]=2
+        ws["deck_file"]["sha256"]="a"*64
+        ws["deck_slide_shapes"]={"2":[{
+            "id":15,"name":"SummaryArr_Value","text":"$42.8M","kind":"shape",
+            "geometry":{"x":877824,"y":1810512,"w":1837944,"h":347472},
+            "font_sizes":[2400,2400],"fill_rgb":"",
+        }]}
+        ws["deck_slide_relationships"]={"2":[]}
+        before=_snapshot(ws)
+        tx={
+            "slide":2,
+            "target_key":[2,"shape",15,"SummaryArr_Value"],
+            "before_state":before,
+            "before_target_text":"$42.8M",
+            "before_deck_sha256":"a"*64,
+            "before_model_sha256":model_sha256(normalize_deck(before)),
+        }
+        after=copy.deepcopy(ws)
+        after["slide_canvas_bbox"]=[352,263,1135,638]
+        current_model=normalize_deck(after)
+        row=current_model[(2,"shape",15,"SummaryArr_Value")]
+        result=_fixed_width_validate_viewport_reflow(tx,after,row,current_model)
+        self.assertEqual(result["canvas"],[352,263,1135,638])
+        self.assertEqual(result["geometry"],[877824,1810512,1837944,347472])
+
     def test_fixed_width_contract_rejects_historical_corruption_and_wrong_scope(self):
         from arbm091.semantic_runtime import _fixed_width_contract, FIXED_WIDTH_TEXTBOX_REGISTRY
         cfg=_fixed_width_contract((2,"shape",15,"SummaryArr_Value"),"$42.8M","$40.9M")
