@@ -7,6 +7,7 @@ run-name: ARBM 091 safe micro proof ${{ github.sha }}
       - chatgpt/arbm-091-safe-microtests-20260929
       - chatgpt/arbm-sist-section-e-diagnostic-20260929
       - chatgpt/arbm-sist-final-candidate-20260929
+      - chatgpt/arbm-sist-final-certification-20260929
     paths:
       - .github/workflows/arbm-091-safe-real-wps-micro.yml
       - scripts/osworld_free_mesh_shim.py
