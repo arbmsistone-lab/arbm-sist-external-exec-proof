@@ -5,6 +5,10 @@ import copy
 import hashlib
 import json
 import os
+import re
+from pathlib import Path
+
+from PIL import Image
 
 from osworld_control import task091_spatial_target_proof, task091_panel_target_proof, task091_wps_font_size_target_proof
 from arbm091.semantic_transaction import (
@@ -21,6 +25,252 @@ from arbm091.semantic_transaction import (
 SCREEN=[0,0,1920,1080]
 WINDOW=[70,27,1850,1053]
 VIEWPORT=[443,194,1413,795]
+
+FIXED_WIDTH_TEXTBOX_REGISTRY={
+    (2,"shape",15,"SummaryArr_Value"):{
+        "baseline":"$42.8M",
+        "target":"$40.9M",
+        "max_diff":2,
+        "forbidden":("$40.9MM","$40.9M"),
+    },
+}
+
+
+def _fixed_width_enabled():
+    return str(os.environ.get("TASK091_FIXED_WIDTH_ENGINE") or "")=="1"
+
+
+def _fixed_width_contract(key,old,new):
+    cfg=FIXED_WIDTH_TEXTBOX_REGISTRY.get(tuple(key or ()))
+    if cfg is None:
+        return None
+    old=str(old or ""); new=str(new or "")
+    if old!=str(cfg["baseline"]) or new!=str(cfg["target"]):
+        raise SemanticTransactionError("TASK091_FIXED_WIDTH_CONTRACT_TEXT_MISMATCH")
+    if not old or len(old)!=len(new):
+        raise SemanticTransactionError("TASK091_FIXED_WIDTH_LENGTH_MISMATCH")
+    if "\n" in old or "\n" in new or "\r" in old or "\r" in new:
+        raise SemanticTransactionError("TASK091_FIXED_WIDTH_MULTILINE_FORBIDDEN")
+    diff=[(idx,new[idx]) for idx in range(len(old)) if old[idx]!=new[idx]]
+    if not diff or len(diff)>int(cfg["max_diff"]):
+        raise SemanticTransactionError("TASK091_FIXED_WIDTH_DIFF_BUDGET_INVALID")
+    return {**cfg,"diff":tuple(diff)}
+
+
+def _fixed_width_mutation_command(old,new):
+    old=str(old or ""); new=str(new or "")
+    if len(old)!=len(new) or not old:
+        raise SemanticTransactionError("TASK091_FIXED_WIDTH_LENGTH_MISMATCH")
+    diff=[(idx,new[idx]) for idx in range(len(old)) if old[idx]!=new[idx]]
+    if not diff or len(diff)>2:
+        raise SemanticTransactionError("TASK091_FIXED_WIDTH_DIFF_BUDGET_INVALID")
+    cursor=0
+    commands=[]
+    for idx,char in diff:
+        steps=idx-cursor
+        if steps<0:
+            raise SemanticTransactionError("TASK091_FIXED_WIDTH_CURSOR_ORDER_INVALID")
+        if steps:
+            commands.append(f"pyautogui.press('right', presses={steps}, interval=0.03)")
+        commands.append("pyautogui.press('delete')")
+        commands.append(f"pyautogui.write({char!r}, interval=0.03)")
+        cursor=idx+1
+    if len(commands)>6:
+        raise SemanticTransactionError("TASK091_FIXED_WIDTH_ACTION_BUDGET_EXCEEDED")
+    return "\n".join(commands)
+
+
+def _fixed_width_rollback_command():
+    return "pyautogui.hotkey('ctrl', 'z')\npyautogui.hotkey('ctrl', 's')\npyautogui.sleep(0.25)"
+
+
+def _screen_bbox(window_state,row):
+    if window_state.get("screen")!=SCREEN or (window_state.get("window") or {}).get("bbox")!=WINDOW:
+        raise SemanticTransactionError("TASK091_CANONICAL_CONTEXT_UNPROVEN")
+    deck_file=window_state.get("deck_file",{})
+    slide_size=deck_file.get("slide_size",{}) if isinstance(deck_file,dict) else {}
+    sw=int(slide_size.get("w") or 0); sh=int(slide_size.get("h") or 0)
+    geom=row.get("geometry") if isinstance(row,dict) else None
+    if sw<=0 or sh<=0 or not isinstance(geom,(tuple,list)) or len(geom)!=4:
+        raise SemanticTransactionError("TASK091_TARGET_GEOMETRY_UNPROVEN")
+    gx,gy,gw,gh=(int(v) for v in geom)
+    if gx<0 or gy<0 or gw<=0 or gh<=0:
+        raise SemanticTransactionError("TASK091_TARGET_GEOMETRY_INVALID")
+    canvas=window_state.get("slide_canvas_bbox")
+    if not (isinstance(canvas,list) and len(canvas)==4 and all(type(v) is int for v in canvas)):
+        raise SemanticTransactionError("TASK091_SLIDE_CANVAS_UNPROVEN")
+    vx,vy,vw,vh=canvas
+    left=round(vx+(gx/sw)*vw); top=round(vy+(gy/sh)*vh)
+    right=round(vx+((gx+gw)/sw)*vw); bottom=round(vy+((gy+gh)/sh)*vh)
+    left=max(vx,int(left)); top=max(vy,int(top))
+    right=min(vx+vw,int(right)); bottom=min(vy+vh,int(bottom))
+    if right-left<8 or bottom-top<8:
+        raise SemanticTransactionError("TASK091_FIXED_WIDTH_SCREEN_GEOMETRY_UNPROVEN")
+    return [left,top,right-left,bottom-top]
+
+
+def _signed_point(window_state,slide,row,cx,cy):
+    deck_sha=str((window_state.get("deck_file") or {}).get("sha256") or "")
+    foreground=_foreground_sha(window_state)
+    if len(deck_sha)!=64 or len(foreground)!=64:
+        raise SemanticTransactionError("TASK091_TARGET_DIGEST_UNPROVEN")
+    target={
+        "source":"task091-pptx-canonical",
+        "label":str(row.get("text") or ""),
+        "role":"task091-canonical-point",
+        "slide":int(slide),
+        "x":int(cx)-1,"y":int(cy)-1,"w":2,"h":2,
+        "cx":int(cx),"cy":int(cy),
+        "foreground_sha256":foreground,
+        "deck_sha256":deck_sha,
+    }
+    target["proof_sha256"]=task091_spatial_target_proof(target)
+    return target
+
+
+def _fixed_width_screenshot_source_path(source):
+    root=str(os.environ.get("ARBM_WPS_EVIDENCE_DIR") or "")
+    source=str(source or "")
+    if not root or re.fullmatch(r"\d{4}-\d{2}-(?:before|after)",source) is None:
+        return None
+    path=Path(root)/"wps-observations"/(source+".png")
+    return path if path.is_file() else None
+
+
+def _fixed_width_screenshot_path(window_state):
+    if not isinstance(window_state,dict):
+        return None
+    return _fixed_width_screenshot_source_path(window_state.get("source"))
+
+
+def _fixed_width_text_ink(window_state,bbox,inset=5,threshold=24):
+    path=_fixed_width_screenshot_path(window_state)
+    if path is None or not isinstance(bbox,list) or len(bbox)!=4:
+        return None
+    if not all(type(v) is int for v in bbox):
+        return None
+    x,y,w,h=bbox
+    if w<=2*inset+4 or h<=2*inset+4:
+        return None
+    try:
+        with Image.open(path) as image:
+            rgb=image.convert("RGB")
+            left=x+inset; top=y+inset; right=x+w-inset; bottom=y+h-inset
+            crop=rgb.crop((left,top,right,bottom))
+            iw,ih=crop.size
+            pixels=list(crop.getdata())
+    except Exception:
+        return None
+    if not pixels:
+        return None
+    background=[]
+    for channel in range(3):
+        values=sorted(int(px[channel]) for px in pixels)
+        background.append(values[len(values)//2])
+    xs=[]; ys=[]
+    for py in range(ih):
+        for px in range(iw):
+            value=crop.getpixel((px,py))
+            if max(abs(int(value[i])-background[i]) for i in range(3))<int(threshold):
+                continue
+            xs.append(px); ys.append(py)
+    count=len(xs)
+    if count<8 or count>min(2500,max(8,(iw*ih)//2)):
+        return None
+    ink_w=max(xs)-min(xs)+1; ink_h=max(ys)-min(ys)+1
+    if ink_w<2 or ink_h<5 or ink_h>min(50,ih):
+        return None
+    return {
+        "bbox":[left+min(xs),top+min(ys),ink_w,ink_h],
+        "pixels":count,
+        "source":str(window_state.get("source") or ""),
+        "screenshot_sha256":str(window_state.get("screenshot_sha256") or ""),
+    }
+
+
+def _fixed_width_text_end_point(ink,bbox,gap=3):
+    if not isinstance(ink,dict) or not isinstance(bbox,list) or len(bbox)!=4:
+        return None
+    ib=ink.get("bbox")
+    if not isinstance(ib,list) or len(ib)!=4:
+        return None
+    x,y,w,h=bbox; ix,iy,iw,ih=(int(v) for v in ib)
+    right=x+w
+    ink_right=ix+iw
+    cx=min(right-4,ink_right+int(gap)); cy=iy+ih//2
+    if not (ink_right<cx<right-2 and y+2<=cy<y+h-2):
+        return None
+    return {"cx":int(cx),"cy":int(cy),"expected_x":int(cx)}
+
+
+def _fixed_width_caret_delta_geometry(before_source,after_source,bbox):
+    before_path=_fixed_width_screenshot_source_path(before_source)
+    after_path=_fixed_width_screenshot_source_path(after_source)
+    if before_path is None or after_path is None or not isinstance(bbox,list) or len(bbox)!=4:
+        return {"proven":False,"reason":"evidence-missing"}
+    if not all(type(v) is int for v in bbox):
+        return {"proven":False,"reason":"bbox-invalid"}
+    x,y,w,h=bbox
+    try:
+        with Image.open(before_path) as a_img, Image.open(after_path) as b_img:
+            a=a_img.convert("RGB").crop((x,y,x+w,y+h))
+            b=b_img.convert("RGB").crop((x,y,x+w,y+h))
+        if a.size!=b.size:
+            return {"proven":False,"reason":"size-drift"}
+        xs=[]; ys=[]; col_counts={}
+        for py in range(h):
+            for px in range(w):
+                av=a.getpixel((px,py)); bv=b.getpixel((px,py))
+                if max(abs(int(av[i])-int(bv[i])) for i in range(3))<=20:
+                    continue
+                xs.append(px); ys.append(py)
+                col_counts[px]=col_counts.get(px,0)+1
+        if not xs:
+            return {"proven":False,"reason":"no-local-delta","count":0}
+        dw=max(xs)-min(xs)+1; dh=max(ys)-min(ys)+1
+        dominant=max(col_counts.values()) if col_counts else 0
+        proven=(8<=len(xs)<=160 and dw<=4 and 8<=dh<=min(40,h)
+                and dh>=max(8,dw*4) and dominant>=max(8,int(len(xs)*0.65)))
+        return {"proven":proven,
+                "reason":"caret-geometry" if proven else "delta-not-caret",
+                "count":len(xs),"width":dw,"height":dh,
+                "dominant_column":dominant,
+                "bbox":[min(xs),min(ys),dw,dh]}
+    except Exception:
+        return {"proven":False,"reason":"image-read-failed"}
+
+
+def _fixed_width_caret_at_end(caret,bbox,ink_bbox,expected_x,tolerance=9):
+    if not isinstance(caret,dict) or caret.get("proven") is not True:
+        return {"proven":False,"reason":"caret-unproven"}
+    cb=caret.get("bbox")
+    if not (isinstance(cb,list) and len(cb)==4
+            and isinstance(bbox,list) and len(bbox)==4
+            and isinstance(ink_bbox,list) and len(ink_bbox)==4):
+        return {"proven":False,"reason":"geometry-missing"}
+    caret_x=int(bbox[0])+int(cb[0]); ink_right=int(ink_bbox[0])+int(ink_bbox[2])
+    proven=(caret_x>=ink_right-2 and caret_x<=ink_right+int(tolerance)+4
+            and abs(caret_x-int(expected_x or 0))<=int(tolerance))
+    return {"proven":proven,"caret_x":caret_x,"ink_right":ink_right}
+
+
+def _fixed_width_caret_at_start(caret,bbox,ink_bbox,tolerance=9):
+    if not isinstance(caret,dict) or caret.get("proven") is not True:
+        return {"proven":False,"relation":"unknown"}
+    cb=caret.get("bbox")
+    if not (isinstance(cb,list) and len(cb)==4
+            and isinstance(bbox,list) and len(bbox)==4
+            and isinstance(ink_bbox,list) and len(ink_bbox)==4):
+        return {"proven":False,"relation":"unknown"}
+    caret_x=int(bbox[0])+int(cb[0]); ink_left=int(ink_bbox[0])
+    delta=caret_x-ink_left
+    proven=(-int(tolerance)-4<=delta<=2)
+    relation=("at-start" if proven else
+              "right-of-start" if 2<delta<=24 else
+              "left-of-start" if delta<-int(tolerance)-4 else
+              "far-right")
+    return {"proven":proven,"relation":relation,"caret_x":caret_x,
+            "ink_left":ink_left,"delta_to_start":delta}
 
 
 def _terminal(reason):
@@ -431,8 +681,9 @@ def _resolved_row_by_key(window_state,key):
 def next_text_action(state,window_state,plan):
     """Advance exactly one semantic text transaction.
 
-    There is deliberately no caret, ink, blink, Home, Left, or character
-    position logic anywhere in this state machine.
+    Ordinary transactions remain selection-based. Registered fixed-width
+    textboxes may use a separately proven caret boundary and minimum character
+    diff; Ctrl+A and Home are forbidden in that hardened path.
     """
     if not isinstance(window_state,dict):
         return _terminal("TASK091_OOXML_STATE_MISSING")
@@ -593,6 +844,8 @@ def next_text_action(state,window_state,plan):
             return _terminal(str(exc))
         if contract["model_sha256"]!=resolved["model_sha256"]:
             return _terminal("TASK091_CONTRACT_MODEL_DRIFT")
+        fixed_width=(_fixed_width_enabled()
+                     and _fixed_width_contract(resolved["key"],old,new) is not None)
         state["semantic_tx"]={
             "stage":"select-issued",
             "index":index,"slide":int(slide),"old":str(old),"new":str(new),
@@ -604,13 +857,20 @@ def next_text_action(state,window_state,plan):
             "selection_before_screenshot_sha256":str(window_state.get("screenshot_sha256") or ""),
             "selection_canvas":copy.deepcopy(window_state.get("slide_canvas_bbox")),
             "contract":contract,
+            "fixed_width_enabled":bool(fixed_width),
         }
+        command=(f"pyautogui.click({target['cx']}, {target['cy']})"
+                 if fixed_width else
+                 f"pyautogui.doubleClick({target['cx']}, {target['cy']}, interval=0.08)")
         return {
             "action":"exec",
-            "command":f"pyautogui.doubleClick({target['cx']}, {target['cy']}, interval=0.08)",
+            "command":command,
             "target":target,
-            "plan":"Select only the OOXML-resolved target in WPS; semantic verification, not caret geometry, authorizes the transaction.",
-            "specialist_phase":"semantic-target-select",
+            "plan":("Select the signed fixed-width textbox container; text-mode entry and caret proof occur in separate audited steps."
+                    if fixed_width else
+                    "Select only the OOXML-resolved target in WPS; semantic verification, not caret geometry, authorizes the transaction."),
+            "specialist_phase":("semantic-fixed-width-target-select"
+                                if fixed_width else "semantic-target-select"),
         }
 
     stage=str(tx.get("stage") or "")
@@ -666,14 +926,203 @@ def next_text_action(state,window_state,plan):
         return _terminal(str(exc))
     row=current_model.get(key)
 
+    if stage=="fixed-width-end-entry-issued":
+        if (row is None or str(row.get("text") or "")!=str(tx.get("before_target_text") or "")
+                or model_sha256(current_model)!=str(tx.get("before_model_sha256") or "")):
+            return _terminal("TASK091_FIXED_WIDTH_PRECONDITION_DRIFT")
+        if window_state.get("slide_canvas_bbox")!=tx.get("selection_canvas"):
+            return _terminal("TASK091_FIXED_WIDTH_CANVAS_DRIFT")
+        source=str(window_state.get("source") or "")
+        if re.fullmatch(r"\d{4}-\d{2}-(?:before|after)",source) is None:
+            return _terminal("TASK091_FIXED_WIDTH_TEXTMODE_EVIDENCE_MISSING")
+        tx["fixed_width_textmode_source"]=source
+        tx["fixed_width_end_probe_attempts"]=0
+        tx["stage"]="fixed-width-end-caret-probe-issued"
+        return {"action":"exec","command":"pyautogui.sleep(0.30)",
+                "plan":"Sample the unchanged signed textbox in text mode until the end caret is positively proven.",
+                "specialist_phase":"fixed-width-end-caret-probe-1"}
+
+    if stage=="fixed-width-end-caret-probe-issued":
+        if (row is None or str(row.get("text") or "")!=str(tx.get("before_target_text") or "")
+                or model_sha256(current_model)!=str(tx.get("before_model_sha256") or "")):
+            return _terminal("TASK091_FIXED_WIDTH_PRECONDITION_DRIFT")
+        caret=_fixed_width_caret_delta_geometry(
+            tx.get("fixed_width_textmode_source"),window_state.get("source"),
+            list(tx.get("fixed_width_shape_bbox") or []))
+        if caret.get("proven") is not True:
+            attempts=int(tx.get("fixed_width_end_probe_attempts") or 0)+1
+            if attempts>=4:
+                return _terminal("TASK091_FIXED_WIDTH_END_CARET_UNPROVEN")
+            tx["fixed_width_end_probe_attempts"]=attempts
+            return {"action":"exec","command":f"pyautogui.sleep({(0.45,0.65,0.85)[attempts-1]:.2f})",
+                    "plan":"Re-sample the unchanged textbox; mutation remains forbidden until caret geometry is proven.",
+                    "specialist_phase":f"fixed-width-end-caret-probe-{attempts+1}"}
+        boundary=_fixed_width_caret_at_end(
+            caret,list(tx.get("fixed_width_shape_bbox") or []),
+            list(tx.get("fixed_width_ink_bbox") or []),
+            tx.get("fixed_width_expected_end_x"))
+        if boundary.get("proven") is not True:
+            return _terminal("TASK091_FIXED_WIDTH_CARET_NOT_AT_END")
+        tx["fixed_width_end_caret"]=caret
+        tx["stage"]="fixed-width-start-nav-issued"
+        steps=len(str(tx.get("old") or ""))
+        return {"action":"exec",
+                "command":f"pyautogui.press('left', presses={steps}, interval=0.03)\npyautogui.sleep(0.20)",
+                "plan":"The end caret is proven. Move left by exactly the fixed text length; do not use Home.",
+                "specialist_phase":"fixed-width-move-to-proven-start"}
+
+    if stage=="fixed-width-start-nav-issued":
+        source=str(window_state.get("source") or "")
+        if re.fullmatch(r"\d{4}-\d{2}-(?:before|after)",source) is None:
+            return _terminal("TASK091_FIXED_WIDTH_START_EVIDENCE_MISSING")
+        tx["fixed_width_start_source"]=source
+        tx["fixed_width_start_probe_attempts"]=0
+        tx["stage"]="fixed-width-start-caret-probe-issued"
+        return {"action":"exec","command":"pyautogui.sleep(0.30)",
+                "plan":"Sample the relocated caret before any character mutation.",
+                "specialist_phase":"fixed-width-start-caret-probe-1"}
+
+    if stage=="fixed-width-start-normalize-issued":
+        source=str(window_state.get("source") or "")
+        if re.fullmatch(r"\d{4}-\d{2}-(?:before|after)",source) is None:
+            return _terminal("TASK091_FIXED_WIDTH_START_EVIDENCE_MISSING")
+        tx["fixed_width_start_source"]=source
+        tx["stage"]="fixed-width-start-caret-probe-issued"
+        return {"action":"exec","command":"pyautogui.sleep(0.30)",
+                "plan":"Re-prove the start caret after the one permitted WPS terminal-marker normalization.",
+                "specialist_phase":"fixed-width-start-caret-normalized-probe"}
+
+    if stage=="fixed-width-start-caret-probe-issued":
+        if (row is None or str(row.get("text") or "")!=str(tx.get("before_target_text") or "")
+                or model_sha256(current_model)!=str(tx.get("before_model_sha256") or "")):
+            return _terminal("TASK091_FIXED_WIDTH_PRECONDITION_DRIFT")
+        caret=_fixed_width_caret_delta_geometry(
+            tx.get("fixed_width_start_source"),window_state.get("source"),
+            list(tx.get("fixed_width_shape_bbox") or []))
+        if caret.get("proven") is not True:
+            attempts=int(tx.get("fixed_width_start_probe_attempts") or 0)+1
+            if attempts>=4:
+                return _terminal("TASK091_FIXED_WIDTH_START_CARET_UNPROVEN")
+            tx["fixed_width_start_probe_attempts"]=attempts
+            return {"action":"exec","command":f"pyautogui.sleep({(0.45,0.65,0.85)[attempts-1]:.2f})",
+                    "plan":"Re-sample the unchanged textbox until the relocated caret is visible.",
+                    "specialist_phase":f"fixed-width-start-caret-probe-{attempts+1}"}
+        boundary=_fixed_width_caret_at_start(
+            caret,list(tx.get("fixed_width_shape_bbox") or []),
+            list(tx.get("fixed_width_ink_bbox") or []))
+        if boundary.get("proven") is not True:
+            if (boundary.get("relation")=="right-of-start"
+                    and int(tx.get("fixed_width_start_normalize_attempts") or 0)<1):
+                tx["fixed_width_start_normalize_attempts"]=1
+                tx["stage"]="fixed-width-start-normalize-issued"
+                return {"action":"exec","command":"pyautogui.press('left')\npyautogui.sleep(0.20)",
+                        "plan":"Normalize the one proven WPS terminal-marker offset, then re-prove the start.",
+                        "specialist_phase":"fixed-width-normalize-terminal-marker"}
+            return _terminal("TASK091_FIXED_WIDTH_CARET_NOT_AT_START")
+        tx["fixed_width_start_caret"]=caret
+        tx["mutation_mode"]="fixed-width-caret-proven"
+        tx["stage"]="fixed-width-mutation-issued"
+        try:
+            command=_fixed_width_mutation_command(tx.get("old"),tx.get("new"))
+        except SemanticTransactionError as exc:
+            return _terminal(str(exc))
+        return {"action":"exec","command":command,
+                "plan":"From the independently proven start caret, mutate only the differing fixed-width character indices.",
+                "specialist_phase":"fixed-width-minimum-character-diff",
+                "expected_change":tx["new"]}
+
+    if stage=="fixed-width-mutation-issued":
+        tx["stage"]="fixed-width-commit-issued"
+        return {"action":"exec","command":"pyautogui.press('esc')",
+                "plan":"Finalize the bounded fixed-width edit without issuing another text mutation.",
+                "specialist_phase":"fixed-width-commit",
+                "expected_change":tx["new"]}
+
+    if stage=="fixed-width-commit-issued":
+        tx["stage"]="fixed-width-save-issued"
+        tx["fixed_width_save_observations"]=0
+        return {"action":"exec","command":"pyautogui.hotkey('ctrl', 's')\npyautogui.sleep(0.25)",
+                "plan":"Persist the fixed-width transaction exactly once before OOXML readback.",
+                "specialist_phase":"fixed-width-save",
+                "expected_change":tx["new"]}
+
+    if stage=="fixed-width-save-issued":
+        current_sha=str((window_state.get("deck_file") or {}).get("sha256") or "")
+        observed=str((row or {}).get("text") or "")
+        if len(current_sha)!=64 or current_sha==str(tx.get("before_deck_sha256") or ""):
+            observations=int(tx.get("fixed_width_save_observations") or 0)+1
+            tx["fixed_width_save_observations"]=observations
+            if observations>=3:
+                return _terminal("TASK091_FIXED_WIDTH_SAVE_NOT_PERSISTED")
+            return {"action":"exec","command":"pyautogui.sleep(0.25)",
+                    "plan":"The saved deck SHA is not visible yet; re-observe without issuing another mutation.",
+                    "specialist_phase":"fixed-width-save-reobserve"}
+        if observed!=str(tx.get("new") or ""):
+            tx["fixed_width_corrupt_text"]=observed
+            tx["fixed_width_corrupt_deck_sha256"]=current_sha
+            tx["stage"]="fixed-width-rollback-issued"
+            return {"action":"exec","command":_fixed_width_rollback_command(),
+                    "plan":"Unexpected persisted text is forbidden. Undo exactly one transaction, save, then prove full semantic rollback.",
+                    "specialist_phase":"fixed-width-clean-rollback"}
+        before_row=(tx.get("before_state") or {}).get("deck_slide_shapes",{}).get(str(key[0]),[])
+        before_match=next((r for r in before_row
+                           if int(r.get("id") or 0)==int(key[2])
+                           and str(r.get("name") or "")==str(key[3])),None)
+        if not isinstance(before_match,dict):
+            return _terminal("TASK091_FIXED_WIDTH_BASELINE_TARGET_MISSING")
+        if tuple(row.get("geometry") or ())!=tuple(before_match.get("geometry") or ()):
+            tx["fixed_width_corrupt_text"]=observed
+            tx["fixed_width_corrupt_deck_sha256"]=current_sha
+            tx["stage"]="fixed-width-rollback-issued"
+            return {"action":"exec","command":_fixed_width_rollback_command(),
+                    "plan":"Target geometry drifted. Undo the entire transaction and prove the baseline before stopping.",
+                    "specialist_phase":"fixed-width-clean-rollback"}
+        try:
+            verdict=_verify_text_transaction_for_mode(
+                tx["before_state"],window_state,key,tx.get("new"))
+        except SemanticTransactionError:
+            tx["fixed_width_corrupt_text"]=observed
+            tx["fixed_width_corrupt_deck_sha256"]=current_sha
+            tx["stage"]="fixed-width-rollback-issued"
+            return {"action":"exec","command":_fixed_width_rollback_command(),
+                    "plan":"Post-flight semantic verification failed. Roll back the complete transaction before stopping.",
+                    "specialist_phase":"fixed-width-clean-rollback"}
+        tx["after_model_sha256"]=verdict["after_model_sha256"]
+        tx["after_deck_sha256"]=current_sha
+        tx["semantic_verdict"]=verdict
+        tx["stage"]="roundtrip-issued"
+        return {"action":"exec","command":"pyautogui.press('esc')",
+                "plan":"Independently re-read the persisted fixed-width result before success.",
+                "specialist_phase":"fixed-width-roundtrip-reread"}
+
+    if stage=="fixed-width-rollback-issued":
+        current_sha=str((window_state.get("deck_file") or {}).get("sha256") or "")
+        restored=(row is not None
+                  and str(row.get("text") or "")==str(tx.get("old") or "")
+                  and model_sha256(current_model)==str(tx.get("before_model_sha256") or "")
+                  and len(current_sha)==64
+                  and current_sha!=str(tx.get("fixed_width_corrupt_deck_sha256") or ""))
+        state["fixed_width_rollback_evidence"]={
+            "target_key":list(key),
+            "corrupt_text":str(tx.get("fixed_width_corrupt_text") or ""),
+            "corrupt_deck_sha256":str(tx.get("fixed_width_corrupt_deck_sha256") or ""),
+            "rollback_deck_sha256":current_sha,
+            "baseline_text":str(tx.get("old") or ""),
+            "rollback_proven":bool(restored),
+        }
+        if not restored:
+            return _terminal("TASK091_FIXED_WIDTH_ROLLBACK_UNPROVEN")
+        state["semantic_tx"]=None
+        return _terminal("TASK091_FIXED_WIDTH_ROLLBACK_PROVEN_AFTER_CORRUPTION")
+
     if stage=="critical-text-edit-issued":
         if (row is None or str(row.get("text") or "")!=str(tx.get("before_target_text") or "")
                 or model_sha256(current_model)!=str(tx.get("before_model_sha256") or "")):
             return _terminal("TASK091_PRECONDITION_DRIFT")
         if window_state.get("slide_canvas_bbox")!=tx.get("selection_canvas"):
             return _terminal("TASK091_TEXT_EDIT_CANVAS_DRIFT")
-        # doubleClick already entered text editing. F2 toggles OUT of it in WPS.
-        # Never issue the former F2 / select-all / Backspace sequence.
+        # Legacy critical path remains available only when the hardened engine
+        # flag is intentionally disabled.
         tx["mutation_mode"]="critical-grounded-text-replace"
         tx["stage"]="save-issued"
         return {
@@ -685,7 +1134,7 @@ def next_text_action(state,window_state,plan):
                 "pyautogui.hotkey('ctrl', 's')",
                 "pyautogui.sleep(0.35)",
             )),
-            "plan":"Replace text in the freshly entered editor, save, then require a complete target-only OOXML diff.",
+            "plan":"Legacy whole-target replace; unavailable when TASK091_FIXED_WIDTH_ENGINE=1.",
             "specialist_phase":"critical-summaryarr-atomic-persist",
             "expected_change":tx["new"],
         }
@@ -695,6 +1144,41 @@ def next_text_action(state,window_state,plan):
             return _terminal("TASK091_PRECONDITION_DRIFT")
         if model_sha256(current_model)!=str(tx.get("before_model_sha256") or ""):
             return _terminal("TASK091_PRECONDITION_DRIFT")
+        if tx.get("fixed_width_enabled") is True:
+            try:
+                cfg=_fixed_width_contract(key,tx.get("old"),tx.get("new"))
+                bbox=_screen_bbox(window_state,row)
+                ink=_fixed_width_text_ink(window_state,bbox)
+                end=_fixed_width_text_end_point(ink,bbox)
+            except SemanticTransactionError as exc:
+                return _terminal(str(exc))
+            if cfg is None:
+                return _terminal("TASK091_FIXED_WIDTH_CONTRACT_MISSING")
+            if not isinstance(ink,dict) or not isinstance(end,dict):
+                return _terminal("TASK091_FIXED_WIDTH_TEXT_INK_UNPROVEN")
+            source=str(window_state.get("source") or "")
+            if re.fullmatch(r"\d{4}-\d{2}-(?:before|after)",source) is None:
+                return _terminal("TASK091_FIXED_WIDTH_SOURCE_EVIDENCE_MISSING")
+            try:
+                target=_signed_point(window_state,int(key[0]),row,end["cx"],end["cy"])
+            except SemanticTransactionError as exc:
+                return _terminal(str(exc))
+            tx["fixed_width_contract"]={
+                "baseline":cfg["baseline"],"target":cfg["target"],
+                "diff":[list(item) for item in cfg["diff"]],
+                "forbidden":list(cfg["forbidden"]),
+            }
+            tx["fixed_width_shape_bbox"]=list(bbox)
+            tx["fixed_width_ink_bbox"]=list(ink["bbox"])
+            tx["fixed_width_expected_end_x"]=int(end["expected_x"])
+            tx["stage"]="fixed-width-end-entry-issued"
+            return {
+                "action":"exec",
+                "command":f"pyautogui.doubleClick({target['cx']}, {target['cy']}, interval=0.08)",
+                "target":target,
+                "plan":"Enter text mode at the raster-proven end of the signed fixed-width textbox; no text mutation is authorized yet.",
+                "specialist_phase":"semantic-fixed-width-enter-text",
+            }
         if (
             os.environ.get("TASK091_CRITICAL_ERROR_ONLY") == "1"
             and key == (2, "shape", 15, "SummaryArr_Value")
