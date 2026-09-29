@@ -1221,6 +1221,8 @@ class SemanticRuntimeTests(unittest.TestCase):
                 self._materialize_fixed_width_visual_evidence(td,reflow)
                 first_probe=next_text_action(state,reflow,plan)
                 self._assert_exec_phase(first_probe,"fixed-width-reflow-stability-probe-1",state)
+                settle=next_text_action(state,reflow,plan)
+                self._assert_exec_phase(settle,"fixed-width-reflow-stability-probe-2",state)
                 second=next_text_action(state,reflow,plan)
                 self._assert_exec_phase(second,"semantic-fixed-width-enter-text-click-2",state)
         self.assertIn("pyautogui.click",second["command"])
@@ -1241,6 +1243,8 @@ class SemanticRuntimeTests(unittest.TestCase):
                 self._assert_exec_phase(click1,"semantic-fixed-width-enter-text-click-1",state)
                 probe=next_text_action(state,ws,plan)
                 self._assert_exec_phase(probe,"fixed-width-reflow-stability-probe-1",state)
+                settle=next_text_action(state,ws,plan)
+                self._assert_exec_phase(settle,"fixed-width-reflow-stability-probe-2",state)
                 second=next_text_action(state,ws,plan)
                 self._assert_exec_phase(second,"semantic-fixed-width-enter-text-click-2",state)
         self.assertTrue(state["semantic_tx"]["fixed_width_identity_proof"]["same_logical_identity"])
@@ -1292,6 +1296,8 @@ class SemanticRuntimeTests(unittest.TestCase):
                 reflow["slide_canvas_bbox"]=[352,263,1135,638]
                 first_probe=next_text_action(state,reflow,plan)
                 self._assert_exec_phase(first_probe,"fixed-width-reflow-stability-probe-1",state)
+                settle=next_text_action(state,reflow,plan)
+                self._assert_exec_phase(settle,"fixed-width-reflow-stability-probe-2",state)
                 click2=next_text_action(state,reflow,plan)
                 self._assert_exec_phase(click2,"semantic-fixed-width-enter-text-click-2",state)
         tx=state["semantic_tx"]
