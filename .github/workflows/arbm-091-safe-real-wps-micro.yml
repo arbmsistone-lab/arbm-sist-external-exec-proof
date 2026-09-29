@@ -1,5 +1,5 @@
 name: ARBM 091 Safe Real-WPS Micro Proof
-# FIXED_WIDTH_CERTIFICATION_SYNC_20260929
+# FIXED_WIDTH_CERTIFICATION_SYNC_20260929_R2
 run-name: ARBM 091 safe micro proof ${{ github.sha }}
 'on':
   push:
