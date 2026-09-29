@@ -735,7 +735,8 @@ class SemanticRuntimeTests(unittest.TestCase):
             "def _task091_system_check_close",1)[0]
         self.assertNotIn("commands=[",body)
         self.assertNotIn("'\\n'.join(commands)",body)
-        self.assertIn("section-e-semantic-f2",body)
+        self.assertNotIn("section-e-semantic-f2",body)
+        self.assertNotIn("pyautogui.press('f2')",body)
         self.assertIn("section-e-semantic-select-text",body)
         self.assertIn("section-e-semantic-font-minus-",body)
         self.assertIn("TASK091_SECTION_E_FONT_STEP_STATE_INVALID",body)
