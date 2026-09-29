@@ -151,6 +151,8 @@ def inspect_repo(root="."):
         and "TASK091_SECTION_E_ROUNDTRIP_DRIFT" in shim
         and "pyautogui.click(371, 108)" in shim
         and "section-e-semantic-font-size-10" in shim
+        and "task091_wps_font_size_target_proof" in shim
+        and "_validate_task091_wps_font_size_pointer" in control
     )
     specialist_sources=all(x in shim for x in (
         "source='task091-specialist'","source='generic-mesh'",
