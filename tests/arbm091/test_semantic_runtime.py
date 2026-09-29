@@ -2,6 +2,7 @@ import copy
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from arbm091.semantic_runtime import _current_autofit_group, next_text_action, _snapshot
@@ -1078,6 +1079,48 @@ class SemanticRuntimeTests(unittest.TestCase):
             self.assertIn("pyautogui.hotkey('ctrl', 'a')",command)
             self.assertLess(command.index("pyautogui.hotkey('ctrl', 'a')"),
                             command.index("pyautogui.write("))
+
+
+    def test_summaryarr_fixed_width_engine_uses_signed_caret_path_and_no_ctrl_a(self):
+        ws=base_state()
+        ws["active_slide"]=2
+        ws["source"]="0001-01-after"
+        ws["screenshot_sha256"]="b"*64
+        ws["deck_slide_shapes"]={"2":[{
+            "id":15,"name":"SummaryArr_Value","text":"$42.8M","kind":"shape",
+            "geometry":{"x":877824,"y":1810512,"w":1837944,"h":347472},
+            "font_sizes":[1600],"fill_rgb":"",
+        }]}
+        ws["deck_slide_relationships"]={"2":[]}
+        state={"slide":2}
+        plan=((2,558,364,"$42.8M","$40.9M"),)
+        with patch.dict(os.environ,{"TASK091_FIXED_WIDTH_ENGINE":"1"},clear=False):
+            select=next_text_action(state,ws,plan)
+            self.assertEqual(select["specialist_phase"],"semantic-fixed-width-target-select")
+            self.assertIn("pyautogui.click",select["command"])
+            self.assertNotIn("ctrl', 'a",select["command"])
+            self.assertTrue(state["semantic_tx"]["fixed_width_enabled"])
+            self.assertEqual(state["semantic_tx"]["target_key"],
+                             [2,"shape",15,"SummaryArr_Value"])
+
+    def test_fixed_width_diff_command_mutates_only_indices_two_and_four(self):
+        from arbm091.semantic_runtime import _fixed_width_mutation_command
+        command=_fixed_width_mutation_command("$42.8M","$40.9M")
+        self.assertNotIn("ctrl', 'a",command)
+        self.assertNotIn("press('home')",command)
+        self.assertEqual(command.count("press('delete')"),2)
+        self.assertIn("press('right', presses=2",command)
+        self.assertIn("press('right', presses=1",command)
+        self.assertIn("write('0'",command)
+        self.assertIn("write('9'",command)
+
+    def test_fixed_width_contract_rejects_historical_corruption_and_wrong_scope(self):
+        from arbm091.semantic_runtime import _fixed_width_contract, FIXED_WIDTH_TEXTBOX_REGISTRY
+        cfg=_fixed_width_contract((2,"shape",15,"SummaryArr_Value"),"$42.8M","$40.9M")
+        self.assertEqual(cfg["diff"],((2,"0"),(4,"9")))
+        self.assertEqual(tuple(cfg["forbidden"]),("$40.9MM","$40.9M"))
+        self.assertNotIn((2,"shape",25,"SummaryBurn_Value"),FIXED_WIDTH_TEXTBOX_REGISTRY)
+
 
 
 if __name__=="__main__":
