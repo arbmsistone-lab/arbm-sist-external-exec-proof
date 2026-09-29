@@ -5,7 +5,7 @@ from PIL import Image
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from osworld_ingress import project_messages
 from osworld_milestones import Milestones, verified_facts
-from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response, visual_reference_recovery, foreground_context, allow_bounded_wps_escape_repeat, allow_bounded_wps_modal_close_repeat, task091_spatial_target_proof
+from osworld_control import canonical_action, ground_action, Verifier, pack_payload, validate_response, visual_reference_recovery, foreground_context, allow_bounded_wps_escape_repeat, allow_bounded_wps_modal_close_repeat, task091_spatial_target_proof, task091_wps_font_size_target_proof
 from arbm091.trace_gate import classify as classify_wps_window
 from osworld_v32_policy import DecisionKind, apply_live_policy
 from osworld_openrouter_free import FREE_ROUTE, prompt as openrouter_prompt
@@ -904,10 +904,14 @@ def _task091_section_e_format_step(state, window_state):
 
     if stage=='select-text-issued':
         tx['stage']='font-size-control-issued'
+        font_target={'source':'task091-wps-font-size-canonical','label':'Font Size',
+                     'role':'font-size-combobox','slide':3,
+                     'x':337,'y':96,'w':69,'h':24,'cx':371,'cy':108,
+                     'foreground_sha256':_task091_foreground_sha(window_state),
+                     'deck_sha256':str((window_state.get('deck_file') or {}).get('sha256') or '')}
+        font_target['proof_sha256']=task091_wps_font_size_target_proof(font_target)
         return {'action':'exec','command':"pyautogui.click(371, 108)",
-                'target':{'source':'task091-wps-font-size-canonical','label':'Font Size',
-                          'role':'font-size-combobox','slide':3,
-                          'bbox':[337,96,69,24],'cx':371,'cy':108},
+                'target':font_target,
                 'plan':'Focus the canonical WPS font-size field for the already selected Section E text.',
                 'specialist_phase':'section-e-semantic-font-size-control'}
 
