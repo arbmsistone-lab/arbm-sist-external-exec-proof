@@ -1,4 +1,5 @@
 name: ARBM 091 Safe Real-WPS Micro Proof
+# FINAL_CANDIDATE_SYNC_20260929
 run-name: ARBM 091 safe micro proof ${{ github.sha }}
 'on':
   push:
