@@ -261,6 +261,26 @@ def task091_spatial_target_proof(target):
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
+def task091_wps_font_size_target_proof(target):
+    if not isinstance(target,dict):
+        return ''
+    payload='|'.join((
+        str(target.get('source') or ''),
+        normalized_target(target.get('role')),
+        normalized_target(target.get('label')),
+        str(int(target.get('slide') or 0)),
+        str(int(target.get('x') or 0)),
+        str(int(target.get('y') or 0)),
+        str(int(target.get('w') or 0)),
+        str(int(target.get('h') or 0)),
+        str(int(target.get('cx') or 0)),
+        str(int(target.get('cy') or 0)),
+        str(target.get('foreground_sha256') or ''),
+        str(target.get('deck_sha256') or ''),
+    ))
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
 def _validate_task091_pptx_pointer(action):
     target=action.get('target') if isinstance(action,dict) else None
     if not isinstance(target,dict):
@@ -301,6 +321,45 @@ def _validate_task091_pptx_pointer(action):
         raise ValueError('TASK091_CANONICAL_POINTER_COORDINATES_INVALID')
     if abs(px-cx)>0.5 or abs(py-cy)>0.5:
         raise ValueError('TASK091_CANONICAL_POINTER_COORDINATES_MISMATCH')
+    return action
+
+
+def _validate_task091_wps_font_size_pointer(action):
+    target=action.get('target') if isinstance(action,dict) else None
+    if not isinstance(target,dict):
+        raise ValueError('TASK091_FONT_SIZE_TARGET_REQUIRED')
+    required=('label','role','slide','x','y','w','h','cx','cy',
+              'foreground_sha256','deck_sha256','proof_sha256')
+    if any(target.get(key) in (None,'') for key in required):
+        raise ValueError('TASK091_FONT_SIZE_TARGET_INCOMPLETE')
+    if str(target.get('source') or '').lower()!='task091-wps-font-size-canonical':
+        raise ValueError('TASK091_FONT_SIZE_TARGET_SOURCE_INVALID')
+    if str(target.get('label') or '')!='Font Size':
+        raise ValueError('TASK091_FONT_SIZE_LABEL_INVALID')
+    if normalized_target(target.get('role'))!='font-size-combobox':
+        raise ValueError('TASK091_FONT_SIZE_ROLE_INVALID')
+    if int(target.get('slide') or 0)!=3:
+        raise ValueError('TASK091_FONT_SIZE_SLIDE_INVALID')
+    if [int(target.get(k) or 0) for k in ('x','y','w','h')] != [337,96,69,24]:
+        raise ValueError('TASK091_FONT_SIZE_BBOX_INVALID')
+    if (int(target.get('cx') or 0),int(target.get('cy') or 0)) != (371,108):
+        raise ValueError('TASK091_FONT_SIZE_POINT_INVALID')
+    for key in ('foreground_sha256','deck_sha256'):
+        if not re.fullmatch(r'[0-9a-f]{64}',str(target.get(key) or '')):
+            raise ValueError('TASK091_FONT_SIZE_DIGEST_INVALID')
+    expected=task091_wps_font_size_target_proof(target)
+    if not expected or expected!=str(target.get('proof_sha256') or ''):
+        raise ValueError('TASK091_FONT_SIZE_TARGET_PROOF_INVALID')
+    calls=_gui_calls(action.get('command',''))
+    if len(calls)!=1 or calls[0].func.attr!='click':
+        raise ValueError('TASK091_FONT_SIZE_POINTER_ATOMIC_REQUIRED')
+    call=calls[0]
+    try:
+        px=float(ast.literal_eval(call.args[0])); py=float(ast.literal_eval(call.args[1]))
+    except (ValueError,TypeError,IndexError):
+        raise ValueError('TASK091_FONT_SIZE_POINTER_COORDINATES_INVALID')
+    if abs(px-371)>0.5 or abs(py-108)>0.5:
+        raise ValueError('TASK091_FONT_SIZE_POINTER_COORDINATES_MISMATCH')
     return action
 
 
@@ -553,7 +612,7 @@ def ground_action(action, active_application, observation='', verified_milestone
     if a.get('action')=='exec' and re.search(r'pyautogui\.(?:click|doubleClick|rightClick)\s*\(',a.get('command','')):
         target=a.get('target')
         source=str(target.get('source') or '').lower() if isinstance(target,dict) else ''
-        if source in {'accessibility-canonical','task091-pptx-canonical','task091-panel-canonical'}:
+        if source in {'accessibility-canonical','task091-pptx-canonical','task091-panel-canonical','task091-wps-font-size-canonical'}:
             if not allow_canonical:
                 raise ValueError('CANONICAL_TARGET_UNTRUSTED')
             if source=='accessibility-canonical':
@@ -562,6 +621,9 @@ def ground_action(action, active_application, observation='', verified_milestone
             elif source=='task091-panel-canonical':
                 a=_validate_task091_panel_pointer(a)
                 note='Trusted Task 091 panel target accepted with signed screenshot/window proof.'
+            elif source=='task091-wps-font-size-canonical':
+                a=_validate_task091_wps_font_size_pointer(a)
+                note='Trusted Task 091 WPS font-size target accepted with exact geometry and signed foreground/deck proof.'
             else:
                 a=_validate_task091_pptx_pointer(a)
                 note='Trusted Task 091 PPTX-backed canonical target accepted with signed foreground/deck proof.'
