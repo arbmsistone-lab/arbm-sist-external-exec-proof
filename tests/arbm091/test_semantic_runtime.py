@@ -957,11 +957,11 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertNotEqual(tuple(other_tx.get("target_key") or ()),
                             (2,"shape",15,"SummaryArr_Value"))
 
-    def test_section_e_uses_proven_nine_step_bounded_font_reduction(self):
+    def test_section_e_uses_official_minimum_two_point_reduction(self):
         shim=Path("scripts/osworld_free_mesh_shim.py").read_text(encoding="utf-8")
         matrix=Path("scripts/arbm091/closed_matrix.py").read_text(encoding="utf-8")
         block=matrix.split("TASK091_SECTION_E_FORMAT = {",1)[1].split("}",1)[0]
-        self.assertIn("'font_decrements': 9",block)
+        self.assertIn("'font_decrements': 2",block)
         body=shim.split("def _task091_section_e_format_step",1)[1].split(
             "def _task091_system_check_close",1)[0]
         self.assertIn("task091_verify_font_transaction",body)
@@ -994,7 +994,7 @@ class SemanticRuntimeTests(unittest.TestCase):
         ws,state,plan=self._section_e_fixture()
         next_text_action(state,ws,plan)
         phases=[]
-        for _ in range(13):
+        for _ in range(6):
             state=json.loads(json.dumps(state))
             result=next_text_action(state,ws,plan)
             self.assertEqual(result["action"],"exec")
@@ -1004,7 +1004,7 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertEqual(phases[-1],"semantic-section-e-font-save")
         fixed=copy.deepcopy(ws)
         fixed["deck_file"]["sha256"]="c"*64
-        fixed["deck_slide_shapes"]["3"][-1]["font_sizes"]=[900,900]
+        fixed["deck_slide_shapes"]["3"][-1]["font_sizes"]=[1600,1600]
         result=next_text_action(state,fixed,plan)
         self.assertEqual(result["checkpoint"],"TASK091_SECTION_E_GUI_FONT_REPAIR_PROVEN")
         self.assertNotIn("semantic_owner",state)
@@ -1057,7 +1057,7 @@ class SemanticRuntimeTests(unittest.TestCase):
     def test_section_e_failed_readback_retains_owner_and_blocks_normal_edits(self):
         ws,state,plan=self._section_e_fixture()
         next_text_action(state,ws,plan)
-        for _ in range(13):
+        for _ in range(6):
             next_text_action(state,ws,plan)
         result=next_text_action(state,ws,plan)
         self.assertEqual(result["reason"],"TASK091_SECTION_E_GUI_FONT_ROUNDTRIP_MISMATCH")

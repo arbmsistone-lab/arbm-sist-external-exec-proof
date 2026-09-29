@@ -317,7 +317,7 @@ def _guest_section_e_font_repair(controller, before_state, persisted_state):
         "shape_id": 16,
         "name": "KpiReadout_Body",
         "text_fingerprint": "• Burn improvement relies on expansion payback from Q4.",
-        "font_delta_steps": 9,
+        "font_delta_steps": 2,
     }
     def shape(payload):
         rows=((payload.get("deck_slide_shapes") or {}).get(str(spec["slide"])) or [])
@@ -357,7 +357,7 @@ def _guest_section_e_font_repair(controller, before_state, persisted_state):
         "pyautogui.press('esc')",
         "pyautogui.hotkey('ctrl','s')",
         "time.sleep(0.5)",
-        "print(json.dumps({'status':'PASS','action':'GUI_SECTION_E_FONT_REPAIR','target':[3,16,'KpiReadout_Body'],'font_delta_steps':9}))",
+        "print(json.dumps({'status':'PASS','action':'GUI_SECTION_E_FONT_REPAIR','target':[3,16,'KpiReadout_Body'],'font_delta_steps':2}))",
     ))
     session=requests.Session(); session.trust_env=False
     try:

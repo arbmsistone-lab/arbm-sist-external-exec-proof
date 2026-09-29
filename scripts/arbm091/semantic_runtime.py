@@ -624,34 +624,13 @@ def next_text_action(state,window_state,plan):
         return {"action":"exec","command":"pyautogui.hotkey('ctrl', 'a')","plan":"Select only the text of the signed KpiReadout_Body target.","specialist_phase":"semantic-section-e-font-select-text"}
     if stage=="section-e-font-select-text-issued":
         tx["stage"]="section-e-font-minus-1"
-        return {"action":"exec","command":"pyautogui.hotkey('ctrl', '[')","plan":"Section E font decrement 1 of 9.","specialist_phase":"semantic-section-e-font-minus-1"}
+        return {"action":"exec","command":"pyautogui.hotkey('ctrl', '[')","plan":"Section E font decrement 1 of 2.","specialist_phase":"semantic-section-e-font-minus-1"}
     if stage=="section-e-font-minus-1":
         tx["stage"]="section-e-font-minus-2"
-        return {"action":"exec","command":"pyautogui.hotkey('ctrl', '[')","plan":"Section E font decrement 2 of 9.","specialist_phase":"semantic-section-e-font-minus-2"}
+        return {"action":"exec","command":"pyautogui.hotkey('ctrl', '[')","plan":"Section E font decrement 2 of 2.","specialist_phase":"semantic-section-e-font-minus-2"}
     if stage=="section-e-font-minus-2":
-        tx["stage"]="section-e-font-minus-3"
-        return {"action":"exec","command":"pyautogui.hotkey('ctrl', '[')","plan":"Section E font decrement 3 of 9.","specialist_phase":"semantic-section-e-font-minus-3"}
-    if stage=="section-e-font-minus-3":
-        tx["stage"]="section-e-font-minus-4"
-        return {"action":"exec","command":"pyautogui.hotkey('ctrl', '[')","plan":"Section E font decrement 4 of 9.","specialist_phase":"semantic-section-e-font-minus-4"}
-    if stage=="section-e-font-minus-4":
-        tx["stage"]="section-e-font-minus-5"
-        return {"action":"exec","command":"pyautogui.hotkey('ctrl', '[')","plan":"Section E font decrement 5 of 9.","specialist_phase":"semantic-section-e-font-minus-5"}
-    if stage=="section-e-font-minus-5":
-        tx["stage"]="section-e-font-minus-6"
-        return {"action":"exec","command":"pyautogui.hotkey('ctrl', '[')","plan":"Section E font decrement 6 of 9.","specialist_phase":"semantic-section-e-font-minus-6"}
-    if stage=="section-e-font-minus-6":
-        tx["stage"]="section-e-font-minus-7"
-        return {"action":"exec","command":"pyautogui.hotkey('ctrl', '[')","plan":"Section E font decrement 7 of 9.","specialist_phase":"semantic-section-e-font-minus-7"}
-    if stage=="section-e-font-minus-7":
-        tx["stage"]="section-e-font-minus-8"
-        return {"action":"exec","command":"pyautogui.hotkey('ctrl', '[')","plan":"Section E font decrement 8 of 9.","specialist_phase":"semantic-section-e-font-minus-8"}
-    if stage=="section-e-font-minus-8":
-        tx["stage"]="section-e-font-minus-9"
-        return {"action":"exec","command":"pyautogui.hotkey('ctrl', '[')","plan":"Section E font decrement 9 of 9.","specialist_phase":"semantic-section-e-font-minus-9"}
-    if stage=="section-e-font-minus-9":
         tx["stage"]="section-e-font-commit-issued"
-        return {"action":"exec","command":"pyautogui.press('esc')","plan":"Finalize exact Slide 3 GUI font mutation.","specialist_phase":"semantic-section-e-font-commit"}
+        return {"action":"exec","command":"pyautogui.press('esc')","plan":"Finalize the official minimum Slide 3 GUI font mutation.","specialist_phase":"semantic-section-e-font-commit"}
     if stage=="section-e-font-commit-issued":
         tx["stage"]="section-e-font-save-issued"
         return {"action":"exec","command":"pyautogui.hotkey('ctrl', 's')","plan":"Persist official Slide 3 GUI containment repair.","specialist_phase":"semantic-section-e-font-save"}
@@ -665,13 +644,13 @@ def next_text_action(state,window_state,plan):
         if dict(after.get("geometry") or {})!=dict(tx.get("before_geometry") or {}): return _terminal("TASK091_SECTION_E_GUI_FONT_GEOMETRY_DRIFT")
         before_sizes=[int(v) for v in (tx.get("before_font_sizes") or [])]
         after_sizes=[int(v) for v in (after.get("font_sizes") or [])]
-        if not before_sizes or after_sizes!=[v-900 for v in before_sizes]: return _terminal("TASK091_SECTION_E_GUI_FONT_ROUNDTRIP_MISMATCH")
+        if not before_sizes or after_sizes!=[v-200 for v in before_sizes]: return _terminal("TASK091_SECTION_E_GUI_FONT_ROUNDTRIP_MISMATCH")
         after_sha=str((window_state.get("deck_file") or {}).get("sha256") or "")
         if len(after_sha)!=64 or after_sha==str(tx.get("before_deck_sha256") or ""): return _terminal("TASK091_SECTION_E_GUI_FONT_SAVE_NOT_PERSISTED")
         state["semantic_tx"]=None
         state["section_e_gui_font_done"]=True
         state.pop("semantic_owner",None)
-        return {"action":"checkpoint","checkpoint":"TASK091_SECTION_E_GUI_FONT_REPAIR_PROVEN","target":[3,16,"KpiReadout_Body"],"font_delta":900,"geometry_unchanged":True}
+        return {"action":"checkpoint","checkpoint":"TASK091_SECTION_E_GUI_FONT_REPAIR_PROVEN","target":[3,16,"KpiReadout_Body"],"font_delta":200,"geometry_unchanged":True}
     try:
         current_model=normalize_deck(window_state)
     except SemanticTransactionError as exc:
