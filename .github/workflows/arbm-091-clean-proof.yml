@@ -7,6 +7,7 @@ run-name: ARBM 091 clean proof ${{ github.sha }}
     - chatgpt/arbm-sist-final-candidate-20260929
     - chatgpt/arbm-sist-final-certification-20260929
     - chatgpt/arbm-sist-final-certification-r2-20260929
+    - chatgpt/arbm-sist-fixed-width-tx-20260929
   workflow_dispatch: {}
 permissions:
   actions: read
@@ -728,6 +729,7 @@ jobs:
       TASK_ID: '091'
       ARBM_WPS_OBSERVER: '1'
       ARBM_WPS_EVIDENCE_DIR: ${{ github.workspace }}/osworld-v32-evidence/task-091
+      TASK091_FIXED_WIDTH_ENGINE: '1'
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
     - name: Verify exact self-hosted MailHub availability before heavy initialization
