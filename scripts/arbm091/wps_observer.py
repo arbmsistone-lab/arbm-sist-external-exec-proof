@@ -26,6 +26,7 @@ _COVERSTAT_ATOMIC_REGISTRY={
     (1,16,'CoverStatValue_1'):{'geometry':(8339327,3355848,2560320,219456),'completed_text':'$2.8M'},
     (1,19,'CoverStatValue_2'):{'geometry':(8339327,4544568,2560320,219456),'completed_text':'206'},
     (2,20,'SummaryNrr_Value'):{'geometry':(3227832,1810512,1837944,347472),'completed_text':'104%'},
+    (2,35,'SummaryHc_Value'):{'geometry':(9957816,1810512,1353312,347472),'completed_text':'206'},
 }
 _COVERSTAT_PATH='/home/user/Desktop/Operating_Committee_Rebaseline_Draft.pptx'
 
