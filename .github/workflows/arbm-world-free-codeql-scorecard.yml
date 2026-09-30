@@ -85,7 +85,7 @@ jobs:
           python -c "import json,sys;d=json.load(open('world-evidence/grype.json'));x=[m for m in d.get('matches',[]) if str(m.get('vulnerability',{}).get('severity','')).upper() in ('HIGH','CRITICAL')];print('GRYPE_HIGH_CRITICAL',len(x));sys.exit(bool(x))"
       - name: Upload scanner evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: world-free-external-scanners
           path: world-evidence
@@ -154,7 +154,7 @@ jobs:
           PY
       - name: Upload Scorecard evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: world-free-scorecard
           path: |
@@ -190,7 +190,7 @@ jobs:
           output: codeql-results
       - name: Upload CodeQL SARIF evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: world-free-codeql-${{ matrix.language }}
           path: codeql-results
@@ -247,7 +247,7 @@ jobs:
           gh attestation verify supply-evidence/arbm-sist-agent-source.tar.gz -R "${GITHUB_REPOSITORY}" --predicate-type https://spdx.dev/Document/v2.3
       - name: Upload signed supply-chain evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: world-free-supply-chain
           path: supply-evidence
