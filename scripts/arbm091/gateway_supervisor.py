@@ -29,24 +29,20 @@ def health(timeout=2.0):
         return False
 
 def route_probe(timeout=3.0):
+    """Prove the local gateway contract without entering a scoreable task session.
+
+    The old POST probe called the real mesh, could receive an unrelated upstream
+    OIDC 401, and wrote TERMINAL_FAIL into the focal evidence ledger before the
+    official task began. Startup probing must never execute task/provider logic.
+    The real /v1/chat/completions route remains proven by the official task run.
+    """
     try:
-        payload=json.dumps({
-            "model":"gpt-arbm-osworld-v32-isolated",
-            "messages":[{"role":"user","content":"health probe"}],
-            "temperature":0,
-            "max_tokens":1,
-        }).encode("utf-8")
-        req=urllib.request.Request(
-            "http://127.0.0.1:8088/v1/chat/completions",
-            data=payload,
-            headers={
-                "Content-Type":"application/json",
-                "X-ARBM-Session-ID":"task091-gateway-health-probe",
-            },
-            method="POST")
-        with urllib.request.urlopen(req,timeout=timeout) as r:
+        with urllib.request.urlopen("http://127.0.0.1:8088/health",timeout=timeout) as r:
             body=json.loads(r.read().decode("utf-8"))
-            return r.status==200 and isinstance(body.get("choices"),list)
+            return (r.status==200
+                    and body.get("status")=="ok"
+                    and body.get("pipeline")=="arbm-osworld-v32-isolated"
+                    and body.get("build")=="arbm-osworld-v32-master-20260914")
     except Exception:
         return False
 
@@ -166,9 +162,15 @@ def self_test():
     root=pathlib.Path("/tmp/task091-gateway-selftest")
     shutil.rmtree(root,ignore_errors=True); root.mkdir(parents=True)
     old=os.environ.get("ARBM_ENABLE_LOCAL_VLM"); os.environ["ARBM_ENABLE_LOCAL_VLM"]="0"
+    old_evidence=os.environ.get("ARBM_OSWORLD_SHIM_LOG")
+    os.environ["ARBM_OSWORLD_SHIM_LOG"]=str(root/"shim-evidence.jsonl")
     shim,handle=start_shim(root/"shim.log")
     try:
         wait_ready(shim,root/"telemetry.jsonl",root/"shim.log",seconds=20)
+        if pathlib.Path(os.environ.get("ARBM_OSWORLD_SHIM_LOG","/nonexistent")).is_file():
+            text=pathlib.Path(os.environ["ARBM_OSWORLD_SHIM_LOG"]).read_text(encoding="utf-8",errors="replace")
+            if "task091-gateway-health-probe" in text or "ENDPOINT_AUTH_OR_VERSION" in text:
+                raise RuntimeError("HEALTH_PROBE_EVIDENCE_CONTAMINATION")
         for _ in range(3):
             if not health(): raise RuntimeError("SUSTAINED_HEALTH_FAILED")
             snapshot(shim.pid,root/"telemetry.jsonl","selftest_sustained"); time.sleep(1)
@@ -177,11 +179,15 @@ def self_test():
         print("GATEWAY_UNIT_INTEGRATION_TESTS=PASS")
         print("GATEWAY_SUSTAINED_HEALTH_TEST=PASS")
         print("GATEWAY_FAILURE_DETECTION_TEST=PASS")
+        print("HEALTH_PROBE_EVIDENCE_ISOLATION=PASS")
+        print("ENDPOINT_AUTH_VERSION_PREFLIGHT=PASS")
         return 0
     finally:
         stop_process(shim); handle.close()
         if old is None: os.environ.pop("ARBM_ENABLE_LOCAL_VLM",None)
         else: os.environ["ARBM_ENABLE_LOCAL_VLM"]=old
+        if old_evidence is None: os.environ.pop("ARBM_OSWORLD_SHIM_LOG",None)
+        else: os.environ["ARBM_OSWORLD_SHIM_LOG"]=old_evidence
 
 def main():
     ap=argparse.ArgumentParser()

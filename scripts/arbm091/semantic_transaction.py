@@ -26,6 +26,16 @@ def _geometry(row):
     return tuple(int(value.get(k) or 0) for k in ("x","y","w","h"))
 
 
+def _font_semantics(row):
+    """Normalize equivalent WPS OOXML run segmentation without hiding style drift."""
+    sizes=[int(v) for v in ((row or {}).get("font_sizes") or []) if isinstance(v,int)]
+    normalized=[]
+    for value in sizes:
+        if not normalized or normalized[-1]!=value:
+            normalized.append(value)
+    return tuple(normalized)
+
+
 def target_key(slide, row):
     if not isinstance(row,dict):
         raise SemanticTransactionError("TASK091_TARGET_ROW_INVALID")
@@ -68,7 +78,7 @@ def normalize_deck(window_state):
                 "col":int(row.get("col") if row.get("col") is not None else -1),
                 "text":str(row.get("text") or ""),
                 "geometry":_geometry(row),
-                "font_sizes":tuple(int(v) for v in (row.get("font_sizes") or []) if isinstance(v,int)),
+                "font_sizes":_font_semantics(row),
                 "fill_rgb":str(row.get("fill_rgb") or "").upper(),
                 "categories":(),
                 "series":(),
@@ -156,8 +166,6 @@ def _screen_center(window_state,row):
     sw=int(slide_size.get("w") or 0); sh=int(slide_size.get("h") or 0)
     if sw<=0 or sh<=0:
         raise SemanticTransactionError("TASK091_SLIDE_SIZE_MISSING")
-    # Canonical viewport is a UI-context mapping only. It never represents
-    # character/caret position and never participates in semantic PASS/FAIL.
     vx,vy,vw,vh=(443,194,1413,795)
     cx=round(vx+((x+w/2)/sw)*vw)
     cy=round(vy+((y+h/2)/sh)*vh)
