@@ -31,6 +31,8 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
     - name: Install pinned test dependencies
       run: python -m pip install -r scripts/requirements-osworld.txt
+    - name: Run gateway lifecycle cheap tests
+      run: ZERO_SPEND_MODE=HARD ARBM_ENABLE_LOCAL_VLM=0 python scripts/arbm091/gateway_supervisor.py --self-test
     - name: Run complete OSWorld regression suite
       run: python -m unittest discover -s scripts -p 'test_osworld_*.py'
     - name: Run v32 deterministic regression gate
@@ -914,38 +916,74 @@ jobs:
       run: python -m pip install --disable-pip-version-check -q 'torch==2.7.1' 'transformers==4.52.4' 'safetensors==0.8.0'
     - name: Execute official task 091 only
       shell: bash
-      run: "set -euo pipefail\nDIR=\"$GITHUB_WORKSPACE/osworld-v32-evidence/task-091\"\ntest ! -e \"$DIR\"\nmkdir\
-        \ -p \"$DIR\"\nprintf '%s\\n' \"$GITHUB_RUN_ID\" > \"$DIR/run-id.txt\"\nprintf '%s\\n' \"$GITHUB_RUN_ATTEMPT\"\
-        \ > \"$DIR/run-attempt.txt\"\ncp osworld-wps-observer.patch \"$DIR/\"\npython -m arbm091.score_tracker \"\
-        $DIR\" --sha \"$GITHUB_SHA\" --run-id \"$GITHUB_RUN_ID\" --run-attempt \"$GITHUB_RUN_ATTEMPT\" --watch --timeout-seconds\
-        \ 2700 > \"$GITHUB_WORKSPACE/arbm091-score-tracker.log\" 2>&1 &\nTRACKER_PID=$!\ntrap 'kill \"$TRACKER_PID\"\
-        \ 2>/dev/null || true; wait \"$TRACKER_PID\" 2>/dev/null || true' EXIT\nexport ARBM_OSWORLD_SHIM_LOG=\"\
-        $DIR/shim.jsonl\"\nexport ARBM_OSWORLD_OBSERVATIONS=\"$DIR/shim-observations\"\nexport ARBM_JUDGE_EVIDENCE=\"\
-        $DIR/judge\"\nexport OSWORLD_EVAL_SAVE_RAW_DIR=\"$DIR/official-evaluator-raw\"\ntouch \"$DIR/shim.jsonl\"\
-        \nprintf '%s\\n' 091 > \"$DIR/task-id.txt\"\nprintf '%s\\n' \"$ZERO_SPEND_MODE\" > \"$DIR/zero-spend-mode.txt\"\
-        \nprintf '%s\\n' \"$RUNNER_ENVIRONMENT\" > \"$DIR/runner-environment.txt\"\nprintf '%s\\n' \"$GITHUB_SHA\"\
-        \ > \"$DIR/candidate-sha.txt\"\nprintf '%s\\n' osworld-v2-2026.08.08 > \"$DIR/release.txt\"\nprintf '%s\\\
-        n' 500 > \"$DIR/max-steps.txt\"\ncp official-pins.json \"$DIR/pins.json\"\ncp osworld-docker-provider.patch\
-        \ osworld-volume.patch osworld-upload-transport.patch \"$DIR/\"\npython scripts/osworld_v32_integrity.py\
-        \ snapshot osworld \"$DIR/evaluator-before.json\"\nprintf '{\"tasks\":[\"091\"]}\\n' > \"$GITHUB_WORKSPACE/osworld/evaluation_examples/test_arbm_v32.json\"\
-        \ntest \"$(sha256sum \"$QCOW_PATH\" | cut -d' ' -f1)\" = \"$(cat qcow-base.sha256)\"\npython scripts/osworld_free_mesh_shim.py\
-        \ > \"$DIR/shim-runtime.log\" 2>&1 &\nSHIM_PID=$!\npython scripts/osworld_free_judge.py > \"$DIR/judge-runtime.log\"\
-        \ 2>&1 &\nJUDGE_PID=$!\nready=0\nfor i in $(seq 1 30); do\n  if curl -fsS http://127.0.0.1:8088/health >/dev/null\
-        \ && curl -fsS http://127.0.0.1:8089/health >/dev/null; then ready=1; break; fi\n  if ! kill -0 \"$SHIM_PID\"\
-        \ 2>/dev/null || ! kill -0 \"$JUDGE_PID\" 2>/dev/null; then break; fi\n  sleep 1\ndone\ntest \"$ready\"\
-        \ = 1\nset +e\n(cd osworld && timeout --signal=TERM --kill-after=30s \"${ARBM_RUN_MULTIENV_TIMEOUT_SECONDS}s\"\
-        \ uv run python scripts/python/run_multienv.py --headless --provider_name docker --path_to_vm \"$QCOW_PATH\"\
-        \ --eval_version v2 --test_all_meta_path evaluation_examples/test_arbm_v32.json --domain tasks --observation_type\
-        \ screenshot_a11y_tree --action_space pyautogui --model gpt-arbm-osworld-v32-isolated --temperature 0 --max_steps\
-        \ 500 --max_trajectory_length 8 --max_tokens 4096 --num_envs 1 --result_dir \"../osworld-v32-evidence/task-091/results\"\
-        \ 2>&1 | tee \"../osworld-v32-evidence/task-091/osworld.log\")\nrc=$?\nset -e\nkill \"$SHIM_PID\" 2>/dev/null\
-        \ || true\nwait \"$SHIM_PID\" 2>/dev/null || true\nkill \"$JUDGE_PID\" 2>/dev/null || true\nwait \"$JUDGE_PID\"\
-        \ 2>/dev/null || true\nprintf '%s\\n' \"$rc\" > \"$DIR/task-rc.txt\"\ntest \"$(sha256sum \"$QCOW_PATH\"\
-        \ | cut -d' ' -f1)\" = \"$(cat qcow-base.sha256)\"\npython scripts/osworld_v32_integrity.py verify osworld\
-        \ \"$DIR/evaluator-before.json\" \"$DIR/evaluator-integrity.json\"\npython scripts/osworld_v32_gate.py seal\
-        \ \"$DIR\"\npython -m arbm091.finalize_evidence \"$DIR\"\npython scripts/osworld_v32_gate.py task \"$DIR\"\
-        \ --task 091\n\nwait \"$TRACKER_PID\"\npython -m arbm091.score_tracker \"$DIR\" --sha \"$GITHUB_SHA\" --run-id\
-        \ \"$GITHUB_RUN_ID\" --run-attempt \"$GITHUB_RUN_ATTEMPT\" > \"$GITHUB_WORKSPACE/arbm091-verdict.json\"\n"
+      run: |
+        set -euo pipefail
+        DIR="$GITHUB_WORKSPACE/osworld-v32-evidence/task-091"
+        test ! -e "$DIR"
+        mkdir -p "$DIR"
+        printf '%s\n' "$GITHUB_RUN_ID" > "$DIR/run-id.txt"
+        printf '%s\n' "$GITHUB_RUN_ATTEMPT" > "$DIR/run-attempt.txt"
+        cp osworld-wps-observer.patch "$DIR/"
+        python -m arbm091.score_tracker "$DIR" --sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" --watch --timeout-seconds 2700 > "$GITHUB_WORKSPACE/arbm091-score-tracker.log" 2>&1 &
+        TRACKER_PID=$!
+        export ARBM_OSWORLD_SHIM_LOG="$DIR/shim.jsonl"
+        export ARBM_OSWORLD_OBSERVATIONS="$DIR/shim-observations"
+        export ARBM_JUDGE_EVIDENCE="$DIR/judge"
+        export OSWORLD_EVAL_SAVE_RAW_DIR="$DIR/official-evaluator-raw"
+        touch "$DIR/shim.jsonl"
+        printf '%s\n' 091 > "$DIR/task-id.txt"
+        printf '%s\n' "$ZERO_SPEND_MODE" > "$DIR/zero-spend-mode.txt"
+        printf '%s\n' "$RUNNER_ENVIRONMENT" > "$DIR/runner-environment.txt"
+        printf '%s\n' "$GITHUB_SHA" > "$DIR/candidate-sha.txt"
+        printf '%s\n' osworld-v2-2026.08.08 > "$DIR/release.txt"
+        printf '%s\n' 500 > "$DIR/max-steps.txt"
+        cp official-pins.json "$DIR/pins.json"
+        cp osworld-docker-provider.patch osworld-volume.patch osworld-upload-transport.patch "$DIR/"
+        python scripts/osworld_v32_integrity.py snapshot osworld "$DIR/evaluator-before.json"
+        printf '{"tasks":["091"]}\n' > "$GITHUB_WORKSPACE/osworld/evaluation_examples/test_arbm_v32.json"
+        test "$(sha256sum "$QCOW_PATH" | cut -d' ' -f1)" = "$(cat qcow-base.sha256)"
+
+        python scripts/osworld_free_judge.py > "$DIR/judge-runtime.log" 2>&1 &
+        JUDGE_PID=$!
+        cleanup() {
+          kill "$TRACKER_PID" "$JUDGE_PID" 2>/dev/null || true
+          wait "$TRACKER_PID" "$JUDGE_PID" 2>/dev/null || true
+        }
+        trap cleanup EXIT
+
+        ready=0
+        for i in $(seq 1 30); do
+          if curl -fsS http://127.0.0.1:8089/health >/dev/null; then
+            ready=1
+            break
+          fi
+          kill -0 "$JUDGE_PID" 2>/dev/null || break
+          sleep 1
+        done
+        test "$ready" = 1
+
+        set +e
+        python scripts/arbm091/gateway_supervisor.py \
+          --artifact-dir "$DIR" \
+          --shim-log "$DIR/shim-runtime.log" \
+          --telemetry-log "$DIR/gateway-telemetry.jsonl" \
+          --run-log "$DIR/osworld.log" \
+          --timeout "$ARBM_RUN_MULTIENV_TIMEOUT_SECONDS" \
+          --run-cwd "$GITHUB_WORKSPACE/osworld" \
+          --run-cmd "uv run python scripts/python/run_multienv.py --headless --provider_name docker --path_to_vm '$QCOW_PATH' --eval_version v2 --test_all_meta_path evaluation_examples/test_arbm_v32.json --domain tasks --observation_type screenshot_a11y_tree --action_space pyautogui --model gpt-arbm-osworld-v32-isolated --temperature 0 --max_steps 500 --max_trajectory_length 8 --max_tokens 4096 --num_envs 1 --result_dir ../osworld-v32-evidence/task-091/results"
+        rc=$?
+        set -e
+        printf '%s\n' "$rc" > "$DIR/task-rc.txt"
+        test "$rc" = 0
+
+        test "$(sha256sum "$QCOW_PATH" | cut -d' ' -f1)" = "$(cat qcow-base.sha256)"
+        python scripts/osworld_v32_integrity.py verify osworld "$DIR/evaluator-before.json" "$DIR/evaluator-integrity.json"
+        python scripts/osworld_v32_gate.py seal "$DIR"
+        python -m arbm091.finalize_evidence "$DIR"
+        python scripts/osworld_v32_gate.py task "$DIR" --task 091
+
+        wait "$TRACKER_PID"
+        python -m arbm091.score_tracker "$DIR" --sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" > "$GITHUB_WORKSPACE/arbm091-verdict.json"
     - name: Preserve focal 091 evidence
       if: always()
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
