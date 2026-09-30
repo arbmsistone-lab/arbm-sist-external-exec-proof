@@ -30,10 +30,23 @@ def health(timeout=2.0):
 
 def route_probe(timeout=3.0):
     try:
-        req=urllib.request.Request("http://127.0.0.1:8088/v1/chat/completions",
-            data=b"{",headers={"Content-Type":"application/json"},method="POST")
+        payload=json.dumps({
+            "model":"gpt-arbm-osworld-v32-isolated",
+            "messages":[{"role":"user","content":"health probe"}],
+            "temperature":0,
+            "max_tokens":1,
+        }).encode("utf-8")
+        req=urllib.request.Request(
+            "http://127.0.0.1:8088/v1/chat/completions",
+            data=payload,
+            headers={
+                "Content-Type":"application/json",
+                "X-ARBM-Session-ID":"task091-gateway-health-probe",
+            },
+            method="POST")
         with urllib.request.urlopen(req,timeout=timeout) as r:
-            return r.status==200
+            body=json.loads(r.read().decode("utf-8"))
+            return r.status==200 and isinstance(body.get("choices"),list)
     except Exception:
         return False
 
