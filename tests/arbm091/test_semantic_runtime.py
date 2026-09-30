@@ -1307,11 +1307,20 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertNotIn('tx["fixed_width_start_source"]=source\n        tx["fixed_width_start_probe_attempts"]',source)
 
     def test_summaryarr_geometry_repair_accepts_split_ooxml_text_runs(self):
-        source=Path("scripts/arbm091/wps_observer.py").read_text(encoding="utf-8")
-        self.assertIn("shape_text=b''.join(re.findall(br'<a:t>(.*?)</a:t>',shape,flags=re.S)).decode('utf-8')",source)
-        self.assertIn("verify_text=b''.join(re.findall(br'<a:t>(.*?)</a:t>',seg,flags=re.S)).decode('utf-8')",source)
-        self.assertNotIn("shape.count(expected_text.encode())!=1",source)
-        self.assertNotIn("out.count(expected_text.encode())!=1",source)
+    import ast
+    source=Path("scripts/arbm091/wps_observer.py").read_text(encoding="utf-8")
+    tree=ast.parse(source)
+    fn=next(
+        node for node in tree.body
+        if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef))
+        and node.name=="_guest_summaryarr_geometry_repair"
+    )
+    lines=source.splitlines()
+    repair="\n".join(lines[fn.lineno-1:fn.end_lineno])
+    self.assertIn("shape_text=b''.join(re.findall(br'<a:t>(.*?)</a:t>',shape,flags=re.S)).decode('utf-8')",repair)
+    self.assertIn("verify_text=b''.join(re.findall(br'<a:t>(.*?)</a:t>',seg,flags=re.S)).decode('utf-8')",repair)
+    self.assertNotIn("shape.count(expected_text.encode())!=1",repair)
+    self.assertNotIn("out.count(expected_text.encode())!=1",repair)
 
     def test_fixed_width_second_click_still_requires_caret_proof(self):
         source=Path("scripts/arbm091/semantic_runtime.py").read_text(encoding="utf-8")
