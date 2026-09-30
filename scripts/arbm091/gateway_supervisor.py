@@ -125,6 +125,9 @@ def run_supervised(args):
         child=subprocess.Popen(args.run_cmd,shell=True,cwd=args.run_cwd or None,
             executable="/bin/bash",stdout=run_handle,stderr=subprocess.STDOUT,start_new_session=True)
         started=time.time()
+        certified_timeout=int(os.environ.get("ARBM_RUN_MULTIENV_TIMEOUT_SECONDS","0") or 0)
+        effective_timeout=max(args.timeout,certified_timeout)
+        print(f"SUPERVISED_RUN_TIMEOUT_SECONDS={effective_timeout}",flush=True)
         while True:
             rc=shim.poll()
             if rc is not None:
@@ -154,7 +157,7 @@ def run_supervised(args):
                     if not health(): raise RuntimeError("MODEL_GATEWAY_LOST_AT_RUN_END")
                     print("MODEL_GATEWAY_FULL_RUN_STABILITY=PASS",flush=True)
                 return child_rc
-            if time.time()-started>args.timeout:
+            if time.time()-started>effective_timeout:
                 stop_process(child); raise RuntimeError("SUPERVISED_RUN_TIMEOUT")
             time.sleep(POLL_SECONDS)
     finally:
