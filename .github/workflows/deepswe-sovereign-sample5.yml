@@ -63,7 +63,7 @@ jobs:
           printf '%s\n' 'SAMPLE_SEED=0' >> deepswe-sample5-evidence/metadata.txt
           printf '%s\n' 'FULL_SCORE_REQUIRES_978_TRIALS=true' >> deepswe-sample5-evidence/metadata.txt
           find deepswe-sample5-evidence -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > deepswe-sample5-evidence/SHA256SUMS.txt || true
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
           name: deepswe-sovereign-sample5
