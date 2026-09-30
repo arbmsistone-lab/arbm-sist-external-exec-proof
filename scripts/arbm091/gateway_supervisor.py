@@ -147,6 +147,8 @@ def run_supervised(args):
             child_rc=child.poll()
             if child_rc is not None:
                 if child_rc==0:
+                    if args.marker:
+                        raise RuntimeError("SUPERVISED_MARKER_NOT_PROVEN:"+args.marker)
                     if not health(): raise RuntimeError("MODEL_GATEWAY_LOST_AT_RUN_END")
                     print("MODEL_GATEWAY_FULL_RUN_STABILITY=PASS",flush=True)
                 return child_rc

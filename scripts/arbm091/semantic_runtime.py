@@ -284,7 +284,7 @@ def _fixed_width_reproject_bbox(relative_geometry,target_bbox):
 
 
 
-def _fixed_width_caret_delta_geometry(before_source,after_source,bbox):
+def _fixed_width_caret_delta_geometry(before_source,after_source,bbox,prior_caret=None):
     before_path=_fixed_width_screenshot_source_path(before_source)
     after_path=_fixed_width_screenshot_source_path(after_source)
     if before_path is None or after_path is None or not isinstance(bbox,list) or len(bbox)!=4:
@@ -298,9 +298,24 @@ def _fixed_width_caret_delta_geometry(before_source,after_source,bbox):
             b=b_img.convert("RGB").crop((x,y,x+w,y+h))
         if a.size!=b.size:
             return {"proven":False,"reason":"size-drift"}
+        # Navigation can remove the independently proven end caret while
+        # revealing the new start caret. Exclude only that signed old region;
+        # all other pixel changes must still satisfy the narrow caret proof.
+        excluded=None
+        if isinstance(prior_caret,dict) and prior_caret.get("proven") is True:
+            old=prior_caret.get("bbox")
+            if (isinstance(old,list) and len(old)==4
+                    and all(type(v) is int for v in old)
+                    and 1<=old[2]<=4 and 8<=old[3]<=min(40,h)
+                    and old[0]>=0 and old[1]>=0
+                    and old[0]+old[2]<=w and old[1]+old[3]<=h):
+                excluded=old
         xs=[]; ys=[]; col_counts={}
         for py in range(h):
             for px in range(w):
+                if excluded and (excluded[0]<=px<excluded[0]+excluded[2]
+                                 and excluded[1]<=py<excluded[1]+excluded[3]):
+                    continue
                 av=a.getpixel((px,py)); bv=b.getpixel((px,py))
                 if max(abs(int(av[i])-int(bv[i])) for i in range(3))<=20:
                     continue
@@ -1231,7 +1246,8 @@ def next_text_action(state,window_state,plan):
             return _terminal("TASK091_FIXED_WIDTH_PRECONDITION_DRIFT")
         caret=_fixed_width_caret_delta_geometry(
             tx.get("fixed_width_start_source"),window_state.get("source"),
-            list(tx.get("fixed_width_shape_bbox") or []))
+            list(tx.get("fixed_width_shape_bbox") or []),
+            prior_caret=tx.get("fixed_width_end_caret"))
         if caret.get("proven") is not True:
             attempts=int(tx.get("fixed_width_start_probe_attempts") or 0)+1
             if attempts>=4:
