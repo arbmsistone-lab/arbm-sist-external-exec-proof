@@ -1,6 +1,13 @@
 name: ARBM Sovereign Continuity
 
 on:
+  push:
+    branches: [master]
+    paths:
+      - scripts/continuity-coordinator-client.mjs
+      - scripts/continuity-coordinator-client.test.mjs
+      - scripts/sovereign-continuity-worker.mjs
+      - .github/workflows/arbm-sovereign-continuity.yml
   workflow_dispatch:
   schedule:
     - cron: '7,22,37,52 * * * *'
@@ -22,24 +29,21 @@ jobs:
           persist-credentials: false
       - name: Validate universal runner
         run: node scripts/universal-remote-runner.test.mjs
-      - name: Request ARBM OIDC token
-        id: oidc
-        shell: bash
+      - name: Validate OIDC refresh and supervised lease
         run: |
-          token="$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=arbm-continuity" | jq -r '.value')"
-          test -n "$token"
-          echo "token=$token" >> "$GITHUB_OUTPUT"
+          node scripts/continuity-coordinator-client.test.mjs
+          node scripts/continuity-execution-supervisor.test.mjs
+          node scripts/sovereign-continuity-worker.test.mjs
       - name: Heartbeat, claim and execute safe mission
         id: worker
         env:
-          ARBM_OIDC: ${{ steps.oidc.outputs.token }}
           ARBM_RUN_ROOT: ${{ github.workspace }}/.arbm-run
         run: node scripts/sovereign-continuity-worker.mjs
       - name: Upload continuity evidence
         if: always() && steps.worker.outputs.claimed == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: continuity-${{ steps.worker.outputs.mission_id }}-${{ github.run_id }}
+          name: continuity-${{ steps.worker.outputs.mission_id }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ github.workspace }}/.arbm-run/evidence
           if-no-files-found: error
           retention-days: 7

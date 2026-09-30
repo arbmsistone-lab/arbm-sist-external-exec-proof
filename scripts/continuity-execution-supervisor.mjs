@@ -17,8 +17,11 @@ export async function executePayloadSupervised(payload,{root,renew,renewEveryMs=
   if(typeof renew!=='function')throw new Error('lease_renew_function_required');
   fs.mkdirSync(root,{recursive:true});
   const missionB64=Buffer.from(JSON.stringify(payload),'utf8').toString('base64url');
+  const childEnv={...process.env,MISSION_B64:missionB64,ARBM_RUN_ROOT:root};
+  // Mission commands do not need the executor's coordinator/OIDC credentials.
+  for(const key of ['ARBM_OIDC','ACTIONS_ID_TOKEN_REQUEST_TOKEN','ACTIONS_ID_TOKEN_REQUEST_URL'])delete childEnv[key];
   const child=spawn(process.execPath,[runnerPath],{
-    env:{...process.env,MISSION_B64:missionB64,ARBM_RUN_ROOT:root},
+    env:childEnv,
     stdio:['ignore','pipe','pipe'],
     detached:process.platform!=='win32'
   });

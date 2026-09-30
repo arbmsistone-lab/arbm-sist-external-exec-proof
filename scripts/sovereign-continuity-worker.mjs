@@ -3,22 +3,15 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { validatePayload } from './universal-remote-runner.mjs';
 import { executePayloadSupervised } from './continuity-execution-supervisor.mjs';
+import { createCoordinatorClient } from './continuity-coordinator-client.mjs';
 
 const URL=process.env.ARBM_CONTINUITY_URL||'https://pvkpkqwdnnpkgvllwqbc.supabase.co/functions/v1/arbm-continuity-coordinator-v1';
-const TOKEN=String(process.env.ARBM_OIDC||'').trim();
 const ROOT=process.env.ARBM_RUN_ROOT||path.join(process.cwd(),'.arbm-run');
 const PROVIDER_ID=String(process.env.ARBM_PROVIDER_ID||(process.env.GITLAB_CI==='true'?'gitlab-free-private':process.env.GITHUB_ACTIONS==='true'?'github-public-standard':'oidc-remote')).trim();
 const EXTRA_CAPS=String(process.env.ARBM_EXTRA_CAPABILITIES||'').split(',').map(x=>x.trim()).filter(Boolean);
 if(EXTRA_CAPS.some(x=>!/^[a-z0-9][a-z0-9._:-]{0,63}$/i.test(x)))throw new Error('invalid_extra_capability');
 const CAPS=[...new Set(['git','tests','build','cloud',...EXTRA_CAPS])];
-if(!TOKEN)throw new Error('arbm_oidc_required');
-
-async function call(action,payload={}){
-  const res=await fetch(URL,{method:'POST',headers:{authorization:`Bearer ${TOKEN}`,'content-type':'application/json'},body:JSON.stringify({action,...payload}),signal:AbortSignal.timeout(15000)});
-  const text=await res.text();let body;try{body=JSON.parse(text);}catch{body={raw:text};}
-  if(!res.ok)throw new Error(`continuity_${action}_http_${res.status}:${body?.error||text}`);
-  return body;
-}
+const call=createCoordinatorClient({url:URL,initialToken:process.env.ARBM_OIDC});
 function output(k,v){
   const out=String(process.env.GITHUB_OUTPUT||'');
   if(!out)return;
@@ -30,6 +23,10 @@ function output(k,v){
   });
 }
 function errorText(error){return String(error?.code||error?.message||error).slice(0,1800);}
+function preserveClaim(mission,extra={}){
+  fs.mkdirSync(path.join(ROOT,'evidence'),{recursive:true});
+  fs.writeFileSync(path.join(ROOT,'evidence','continuity-claim.json'),JSON.stringify({claimed:true,missionId:mission.mission_id,provider:PROVIDER_ID,supervisedLease:true,...extra},null,2)+'\n',{mode:0o600});
+}
 
 let leased=null;
 try{
@@ -41,8 +38,7 @@ try{
   const payload=validatePayload(leased.payload||{});
   if(payload.source.repo!==leased.source_repo||payload.source.ref.toLowerCase()!==String(leased.source_sha||'').toLowerCase())throw new Error('claimed_source_binding_mismatch');
   const report=await executePayloadSupervised(payload,{root:ROOT,renew:()=>call('renew',{missionId:leased.mission_id}),renewEveryMs:60000,maxRenewMisses:2});
-  fs.mkdirSync(path.join(ROOT,'evidence'),{recursive:true});
-  fs.writeFileSync(path.join(ROOT,'evidence','continuity-claim.json'),JSON.stringify({claimed:true,provider:PROVIDER_ID,supervisedLease:true},null,2)+'\n',{mode:0o600});
+  preserveClaim(leased);
   const state=report.success?'SUCCEEDED':'FAILED_FINAL';
   const done=await call('complete',{missionId:leased.mission_id,state,error:report.success?null:'mission_result_failed'});
   if(done.ok!==true)throw new Error('continuity_complete_rejected');
@@ -51,6 +47,7 @@ try{
   process.exitCode=report.success?0:2;
 }catch(error){
   const message=errorText(error);
+  if(leased?.mission_id)preserveClaim(leased,{state:'FAILED_FINAL',error:message});
   if(leased?.mission_id){try{await call('complete',{missionId:leased.mission_id,state:'FAILED_FINAL',error:message});}catch{}}
   output('claimed',Boolean(leased));output('mission_id',leased?.mission_id||'');output('mission_state','FAILED_FINAL');
   console.error(JSON.stringify({ok:false,claimed:Boolean(leased),missionId:leased?.mission_id||null,error:message}));
