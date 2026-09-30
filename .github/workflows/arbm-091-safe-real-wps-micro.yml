@@ -294,7 +294,7 @@ jobs:
           --run-log "$DIR/osworld.log" \
           --marker "$marker" \
           --marker-file "$DIR/shim.jsonl" \
-          --timeout 300 \
+          --timeout "$ARBM_RUN_MULTIENV_TIMEOUT_SECONDS" \
           --run-cwd "$GITHUB_WORKSPACE/osworld" \
           --run-cmd "uv run python scripts/python/run_multienv.py --headless --provider_name docker --path_to_vm \"$QCOW_PATH\" --eval_version v2 --test_all_meta_path evaluation_examples/test_arbm_v32.json --domain tasks --observation_type screenshot_a11y_tree --action_space pyautogui --model gpt-arbm-osworld-v32-isolated --temperature 0 --max_steps 30 --max_trajectory_length 8 --max_tokens 8192 --num_envs 1 --result_dir ../osworld-v32-evidence/task-091-micro-$TASK091_MICRO_SCOPE/results"
 
