@@ -1123,6 +1123,44 @@ class SemanticRuntimeTests(unittest.TestCase):
                 self.assertEqual(state["semantic_tx"]["target_key"],
                                  [2,"shape",15,"SummaryArr_Value"])
 
+    def _fixed_width_saved_fixture(self):
+        ws,state,plan=self._fixed_width_two_phase_fixture()
+        before=_snapshot(ws)
+        state["semantic_tx"]={
+            "stage":"fixed-width-save-issued", "slide":2, "index":0,
+            "target_key":[2,"shape",15,"SummaryArr_Value"],
+            "old":"$42.8M", "new":"$40.9M", "before_state":before,
+            "before_deck_sha256":"a"*64,
+            "before_model_sha256":model_sha256(normalize_deck(before)),
+        }
+        saved=copy.deepcopy(ws)
+        saved["deck_file"]["sha256"]="c"*64
+        saved["deck_slide_shapes"]["2"][0]["text"]="$40.9M"
+        saved["deck_slide_shapes"]["2"][0]["font_sizes"]=[1600]*6
+        return saved,state,plan
+
+    def test_fixed_width_save_accepts_unchanged_raw_observer_geometry(self):
+        saved,state,plan=self._fixed_width_saved_fixture()
+        result=next_text_action(state,saved,plan)
+        self.assertEqual(result["specialist_phase"],"fixed-width-roundtrip-reread")
+        self.assertEqual(state["semantic_tx"]["semantic_verdict"]["status"],"PASS")
+        self.assertNotIn("ctrl', 'z",result["command"])
+
+    def test_fixed_width_save_rejects_real_geometry_and_font_drift(self):
+        for field in ("geometry","font_sizes","text"):
+            with self.subTest(field=field):
+                saved,state,plan=self._fixed_width_saved_fixture()
+                row=saved["deck_slide_shapes"]["2"][0]
+                if field=="geometry":
+                    row["geometry"]["w"]+=1
+                elif field=="font_sizes":
+                    row["font_sizes"][2]=1500
+                else:
+                    row["text"]="$40.M"
+                result=next_text_action(state,saved,plan)
+                self.assertEqual(result["specialist_phase"],"fixed-width-clean-rollback")
+                self.assertEqual(state["semantic_tx"]["stage"],"fixed-width-rollback-issued")
+
     def test_fixed_width_diff_command_mutates_only_indices_two_and_four(self):
         from arbm091.semantic_runtime import _fixed_width_mutation_command
         command=_fixed_width_mutation_command("$42.8M","$40.9M")

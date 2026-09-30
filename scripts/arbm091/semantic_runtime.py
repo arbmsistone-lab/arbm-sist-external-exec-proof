@@ -1297,10 +1297,9 @@ def next_text_action(state,window_state,plan):
             return {"action":"exec","command":_fixed_width_rollback_command(),
                     "plan":"Unexpected persisted text is forbidden. Undo exactly one transaction, save, then prove full semantic rollback.",
                     "specialist_phase":"fixed-width-clean-rollback"}
-        before_row=(tx.get("before_state") or {}).get("deck_slide_shapes",{}).get(str(key[0]),[])
-        before_match=next((r for r in before_row
-                           if int(r.get("id") or 0)==int(key[2])
-                           and str(r.get("name") or "")==str(key[3])),None)
+        # Both operands must use the OOXML oracle's canonical geometry.
+        # Raw observer geometry is a dict; tuple(raw) yields field names.
+        before_match=normalize_deck(tx["before_state"]).get(key)
         if not isinstance(before_match,dict):
             return _terminal("TASK091_FIXED_WIDTH_BASELINE_TARGET_MISSING")
         if tuple(row.get("geometry") or ())!=tuple(before_match.get("geometry") or ()):
