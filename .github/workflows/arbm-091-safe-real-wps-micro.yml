@@ -94,6 +94,8 @@ jobs:
 
         python -m unittest discover -s tests/arbm091 -p ''test_critical_persistence.py'' -v
 
+        ZERO_SPEND_MODE=HARD ARBM_ENABLE_LOCAL_VLM=0 python scripts/arbm091/gateway_supervisor.py --self-test
+
         git diff --check
 
         '
@@ -278,31 +280,6 @@ jobs:
         printf '{"tasks":["091"]}\n' > "$GITHUB_WORKSPACE/osworld/evaluation_examples/test_arbm_v32.json"
         test "$(sha256sum "$QCOW_PATH" | cut -d' ' -f1)" = "$(cat qcow-base.sha256)"
 
-        python scripts/osworld_free_mesh_shim.py > "$DIR/shim-runtime.log" 2>&1 &
-        SHIM_PID=$!
-        RUN_PID=""
-        cleanup() {
-          kill "$RUN_PID" 2>/dev/null || true
-          kill "$SHIM_PID" 2>/dev/null || true
-          wait "$RUN_PID" 2>/dev/null || true
-          wait "$SHIM_PID" 2>/dev/null || true
-        }
-        trap cleanup EXIT
-
-        ready=0
-        for i in $(seq 1 30); do
-          if curl -fsS http://127.0.0.1:8088/health >/dev/null; then ready=1; break; fi
-          kill -0 "$SHIM_PID" 2>/dev/null || break
-          sleep 1
-        done
-        test "$ready" = 1
-
-        (
-          cd osworld
-          timeout --signal=TERM --kill-after=15s 300s uv run python scripts/python/run_multienv.py             --headless --provider_name docker --path_to_vm "$QCOW_PATH"             --eval_version v2 --test_all_meta_path evaluation_examples/test_arbm_v32.json             --domain tasks --observation_type screenshot_a11y_tree --action_space pyautogui             --model gpt-arbm-osworld-v32-isolated --temperature 0 --max_steps 30             --max_trajectory_length 8 --max_tokens 8192 --num_envs 1             --result_dir "../osworld-v32-evidence/task-091-micro-$TASK091_MICRO_SCOPE/results"
-        ) > "$DIR/osworld.log" 2>&1 &
-        RUN_PID=$!
-
         case "$TASK091_MICRO_SCOPE" in
           section-e) marker="TASK091_MICRO_SECTION_E_PROVEN" ;;
           summary-hc) marker="TASK091_MICRO_SUMMARY_HC_PROVEN" ;;
@@ -310,30 +287,16 @@ jobs:
           *) echo "UNKNOWN_MICRO_SCOPE=$TASK091_MICRO_SCOPE"; exit 2 ;;
         esac
 
-        proven=0
-        for i in $(seq 1 260); do
-          if grep -Fq "$marker" "$DIR/shim.jsonl" "$DIR/shim-runtime.log" "$DIR/osworld.log" 2>/dev/null; then
-            proven=1
-            break
-          fi
-          if ! kill -0 "$RUN_PID" 2>/dev/null; then
-            break
-          fi
-          sleep 1
-        done
-
-        if [ "$proven" != 1 ]; then
-          echo "TASK091_MICRO_PROOF=FAIL scope=$TASK091_MICRO_SCOPE"
-          echo "=== TASK091 TERMINAL REASONS ==="
-          grep -F '"status":"TERMINAL_FAIL"' "$DIR/shim.jsonl" | tail -n 20 || true
-          echo "=== TASK091 SPECIALIST CHECKPOINTS ==="
-          grep -E 'TASK091_SECTION_E|TASK091_MICRO_' "$DIR/shim.jsonl" | tail -n 80 || true
-          echo "=== SHIM RUNTIME TAIL ==="
-          tail -n 220 "$DIR/shim-runtime.log" || true
-          echo "=== OSWORLD TAIL ==="
-          tail -n 220 "$DIR/osworld.log" || true
-          exit 1
-        fi
+        python scripts/arbm091/gateway_supervisor.py \
+          --artifact-dir "$DIR" \
+          --shim-log "$DIR/shim-runtime.log" \
+          --telemetry-log "$DIR/gateway-telemetry.jsonl" \
+          --run-log "$DIR/osworld.log" \
+          --marker "$marker" \
+          --marker-file "$DIR/shim.jsonl" \
+          --timeout 300 \
+          --run-cwd "$GITHUB_WORKSPACE/osworld" \
+          --run-cmd "uv run python scripts/python/run_multienv.py --headless --provider_name docker --path_to_vm \"$QCOW_PATH\" --eval_version v2 --test_all_meta_path evaluation_examples/test_arbm_v32.json --domain tasks --observation_type screenshot_a11y_tree --action_space pyautogui --model gpt-arbm-osworld-v32-isolated --temperature 0 --max_steps 30 --max_trajectory_length 8 --max_tokens 8192 --num_envs 1 --result_dir ../osworld-v32-evidence/task-091-micro-$TASK091_MICRO_SCOPE/results"
 
         echo "TASK091_MICRO_PROOF=PASS scope=$TASK091_MICRO_SCOPE marker=$marker"
         touch "$DIR/micro-proof.pass"

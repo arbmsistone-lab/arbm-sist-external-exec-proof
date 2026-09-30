@@ -2899,7 +2899,13 @@ class Handler(BaseHTTPRequestHandler):
     def send_json(self,code,value):
         raw=json.dumps(value).encode();self.send_response(code);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
     def do_GET(self):
-        self.send_json(200,{'status':'ok','pipeline':EXPECTED_PIPELINE,'build':EXPECTED_BUILD}) if self.path=='/health' else self.send_json(404,{})
+        if self.path=='/health':
+            return self.send_json(200,{'status':'ok','pipeline':EXPECTED_PIPELINE,'build':EXPECTED_BUILD})
+        if self.path=='/route-health':
+            return self.send_json(200,{'status':'ok','route':'/v1/chat/completions',
+                                       'model':'gpt-arbm-osworld-v32-isolated',
+                                       'pipeline':EXPECTED_PIPELINE,'build':EXPECTED_BUILD})
+        return self.send_json(404,{})
     def do_POST(self):
         if self.path!='/v1/chat/completions':return self.send_json(404,{'error':{'code':'not_found','message':'Not found'}})
         self.close_connection=True; self.connection.settimeout(60)

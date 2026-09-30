@@ -1286,6 +1286,26 @@ class SemanticRuntimeTests(unittest.TestCase):
         self.assertEqual(result.get("action"),"terminal",msg=f"unexpected result={result!r}")
         self.assertTrue(result.get("reason"),msg=f"terminal reason missing result={result!r}")
 
+    def test_fixed_width_start_caret_uses_pre_navigation_baseline_frame(self):
+        from arbm091.semantic_runtime import _fixed_width_caret_delta_geometry
+        with tempfile.TemporaryDirectory() as td:
+            obs=Path(td)/"wps-observations"
+            obs.mkdir(parents=True,exist_ok=True)
+            before=Image.new("RGB",(240,180),"white")
+            after=Image.new("RGB",(240,180),"white")
+            draw=ImageDraw.Draw(after)
+            draw.line((108,104,108,127),fill="black",width=1)
+            before.save(obs/"0001-01-after.png")
+            after.save(obs/"0002-01-after.png")
+            with patch.dict(os.environ,{"ARBM_WPS_EVIDENCE_DIR":td},clear=False):
+                caret=_fixed_width_caret_delta_geometry(
+                    "0001-01-after","0002-01-after",[100,100,80,30])
+        self.assertTrue(caret["proven"],caret)
+        self.assertEqual(caret["bbox"],[8,4,1,24])
+        source=Path("scripts/arbm091/semantic_runtime.py").read_text(encoding="utf-8")
+        self.assertIn('tx["fixed_width_start_source"]=str(window_state.get("source") or "")',source)
+        self.assertNotIn('tx["fixed_width_start_source"]=source\n        tx["fixed_width_start_probe_attempts"]',source)
+
     def test_fixed_width_second_click_still_requires_caret_proof(self):
         source=Path("scripts/arbm091/semantic_runtime.py").read_text(encoding="utf-8")
         self.assertIn('stage=="fixed-width-end-second-click-issued"',source)
