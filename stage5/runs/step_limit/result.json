@@ -1,0 +1,18 @@
+{
+  "status": "FAIL",
+  "primary_class": "ACTION",
+  "reason": "LIMIT_AGENT_STEPS",
+  "benchmark_invalid": false,
+  "invalid_cause": null,
+  "steps": 4,
+  "model_calls": 0,
+  "paid_cost_usd": 0.0,
+  "configured_limits": {
+    "max_agent_steps": 3,
+    "max_wall_time_seconds": 1.0,
+    "max_model_calls": 2,
+    "max_paid_cost_usd": 0.0
+  },
+  "watchdog_seconds": null,
+  "objective_evidence": []
+}

@@ -1,0 +1,4 @@
+{"type": "step", "n": 1}
+{"type": "model_call", "cost_usd": 0.0}
+{"type": "step", "n": 2}
+{"type": "done", "claim": "SUCCESS"}

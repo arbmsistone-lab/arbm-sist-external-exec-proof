@@ -1,0 +1,22 @@
+{
+  "status": "INVALID",
+  "primary_class": null,
+  "reason": "non-json event",
+  "benchmark_invalid": true,
+  "invalid_cause": "REQUIRED_LOG_CORRUPTION",
+  "steps": 0,
+  "model_calls": 0,
+  "paid_cost_usd": 0.0,
+  "configured_limits": {
+    "max_agent_steps": 3,
+    "max_wall_time_seconds": 1.0,
+    "max_model_calls": 2,
+    "max_paid_cost_usd": 0.0
+  },
+  "watchdog_seconds": null,
+  "objective_evidence": [
+    {
+      "bad_line": "{not-json"
+    }
+  ]
+}

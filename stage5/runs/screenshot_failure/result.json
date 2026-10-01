@@ -1,0 +1,24 @@
+{
+  "status": "INVALID",
+  "primary_class": null,
+  "reason": "SCREENSHOT_UNAVAILABLE",
+  "benchmark_invalid": true,
+  "invalid_cause": "SCREENSHOT_CONTROL_FAILURE",
+  "steps": 0,
+  "model_calls": 0,
+  "paid_cost_usd": 0.0,
+  "configured_limits": {
+    "max_agent_steps": 3,
+    "max_wall_time_seconds": 1.0,
+    "max_model_calls": 2,
+    "max_paid_cost_usd": 0.0
+  },
+  "watchdog_seconds": null,
+  "objective_evidence": [
+    {
+      "type": "environment_error",
+      "code": "SCREENSHOT_UNAVAILABLE",
+      "evidence": "capture backend returned unavailable"
+    }
+  ]
+}

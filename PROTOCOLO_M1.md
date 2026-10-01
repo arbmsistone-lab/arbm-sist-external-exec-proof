@@ -214,3 +214,48 @@ Importante: o caso positivo usado nesta etapa é somente um artefato de teste DE
 Quando as 5 tarefas secretas forem criadas, cada uma deverá ser executada manualmente pelo usuário no Calc, validada pelo verifier + Integrity Checker e atestada antes do nonce/commitment final.
 
 A Etapa 5 pode iniciar porque o mecanismo Human Oracle está pronto; o gate humano das tarefas secretas permanece obrigatoriamente futuro.
+
+
+## Resultado da Etapa 5 — Runner + Watchdog
+Executado localmente no Windows em 2026-10-01, em segundo plano.
+
+Limites implementados e testados:
+- max_agent_steps
+- max_wall_time_seconds
+- max_model_calls
+- max_paid_cost_usd=0.00
+
+Casos observados:
+- execução normal -> PASS
+- excesso de passos -> FAIL / ACTION / LIMIT_AGENT_STEPS
+- excesso de model calls -> FAIL / PLANNING / LIMIT_MODEL_CALLS
+- custo pago > 0 -> FAIL / ENVIRONMENT / PAID_COST_FORBIDDEN
+- wall time atingido no limite configurado -> FAIL / ENVIRONMENT / LIMIT_WALL_TIME
+- watchdog antes do wall limit -> BENCHMARK_INVALID / WATCHDOG_BEFORE_CONFIGURED_LIMIT
+- falha comprovada de screenshot/controle -> BENCHMARK_INVALID / SCREENSHOT_CONTROL_FAILURE
+- corrupção do log necessário -> BENCHMARK_INVALID / REQUIRED_LOG_CORRUPTION
+- verifier independente falhou -> FAIL / VERIFICATION / INDEPENDENT_VERIFIER_FAIL
+- reset divergente por hash -> BENCHMARK_INVALID / RESET_DIVERGENCE
+
+Gate observado:
+- RUNNER_CASES=10/10
+- LIMIT_EXCEED_CLASSIFIED_AS_FAIL=PASS
+- CLOSED_INVALID_LIST_ENFORCED=PASS
+- MAX_PAID_COST_USD_ZERO_ENFORCED=PASS
+- STAGE5_RUNNER_WATCHDOG_GATE=PASS
+
+Política de rodada validada:
+- 20% exatos de slots inválidos não invalida a rodada
+- incidência >20% invalida a rodada
+- no máximo 2 repetições após um slot inicialmente inválido
+- terceira repetição adicional é rejeitada
+
+Gate da política:
+- ROUND_POLICY_CASES=4/4
+- INVALID_THRESHOLD_GT_20_PERCENT=PASS
+- MAX_2_INVALID_REPEATS_PER_SLOT=PASS
+- STAGE5_ROUND_POLICY_GATE=PASS
+
+Nenhum modelo pago foi chamado nesta etapa; os testes usam dummy agents locais.
+
+A Etapa 6 (M0_QUOTA_PROBE) permanece bloqueada até o registro/versionamento deste gate.

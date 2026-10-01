@@ -1,0 +1,23 @@
+{
+  "status": "INVALID",
+  "primary_class": null,
+  "reason": "fixture hash mismatch",
+  "benchmark_invalid": true,
+  "invalid_cause": "RESET_DIVERGENCE",
+  "steps": 0,
+  "model_calls": 0,
+  "paid_cost_usd": 0.0,
+  "configured_limits": {
+    "max_agent_steps": 3,
+    "max_wall_time_seconds": 1.0,
+    "max_model_calls": 2,
+    "max_paid_cost_usd": 0.0
+  },
+  "watchdog_seconds": null,
+  "objective_evidence": [
+    {
+      "fixture_hash_actual": "2c64694b77221943379fe992eb65a6cd60e97a7f28ea9c22f59d8bc8d851a91b",
+      "fixture_hash_expected": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ]
+}
