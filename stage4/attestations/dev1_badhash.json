@@ -1,0 +1,8 @@
+{
+  "mode": "DEVELOPMENT_ONLY",
+  "human_completed": true,
+  "operator_confirmation": "I_COMPLETED_THIS_TASK_MANUALLY",
+  "fixture_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "output_path": "stage4/fixtures/dev1_manual_output.ods",
+  "output_sha256": "f3df76471291a5b11f9c9f80cd9ec3558ec795b046990c0cd743311917dbb383"
+}

@@ -181,3 +181,36 @@ Gate observado:
 O comparador semântico ignora metadados e estado de visualização, mas preserva como relevantes valores, textos, fórmulas, tipo, estilo, repetição de células, nomes e estrutura de abas/linhas/células.
 
 A Etapa 4 permanece bloqueada até o registro/versionamento deste gate.
+
+
+## Resultado da Etapa 4 — Human Oracle Mode
+Executado localmente no Windows em 2026-10-01, em segundo plano.
+
+A infraestrutura de Human Oracle foi implementada e testada com casos de desenvolvimento marcados explicitamente como DEVELOPMENT_ONLY.
+
+Um oracle só pode produzir oracle_pass=true quando TODAS as condições forem verdadeiras:
+- human_completed=true
+- operator_confirmation=I_COMPLETED_THIS_TASK_MANUALLY
+- hash da fixture igual ao hash atestado
+- hash da saída igual ao hash atestado
+- todos os verificadores independentes PASS
+- Integrity Checker PASS
+
+Casos de infraestrutura testados:
+- atestação de desenvolvimento válida -> PASS
+- ausência de confirmação humana -> FAIL
+- hash da fixture divergente -> FAIL
+- saída incorreta -> FAIL
+
+Gate observado:
+- ORACLE_CASES=4/4
+- FALSE_POSITIVES=0
+- FALSE_NEGATIVES=0
+- STAGE4_ORACLE_INFRA_GATE=PASS
+- SECRET_HUMAN_ORACLE_STATUS=PENDING_SECRET_TASK_CREATION
+
+Importante: o caso positivo usado nesta etapa é somente um artefato de teste DEVELOPMENT_ONLY. Ele não constitui prova de que uma pessoa executou uma futura tarefa secreta. Nenhuma tarefa secreta existe neste momento e, portanto, nenhuma recebe HUMAN_ORACLE=PASS agora.
+
+Quando as 5 tarefas secretas forem criadas, cada uma deverá ser executada manualmente pelo usuário no Calc, validada pelo verifier + Integrity Checker e atestada antes do nonce/commitment final.
+
+A Etapa 5 pode iniciar porque o mecanismo Human Oracle está pronto; o gate humano das tarefas secretas permanece obrigatoriamente futuro.

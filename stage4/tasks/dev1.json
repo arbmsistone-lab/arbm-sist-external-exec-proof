@@ -1,0 +1,17 @@
+{
+  "task_id": "DEV-ORACLE-001",
+  "fixture": "stage4/fixtures/dev1_input.ods",
+  "expected_output": "stage4/fixtures/dev1_expected.ods",
+  "verifiers": [
+    {
+      "type": "cell_value_by_row_label",
+      "params": {
+        "sheet": "Vendas",
+        "label_col": 1,
+        "label": "Teclado",
+        "target_col": 2,
+        "expected": 25
+      }
+    }
+  ]
+}
