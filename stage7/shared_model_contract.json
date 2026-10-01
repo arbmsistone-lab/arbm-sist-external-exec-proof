@@ -1,7 +1,10 @@
 {
+  "contract": "ARBM_SIST_M1_SHARED_MODEL_V1",
+  "frozen": true,
   "provider": "OpenRouter",
-  "access_mode": "authenticated_web_chat_session",
+  "execution_location": "remote_free_api_via_authenticated_web_session",
   "model_id": "qwen/qwen3.8-27b:free",
+  "model_name": "Qwen3.8 27B (free)",
   "temperature": 0,
   "max_output_tokens": 2048,
   "max_agent_steps": 40,
@@ -13,6 +16,5 @@
   "locale": "pt-BR",
   "daily_request_limit": 50,
   "quota_pacing_required": true,
-  "model_contract_frozen": true,
-  "baseline_implementation_frozen": false
+  "applies_to": ["baseline","arbm_sist_agent"]
 }

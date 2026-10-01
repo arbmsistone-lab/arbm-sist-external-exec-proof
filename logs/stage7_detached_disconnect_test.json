@@ -1,0 +1,13 @@
+﻿{
+    "test":  "DETACHED_CONTROL_CHANNEL_DISCONNECT_NO_AI",
+    "disconnect_at":  "2026-10-01T16:22:46.763-03:00",
+    "child_started_at":  "2026-10-01T16:22:33.9865478-03:00",
+    "child_ended_at":  "2026-10-01T16:23:14.5955180-03:00",
+    "watchdog_ended_at":  "2026-10-01T16:23:15.0965797-03:00",
+    "elapsed_seconds":  42.394,
+    "watchdog_enforced":  true,
+    "timed_out":  false,
+    "ai_calls":  0,
+    "child_status":  "PASS",
+    "result":  "PASS"
+}

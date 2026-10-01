@@ -1,0 +1,17 @@
+﻿{
+    "run":  "DEV01_RUN1",
+    "classification":  "BENCHMARK_INVALID",
+    "cause":  "CONTROL_CHANNEL_DISCONNECTED",
+    "last_confirmed_control_channel_communication":  "2026-10-01T16:14:58-03:00",
+    "pid":  14292,
+    "pid_alive_after_reconnect":  false,
+    "events_json_present":  false,
+    "agent_result_json_present":  false,
+    "max_agent_steps_configured":  40,
+    "max_model_calls_configured":  8,
+    "max_wall_time_seconds_configured":  180,
+    "wall_time_watchdog_proven":  false,
+    "limits_during_disconnect_proven":  false,
+    "metric_inclusion":  false,
+    "decision":  "DISCARD_AND_RESET"
+}

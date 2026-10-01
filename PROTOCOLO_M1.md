@@ -477,3 +477,72 @@ Stage 7 preflight result:
 - BASELINE_PREFLIGHT=PASS
 
 Stage 7 baseline remains NOT_RUN until the generic baseline implementation completes a real development dry run.
+
+
+## DEV01_RUN1 interruption classification
+- DEV01_RUN1=BENCHMARK_INVALID
+- cause=CONTROL_CHANNEL_DISCONNECTED
+- last_confirmed_control_channel_communication=2026-10-01T16:14:58-03:00
+- PID 14292 was not running after reconnect
+- events.json absent
+- agent_result.json absent
+- wall-time enforcement during the disconnected interval was not provable
+- metric_inclusion=false
+- forensic copy preserved at stage7/dev_runs/dev01_invalid_run1
+- original DEV01 run discarded and reset before any repeat
+
+## Connection-independent runner hardening
+The baseline execution path now uses a detached local wrapper and watchdog:
+- stage7/launch_detached.ps1
+- stage7/detached_watchdog.ps1
+- stage7/launch_baseline_detached.ps1
+- stage7/run_baseline_child.ps1
+The watchdog writes local state/heartbeat/final logs and enforces max_wall_time_seconds independently of Desktop Commander. Timeout termination uses taskkill /T /F to terminate the child process tree.
+
+Forced disconnect test without AI:
+- test child started=2026-10-01T16:22:33.9865478-03:00
+- Desktop Commander intentionally shut down=2026-10-01T16:22:46.763-03:00
+- child ended=2026-10-01T16:23:14.5955180-03:00
+- watchdog final=2026-10-01T16:23:15.0965797-03:00
+- elapsed_seconds=42.394
+- NO_AI_CHILD=PASS
+- ai_calls=0
+- watchdog_enforced=true
+- remote channel reconnected automatically after the child had continued locally
+
+## Frozen shared model contract
+MODEL_CONTRACT=ARBM_SIST_M1_SHARED_MODEL_V1
+MODEL_CONTRACT_FROZEN=true
+PROVIDER=OpenRouter
+EXECUTION_LOCATION=remote free inference via authenticated OpenRouter web session
+MODEL_ID=qwen/qwen3.8-27b:free
+MODEL_NAME=Qwen3.8 27B (free)
+TEMPERATURE=0
+MAX_OUTPUT_TOKENS=2048
+MAX_AGENT_STEPS=40
+MAX_WALL_TIME_SECONDS=180
+MAX_MODEL_CALLS=8
+MAX_PAID_COST_USD=0.00
+SCREENSHOT=1536x864
+LOCALE=pt-BR
+FREE_REQUESTS_PER_DAY=50
+QUOTA_PACING_REQUIRED=true
+
+The exact same shared model contract applies to baseline and ARBM SIST agent. No model/provider/temperature/limit change is allowed after this freeze without invalidating and re-freezing the comparison protocol.
+
+
+## DEV01 reset after invalid run
+Initial reset attempt encountered OUTPUT_FILE_IN_USE from the residual LibreOffice process bound to the invalid DEV01 profile. That attempt is NOT counted as PASS.
+Residual process tree:
+- soffice.exe PID 3040
+- soffice.bin PID 12560
+Both were tied to stage7/dev_runs/dev01/lo-profile and output.ods.
+After terminating only that residual tree, the run directory was recreated and output.ods was copied from the original development fixture.
+DEV01_RESET=PASS
+RESET_HASH_MATCH=PASS
+FORENSIC_INVALID_RUN_COPY_PRESERVED=true
+
+Model freeze semantics:
+- model_contract_frozen=true
+- baseline_implementation_frozen=false
+The provider/model/temperature/limits are frozen now; baseline implementation code remains under development until its own dry-run freeze gate.
