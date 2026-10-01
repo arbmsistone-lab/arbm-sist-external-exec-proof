@@ -141,3 +141,43 @@ Gate observado:
 A primeira rodada da Etapa 2 falhou em formula_pos e NORMALIZE_PTBR_FORMULA. A causa foi normalização incompleta da referência ODF `[.B2:.B3]`; o bug foi corrigido antes do gate final. Essa falha inicial não foi ocultada nem usada como PASS.
 
 A Etapa 3 permanece bloqueada até o registro/versionamento deste gate.
+
+
+## Resultado da Etapa 3 — Integrity Checker
+Executado localmente no Windows em 2026-10-01, em segundo plano.
+
+O Integrity Checker compara semanticamente o documento final com o estado esperado e só aprova quando:
+- TARGET_VERIFIER=PASS
+- UNEXPECTED_MUTATIONS=0
+- OUTPUT_PATH=PASS
+- OUTPUT_FORMAT=PASS
+
+Casos legais aceitos:
+- edição correta da célula-alvo
+- ordenação correta
+- inserção correta de linha
+- exclusão correta de linha
+- cópia correta de intervalo
+- movimentação correta de intervalo
+- ruído somente de metadados
+- alteração somente de autor/data/estado de visualização/posição de cursor
+
+Falhas injetadas detectadas:
+- outra célula alterada
+- aba apagada
+- linha extra
+- fórmula perdida
+- target verifier em FAIL
+- nome/caminho de saída errado
+- arquivo não ODS disfarçado com extensão .ods
+
+Gate observado:
+- LEGAL_MUTATIONS_ACCEPTED=8/8
+- INJECTED_SIDE_EFFECTS_DETECTED=7/7
+- FALSE_POSITIVES=0
+- FALSE_NEGATIVES=0
+- STAGE3_INTEGRITY_GATE=PASS
+
+O comparador semântico ignora metadados e estado de visualização, mas preserva como relevantes valores, textos, fórmulas, tipo, estilo, repetição de células, nomes e estrutura de abas/linhas/células.
+
+A Etapa 4 permanece bloqueada até o registro/versionamento deste gate.
