@@ -1,0 +1,85 @@
+name: M1 V3 Groq cloud 20-call reliability
+on:
+  push:
+    branches: [g3-free-cert-lane-20260910]
+    paths: ['.github/workflows/m1-v3-groq-20call.yml']
+permissions:
+  contents: read
+concurrency:
+  group: m1-v3-groq-20call
+  cancel-in-progress: false
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      ZERO_SPEND: 'true'
+      HEAVY_LOCAL: '0'
+      GROQ_MODEL: 'qwen/qwen3.8-27b'
+      SAMPLE_MIN: '20'
+      ERROR_RATE_THRESHOLD_PERCENT: '5'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Run 20-call multimodal reliability probe
+        env:
+          GROQ_G3_FREE_CERT_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GROQ_G3_FREE_CERT_KEY:-}"
+          python - <<'PY'
+          import os, json, time, urllib.request, urllib.error
+          model=os.environ['GROQ_MODEL']
+          key=os.environ['GROQ_G3_FREE_CERT_KEY']
+          n=int(os.environ['SAMPLE_MIN'])
+          threshold=float(os.environ['ERROR_RATE_THRESHOLD_PERCENT'])
+          img='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+          url='https://api.groq.com/openai/v1/chat/completions'
+          results=[]
+          for i in range(1,n+1):
+              payload={'model':model,'temperature':0,'max_tokens':8,'messages':[{'role':'user','content':[
+                  {'type':'text','text':'Inspect the image and reply only OK.'},
+                  {'type':'image_url','image_url':{'url':'data:image/png;base64,'+img}}
+              ]}]}
+              req=urllib.request.Request(url,data=json.dumps(payload).encode(),method='POST',
+                  headers={'Authorization':'Bearer '+key,'Content-Type':'application/json',
+                           'User-Agent':'ARBM-SIST-M1-V3-Groq-20call/1.0'})
+              rec={'attempt':i,'http_status':None,'ok':False,'rate_limited':False,'error_type':None}
+              try:
+                  with urllib.request.urlopen(req,timeout=30) as r:
+                      rec['http_status']=r.status
+                      body=json.load(r)
+                      rec['returned_model']=body.get('model')
+                      rec['ok']=r.status==200
+              except urllib.error.HTTPError as e:
+                  rec['http_status']=e.code
+                  rec['rate_limited']=e.code==429
+                  rec['error_type']='HTTP_'+str(e.code)
+              except Exception as e:
+                  rec['error_type']=type(e).__name__
+              results.append(rec)
+              print(json.dumps(rec,separators=(',',':')))
+              if i < n: time.sleep(1)
+          eligible=len(results)
+          failures=sum(1 for r in results if not r['ok'])
+          rate429=sum(1 for r in results if r['rate_limited'])
+          error_rate=100.0*failures/eligible if eligible else 100.0
+          rate429_pct=100.0*rate429/eligible if eligible else 100.0
+          gate = eligible>=20 and error_rate < threshold
+          out={'schema':'arbm-m1-v3-reliability-v1','provider':'groq','model_requested':model,
+            'eligible_attempts':eligible,'sample_min':20,'failures':failures,
+            'error_rate_percent':error_rate,'http_429':rate429,'rate_429_percent':rate429_pct,
+            'threshold_percent':threshold,'small_sample':eligible<20,'gate_pass':gate,
+            'zero_spend_contract':True,'heavy_local':0,'results':results}
+          open('m1-v3-groq-20call.json','w',encoding='utf-8').write(json.dumps(out,indent=2))
+          print(json.dumps({k:out[k] for k in ('eligible_attempts','failures','error_rate_percent','http_429','rate_429_percent','small_sample','gate_pass')}))
+          raise SystemExit(0 if gate else 1)
+          PY
+      - name: Preserve evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: m1-v3-groq-20call-evidence
+          path: m1-v3-groq-20call.json
+          retention-days: 30
+          if-no-files-found: warn
