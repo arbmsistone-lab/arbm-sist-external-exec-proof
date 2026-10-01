@@ -577,3 +577,40 @@ Quota exhaustion rule:
 - Neither member enters performance metrics.
 - The full pair is rerun from reset on the next available proof day before later scheduled pairs.
 - Later pairs shift forward as needed, with a maximum of 3 complete pairs/day.
+
+
+## API key hygiene and rotation policy
+OpenRouter benchmark key:
+- display_name=ARBM-SIST-M1-BENCHMARK
+- created_date=2026-10-01
+- validity_days=30
+- expiration_date=2026-10-31
+- key_credit_limit_usd=0
+- full key value must never appear in repository files, logs, stdout, stderr, screenshots, prompts, responses, commits, or chat transcripts
+- current plaintext repository scan: FULL_KEYLIKE_TOKEN_HITS=0
+- KEY_POSSIBLY_EXPOSED=false based on available artifacts and observed outputs
+
+Schedule fit:
+- remaining development plus the 5 proof days must complete on or before 2026-10-31
+- if the schedule can no longer fit before expiration, rotate the key before the next proof day
+
+KEY_ROTATION rule:
+- rotation is allowed only between proof days
+- rotation is forbidden after either member of a benchmark pair has started and before that pair is complete
+- replacement key must use the same OpenRouter account/workspace policy, MODEL_ID=qwen/qwen3.8-27b:free and key_credit_limit_usd=0
+- rotation must be logged as KEY_ROTATION, never MODEL_DRIFT
+- provider/model/temperature/agent limits remain unchanged across key rotation
+- any pair interrupted by credential expiry or rotation is BENCHMARK_INVALID and must be rerun from reset
+
+
+## Item 1 — OpenRouter credential state
+Completed on 2026-10-01.
+- active_key_label=ARBM-SIST-M1-BENCHMARK-V2
+- expiration=2026-10-31T17:43:00-03:00
+- user_environment_binding=PASS
+- child_process_binding=PASS
+- repository_plaintext_key_hits=0
+- KEY_ROTATION=2026-10-01
+- previous benchmark key superseded
+- key rotation is not MODEL_DRIFT
+- HTTP 402 or key quota/credit errors are KEY_CONFIG_ERROR and do not count as MODEL_VISION_PROBE attempts
