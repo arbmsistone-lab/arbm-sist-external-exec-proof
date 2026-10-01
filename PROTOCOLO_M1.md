@@ -298,3 +298,50 @@ Este bloqueio não é substituído por limites públicos genéricos. A Etapa 7 (
 6. confirmação de que 30 execuções válidas cabem sem custo pago.
 
 Nenhuma tentativa de vincular billing, adicionar crédito ou migrar para tier pago é autorizada.
+
+
+## Preparação pré-Etapa 7/8 — infraestrutura sem modelo
+Executado em 2026-10-01, em segundo plano, sem chamada de modelo e sem custo pago.
+
+Artefatos preparados:
+- baseline_config.template.json
+- baseline_agent.py com fail-closed se config/modelo/freeze não estiverem definidos
+- baseline_prompt.template.md
+- dry_run_harness.py
+- dummy_adapter.py
+- 3 tarefas DEVELOPMENT_ONLY para teste do harness
+- generate_manifest.py / verify_pre_freeze.py
+- generate_order.py / verify_order.py
+
+Resultados locais:
+- baseline sem config -> bloqueada corretamente
+- DRY_RUN_HARNESS_CASES=3/3
+- STAGE8_HARNESS_PREP=PASS
+- MODEL_CALLS_EXECUTED=0
+- PAID_COST_USD=0.00
+- TOTAL_SLOTS=30
+- PAIR_BALANCE=PASS
+- RANDOMIZATION_VERIFY=PASS
+- RUN_ORDER_FILE_REPRODUCIBLE=true
+- PRE_FREEZE_FILES=13
+- PRE_FREEZE_HASH_ERRORS=0
+- PRE_FREEZE_MANIFEST=PASS
+
+Randomização pré-registrada:
+- RANDOMIZATION_SEED=20261001
+- RUN_ORDER_SHA256=0c0f9c35906b07534e2f61c8e9367a5c13897339a164033112dd660cc43cc62e
+- RUN_ORDER_FILE_SHA256=c5c4fa78dbcb1a255002e5734ebe3c6b6c3de3a258c474000016e63c62788082
+
+Manifesto pré-freeze:
+- PRE_FREEZE_MANIFEST_SHA256=58349d5a0130e2c9351d9851c2663869f65329aafeb9cb53b43d8163efd9cf8f
+- status=PRE_FREEZE_ONLY
+
+Nenhum destes hashes constitui o freeze final da baseline. O freeze final só pode ocorrer depois de:
+1. M0_QUOTA_PROBE=PASS;
+2. modelo exato e billing/tier conhecidos;
+3. baseline configurada;
+4. baseline resolver >=1 tarefa de desenvolvimento no dry run real;
+5. parâmetros finais congelados.
+
+ETAPA_7_BASELINE continua NOT_RUN.
+ETAPA_8_DRY_RUN_REAL continua NOT_RUN.

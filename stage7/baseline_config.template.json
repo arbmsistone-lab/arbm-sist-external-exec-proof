@@ -1,0 +1,14 @@
+{
+  "provider": null,
+  "model_id": null,
+  "temperature": 0,
+  "max_output_tokens": null,
+  "max_agent_steps": 40,
+  "max_wall_time_seconds": 180,
+  "max_model_calls": 8,
+  "max_paid_cost_usd": 0.0,
+  "screenshot_width": 1536,
+  "screenshot_height": 864,
+  "locale": "pt-BR",
+  "frozen": false
+}

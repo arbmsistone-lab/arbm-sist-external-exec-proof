@@ -1,0 +1,6 @@
+{
+  "returncode": 0,
+  "stdout": "{\"adapter\": \"DUMMY\", \"task\": \"C:\\\\Users\\\\airto\\\\arbm-sist-m1-stage1\\\\stage8\\\\dev_tasks\\\\dev_task_01.json\", \"claim\": \"SUCCESS\", \"model_calls\": 0, \"paid_cost_usd\": 0.0}\n",
+  "stderr": "",
+  "elapsed_seconds": 0.046999999991385266
+}

@@ -1,0 +1,5 @@
+{
+  "task_id": "DEV-DRY-001",
+  "instruction": "Development-only harness task.",
+  "secret": false
+}

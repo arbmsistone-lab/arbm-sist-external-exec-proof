@@ -1,0 +1,157 @@
+{
+  "RANDOMIZATION_SEED": 20261001,
+  "RUN_ORDER_SHA256": "0c0f9c35906b07534e2f61c8e9367a5c13897339a164033112dd660cc43cc62e",
+  "slots": [
+    {
+      "task": "T01",
+      "rep": 1,
+      "system": "BASELINE"
+    },
+    {
+      "task": "T01",
+      "rep": 1,
+      "system": "ARBM"
+    },
+    {
+      "task": "T01",
+      "rep": 2,
+      "system": "ARBM"
+    },
+    {
+      "task": "T01",
+      "rep": 2,
+      "system": "BASELINE"
+    },
+    {
+      "task": "T01",
+      "rep": 3,
+      "system": "BASELINE"
+    },
+    {
+      "task": "T01",
+      "rep": 3,
+      "system": "ARBM"
+    },
+    {
+      "task": "T02",
+      "rep": 1,
+      "system": "BASELINE"
+    },
+    {
+      "task": "T02",
+      "rep": 1,
+      "system": "ARBM"
+    },
+    {
+      "task": "T02",
+      "rep": 2,
+      "system": "ARBM"
+    },
+    {
+      "task": "T02",
+      "rep": 2,
+      "system": "BASELINE"
+    },
+    {
+      "task": "T02",
+      "rep": 3,
+      "system": "BASELINE"
+    },
+    {
+      "task": "T02",
+      "rep": 3,
+      "system": "ARBM"
+    },
+    {
+      "task": "T03",
+      "rep": 1,
+      "system": "BASELINE"
+    },
+    {
+      "task": "T03",
+      "rep": 1,
+      "system": "ARBM"
+    },
+    {
+      "task": "T03",
+      "rep": 2,
+      "system": "ARBM"
+    },
+    {
+      "task": "T03",
+      "rep": 2,
+      "system": "BASELINE"
+    },
+    {
+      "task": "T03",
+      "rep": 3,
+      "system": "BASELINE"
+    },
+    {
+      "task": "T03",
+      "rep": 3,
+      "system": "ARBM"
+    },
+    {
+      "task": "T04",
+      "rep": 1,
+      "system": "BASELINE"
+    },
+    {
+      "task": "T04",
+      "rep": 1,
+      "system": "ARBM"
+    },
+    {
+      "task": "T04",
+      "rep": 2,
+      "system": "ARBM"
+    },
+    {
+      "task": "T04",
+      "rep": 2,
+      "system": "BASELINE"
+    },
+    {
+      "task": "T04",
+      "rep": 3,
+      "system": "BASELINE"
+    },
+    {
+      "task": "T04",
+      "rep": 3,
+      "system": "ARBM"
+    },
+    {
+      "task": "T05",
+      "rep": 1,
+      "system": "BASELINE"
+    },
+    {
+      "task": "T05",
+      "rep": 1,
+      "system": "ARBM"
+    },
+    {
+      "task": "T05",
+      "rep": 2,
+      "system": "ARBM"
+    },
+    {
+      "task": "T05",
+      "rep": 2,
+      "system": "BASELINE"
+    },
+    {
+      "task": "T05",
+      "rep": 3,
+      "system": "BASELINE"
+    },
+    {
+      "task": "T05",
+      "rep": 3,
+      "system": "ARBM"
+    }
+  ],
+  "secret_task_contents_included": false
+}

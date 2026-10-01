@@ -1,0 +1,57 @@
+{
+  "status": "PRE_FREEZE_ONLY",
+  "files": [
+    {
+      "path": "PROTOCOLO_M1.md",
+      "sha256": "66f339bada90db6004ba79410ee9219aa40651a993de6e5071b9bd6df5b4abb3"
+    },
+    {
+      "path": "stage2/verifier_engine.py",
+      "sha256": "9078dd97fb31c1f0395faf52db7dd426a812fef68f4c20e115b6544828c3ded2"
+    },
+    {
+      "path": "stage3/integrity_checker.py",
+      "sha256": "7464fc5293d88c89e03f41deaa5db3e5e7df6de0b830c2d877e0e21b40d1f084"
+    },
+    {
+      "path": "stage4/oracle_runner.py",
+      "sha256": "ac3923dd9a9c486d5423caea8121a587e9049f33505118bcdc2b87e4692f52f9"
+    },
+    {
+      "path": "stage5/runner.py",
+      "sha256": "86784ec2c59b5ed2bf19ca9a2cb4bda5f9e927b90eb92c524bb60250f0abfd73"
+    },
+    {
+      "path": "stage5/round_policy.py",
+      "sha256": "c6b7ea4dbf00c4eafdfd1f19bcd57cae6babc2d96022653d94dd7e76dc1e1d4b"
+    },
+    {
+      "path": "stage7/preflight.py",
+      "sha256": "1affcd6ddc9a7a6d1a1e7b4556ba06bcd4bae9ac7b02afcf39f54d257ce488b4"
+    },
+    {
+      "path": "stage7/baseline_agent.py",
+      "sha256": "740abfdaf5bb3eb37d388a39552c4738aac2be36ded88cebb1522fa5a06ee38f"
+    },
+    {
+      "path": "stage7/baseline_config.template.json",
+      "sha256": "803a0d848a98f37a6235ef6dbbffa7332adea97effa5f69faa5ef2ba2f937726"
+    },
+    {
+      "path": "stage7/baseline_prompt.template.md",
+      "sha256": "4895e5c8a1f8e91319d0ce947ec15c028db5991ed37f8a66c914f6be13c00d03"
+    },
+    {
+      "path": "stage8/dry_run_harness.py",
+      "sha256": "b72c05fde14716c3b728a554e5152ccf8c22f4073d6fdab0469132f5a119cdb8"
+    },
+    {
+      "path": "randomization/generate_order.py",
+      "sha256": "cd85f2fe21260ebb2f341395f78029843e382b08c64956e6a76e707fcc7ea16c"
+    },
+    {
+      "path": "randomization/verify_order.py",
+      "sha256": "e80a70719b4da8c6e2c062fb103a3906d9d3ebd2885bf10c5a9429750d7692a8"
+    }
+  ]
+}
