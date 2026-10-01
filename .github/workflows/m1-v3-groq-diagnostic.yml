@@ -1,0 +1,58 @@
+name: M1 V3 Groq exact vision diagnostic
+on:
+  push:
+    branches: [g3-free-cert-lane-20260910]
+    paths: ['.github/workflows/m1-v3-groq-diagnostic.yml']
+permissions:
+  contents: read
+jobs:
+  diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Exact documented Groq vision request
+        env:
+          GROQ_G3_FREE_CERT_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os,json,urllib.request,urllib.error
+          key=os.environ['GROQ_G3_FREE_CERT_KEY']
+          payload={
+            'model':'qwen/qwen3.8-27b',
+            'messages':[{'role':'user','content':[
+              {'type':'text','text':"What's in this image? Reply briefly."},
+              {'type':'image_url','image_url':{'url':'https://console.groq.com/og_cloud.png'}}
+            ]}],
+            'temperature':1,
+            'max_completion_tokens':64,
+            'top_p':1,
+            'stream':False,
+            'stop':None
+          }
+          req=urllib.request.Request('https://api.groq.com/openai/v1/chat/completions',
+            data=json.dumps(payload).encode(),method='POST',
+            headers={'Authorization':'Bearer '+key,'Content-Type':'application/json',
+                     'User-Agent':'ARBM-SIST-M1-V3-Groq-diagnostic/1.0'})
+          out={'request_model':payload['model']}
+          try:
+            with urllib.request.urlopen(req,timeout=30) as r:
+              body=json.load(r)
+              out.update(http_status=r.status,ok=True,returned_model=body.get('model'))
+              out['rate_headers']={k:v for k,v in r.headers.items() if k.lower().startswith('x-ratelimit')}
+          except urllib.error.HTTPError as e:
+            body=e.read().decode('utf-8','replace')
+            out.update(http_status=e.code,ok=False,error_body=body[:2000])
+            out['rate_headers']={k:v for k,v in e.headers.items() if k.lower().startswith('x-ratelimit')}
+          open('m1-v3-groq-diagnostic.json','w').write(json.dumps(out,indent=2))
+          print(json.dumps(out))
+          PY
+      - name: Preserve diagnostic
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: m1-v3-groq-diagnostic
+          path: m1-v3-groq-diagnostic.json
+          retention-days: 30
