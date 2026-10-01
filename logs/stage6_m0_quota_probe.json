@@ -1,0 +1,30 @@
+﻿{
+    "captured_at":  "2026-10-01T13:40:53.5508274-03:00",
+    "provider":  "Google Gemini Developer API",
+    "public_docs_rate_limits":  "https://ai.google.dev/gemini-api/docs/rate-limits",
+    "public_docs_billing":  "https://ai.google.dev/gemini-api/docs/billing",
+    "public_docs_models":  "https://ai.google.dev/gemini-api/docs/models",
+    "current_public_recommended_model_ids":  [
+                                                 "gemini-3.8-flash",
+                                                 "gemini-3.5-flash-lite"
+                                             ],
+    "gcloud_installed":  false,
+    "google_gemini_env_names":  [
+
+                                ],
+    "chrome_version":  "154.0.8037.92",
+    "chrome_debug_port_available":  false,
+    "account_project_id":  null,
+    "account_model_visible":  null,
+    "account_exact_model_id":  null,
+    "account_usage_tier":  null,
+    "account_active_rpm":  null,
+    "account_active_tpm":  null,
+    "account_active_rpd":  null,
+    "account_billing_state":  null,
+    "free_tier_confirmed_for_account":  false,
+    "thirty_valid_runs_fit":  null,
+    "max_paid_cost_usd":  0,
+    "auto_paid_upgrade_allowed":  false,
+    "status":  "BLOCKED_ACCOUNT_SPECIFIC_STATE_NOT_OBSERVED"
+}

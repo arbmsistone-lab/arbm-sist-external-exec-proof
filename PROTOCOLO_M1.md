@@ -259,3 +259,42 @@ Gate da política:
 Nenhum modelo pago foi chamado nesta etapa; os testes usam dummy agents locais.
 
 A Etapa 6 (M0_QUOTA_PROBE) permanece bloqueada até o registro/versionamento deste gate.
+
+
+## Resultado parcial da Etapa 6 — M0_QUOTA_PROBE
+Executado em 2026-10-01, em segundo plano e sem chamada paga.
+
+Estado público atual confirmado por documentação oficial do Gemini API:
+- provedor alvo: Google Gemini Developer API / Google AI Studio
+- modelos atuais recomendados para novos projetos incluem gemini-3.8-flash e gemini-3.5-flash-lite
+- limites ativos de RPM/TPM/RPD são específicos do projeto/modelo e devem ser consultados no Google AI Studio
+- Free Tier e Paid Tier dependem do estado de billing/tier do projeto
+- upgrade automático para uso pago é proibido neste protocolo
+
+Estado real observado na máquina:
+- gcloud_installed=false
+- nenhuma variável GOOGLE/GEMINI/GENAI/VERTEX/GCLOUD detectada
+- Chrome instalado, mas sem porta CDP/debug ativa
+- nenhuma credencial de API Gemini detectada por variável de ambiente
+- account_project_id=UNKNOWN
+- account_exact_model_id=UNKNOWN
+- account_usage_tier=UNKNOWN
+- account_active_rpm/tpm/rpd=UNKNOWN
+- account_billing_state=UNKNOWN
+- free_tier_confirmed_for_account=false
+- thirty_valid_runs_fit=UNKNOWN
+- max_paid_cost_usd=0.00
+- auto_paid_upgrade_allowed=false
+
+Status:
+M0_QUOTA_PROBE=BLOCKED_ACCOUNT_SPECIFIC_STATE_NOT_OBSERVED
+
+Este bloqueio não é substituído por limites públicos genéricos. A Etapa 7 (Baseline) NÃO pode iniciar até observar no projeto real:
+1. projeto/conta usados no AI Studio;
+2. modelo visível e ID exato;
+3. tier ativo;
+4. limites ativos RPM/TPM/RPD;
+5. billing state;
+6. confirmação de que 30 execuções válidas cabem sem custo pago.
+
+Nenhuma tentativa de vincular billing, adicionar crédito ou migrar para tier pago é autorizada.
