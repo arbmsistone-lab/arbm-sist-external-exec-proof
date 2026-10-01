@@ -385,3 +385,95 @@ Conclusão operacional:
 - thirty_valid_runs_fit_without_paid=false
 - M0_QUOTA_PROBE=BLOCKED_NO_PREPAID_CREDITS
 - Stage 7 baseline remains NOT_RUN
+
+
+## Provider probe adicional — Groq
+Executado em 2026-10-01.
+
+Conta GroqCloud autenticada:
+- organization=Personal
+- project=Default Project
+- plan=Free / no Dev Plan observed
+- dedicated key ARBM-SIST-M1-BENCHMARK exists in console
+- local secret file present and not committed
+
+API probe:
+- GET /openai/v1/models -> HTTP 403 Forbidden
+- authentication secret shape is present locally
+- Groq docs classify 403 as permission restriction, not missing credentials
+
+Console probe:
+- /settings/organization -> internal error
+- /settings/limits -> internal error
+- /settings/project/limits -> internal error
+- /playground -> internal error
+
+Conclusion:
+- GROQ_PROVIDER_STATUS=BLOCKED_ACCOUNT_OR_ORG_PERMISSION
+- GROQ_KEY_INVALID_NOT_PROVEN
+- GROQ_MODEL_PERMISSION_EDIT=UNAVAILABLE_DUE_CONSOLE_ERROR
+- PAID_UPGRADE_NOT_USED
+- BILLING_CHANGE=NONE
+- MODEL_CALLS_SUCCESSFUL=0
+
+Next provider candidate:
+- OpenRouter Free
+- fixed multimodal model candidate=qwen/qwen3.8-27b:free
+- max_paid_cost_usd=0.00
+
+
+## Etapa 6 — M0_QUOTA_PROBE fechado com OpenRouter
+Executado em 2026-10-01.
+
+Provider final do M1:
+- provider=OpenRouter
+- account_plan=Free
+- access_mode=authenticated_web_chat_session
+- workspace=Personal/default
+- exact_model_id=qwen/qwen3.8-27b:free
+- model_name=Qwen3.8 27B (free)
+- input=text,image,video
+- output=text
+- tool_calling=true
+- prompt_price_usd_per_million=0
+- completion_price_usd_per_million=0
+
+Runtime proof:
+- active model shown in OpenRouter chat=Qwen3.8 27B (gratuito)
+- prompt=Responda exatamente: M1_PROVIDER_OK
+- observed response=M1_PROVIDER_OK
+- runtime_probe=PASS
+
+Free quota planning:
+- free_requests_per_day=50
+- max_model_calls_per_run=8
+- 30 valid runs worst-case calls=240
+- maximum allowed invalid slots at 20%=6
+- maximum extra invalid attempts for a still-valid round=12
+- conservative dry-run slots=6
+- conservative worst-case total requests=384
+- minimum calendar days at 50/day=8
+- benchmark key validity=30 days
+- thirty_valid_runs_fit=true, provided quota pacing across days is respected
+
+Cost safeguards:
+- max_paid_cost_usd=0.00
+- auto_paid_upgrade_allowed=false
+- target model is explicitly the :free variant
+- dedicated OpenRouter key was created with custom credit limit USD 0 and 30-day validity
+- runtime proof used authenticated web chat and did not expose/read the secret
+
+M0_QUOTA_PROBE=PASS
+
+Stage 7 preflight result:
+- M0_STATUS_PASS=PASS
+- RUNTIME_PROBE_PASS=PASS
+- THIRTY_RUNS_FIT=PASS
+- MAX_PAID_COST_ZERO=PASS
+- AUTO_PAID_DISABLED=PASS
+- BILLING_STATE_KNOWN=PASS
+- MODEL_ID_KNOWN=PASS
+- MODEL_PRICE_ZERO=PASS
+- BASELINE_PREFLIGHT=PASS
+
+Stage 7 baseline remains NOT_RUN until the generic baseline implementation completes a real development dry run.

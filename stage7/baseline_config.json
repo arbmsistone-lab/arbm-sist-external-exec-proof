@@ -1,0 +1,17 @@
+{
+  "provider": "OpenRouter",
+  "access_mode": "authenticated_web_chat_session",
+  "model_id": "qwen/qwen3.8-27b:free",
+  "temperature": 0,
+  "max_output_tokens": 2048,
+  "max_agent_steps": 40,
+  "max_wall_time_seconds": 180,
+  "max_model_calls": 8,
+  "max_paid_cost_usd": 0.0,
+  "screenshot_width": 1536,
+  "screenshot_height": 864,
+  "locale": "pt-BR",
+  "daily_request_limit": 50,
+  "quota_pacing_required": true,
+  "frozen": false
+}
