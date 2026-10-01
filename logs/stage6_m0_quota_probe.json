@@ -26,5 +26,11 @@
     "thirty_valid_runs_fit":  null,
     "max_paid_cost_usd":  0,
     "auto_paid_upgrade_allowed":  false,
-    "status":  "BLOCKED_ACCOUNT_SPECIFIC_STATE_NOT_OBSERVED"
+    "status":  "BLOCKED_ACCOUNT_SPECIFIC_STATE_NOT_OBSERVED",
+    "aistudio_rate_limit_url":  "https://aistudio.google.com/rate-limit?timeRange=last-28-days",
+    "aistudio_projects_url":  "https://aistudio.google.com/projects",
+    "public_route_auth_required":  true,
+    "background_authenticated_read":  "BLOCKED_BY_SESSION_BOUNDARY",
+    "foreground_interaction_allowed":  false,
+    "billing_changes":  false
 }
