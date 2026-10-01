@@ -1,4 +1,4 @@
-name: M1 V3 Groq cloud 20-call reliability
+name: M1 V3 Groq paced 20-call reliability
 on:
   push:
     branches: [g3-free-cert-lane-20260910]
@@ -11,7 +11,7 @@ concurrency:
 jobs:
   probe:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       ZERO_SPEND: 'true'
       HEAVY_LOCAL: '0'
@@ -20,71 +20,92 @@ jobs:
       ERROR_RATE_THRESHOLD_PERCENT: '5'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - name: Run 20-call multimodal reliability probe
+      - name: Run paced multimodal reliability probe
         env:
           GROQ_G3_FREE_CERT_KEY: ${{ secrets.GROQ_G3_FREE_CERT_KEY }}
         shell: bash
         run: |
           set -euo pipefail
-          test -n "${GROQ_G3_FREE_CERT_KEY:-}"
           python - <<'PY'
-          import os, json, time, urllib.request, urllib.error
+          import os, json, time, urllib.request, urllib.error, re
           model=os.environ['GROQ_MODEL']
           key=os.environ['GROQ_G3_FREE_CERT_KEY']
-          n=int(os.environ['SAMPLE_MIN'])
+          target=int(os.environ['SAMPLE_MIN'])
           threshold=float(os.environ['ERROR_RATE_THRESHOLD_PERCENT'])
-          image_url='https://console.groq.com/og_cloud.png'
           url='https://api.groq.com/openai/v1/chat/completions'
-          results=[]
-          for i in range(1,n+1):
+          image_url='https://console.groq.com/og_cloud.png'
+          accepted=[]
+          http_attempts=[]
+          max_retries=3
+          base_backoffs=[30,60,120]
+          def one_call(seq, retry):
               payload={
                 'model':model,
                 'messages':[{'role':'user','content':[
                   {'type':'text','text':"What's in this image? Reply briefly."},
                   {'type':'image_url','image_url':{'url':image_url}}
                 ]}],
-                'temperature':1,
-                'max_completion_tokens':64,
-                'top_p':1,
-                'stream':False,
-                'stop':None
+                'temperature':1,'max_completion_tokens':64,'top_p':1,'stream':False,'stop':None
               }
               req=urllib.request.Request(url,data=json.dumps(payload).encode(),method='POST',
-                  headers={'Authorization':'Bearer '+key,'Content-Type':'application/json',
-                           'User-Agent':'ARBM-SIST-M1-V3-Groq-20call/2.0'})
-              rec={'attempt':i,'http_status':None,'ok':False,'rate_limited':False,'error_type':None}
+                headers={'Authorization':'Bearer '+key,'Content-Type':'application/json',
+                         'User-Agent':'ARBM-SIST-M1-V3-Groq-paced/1.0'})
+              rec={'target_seq':seq,'retry':retry,'http_status':None,'ok':False,'rate_limited':False}
               try:
                   with urllib.request.urlopen(req,timeout=30) as r:
-                      rec['http_status']=r.status
                       body=json.load(r)
+                      rec['http_status']=r.status
                       rec['returned_model']=body.get('model')
                       rec['ok']=r.status==200 and body.get('model')==model
                       rec['rate_headers']={k:v for k,v in r.headers.items() if k.lower().startswith('x-ratelimit')}
               except urllib.error.HTTPError as e:
+                  body=e.read().decode('utf-8','replace')
                   rec['http_status']=e.code
                   rec['rate_limited']=e.code==429
-                  rec['error_type']='HTTP_'+str(e.code)
-                  try: rec['error_body']=e.read().decode('utf-8','replace')[:700]
-                  except Exception: pass
+                  rec['error_body']=body[:700]
                   rec['rate_headers']={k:v for k,v in e.headers.items() if k.lower().startswith('x-ratelimit')}
               except Exception as e:
                   rec['error_type']=type(e).__name__
-              results.append(rec)
-              print(json.dumps(rec,separators=(',',':')))
-              if i < n: time.sleep(1)
-          eligible=len(results)
-          failures=sum(1 for r in results if not r['ok'])
-          rate429=sum(1 for r in results if r['rate_limited'])
-          error_rate=100.0*failures/eligible if eligible else 100.0
-          rate429_pct=100.0*rate429/eligible if eligible else 100.0
-          gate = eligible>=20 and error_rate < threshold and rate429_pct < threshold
-          out={'schema':'arbm-m1-v3-reliability-v2','provider':'groq','model_requested':model,
-            'eligible_attempts':eligible,'sample_min':20,'failures':failures,
-            'error_rate_percent':error_rate,'http_429':rate429,'rate_429_percent':rate429_pct,
-            'threshold_percent':threshold,'small_sample':eligible<20,'gate_pass':gate,
-            'zero_spend_contract':True,'heavy_local':0,'results':results}
+              return rec
+
+          # Let any previous burst drain before measuring the paced regime.
+          time.sleep(35)
+          for seq in range(1,target+1):
+              rec=None
+              for retry in range(0,max_retries+1):
+                  rec=one_call(seq,retry)
+                  http_attempts.append(rec)
+                  print(json.dumps(rec,separators=(',',':')))
+                  if rec['ok']:
+                      accepted.append(rec)
+                      break
+                  if rec.get('rate_limited') and retry < max_retries:
+                      time.sleep(base_backoffs[retry])
+                      continue
+                  break
+              if seq < target:
+                  # ~2.4 accepted image calls/minute. At ~2071 ITPM each, this stays below the observed 7000 ITPM ceiling.
+                  time.sleep(25)
+
+          rate429=sum(1 for r in http_attempts if r.get('rate_limited'))
+          hard_failures=sum(1 for s in range(1,target+1) if not any(r.get('ok') and r['target_seq']==s for r in http_attempts))
+          total_http=len(http_attempts)
+          rate429_pct=100.0*rate429/total_http if total_http else 100.0
+          accepted_count=len(accepted)
+          gate=(accepted_count>=20 and hard_failures==0 and rate429_pct < threshold)
+          out={
+            'schema':'arbm-m1-v3-paced-reliability-v1',
+            'provider':'groq','model_requested':model,
+            'accepted_image_calls':accepted_count,'target_accepted_calls':20,
+            'http_attempts':total_http,'http_429':rate429,'rate_429_percent':rate429_pct,
+            'hard_failures':hard_failures,'threshold_percent':threshold,
+            'small_sample':accepted_count<20,'gate_pass':gate,
+            'pacing_seconds':25,'backoff_seconds':[30,60,120],
+            'zero_spend_contract':True,'heavy_local':0,
+            'attempts':http_attempts
+          }
           open('m1-v3-groq-20call.json','w',encoding='utf-8').write(json.dumps(out,indent=2))
-          print(json.dumps({k:out[k] for k in ('eligible_attempts','failures','error_rate_percent','http_429','rate_429_percent','small_sample','gate_pass')}))
+          print(json.dumps({k:out[k] for k in ('accepted_image_calls','http_attempts','http_429','rate_429_percent','hard_failures','small_sample','gate_pass')}))
           raise SystemExit(0 if gate else 1)
           PY
       - name: Preserve evidence
