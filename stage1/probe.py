@@ -1,0 +1,1 @@
+print('STAGE1_WRITE_OK')

@@ -1,0 +1,73 @@
+﻿**********************
+Início da transcrição do Windows PowerShell
+Hora de início: 20261001122321
+Nome de Usuário: LAPTOP-9SS35KOB\airto
+Executar como Usuário: LAPTOP-9SS35KOB\airto
+Nome da Configuração: 
+Computador: LAPTOP-9SS35KOB (Microsoft Windows NT 10.0.26200.0)
+Aplicativo Host: powershell.exe -Command $repo='C:\Users\airto\arbm-sist-m1-stage1'; Set-Location $repo; Set-ExecutionPolicy -Scope Process Bypass -Force; & .\stage1\run_stage1.ps1 *>&1 | Tee-Object -FilePath .\logs\stage1_console_full.txt
+ID do Processo: 2952
+PSVersion: 5.1.26100.9549
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9549
+BuildVersion: 10.0.26100.9549
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+=== ARBM SIST M1 / ETAPA 1 / WINDOWS LOCAL ===
+=== ARBM SIST M1 / ETAPA 1 / WINDOWS LOCAL ===
+TIMESTAMP_START=2026-10-01T12:23:21.3065945-03:00
+TIMESTAMP_START=2026-10-01T12:23:21.3065945-03:00
+GIT_BRANCH=m1-stage1
+GIT_BRANCH=m1-stage1
+PYTHON=Python 3.12.14
+PYTHON=Python 3.12.14
+[1/4] Fixture LibreOffice headless (background)...
+[1/4] Fixture LibreOffice headless (background)...
+convert C:\Users\airto\AppData\Local\Temp\m1_fixture.csv as a Calc document -> C:\Users\airto\arbm-sist-m1-stage1\fixtures\development\m1_fixture.ods using filter : calc8
+FIXTURE_CREATED_BY_LIBREOFFICE_HEADLESS=PASS
+FIXTURE_CREATED_BY_LIBREOFFICE_HEADLESS=PASS
+GUI_FOREGROUND_BLOCKED=true
+GUI_FOREGROUND_BLOCKED=true
+FIXTURE=C:\Users\airto\arbm-sist-m1-stage1\fixtures\development\m1_reset_fixture.ods
+FIXTURE=C:\Users\airto\arbm-sist-m1-stage1\fixtures\development\m1_reset_fixture.ods
+[2/4] MutaÃ§Ã£o real + reset + negativos...
+[2/4] MutaÃ§Ã£o real + reset + negativos...
+RUN 01/10: MUTATION=CELL_VALUE DETECTED=PASS RESET=PASS
+RUN 02/10: MUTATION=CELL_TEXT DETECTED=PASS RESET=PASS
+RUN 03/10: MUTATION=ROW_INSERT DETECTED=PASS RESET=PASS
+RUN 04/10: MUTATION=ROW_DELETE DETECTED=PASS RESET=PASS
+RUN 05/10: MUTATION=SHEET_CREATE DETECTED=PASS RESET=PASS
+RUN 06/10: MUTATION=SHEET_RENAME DETECTED=PASS RESET=PASS
+RUN 07/10: MUTATION=CELL_VALUE DETECTED=PASS RESET=PASS
+RUN 08/10: MUTATION=CELL_TEXT DETECTED=PASS RESET=PASS
+RUN 09/10: MUTATION=ROW_INSERT DETECTED=PASS RESET=PASS
+RUN 10/10: MUTATION=ROW_DELETE DETECTED=PASS RESET=PASS
+MUTATION_DETECTED_10/10
+RESET_RESTORED_10/10
+METADATA_IGNORED=PASS
+NUMERIC_TYPE_DISTINGUISHED=PASS
+[3/4] Fingerprint...
+[3/4] Fingerprint...
+ENVIRONMENT_FINGERPRINT_OK
+ENVIRONMENT_FINGERPRINT_OK
+Arquivo: C:\Users\airto\arbm-sist-m1-stage1\logs\environment_fingerprint.json
+Arquivo: C:\Users\airto\arbm-sist-m1-stage1\logs\environment_fingerprint.json
+[4/4] Estabilidade fingerprint...
+[4/4] Estabilidade fingerprint...
+ENVIRONMENT_FINGERPRINT_OK
+Arquivo: C:\Users\airto\arbm-sist-m1-stage1\logs\environment_fingerprint_1.json
+ENVIRONMENT_FINGERPRINT_OK
+Arquivo: C:\Users\airto\arbm-sist-m1-stage1\logs\environment_fingerprint_2.json
+FINGERPRINT_STABLE=PASS
+FINGERPRINT_STABLE=PASS
+ETAPA_1_LOCAL_TEST_COMPLETE
+ETAPA_1_LOCAL_TEST_COMPLETE
+TIMESTAMP_END=2026-10-01T12:23:33.3701270-03:00
+TIMESTAMP_END=2026-10-01T12:23:33.3701270-03:00
+**********************
+Fim da transcrição do Windows PowerShell
+Hora de término: 20261001122333
+**********************
