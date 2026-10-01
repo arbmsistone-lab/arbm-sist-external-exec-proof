@@ -1,0 +1,34 @@
+{
+  "schema": "arbm-m1-v3-cloud-validation-record-v1",
+  "recorded_at": "2026-10-01T23:00:21Z",
+  "route": "GROQ_QWEN3_8_27B_CLOUD",
+  "repository": "arbmsistone-lab/arbm-sist-external-exec-proof",
+  "branch": "g3-free-cert-lane-20260910",
+  "workflow_run": 36937544022,
+  "workflow_commit": "c64217cbfb0278b5ce57c22a5a8e66df354a1b8c",
+  "protocol": {
+    "percentage_gate_min_sample": 20,
+    "error_rate_threshold_percent": 5,
+    "pacing_seconds": 25,
+    "backoff_seconds": [
+      30,
+      60,
+      120
+    ]
+  },
+  "result": {
+    "accepted_image_calls": 20,
+    "http_attempts": 20,
+    "http_429": 0,
+    "rate_429_percent": 0,
+    "hard_failures": 0,
+    "small_sample": false,
+    "gate_pass": true
+  },
+  "local_resource_policy": {
+    "heavy_local": 0,
+    "local_model_runtime": false,
+    "cloud_execution": true
+  },
+  "billing_changed": false
+}
