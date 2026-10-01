@@ -345,3 +345,43 @@ Nenhum destes hashes constitui o freeze final da baseline. O freeze final só po
 
 ETAPA_7_BASELINE continua NOT_RUN.
 ETAPA_8_DRY_RUN_REAL continua NOT_RUN.
+
+
+## Etapa 6 — estado específico da conta AI Studio observado
+Inspeção visível somente leitura executada em 2026-10-01.
+
+Projeto selecionado:
+- display_name=ARBM-SIST-G3-PAID-CERT
+- project_id=arbm-sist-g3-paid-cert
+
+Modelo:
+- visible_name=Gemini 3.5 Flash
+- exact_model_id=gemini-3.5-flash
+
+Tier e limites ativos observados no AI Studio:
+- usage_tier=Tier 1
+- RPM=1000
+- TPM=2000000
+- RPD=10000
+
+Máximo de uso observado nos últimos 28 dias:
+- RPM=18
+- TPM=401470
+- RPD=388
+
+Billing:
+- billing_account=My Billing Account
+- plan=Tier 1 / prepay
+- status=prepaid credits exhausted
+- current project spend shown=R$0,00
+- service banner states prepaid credits are exhausted and more credits are required to resume service
+- free_tier_confirmed_for_account=false
+- auto_paid_upgrade_allowed=false
+- max_paid_cost_usd=0.00
+
+Conclusão operacional:
+- rate limits themselves are sufficient for 30 valid runs
+- current billing state prevents API execution because prepaid credit balance is exhausted
+- thirty_valid_runs_fit_without_paid=false
+- M0_QUOTA_PROBE=BLOCKED_NO_PREPAID_CREDITS
+- Stage 7 baseline remains NOT_RUN
