@@ -546,3 +546,34 @@ Model freeze semantics:
 - model_contract_frozen=true
 - baseline_implementation_frozen=false
 The provider/model/temperature/limits are frozen now; baseline implementation code remains under development until its own dry-run freeze gate.
+
+## M1 free-quota budget and proof calendar
+OpenRouter Free limit used by this protocol: 50 requests/day.
+
+Maximum proof demand:
+- 5 tasks x 3 repetitions x 2 systems x 8 model calls = 240 requests.
+- Minimum proof duration at the 50/day ceiling = 5 calendar days.
+- Each paired task/repetition can consume at most 16 calls.
+- At most 3 complete pairs run on one proof day = 48 calls/day.
+- The remaining 2 daily requests are safety margin.
+
+Development / dry-run quota:
+- Development days: maximum 40 model calls/day.
+- 10 calls/day remain unused as quota/error margin.
+- Proof days: development allocation = 0 calls.
+
+Frozen proof calendar from RANDOMIZATION_SEED=20261001:
+- Proof Day 1: T01/R1, T01/R2, T01/R3
+- Proof Day 2: T02/R1, T02/R2, T02/R3
+- Proof Day 3: T03/R1, T03/R2, T03/R3
+- Proof Day 4: T04/R1, T04/R2, T04/R3
+- Proof Day 5: T05/R1, T05/R2, T05/R3
+
+Within each pair, BASELINE/ARBM order follows randomization/run_order.json exactly.
+
+Quota exhaustion rule:
+- BASELINE and ARBM of a pair must run on the same calendar day.
+- If quota is exhausted after either member has started, the entire pair is BENCHMARK_INVALID with cause=PAIR_QUOTA_EXHAUSTED.
+- Neither member enters performance metrics.
+- The full pair is rerun from reset on the next available proof day before later scheduled pairs.
+- Later pairs shift forward as needed, with a maximum of 3 complete pairs/day.
