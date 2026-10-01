@@ -33,28 +33,40 @@ jobs:
           key=os.environ['GROQ_G3_FREE_CERT_KEY']
           n=int(os.environ['SAMPLE_MIN'])
           threshold=float(os.environ['ERROR_RATE_THRESHOLD_PERCENT'])
-          img='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+          image_url='https://console.groq.com/og_cloud.png'
           url='https://api.groq.com/openai/v1/chat/completions'
           results=[]
           for i in range(1,n+1):
-              payload={'model':model,'temperature':0,'max_tokens':8,'messages':[{'role':'user','content':[
-                  {'type':'text','text':'Inspect the image and reply only OK.'},
-                  {'type':'image_url','image_url':{'url':'data:image/png;base64,'+img}}
-              ]}]}
+              payload={
+                'model':model,
+                'messages':[{'role':'user','content':[
+                  {'type':'text','text':"What's in this image? Reply briefly."},
+                  {'type':'image_url','image_url':{'url':image_url}}
+                ]}],
+                'temperature':1,
+                'max_completion_tokens':64,
+                'top_p':1,
+                'stream':False,
+                'stop':None
+              }
               req=urllib.request.Request(url,data=json.dumps(payload).encode(),method='POST',
                   headers={'Authorization':'Bearer '+key,'Content-Type':'application/json',
-                           'User-Agent':'ARBM-SIST-M1-V3-Groq-20call/1.0'})
+                           'User-Agent':'ARBM-SIST-M1-V3-Groq-20call/2.0'})
               rec={'attempt':i,'http_status':None,'ok':False,'rate_limited':False,'error_type':None}
               try:
                   with urllib.request.urlopen(req,timeout=30) as r:
                       rec['http_status']=r.status
                       body=json.load(r)
                       rec['returned_model']=body.get('model')
-                      rec['ok']=r.status==200
+                      rec['ok']=r.status==200 and body.get('model')==model
+                      rec['rate_headers']={k:v for k,v in r.headers.items() if k.lower().startswith('x-ratelimit')}
               except urllib.error.HTTPError as e:
                   rec['http_status']=e.code
                   rec['rate_limited']=e.code==429
                   rec['error_type']='HTTP_'+str(e.code)
+                  try: rec['error_body']=e.read().decode('utf-8','replace')[:700]
+                  except Exception: pass
+                  rec['rate_headers']={k:v for k,v in e.headers.items() if k.lower().startswith('x-ratelimit')}
               except Exception as e:
                   rec['error_type']=type(e).__name__
               results.append(rec)
@@ -65,8 +77,8 @@ jobs:
           rate429=sum(1 for r in results if r['rate_limited'])
           error_rate=100.0*failures/eligible if eligible else 100.0
           rate429_pct=100.0*rate429/eligible if eligible else 100.0
-          gate = eligible>=20 and error_rate < threshold
-          out={'schema':'arbm-m1-v3-reliability-v1','provider':'groq','model_requested':model,
+          gate = eligible>=20 and error_rate < threshold and rate429_pct < threshold
+          out={'schema':'arbm-m1-v3-reliability-v2','provider':'groq','model_requested':model,
             'eligible_attempts':eligible,'sample_min':20,'failures':failures,
             'error_rate_percent':error_rate,'http_429':rate429,'rate_429_percent':rate429_pct,
             'threshold_percent':threshold,'small_sample':eligible<20,'gate_pass':gate,
