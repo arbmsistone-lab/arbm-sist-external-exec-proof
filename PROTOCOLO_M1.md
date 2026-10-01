@@ -112,3 +112,32 @@ Isso não é prova de automação GUI e não deve ser usado como evidência de c
 A criação headless é apenas preparação determinística da fixture para validar reset, hash semântico e fingerprint.
 
 A Etapa 2 permanece bloqueada até decisão explícita após revisão da Etapa 1.
+
+
+## Resultado da Etapa 2 — biblioteca de verificadores
+Executado localmente no Windows em 2026-10-01, em segundo plano.
+
+Cobertura validada:
+- cell_value / cell_text / cell_value_by_row_label
+- row_exists / row_not_exists / row_count / row_matches
+- row_inserted / row_deleted
+- column_exists / column_not_exists / column_values / column_order
+- column_inserted / column_deleted
+- sheet_exists / sheet_not_exists / sheet_count / sheet_order / sheet_renamed
+- formula_in_cell / formula_pattern / formula_result
+- range_sorted_ascending / range_sorted_descending
+- range_copied / range_moved
+- filter_active / filter_condition / visible_rows_match
+- normalização pt-BR de fórmula e número
+
+Gate observado:
+- VERIFIER_CASES=42/42
+- FALSE_POSITIVES=0
+- FALSE_NEGATIVES=0
+- NORMALIZE_PTBR_FORMULA=PASS
+- NORMALIZE_PTBR_NUMBER=PASS
+- STAGE2_VERIFIER_GATE=PASS
+
+A primeira rodada da Etapa 2 falhou em formula_pos e NORMALIZE_PTBR_FORMULA. A causa foi normalização incompleta da referência ODF `[.B2:.B3]`; o bug foi corrigido antes do gate final. Essa falha inicial não foi ocultada nem usada como PASS.
+
+A Etapa 3 permanece bloqueada até o registro/versionamento deste gate.
